@@ -19,6 +19,7 @@ DECLFN Kharon::Kharon( void ) {
 
     RSL_IMP( Krnl32 );
     RSL_IMP( Ntdll );
+    KhDbg( "opa3" );
 }
 
 auto DECLFN Kharon::Start(
@@ -26,5 +27,5 @@ auto DECLFN Kharon::Start(
 ) -> void {
     do {
         KhDbg( "fake" );
-    } while ( Session.Connected );
+    } while ( 1 );
 }

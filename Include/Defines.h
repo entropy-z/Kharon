@@ -13,8 +13,8 @@
     }                                           \
 }
 
-#ifndef DEBUG
-#define KhDbg( x, ... ) { Ntdll.DbgPrint( ( "[DEBUG::%s::%d] " x "\n" ), __FUNCTION__, __LINE__, ##__VA_ARGS__ ); }
+#ifdef DEBUG
+#define KhDbg( x, ... ) { Ntdll.DbgPrint( ( "[DEBUG::%s::%s::%d] => " x "\n" ), __FILE__ ,__FUNCTION__, __LINE__, ##__VA_ARGS__ ); }
 #else
 #define KhDbg( x, ... ) 
 #endif

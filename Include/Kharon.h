@@ -374,7 +374,7 @@ public:
     struct {
         ULONG ID;
         BOOL ( *Run )( PPARSER );
-    } Mgmt;
+    } Mgmt = {};
     
     static auto Dispatcher( 
         VOID 
