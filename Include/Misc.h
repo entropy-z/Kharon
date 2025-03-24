@@ -3,8 +3,6 @@
 
 #include <Kharon.h>
 
-// using namespace Root;
-
 #define RSL_TYPE( x )   .x = reinterpret_cast<decltype( x )*>( Hsh::StrA( #x ) )
 #define RSL_API( m, f ) LdrLoad::Api<decltype(s)>( m, Hsh::StrA( #f ) )
 

@@ -89,8 +89,6 @@ auto DECLFN Process::Create(
     STARTUPINFOEXA      SiEx         = { 0 };
     SECURITY_ATTRIBUTES SecurityAttr = { sizeof( SECURITY_ATTRIBUTES ), NULL, TRUE };
 
-    PsFlags |= CREATE_NO_WINDOW;
-
     if ( Ps.BlockDlls ) { UpdateCount++; }
     if ( Ps.ParentID  ) { UpdateCount++; };
 

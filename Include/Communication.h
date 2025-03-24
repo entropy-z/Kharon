@@ -93,10 +93,11 @@ namespace Package {
 }
 
 namespace Parser {
-    auto New(
-        _In_ PBYTE  Buffer,
-        _In_ SIZE_T Size
-    ) -> PPARSER;
+    auto New( 
+        _In_ PPARSER parser, 
+        _In_ PVOID   Buffer, 
+        _In_ UINT32  size 
+    ) -> VOID;
 
     auto Destroy(
         _In_ PPARSER Parser
@@ -106,26 +107,34 @@ namespace Parser {
         _In_ PPARSER Parser
     ) -> BYTE;
 
+    auto GetInt16(
+        _In_ PPARSER Parser
+    ) -> INT16;
+
     auto GetInt32(
         _In_ PPARSER Parser
-    ) -> UINT32;
+    ) -> INT32;
 
     auto GetInt64(
         _In_ PPARSER Parser
-    ) -> UINT64;
+    ) -> INT64;
 
     auto GetBytes(
-        _In_  PPARSER Parser,
-        _Out_ PULONG  Size
+        _In_  PPARSER parser,
+        _Out_ PULONG  size
     ) -> PBYTE;
 
     auto GetStr( 
-        _In_  PPARSER Parser,
-        _Out_ PULONG  Size
+        _In_ PPARSER parser, 
+        _In_ PULONG  size 
     ) -> PCHAR;
 
     auto GetWstr(
-        _In_  PPARSER Parser,
-        _Out_ PULONG  Size
+        _In_ PPARSER parser, 
+        _In_ PULONG  size 
     ) -> PWCHAR;
+
+    auto Destroy(
+        _In_ PPARSER Parser 
+    ) -> BOOL;    
 }
