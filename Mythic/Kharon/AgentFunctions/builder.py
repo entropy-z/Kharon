@@ -85,7 +85,7 @@ class KharonAgent( PayloadType ):
 
     AgentPath = pathlib.Path(".") / "Kharon";
     AgentIconPath = AgentPath / "Kharon.jpg";
-    AgentCodePath = pathlib.Path(".") / ".." / "Agentt";
+    AgentCodePath = pathlib.Path(".") / ".." / "Agent";
 
     agent_path      = AgentPath;
     agent_icon_path = AgentIconPath;
