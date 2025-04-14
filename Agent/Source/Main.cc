@@ -8,11 +8,12 @@ EXTERN_C DECLFN auto Main(
     Kharon Kh;
 
     Library   KhLibrary( &Kh );
+    Token     KhToken( &Kh );
     Heap      KhHeap( &Kh );
     Process   KhProcess( &Kh );
     Thread    KhThread( &Kh );
     Task      KhTask( &Kh );
-    Transfer  KhTransfer( &Kh );
+    Communics KhCommunics( &Kh );
     Package   KhPackage( &Kh );
     Parser    KhParser( &Kh );
     Injection KhInjection( &Kh );
@@ -23,11 +24,12 @@ EXTERN_C DECLFN auto Main(
 
     Kh.Init();
 
+    Kh.InitToken( &KhToken );
     Kh.InitInjection( &KhInjection );
     Kh.InitObfuscate( &KhObfuscate );
     Kh.InitProcess( &KhProcess );
     Kh.InitTask( &KhTask );
-    Kh.InitTransfer( &KhTransfer );
+    Kh.InitCommunics( &KhCommunics );
     Kh.InitThread( &KhThread );
     Kh.InitPackage( &KhPackage );
     Kh.InitParser( &KhParser );
@@ -197,7 +199,7 @@ auto DECLFN Kharon::Start(
     
     KhDbgz( "initializing the principal routine" );
 
-    Success = Tf->Checkin();
+    Success = Cmm->Checkin();
 
     do {            
         Obf->Main( Session.SleepTime );

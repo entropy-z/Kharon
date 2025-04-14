@@ -2,7 +2,7 @@
 
 using namespace Root;
 
-auto DECLFN Transfer::Checkin(
+auto DECLFN Communics::Checkin(
     VOID
 ) -> BOOL {
     PPACKAGE CheckinPkg = Kh->Pkg->Checkin();
@@ -60,7 +60,7 @@ auto DECLFN Transfer::Checkin(
     return TRUE;
 }
 
-auto DECLFN Transfer::Send(
+auto DECLFN Communics::Send(
     _In_      PVOID   Data,
     _In_      UINT64  Size,
     _Out_opt_ PVOID  *RecvData,

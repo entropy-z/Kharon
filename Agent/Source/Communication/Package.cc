@@ -387,7 +387,7 @@ auto DECLFN Package::Transmit(
 
     Kh->Pkg->Destroy( Package );
 
-    if ( Kh->Tf->Send( FinalPacket, FinalPacketLen, &Base64Buff, &Base64Size ) ) {
+    if ( Kh->Cmm->Send( FinalPacket, FinalPacketLen, &Base64Buff, &Base64Size ) ) {
         Success = TRUE;
     }
 

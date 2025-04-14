@@ -2138,6 +2138,7 @@ NTSYSAPI NTSTATUS NTAPI LdrGetProcedureAddress( HMODULE ModuleHandle, PANSI_STRI
 NTSYSAPI NTSTATUS NTAPI LdrLoadDll( PWCHAR PathToFile, ULONG Flags, PUNICODE_STRING ModuleFileName, PHANDLE ModuleHandle );
 NTSYSAPI NTSTATUS NTAPI NtQueryInformationProcess( _In_ HANDLE ProcessHandle, _In_ PROCESSINFOCLASS ProcessInformationClass, _Out_writes_bytes_(ProcessInformationLength) PVOID ProcessInformation, _In_ ULONG ProcessInformationLength, _Out_opt_ PULONG ReturnLength );
 NTSYSAPI NTSTATUS NTAPI NtSetEvent( _In_ HANDLE EventHandle, _Out_opt_ PLONG PreviousState );
+NTSYSAPI NTSTATUS NTAPI NtQueryInformationToken( _In_ HANDLE TokenHandle, _In_ TOKEN_INFORMATION_CLASS TokenInformationClass, _Out_writes_bytes_to_opt_(TokenInformationLength, *ReturnLength) PVOID TokenInformation, _In_ ULONG TokenInformationLength, _Out_ PULONG ReturnLength );
 NTSYSAPI NTSTATUS NTAPI NtQuerySystemInformation( _In_ SYSTEM_INFORMATION_CLASS SystemInformationClass, _Out_writes_bytes_opt_(SystemInformationLength) PVOID SystemInformation, _In_ ULONG SystemInformationLength, _Out_opt_ PULONG ReturnLength );
 NTSYSAPI NTSTATUS NTAPI SystemFunction040( PVOID Memory, ULONG MemorySize, ULONG OptionFlags );
 NTSYSAPI NTSTATUS NTAPI SystemFunction041( PVOID Memory, ULONG MemorySize, ULONG OptionFlags );
