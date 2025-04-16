@@ -25,6 +25,7 @@ auto DECLFN Heap::Free(
 	_In_ PVOID Block,
 	_In_ ULONG Size
 ) -> BOOL {
+    Mem::Zero( U_PTR( Block ), Size );
     return Kh->Ntdll.RtlFreeHeap( C_PTR( Kh->Session.HeapHandle ), 0, Block );
 }
 

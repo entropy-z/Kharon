@@ -259,6 +259,8 @@ namespace Root {
             DECLAPI( LocalReAlloc );
             DECLAPI( LocalFree    );
         
+            DECLAPI( SetEvent );
+
             DECLAPI( VirtualProtect );
             DECLAPI( VirtualProtectEx );
             DECLAPI( VirtualAlloc );
@@ -325,6 +327,8 @@ namespace Root {
             RSL_TYPE( LocalAlloc   ),
             RSL_TYPE( LocalReAlloc ),
             RSL_TYPE( LocalFree    ),
+
+            RSL_TYPE( SetEvent ),
         
             RSL_TYPE( VirtualProtect ),
             RSL_TYPE( VirtualProtectEx ),
