@@ -2,6 +2,6 @@ Build
 *.exe
 *.bin
 .vscode
-Att.md
+NOTES.md
 ldr*
 a.py

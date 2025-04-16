@@ -33,7 +33,9 @@
 #define DECLAPI( x )  decltype( x ) * x
 #define DECLTYPE( x ) ( decltype( x ) )
 #define DECLFN        __attribute__( ( section( ".text$B" ) ) )
-#define PIPE_BUFFER_LENGTH 0x100000
+
+#define BEG_BUFFER_LENGTH  0x1000
+#define PIPE_BUFFER_LENGTH 0x10000
 
 /*==============[ Dereference ]==============*/
 

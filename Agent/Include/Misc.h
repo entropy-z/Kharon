@@ -211,15 +211,24 @@ enum {
     TkDownload,
     TkGetInfo,
     TkSelfDelete,
-    TkExit
+    TkExit,
+    TkDotnet
 } KH_TASKS;
+
+enum {
+    SbDotInline = 5,
+    SbDtUnload,
+    SbDotList,
+    SbDotInvoke,
+    SbDtSpawn
+} KH_DOTNET;
 
 enum {
     UpInit,
     UpChunk
 } KH_UP;
 
-#define TSK_LENGTH ( TkExit - 9 )
+#define TSK_LENGTH ( TkDotnet - 9 )
 
 enum {
     SbCfgSleep = 15,
@@ -228,7 +237,9 @@ enum {
     SbCfgPe,
     SbCfgPpid,
     SbCfgBlockDlls,
-    SbCfgCurDir
+    SbCfgCurDir,
+    sbCfgSpawn,
+    SbCfgJitter
 } SB_CONFIG;
 
 enum {

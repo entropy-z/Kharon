@@ -225,7 +225,7 @@ class FsArguments(TaskArguments):
                 raise ValueError(f"{action} requires a destination parameter")
 
 class FsCommand(CommandBase):
-    cmd = "fs"
+    cmd = "info"
     needs_admin = False
     help_cmd = \
     """
@@ -334,10 +334,10 @@ class FsCommand(CommandBase):
                         Attribute = Psr.Int32()
                         
                         if FileSize == -1:
-                            file_info['Type'] = "<DIR>"
+                            file_info['Type'] = "DIR"
                             file_info['Size'] = None
                         else:
-                            file_info['Type'] = "<FILE>"
+                            file_info['Type'] = "FILE"
                             file_info['Size'] = f"{FileSize}" 
                         
                         def TimePsr():

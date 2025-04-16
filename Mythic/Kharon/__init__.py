@@ -16,5 +16,4 @@ for x in modules:
             if "__" not in el:
                 globals()[el] = getattr(module, el)
 
-
 sys.path.append(os.path.abspath(currentPath.name))

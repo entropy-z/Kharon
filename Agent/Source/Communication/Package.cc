@@ -374,20 +374,20 @@ auto DECLFN Package::Destroy(
 auto DECLFN Package::Transmit( 
     _In_  PPACKAGE Package, 
     _Out_ PVOID*   Response, 
-    _Out_ PSIZE_T  Size 
+    _Out_ PUINT64  Size 
 ) -> BOOL {
     BOOL   Success    = FALSE;
     PVOID  Base64Buff = NULL;
-    SIZE_T Base64Size = 0;
+    UINT64 Base64Size = 0;
     PVOID  RetBuffer  = NULL;
-    SIZE_T Retsize    = 0;
+    UINT64 Retsize    = 0;
 
     PCHAR  FinalPacket    = Kh->Pkg->Base64Enc( (const unsigned char*)Package->Buffer, Package->Length );
-    SIZE_T FinalPacketLen = Kh->Pkg->Base64EncSize( Package->Length );
+    UINT64 FinalPacketLen = Kh->Pkg->Base64EncSize( Package->Length );
 
     Kh->Pkg->Destroy( Package );
 
-    if ( Kh->Cmm->Send( FinalPacket, FinalPacketLen, &Base64Buff, &Base64Size ) ) {
+    if ( Kh->Tsp->Send( FinalPacket, FinalPacketLen, &Base64Buff, &Base64Size ) ) {
         Success = TRUE;
     }
 
@@ -491,7 +491,7 @@ auto DECLFN Package::AddWString(
 auto DECLFN Parser::New( 
     _In_ PPARSER parser, 
     _In_ PVOID   Buffer, 
-    _In_ UINT32  size 
+    _In_ UINT64  size 
 ) -> VOID {
     if ( parser == NULL )
         return;
@@ -506,7 +506,7 @@ auto DECLFN Parser::New(
 auto DECLFN Parser::NewTask( 
     _In_ PPARSER parser, 
     _In_ PVOID   Buffer, 
-    _In_ UINT32  size 
+    _In_ UINT64  size 
 ) -> VOID {
     if ( parser == NULL )
         return;
@@ -609,9 +609,8 @@ auto DECLFN Parser::GetWstr(
     _In_ PPARSER parser, 
     _In_ PULONG  size 
 ) -> PWCHAR {
-    return ( PWCHAR ) Kh->Psr->GetBytes( parser, size );
+     return ( PWCHAR )Kh->Psr->GetBytes( parser, size );
 }
-
 auto DECLFN Parser::GetInt16( 
     _In_ PPARSER parser
 ) -> INT16 {

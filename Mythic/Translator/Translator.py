@@ -5,8 +5,8 @@ import os
 import logging
 
 from Translator.Utils import *
-from Translator.FromC2 import *
-from Translator.FromAgent import *
+from Translator.ToAgent import*
+from Translator.ToC2    import *
 from mythic_container.TranslationBase import *
 
 logging.basicConfig( level=logging.INFO );

@@ -27,6 +27,7 @@ class KharonAgent( PayloadType ):
     supports_dynamic_loading = False;
     c2_profiles      = ["http"];
     translation_container = "KharonTranslator";
+
     build_parameters = [
         BuildParameter(
             name           = "Spawnto",
@@ -86,10 +87,12 @@ class KharonAgent( PayloadType ):
     AgentPath = pathlib.Path(".") / "Kharon";
     AgentIconPath = AgentPath / "Kharon.jpg";
     AgentCodePath = pathlib.Path(".") / ".." / "Agent";
+    BrowserScriptPath = AgentPath / "BrowserScripts";
 
     agent_path      = AgentPath;
     agent_icon_path = AgentIconPath;
     agent_code_path = AgentCodePath;
+    agent_browserscript_path = BrowserScriptPath;
     
     build_steps = [
         BuildStep(step_name="Gathering Files", step_description="Making sure all commands have backing files on disk"),
@@ -204,6 +207,11 @@ class KharonAgent( PayloadType ):
 
         Config['post_uri'] = ( "/" + Config['post_uri'] );
 
+        Secure = 0;
+
+        if Config["ssl"] is True:
+            Secure = 1;
+
         Def = {
             "Arch"      : f"ARCH={Arch}",
             "Dbg"       : f"DBGMODE={Debug}",
@@ -217,7 +225,8 @@ class KharonAgent( PayloadType ):
             "web-port"  : f"WEB_PORT={Config['callback_port']}",
             "web-host"  : f"WEB_HOST={Config['callback_host']}",
             "web-endpt" : f"WEB_ENDPOINT={Config['post_uri']}",
-            "web-ua"    : f"WEB_USER_AGENT=\"{Config['User-Agent']}\""
+            "web-ua"    : f"WEB_USER_AGENT=\"{Config['User-Agent']}\"",
+            "web-secure": f"WEB_SECURE_ENABLED={Secure}"
         };
 
         AllDefs = " ".join( Def.values() );

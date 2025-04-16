@@ -2,15 +2,16 @@ NAME   := Kharon
 
 BUILD_PATH ?= .
 
-CCX64  := clang -target x86_64-w64-mingw32
-CCX86  := clang -target i686-w64-mingw32
+CCX64  := clang++ -target x86_64-w64-mingw32
+CCX86  := clang++ -target i686-w64-mingw32
 ASMCC  := nasm
 
 CFLAGS := -Os -nostdlib -fno-asynchronous-unwind-tables -std=c++20
+CFLAGS += -fms-extensions -Wno-error=gnu-anonymous-struct -Wno-error=nested-anon-types
 CFLAGS += -fno-ident -fpack-struct=8 -falign-functions=1 -w -mno-sse -s
 CFLAGS += -ffunction-sections -falign-jumps=1 -falign-labels=1 -mrdrnd
 CFLAGS += -Wl,-s,--no-seh,--enable-stdcall-fixup -masm=intel -fno-exceptions
-CFLAGS += -fms-extensions -fPIC -IInclude -Wl,-TLinker.ld
+CFLAGS += -fms-extensions -fPIC -IInclude -Wl,-TLinker.ld -Wno-error=anonymous-struct
 
 SRC    := $(wildcard Source/*.cc)
 MISC   := $(wildcard Source/Misc/*.cc)

