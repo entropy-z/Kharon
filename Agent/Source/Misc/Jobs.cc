@@ -15,6 +15,7 @@ auto DECLFN Jobs::Create(
     PVOID Data   = Self->Psr->Bytes( Parser, &Length );
 
     KhDbg( "data at %p [%d bytes] to parse", Data, Length );
+    INT3BRK
 
     Self->Psr->New( JobPsr, Data, Length );
 

