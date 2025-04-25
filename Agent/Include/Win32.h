@@ -8,10 +8,10 @@
 typedef ULONG       ERROR_CODE;
 typedef UINT_PTR    UPTR;
 
-#define KhGetError()     NtCurrentTeb()->LastErrorValue
+#define KhGetError       NtCurrentTeb()->LastErrorValue
 #define KhSetError( x )  NtCurrentTeb()->LastErrorValue = x
-#define KhRetError( x )  KhSetError( x ); return KhGetError()
-#define KhRetSuccess     KhSetError( ERROR_SUCCESS ); return KhGetError()
+#define KhRetError( x )  KhSetError( x ); return KhGetError
+#define KhRetSuccess     KhSetError( ERROR_SUCCESS ); return KhGetError
 
 typedef struct {
     ULONG_PTR Attribute;
@@ -28,6 +28,8 @@ typedef struct {
     USHORT MaximumLength;
     _Field_size_bytes_part_opt_(MaximumLength, Length) PCHAR Buffer;
 } STRING, *PSTRING, ANSI_STRING, *PANSI_STRING, OEM_STRING, *POEM_STRING;
+
+typedef const ANSI_STRING *PCANSI_STRING;
 
 typedef struct {
     USHORT Length;
@@ -2091,6 +2093,13 @@ typedef enum _SYSTEM_INFORMATION_CLASS
     MaxSystemInfoClass
 } SYSTEM_INFORMATION_CLASS;
 
+#define IMAGE_REL_TYPE IMAGE_REL_BASED_DIR64
+
+typedef struct {
+    WORD Offset :12;
+    WORD Type   :4;
+} IMAGE_RELOC, *PIMAGE_RELOC;
+
 /* ========== [ Expands ] ========== */
 
 #define NtCurrentProcess() ( (HANDLE) (LONG_PTR)-1 )
@@ -2142,4 +2151,5 @@ NTSYSAPI NTSTATUS NTAPI NtQueryInformationToken( _In_ HANDLE TokenHandle, _In_ T
 NTSYSAPI NTSTATUS NTAPI NtQuerySystemInformation( _In_ SYSTEM_INFORMATION_CLASS SystemInformationClass, _Out_writes_bytes_opt_(SystemInformationLength) PVOID SystemInformation, _In_ ULONG SystemInformationLength, _Out_opt_ PULONG ReturnLength );
 NTSYSAPI NTSTATUS NTAPI SystemFunction040( PVOID Memory, ULONG MemorySize, ULONG OptionFlags );
 NTSYSAPI NTSTATUS NTAPI SystemFunction041( PVOID Memory, ULONG MemorySize, ULONG OptionFlags );
-#endif // WIN32_H           
+
+#endif // WIN32_H            

@@ -2,6 +2,101 @@
 
 using namespace Root;
 
+auto DECLFN Useful::FixImp(
+    _In_ PVOID Base,
+    _In_ PIMAGE_DATA_DIRECTORY DataDir
+) -> BOOL {
+    PIMAGE_IMPORT_DESCRIPTOR ImpDesc = (PIMAGE_IMPORT_DESCRIPTOR)( U_PTR( Base ) + DataDir->VirtualAddress );
+
+    for ( ; ImpDesc->Name; ImpDesc++ ) {
+
+		PIMAGE_THUNK_DATA FirstThunk  = (PIMAGE_THUNK_DATA)( U_PTR( Base ) + ImpDesc->FirstThunk );
+		PIMAGE_THUNK_DATA OriginThunk = (PIMAGE_THUNK_DATA)( U_PTR( Base ) + ImpDesc->OriginalFirstThunk );
+
+		PCHAR  DllName     = A_PTR( U_PTR( Base ) + ImpDesc->Name );
+        PVOID  DllBase     = C_PTR( LdrLoad::Module( Hsh::Str<CHAR>( DllName ) ) );
+
+        PVOID  FunctionPtr = 0;
+        STRING AnsiString  = { 0 };
+
+        if ( !DllBase ) {
+            DllBase = (PVOID)Self->Lib->Load( DllName );
+        }
+
+		if ( !DllBase ) {
+            return FALSE;
+		}
+
+		for ( ; OriginThunk->u1.Function; FirstThunk++, OriginThunk++ ) {
+
+			if ( IMAGE_SNAP_BY_ORDINAL( OriginThunk->u1.Ordinal ) ) {
+
+                Self->Ntdll.LdrGetProcedureAddress( 
+                    (HMODULE)DllBase, NULL, IMAGE_ORDINAL( OriginThunk->u1.Ordinal ), &FunctionPtr
+                );
+
+                FirstThunk->u1.Function = U_PTR( FunctionPtr );
+				if ( !FirstThunk->u1.Function ) return FALSE;
+
+			} else {
+				PIMAGE_IMPORT_BY_NAME Hint = (PIMAGE_IMPORT_BY_NAME)( U_PTR( Base ) + OriginThunk->u1.AddressOfData );
+
+                {
+                    AnsiString.Length        = Str::LengthA( Hint->Name );
+                    AnsiString.MaximumLength = AnsiString.Length + sizeof( CHAR );
+                    AnsiString.Buffer        = Hint->Name;
+                }
+                
+				Self->Ntdll.LdrGetProcedureAddress( 
+                    (HMODULE)DllBase, &AnsiString, 0, &FunctionPtr 
+                );
+                FirstThunk->u1.Function = U_PTR( FunctionPtr );
+
+				if ( !FirstThunk->u1.Function ) return FALSE;
+			}
+		}
+	}
+	
+	return TRUE;
+}
+
+auto DECLFN Useful::FixRel(
+    _In_ PVOID Base,
+    _In_ UPTR  Delta,
+    _In_ PIMAGE_DATA_DIRECTORY DataDir
+) -> VOID {
+    PIMAGE_BASE_RELOCATION BaseReloc = (PIMAGE_BASE_RELOCATION)( U_PTR( Base ) + DataDir->VirtualAddress );
+    PIMAGE_RELOC           RelocInf  = { 0 };
+    ULONG_PTR              RelocPtr  = NULL;
+
+    while ( BaseReloc->VirtualAddress ) {
+        
+        RelocInf = (PIMAGE_RELOC)( BaseReloc + 1 ); 
+        RelocPtr = ( U_PTR( Base ) + BaseReloc->VirtualAddress );
+
+        while ( B_PTR( RelocInf ) != B_PTR( BaseReloc ) + BaseReloc->SizeOfBlock ) {
+            switch ( RelocInf->Type ) {
+            case IMAGE_REL_TYPE:
+                C_DEF64( RelocPtr + RelocInf->Offset ) += (ULONG_PTR)( Delta ); break;
+            case IMAGE_REL_BASED_HIGHLOW:
+                C_DEF32( RelocPtr + RelocInf->Offset ) += (DWORD)( Delta ); break;
+            case IMAGE_REL_BASED_HIGH:
+                C_DEF16( RelocPtr + RelocInf->Offset ) += HIWORD( Delta ); break;
+            case IMAGE_REL_BASED_LOW:
+                C_DEF16( RelocPtr + RelocInf->Offset ) += LOWORD( Delta ); break;
+            default:
+                break;
+            }
+
+            RelocInf++;
+        }
+
+        BaseReloc = (PIMAGE_BASE_RELOCATION)RelocInf;
+    };
+
+    return;
+}
+
 auto DECLFN LdrLoad::Module(
     _In_ const ULONG LibHash
 ) -> UPTR {

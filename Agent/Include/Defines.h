@@ -15,15 +15,12 @@
 
 /* ========= [ class macro ] ========= */
 
-// #define KhHeap Heap()
-// #define KhThread Kharon::Thread
-
 #define POST_EX_BUFFER_LENGTH 4 + 8 + 4 + 8 
 
 #define INT3BRK asm("int3");
 
 #ifdef DEBUG
-#define KhDbg( x, ... ) { Kh->Ntdll.DbgPrint( ( "[DEBUG::%s::%s::%d] => " x "\n" ), __FILE__ ,__FUNCTION__, __LINE__, ##__VA_ARGS__ ); }
+#define KhDbg( x, ... ) { Self->Ntdll.DbgPrint( ( "[DEBUG::%s::%s::%d] => " x "\n" ), __FILE__ ,__FUNCTION__, __LINE__, ##__VA_ARGS__ ); }
 #define KhDbgz( x, ... ) { Ntdll.DbgPrint( ( "[DEBUG::%s::%s::%d] => " x "\n" ), __FILE__ ,__FUNCTION__, __LINE__, ##__VA_ARGS__ ); }
 #else
 #define KhDbgz( x, ... );
@@ -34,6 +31,8 @@
 #define DECLTYPE( x ) ( decltype( x ) )
 #define DECLFN        __attribute__( ( section( ".text$B" ) ) )
 
+#define SHARED_PSR         Self->Psr->Shared
+#define GLOBAL_PKG         Self->Pkg->Global
 #define BEG_BUFFER_LENGTH  0x1000
 #define PIPE_BUFFER_LENGTH 0x10000
 

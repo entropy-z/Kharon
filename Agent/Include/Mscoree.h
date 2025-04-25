@@ -14080,7 +14080,7 @@ enum __MIDL___MIDL_itf_mscorlib_fixed_0000_0000_0022
         TokenImpersonationLevel_Identification	= 2,
         TokenImpersonationLevel_Impersonation	= 3,
         TokenImpersonationLevel_Delegation	= 4
-    } 	TokenImpersonationLevel;
+    } 	xTokenImpersonationLevel;
 
 typedef /* [public][custom][version][uuid] */  DECLSPEC_UUID("10A8B906-2F7A-327C-87AB-1A95A9B5E23E") 
 enum __MIDL___MIDL_itf_mscorlib_fixed_0000_0000_0023

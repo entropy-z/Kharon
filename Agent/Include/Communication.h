@@ -1,5 +1,9 @@
 #include <Win32.h>
 
+#define KH_SOCKET_CLOSE 10
+#define KH_SOCKET_NEW   20
+#define KH_SOCKET_DATA  30
+
 typedef struct {
     UINT32  CommandID;
     PVOID   Buffer;
