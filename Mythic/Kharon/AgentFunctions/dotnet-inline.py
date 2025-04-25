@@ -1,5 +1,8 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
+
+from .Utils.u import *
+
 import json
 import os
 import random
@@ -42,7 +45,7 @@ class DotnetInlineArguments(TaskArguments):
                 ]
             ),
             CommandParameter(
-                name="assembly_args",
+                name="args",
                 cli_name="args",
                 type=ParameterType.String,
                 description="Arguments to pass to the assembly",
@@ -116,21 +119,21 @@ class DotnetInlineArguments(TaskArguments):
         ]
 
     async def parse_dictionary(self, dictionary: dict) -> None:
-        """Enhanced dictionary parser with better validation and error handling"""
         if not isinstance(dictionary, dict):
             raise ValueError("Input must be a dictionary")
         
-        self.add_arg( "action", "inline" );
+    async def parse_dictionary(self, dictionary: dict) -> None:
+        if not isinstance(dictionary, dict):
+            raise ValueError("Input must be a dictionary")
+        
+        self.add_arg("action", "inline")
 
-        # Check for required parameter groups
         if not any(key in dictionary for key in ["file", "upload"]):
             raise ValueError("Either 'file' or 'upload' must be specified")
 
-        # Mutually exclusive check
         if "file" in dictionary and "upload" in dictionary:
             raise ValueError("Cannot specify both 'file' and 'upload'")
 
-        # Validate and process each parameter
         if "file" in dictionary:
             if not isinstance(dictionary["file"], str):
                 raise ValueError("'file' must be a string (name or UUID)")
@@ -142,26 +145,34 @@ class DotnetInlineArguments(TaskArguments):
             if dictionary["upload"].startswith("@"):
                 self.add_arg("upload", dictionary["upload"][1:])
             else:
-                raise ValueError("Upload path must start with @")
+                self.add_arg("upload", dictionary["upload"])
 
+        # Configuração do AppDomain
         if "appdomain" in dictionary:
             if not isinstance(dictionary["appdomain"], str):
                 raise ValueError("'appdomain' must be a string")
             self.add_arg("appdomain", dictionary["appdomain"])
         else:
-            # Generate random AppDomain name if not provided
             self.add_arg("appdomain", ''.join(random.choice(string.ascii_letters) for _ in range(8)))
 
         if "keep" in dictionary:
-            self.add_arg("keep", 1);
+            self.add_arg("keep", 1)
         else:
-            self.add_arg("keep", 0);
-        
+            self.add_arg("keep", 0)
+
         self.add_arg("version", dictionary.get("version", "v4.0.30319"))
 
-        self.add_arg("assembly_args", str(dictionary.get("assembly_args", "")))
+        args = dictionary.get("args", "")
+        if isinstance(args, list):
+            args = " ".join(args)
+        elif not isinstance(args, str):
+            args = str(args)
+        
+        if len(args) >= 2 and args[0] == args[-1] and args[0] in ('"', "'"):
+            args = args[1:-1]
+        
+        self.add_arg("args", args)
 
-        # Additional validation for uploaded files
         if "upload" in dictionary and not os.path.exists(dictionary["upload"]):
             raise ValueError(f"File not found: {dictionary['upload']}")
 
@@ -197,7 +208,7 @@ class DotnetInlineArguments(TaskArguments):
                     elif arg == "--args":
                         if i+1 >= len(argv):
                             raise ValueError("Missing value for --args")
-                        args_dict["assembly_args"] = argv[i+1]
+                        args_dict["args"] = argv[i+1]
                         i += 2
                     elif arg == "--appdomain":
                         if i+1 >= len(argv):
@@ -324,24 +335,25 @@ class DotnetInlineCommand(CommandBase):
         display_params = []
         
         if task.args.get_arg("upload"):
-            display_params.append(f"--upload @{task.args.get_arg('upload')}")
+            display_params.append(f"-upload @{task.args.get_arg('upload')}")
         else:
-            display_params.append(f"--file {file_name}")
+            display_params.append(f"-file {file_name}")
         
-        display_params.append(f"--appdomain {task.args.get_arg('appdomain')}")
+        display_params.append(f"-appdomain {task.args.get_arg('appdomain')}")
         
         task.args.remove_arg("file")
 
         if task.args.get_arg("keep"):
-            display_params.append("--keep")
+            display_params.append("-keep")
         
-        if task.args.get_arg("version") != "v4.0.30319":
-            display_params.append(f"--version {task.args.get_arg('version')}")
+        display_params.append(f"-version {task.args.get_arg('version')}")
 
-        if task.args.get_arg("assembly_args"):
-            display_params.append(f"--args \"{task.args.get_arg('assembly_args')}\"")
+        if task.args.get_arg("args"):
+            display_params.append(f"-args \"{task.args.get_arg('args')}\"")
+        else:
+            task.args.set_arg("args", " ");
 
-        task.args.add_arg("file_contents", file_contents.Content)
+        task.args.add_arg("file_contents", file_contents.Content.hex() )
 
         return PTTaskCreateTaskingMessageResponse(
             TaskID=task.Task.ID,
@@ -359,10 +371,14 @@ class DotnetInlineCommand(CommandBase):
             )
             
         response = bytes.fromhex(response);
-        
+        Psr = Parser( response, len( response ) );
+        bResp = ""
+        bResp = Psr.Bytes()
+
+
         await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
             TaskID=task.Task.ID,
-            Response=response.decode('utf-8')
+            Response=bResp
         ))
 
         return PTTaskProcessResponseMessageResponse(

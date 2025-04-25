@@ -24,6 +24,12 @@ class KharonTranslator( TranslationContainer ):
         Action = InputMsg.Message["action"];
         
         AgTlDbg( f"Action: {Action}" );
+        AgTlDbg( f"Input Json: {InputMsg.Message}" );
+
+        if "socks" in InputMsg.Message and InputMsg.Message["socks"]:
+            SocksKey = InputMsg.Message["socks"]
+        else: 
+            SocksKey = []
 
         if Action == "checkin":
             AgTlDbg( f"ID: {InputMsg.Message["id"]}" );
@@ -31,13 +37,13 @@ class KharonTranslator( TranslationContainer ):
         
         elif Action == "get_tasking":
             AgTlDbg( f"Tasks: {InputMsg.Message["tasks"]}" );
-            Response.Message = RespTasking( InputMsg.Message["tasks"] );
-        
+            Response.Message = RespTasking( InputMsg.Message["tasks"], SocksKey );
+
         elif Action == "post_response":
             AgTlDbg( f"Responses: {InputMsg.Message["responses"]}" );
             Response.Message = RespPosting( InputMsg.Message["responses"] );
         
-        AgTlDbg( f"buffer [{len( Response.Message )}]: {Response.Message}" );
+        AgTlDbg( f"buffer [{len( Response.Message )}]" );
         AgTlDbg( "-----------------------\n" );
 
         return Response
@@ -52,8 +58,8 @@ class KharonTranslator( TranslationContainer ):
         Action      = AgentMsg[0];
         ActionData  = AgentMsg[1:];
 
-        C2TlDbg( f"Action: {Action}"     );
-        C2TlDbg( f"Data  : {ActionData}" );
+        C2TlDbg( f"raw {AgentMsg}" )
+        C2TlDbg( f"Action: {Action}" );
 
         if Action == Jobs['checkin']['hex_code']:
             Response.Message = CheckinC2( ActionData );
@@ -64,7 +70,7 @@ class KharonTranslator( TranslationContainer ):
         elif Action == Jobs['post_response']['hex_code']:
             Response.Message = PostC2( ActionData );
         
-        C2TlDbg( f"buffer: {Response.Message}" );
+        C2TlDbg( f"buffer: {len(Response.Message)}" );
         C2TlDbg( "-----------------------\n" );
 
         return Response

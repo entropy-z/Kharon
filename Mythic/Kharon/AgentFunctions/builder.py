@@ -169,7 +169,7 @@ class KharonAgent( PayloadType ):
         ));
 
         Mask = {
-            "none" : 0,
+            "none" : 3,
             "timer": 1,
             "apc"  : 2
         }

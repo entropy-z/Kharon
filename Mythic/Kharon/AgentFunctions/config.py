@@ -8,7 +8,7 @@ class ConfigArguments(TaskArguments):
         super().__init__(command_line, **kwargs)
         self.args = [
             CommandParameter(
-                name="action",  # Changed from "action" to "option" to match usage
+                name="action", 
                 type=ParameterType.ChooseOne,
                 description="The configuration option to modify",
                 choices=["mask", "ppid", "spawn", "injection-pe", "injection-sc", "sleep", "jitter", "killdate"],
@@ -97,36 +97,42 @@ class ConfigCommand(CommandBase):
 
     async def create_go_tasking(self, task: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         option = task.args.get_arg("action")
-        value  =  task.args.get_arg("value")
+        original_value = task.args.get_arg("value") 
         
-        if option is None or value is None:
+        if option is None or original_value is None:
             raise ValueError("Both option and value must be provided")
-            
-        option = option.lower()
         
+        option = option.lower()
+        processed_value = original_value 
         validation_errors = []
         
         if option == "mask":
-            if value.lower() not in ["timer", "apc", "none"]:
+            value_lower = original_value.lower()
+            if value_lower == "timer":
+                processed_value = "1" 
+            elif value_lower == "apc":
+                processed_value = "2" 
+            elif value_lower == "none":
+                processed_value = "3" 
+            else:
                 validation_errors.append("Invalid mask value. Must be timer, apc, or none")
+    
         elif option == "injection-sc":
-            if value.lower() not in ["classic", "stomp"]:
+            if original_value.lower() not in ["classic", "stomp"]:
                 validation_errors.append("Invalid injection-sc value. Must be classic or stomp")
         elif option == "sleep":
-            if not value.isdigit() or int(value) <= 0:
-                value = int( value )
+            if not original_value.isdigit() or int(original_value) <= 0:
                 validation_errors.append("Sleep value must be a positive integer")
         elif option == "jitter":
-            if not value.isdigit() or not (0 <= int(value) <= 100):
+            if not original_value.isdigit() or not (0 <= int(original_value) <= 100):
                 validation_errors.append("Jitter must be an integer between 0 and 100")
         elif option == "ppid":
-            if not value.isdigit() or int(value) < 0:
-                value = int( value )
+            if not original_value.isdigit() or int(original_value) < 0:
                 validation_errors.append("PPID must be a positive integer")
         elif option == "killdate":
             try:
-                datetime.datetime.strptime(value, "%Y-%m-%d")
-                if datetime.datetime.strptime(value, "%Y-%m-%d") < datetime.datetime.now():
+                datetime.datetime.strptime(original_value, "%Y-%m-%d")
+                if datetime.datetime.strptime(original_value, "%Y-%m-%d") < datetime.datetime.now():
                     validation_errors.append("Killdate must be in the future")
             except ValueError:
                 validation_errors.append("Killdate must be in YYYY-MM-DD format")
@@ -136,14 +142,18 @@ class ConfigCommand(CommandBase):
         if validation_errors:
             raise ValueError("\n".join(validation_errors))
         
+    
+        task.args.add_arg("value", processed_value)
+        
+    
         response = PTTaskCreateTaskingMessageResponse(
             TaskID=task.Task.ID,
             Success=True,
-            DisplayParams=f"-action {option} -value {value}"
+            DisplayParams=f"-action {option} -value {original_value}" 
         )
-        
+    
         return response
-
+    
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
         resp = PTTaskProcessResponseMessageResponse(
             TaskID=task.Task.ID,

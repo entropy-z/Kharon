@@ -258,6 +258,7 @@ class FsCommand(CommandBase):
     author = "@Oblivion"
     attackmapping = ["T1083", "T1106", "T1570"]
     browser_script = BrowserScript("ls_new", "@Oblivion", for_new_ui=True)
+    supported_ui_features = ["file_browser:list"]
     argument_class = FsArguments
     attributes = CommandAttributes(
         supported_os=[SupportedOS.Windows],

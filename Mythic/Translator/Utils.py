@@ -1,8 +1,10 @@
 import base64
 import os
 import json
-
+import re
+import base64
 import struct
+import ast
 from struct import pack, calcsize
 
 JOB_CHECKIN  = 0xf1;
@@ -71,6 +73,7 @@ Commands = {
     "self-del":  {"hex_code": T_SELFDEL},
     "upload":    {"hex_code": T_UPLOAD},
     "download":  {"hex_code": T_DOWNLOAD},
+    "info"    :  {"hex_code": T_INFO},
 
     "dotnet": {
         "hex_code": T_DOTNET,
@@ -166,6 +169,11 @@ class Packer:
         self.length += 8;
 
         return;
+
+    def Pad( self, data:bytes ) -> None:
+        self.buffer += pack("<L", len(data)) + data
+        self.length += 4 + len(data)
+        return
     
     def Bytes( self, data: str ) -> None:
 
@@ -245,6 +253,15 @@ class Parser:
         self.buffer = b''
         return remaining
 
+def is_valid_base64(s: str) -> bool:
+    if len(s) % 4 != 0:
+        return False
+    try:
+        base64.b64decode(s, validate=True)
+        return True
+    except:
+        return False
+    
 def RespChkDbg( Input:str ) -> None:
     print( f"[DEBUG::RESP::CHECKIN] => {Input}" );
 

