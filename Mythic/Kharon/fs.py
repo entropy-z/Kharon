@@ -3,7 +3,7 @@ from mythic_container.MythicRPC import *
 from collections import OrderedDict
 import re
 
-from .Utils.u import *
+from .AgentFunctions.Utils.u import *
 
 class FsArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):

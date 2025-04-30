@@ -14,7 +14,7 @@ class ProcArguments(TaskArguments):
                 cli_name="action",
                 type=ParameterType.ChooseOne,
                 description="Action to perform",
-                choices=["run", "pwsh", "kill", "list"],
+                choices=["run", "pwsh", "cmd", "kill", "list"],
                 parameter_group_info=[
                     ParameterGroupInfo(
                         required=True,
@@ -140,7 +140,7 @@ class ProcArguments(TaskArguments):
             raise ValueError("Action parameter is required")
             
         action = action.lower()
-        if action not in ["run", "pwsh", "kill", "list"]:
+        if action not in ["run", "pwsh", "cmd", "kill", "list"]:
             raise ValueError(f"Invalid action: {action}")
         
         # Validate parameters based on action
@@ -148,7 +148,7 @@ class ProcArguments(TaskArguments):
             if any(k for k in dictionary.keys() if k not in ["action", "task_id"]):
                 raise ValueError("list action takes no additional parameters")
                 
-        elif action in ["run", "pwsh"]:
+        elif action in ["run", "pwsh", "cmd"]:
             if not dictionary.get("command"):
                 raise ValueError(f"{action} requires a command parameter")
                 
@@ -168,11 +168,13 @@ class ProcCommand(CommandBase):
 
     Actions and Parameters:
     - run  -command <command>  - Run a process
-    - pwsh -command <command>  - Run PowerShell command
+    - cmd  -command <command>  - Run command using cmd.exe
+    - pwsh -command <command>  - Run command using powershell.exe
     - kill -pid <pid>          - Kill process by ID
     - list                     - List running processes
 
     Examples:
+    proc -action cmd -command "dir"
     proc -action run -command "notepad.exe"
     proc -action pwsh -command "Get-Process | Where-Object { $_.CPU -gt 100 }"
     proc -action kill -pid 1234
@@ -198,7 +200,7 @@ class ProcCommand(CommandBase):
         if action == "list":
             pass  # No additional parameters
             
-        elif action in ["run", "pwsh"]:
+        elif action in ["run", "pwsh", "cmd"]:
             command = task.args.get_arg("command")
             if not command:
                 raise ValueError(f"{action} requires a command parameter")
@@ -207,6 +209,8 @@ class ProcCommand(CommandBase):
             
             if action == "pwsh":
                 task.args.add_arg("command", f"powershell.exe -c {command}")
+            elif action == "cmd":
+                task.args.add_arg("command", f"cmd.exe -c {command}")
             elif action == "run":
                 task.args.add_arg("command", command)
                 

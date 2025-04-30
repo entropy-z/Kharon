@@ -111,20 +111,20 @@ def RespTasking( Tasks, Socks ) -> bytes:
             if Key != "action":
                 try:
                     hex_bytes = bytes.fromhex(Val)
-                    RespTaskDbg(f"parameter with len: {len(hex_bytes)} [type: hex:bytes]")
+                    RespTaskDbg(f"key: {Key} parameter with len: {len(hex_bytes)} [type: hex:bytes]")
                     TaskPkg.Pad(hex_bytes)
                 except (ValueError, AttributeError, TypeError):
                     if isinstance(Val, str):
-                        RespTaskDbg(f"parameter: {Val} [type: str]")
+                        RespTaskDbg(f"key: {Key} parameter: {Val} [type: str]")
                         TaskPkg.Bytes(str(Val).encode())
                     elif isinstance(Val, int):
-                        RespTaskDbg(f"parameter: {int(Val)} [type: int]")
+                        RespTaskDbg(f"key: {Key} parameter: {int(Val)} [type: int]")
                         TaskPkg.Int32(int(Val))
                     elif isinstance(Val, bool):
-                        RespTaskDbg(f"parameter: {int(Val)} [type: bool]")
+                        RespTaskDbg(f"key: {Key} parameter: {int(Val)} [type: bool]")
                         TaskPkg.Int32(int(Val))
                     elif isinstance(Val, bytes):
-                        RespTaskDbg(f"parameter: {len(Val)} [type: bytes]")
+                        RespTaskDbg(f"key: {Key} parameter: {len(Val)} [type: bytes]")
                         TaskPkg.Pad(Val)
             
         if SockPkg.buffer:
@@ -132,6 +132,7 @@ def RespTasking( Tasks, Socks ) -> bytes:
             Pkg.Bytes( sock_data )
 
         task_data = TaskPkg.buffer
+
         RespTaskDbg(f"task uuid: {TaskUUID} with data [{len(task_data)} bytes]")
         Pkg.Bytes(task_data)
 

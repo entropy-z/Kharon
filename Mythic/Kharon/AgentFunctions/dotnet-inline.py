@@ -160,7 +160,11 @@ class DotnetInlineArguments(TaskArguments):
         else:
             self.add_arg("keep", 0)
 
-        self.add_arg("version", dictionary.get("version", "v4.0.30319"))
+        if "version" in dictionary:
+            self.add_arg("version", dictionary.get("version", dictionary["version"]))
+        else:
+            self.add_arg("version", dictionary.get("version", "v0.0.00000"))
+        
 
         args = dictionary.get("args", "")
         if isinstance(args, list):
@@ -245,21 +249,21 @@ class DotnetInlineCommand(CommandBase):
     dotnet-inline --upload @<path_to_file> [--args "<arguments>"] [--appdomain <name>] [--keep] [--version <version>]
 
     Options:
-    --file       Name or UUID of existing .NET assembly
-    --upload     Upload new assembly (prefix path with @)
-    --args       Arguments to pass to assembly (use quotes for complex args)
-    --appdomain  AppDomain name (random if not specified)
-    --keep       Keep AppDomain loaded after execution
-    --version    .NET version (default: v4.0.30319)
+    -file       Name or UUID of existing .NET assembly
+    -upload     Upload new assembly (prefix path with @)
+    -args       Arguments to pass to assembly (use quotes for complex args)
+    -appdomain  AppDomain name (random if not specified)
+    -keep       Keep AppDomain loaded after execution
+    -version    .NET version (default: v4.0.30319)
 
     Examples:
-    dotnet-inline --file Rubeus.exe --args "triage"
-    dotnet-inline --file cf2bde20-d03e-461a-a3dd-a8a5a2693bf0 --args "-group=user"
-    dotnet-inline --upload @/tmp/Seatbelt.exe --args "--group=user --computername=DC01"
+    dotnet-inline -file Rubeus.exe -args "triage"
+    dotnet-inline -file cf2bde20-d03e-461a-a3dd-a8a5a2693bf0 -args "-group=user"
+    dotnet-inline -upload @/tmp/Seatbelt.exe -args "--group=user --computername=DC01"
     """
     description = "Execute a .NET assembly in the current process with support for file uploads and complex arguments"
     version = 2
-    author = "@YourName"
+    author = "@ Oblivion"
     attackmapping = ["T1055", "T1059", "T1027"]
     argument_class = DotnetInlineArguments
     attributes = CommandAttributes(
@@ -346,7 +350,8 @@ class DotnetInlineCommand(CommandBase):
         if task.args.get_arg("keep"):
             display_params.append("-keep")
         
-        display_params.append(f"-version {task.args.get_arg('version')}")
+        if task.args.get_arg('version') != "v0.0.00000":
+            display_params.append(f"-version {task.args.get_arg('version')}")
 
         if task.args.get_arg("args"):
             display_params.append(f"-args \"{task.args.get_arg('args')}\"")
