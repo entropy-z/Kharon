@@ -1,9 +1,9 @@
 [BITS 64]
 
-GLOBAL ExecSys
+GLOBAL ExecSyscall
 
 [SECTION .text$B]
-    ExecSys
+    ExecSyscall
 		xor r10, r10                          
 		mov rax, rcx                          
 		mov r10, rax                          

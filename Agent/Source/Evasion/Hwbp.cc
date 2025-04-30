@@ -10,74 +10,126 @@ auto DECLFN HwbpEng::SetDr7(
     return ( ActVal & ~( Mask << StartPos ) ) | ( NewVal << StartPos );
 }
 
-auto DECLFN HwbpEng::SetBreak(
-    _In_ HANDLE Handle,
-    _In_ UPTR   Address,
-    _In_ PVOID  Detour,
-    _In_ INT8   Drx
+auto DECLFN HwbpEng::Install(
+    _In_ UPTR  Address,
+    _In_ INT8  Drx,
+    _In_ PVOID Callback,
+    _In_ ULONG ThreadID
 ) -> BOOL {
-    CONTEXT Ctx  = { .ContextFlags = CONTEXT_DEBUG_REGISTERS };
-    ULONG   Code = STATUS_UNSUCCESSFUL;
+    PDESCRIPTOR_HOOK NewEntry = nullptr;
+
+    NewEntry = (PDESCRIPTOR_HOOK)Self->Hp->Alloc( sizeof( DESCRIPTOR_HOOK ) );
+
+    Self->Krnl32.EnterCriticalSection( &CritSec );
+
+    NewEntry->Drx           = Drx;
+    NewEntry->ThreadID      = ThreadID;
+    NewEntry->Address = Address;
+    NewEntry->Detour  = ( decltype(NewEntry->Detour) )Callback;
+
+    if ( !Threads ) {
+        Threads = NewEntry;
+    } else {
+        PDESCRIPTOR_HOOK Current = Threads;
+        while ( Current->Next ) {
+            Current = Current->Next;
+        }
+        Current->Next  = NewEntry;
+        NewEntry->Prev = Current;
+    }
+
+    Self->Krnl32.LeaveCriticalSection( &CritSec );
+
+    return Self->Hwbp->Insert( Address, Drx, TRUE, ThreadID );
+}
+
+auto DECLFN HwbpEng::SetBreak(
+    _In_ ULONG ThreadID,
+    _In_ UPTR  Address,
+    _In_ INT8  Drx,
+    _In_ BOOL  Init
+) -> BOOL {
+    CONTEXT Ctx    = { .ContextFlags = CONTEXT_DEBUG_REGISTERS };
+    ULONG   Code   = STATUS_UNSUCCESSFUL;
+    HANDLE  Handle = INVALID_HANDLE_VALUE;
+
+    if ( ThreadID != Self->Session.ThreadID ) {
+        Handle = Self->Td->Open( THREAD_ALL_ACCESS, FALSE, ThreadID );
+    } else {
+        Handle = NtCurrentThread();
+    }
 
     Code = Self->Ntdll.NtGetContextThread( Handle, &Ctx );
 
-    switch ( Drx ) {
-        case Dr0: {
-            Ctx.Dr0 = Address; break;
-        }
-        case Dr1: {
-            Ctx.Dr1 = Address; break;
-        }
-        case Dr2: {
-            Ctx.Dr2 = Address; break;
-        }
-        case Dr3: {
-            Ctx.Dr3 = Address; break;
+    if ( Initialized ) {
+        ( &Ctx.Dr0 )[Drx] = Address;
+        Ctx.Dr7 = SetDr7( Ctx.Dr7, ( Drx * 2 ), 1, 1 );
+    } else {
+        if ( ( &Ctx.Dr0 )[Drx] == Address ) {
+            ( &Ctx.Dr0 )[Drx] = 0ull;
+            Ctx.Dr7 = SetDr7( Ctx.Dr7, ( Drx * 2 ), 1, 0 );
         }
     }
 
-    Threads->Hook[Drx].Address = Address;
-    Threads->Hook[Drx].Detour  = ( decltype( Threads->Hook[Drx].Detour ) )Detour;
-
-    Ctx.Dr7 = SetDr7( Ctx.Dr7, ( Drx * 2 ), 1, 1 );
-
     Code = Self->Ntdll.NtSetContextThread( Handle, &Ctx );
+
+    if ( Handle && Handle != NtCurrentThread() ) {
+        Self->Ntdll.NtClose( Handle );
+    }
 
     return Code;
 }
 
 auto DECLFN HwbpEng::RmBreak(
-    _In_ HANDLE Handle,
-    _In_ INT8   Drx
+    _In_ UPTR  Address,
+    _In_ ULONG ThreadID
 ) -> BOOL {
-    CONTEXT Ctx  = { .ContextFlags = CONTEXT_DEBUG_REGISTERS };
-    ULONG   Code = STATUS_UNSUCCESSFUL;
+    PDESCRIPTOR_HOOK Current = Threads;
 
-    Code = Self->Ntdll.NtGetContextThread( Handle, &Ctx );
+    Self->Krnl32.EnterCriticalSection( &CritSec );
 
-    switch ( Drx ) {
-        case Dr0: {
-            Ctx.Dr0 = 0; break;
+    ULONG   Flag  = 0;
+    INT8    Drx   = -1;
+    BOOL    Found = FALSE;
+
+    while ( Current ) {
+        if ( Current->Address == Address && Current->ThreadID == ThreadID ) {
+            Found = TRUE;
+
+            Drx = Current->Drx;
+
+            if ( Current == Threads ) {
+                Threads = Current->Next;
+            }
+
+            if ( Current->Next ) {
+                Current->Next->Prev = Current->Prev;
+            }
+
+            if ( Current->Prev ) {
+                Current->Prev->Next = Current->Next;
+            }
+
+            if ( Current ) {
+                Self->Hp->Free( Current, sizeof( DESCRIPTOR_HOOK) );
+            }
         }
-        case Dr1: {
-            Ctx.Dr0 = 0; break;
-        }
-        case Dr2: {
-            Ctx.Dr0 = 0; break;
-        }
-        case Dr3: {
-            Ctx.Dr0 = 0; break;
+
+        if ( Current ) {
+            Current = Current->Next;
         }
     }
 
-    Ctx.Dr7 = SetDr7( Ctx.Dr7, ( Drx * 2 ), 1, 0 );
+    Self->Krnl32.LeaveCriticalSection( &CritSec );
 
-    Code = Self->Ntdll.NtSetContextThread( Handle, &Ctx );
+    if ( Found ) {
+        Flag = Insert( Address, Drx, FALSE, ThreadID );
+    }
 
-    return Code;
+    return Flag;
 }
 
-auto DECLFN HwbpEng::GetFuncArg(
+auto DECLFN HwbpEng::GetArg(
     _In_ PCONTEXT Ctx,
     _In_ ULONG    Idx
 ) -> UPTR {
@@ -103,7 +155,7 @@ auto DECLFN HwbpEng::GetFuncArg(
 #endif
 }
 
-auto DECLFN HwbpEng::SetFuncArg(
+auto DECLFN HwbpEng::SetArg(
     _In_ PCONTEXT Ctx,
     _In_ UPTR     Val,
     _In_ ULONG    Idx
@@ -140,47 +192,95 @@ auto DECLFN HwbpEng::BlockReal(
 #endif
 }
 
+auto DECLFN HwbpEng::Insert(
+    _In_ UPTR  Address,
+    _In_ INT8  Drx,
+    _In_ BOOL  Init,
+    _In_ ULONG ThreadID
+) -> BOOL {
+    
+}
+
+auto DECLFN HwbpEng::Init( VOID ) -> BOOL {
+    if ( Initialized ) return TRUE;
+
+    if ( !CritSec.DebugInfo ) {
+        Self->Krnl32.InitializeCriticalSection( &CritSec );
+    }
+
+    Mem::Zero( U_PTR( &CritSec ), sizeof( CRITICAL_SECTION ) );
+    Mem::Zero( U_PTR( Threads ), sizeof( DESCRIPTOR_HOOK ) );
+
+    Handler = Self->Krnl32.AddVectoredExceptionHandler( 
+        1, (PVECTORED_EXCEPTION_HANDLER)&MainHandler 
+    );
+
+    Self->Krnl32.InitializeCriticalSection( &CritSec );
+    Initialized = TRUE;
+
+    return TRUE;
+}
+
+auto DECLFN HwbpEng::Clean( VOID ) -> BOOL {
+    if ( !Initialized ) return TRUE;
+
+    Self->Krnl32.EnterCriticalSection( &CritSec );
+
+    PDESCRIPTOR_HOOK Current = Threads;
+
+    while ( Current ) {
+        RmBreak( Current->Address, Current->ThreadID );
+        Current = Current->Next;
+    }
+
+    Self->Krnl32.LeaveCriticalSection( &CritSec );
+
+    if ( Handler ) Self->Krnl32.RemoveVectoredContinueHandler( Handler ); 
+
+    Self->Krnl32.DeleteCriticalSection( &CritSec );
+
+    Initialized = FALSE;
+
+    return TRUE;
+}
+
 auto DECLFN HwbpEng::MainHandler( 
     _In_ PEXCEPTION_POINTERS e 
 ) -> LONG {
-    if ( e->ExceptionRecord->ExceptionCode == EXCEPTION_SINGLE_STEP ) {
-        if (
-             U_PTR( e->ExceptionRecord->ExceptionAddress ) == e->ContextRecord->Dr0 ||
-             U_PTR( e->ExceptionRecord->ExceptionAddress ) == e->ContextRecord->Dr1 || 
-             U_PTR( e->ExceptionRecord->ExceptionAddress ) == e->ContextRecord->Dr2 ||  
-             U_PTR( e->ExceptionRecord->ExceptionAddress ) == e->ContextRecord->Dr3
-        ) {
-            INT8 Drx = -1;
-            VOID ( *Detour )( PCONTEXT ) = nullptr;
+    BOOL Solutioned = FALSE;
+    PDESCRIPTOR_HOOK Current = Threads;
 
-            if ( U_PTR( e->ExceptionRecord->ExceptionAddress ) == e->ContextRecord->Dr0 ) Drx = Dr0;
-            if ( U_PTR( e->ExceptionRecord->ExceptionAddress ) == e->ContextRecord->Dr1 ) Drx = Dr1;
-            if ( U_PTR( e->ExceptionRecord->ExceptionAddress ) == e->ContextRecord->Dr2 ) Drx = Dr2;
-            if ( U_PTR( e->ExceptionRecord->ExceptionAddress ) == e->ContextRecord->Dr3 ) Drx = Dr3;
-            // TODO
+    if ( e->ExceptionRecord->ExceptionCode != EXCEPTION_SINGLE_STEP ) goto _KH_END;
 
-            RmBreak( Threads->Handle, Drx );
+    Self->Krnl32.EnterCriticalSection( &CritSec );
 
-            Detour = Threads->Hook[Drx].Detour;
-            Detour( e->ContextRecord );
-
-            SetBreak( Threads->Handle, U_PTR( e->ExceptionRecord->ExceptionAddress ), C_PTR( Threads->Hook[Drx].Address ), Drx );
-
-            return EXCEPTION_CONTINUE_EXECUTION;
+    while ( Current ) {
+        if ( Current->ThreadID != 0 && Current->ThreadID != Self->Session.ThreadID ) {
+            Current->Processed = TRUE;
         }
+
+        // if ( !SetBreak( Self->Session.ThreadID, Current->Address, Current->Detour, Current->Drx ) ) {
+            // goto _KH_END;
+        // }
+
+        VOID ( *Detour )( PCONTEXT ) = Current->Detour;
+        Detour( e->ContextRecord );
+
+        // if ( !SetBreak( Self->Session.ThreadID, Current->Address, Detour,  ) )
     }
 
+_KH_END:
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
-auto DECLFN HwbpEng::EtwHandler(
-    _In_ PCONTEXT
+auto DECLFN HwbpEng::Etw(
+    _In_ PEXCEPTION_POINTERS e
 ) -> LONG {
 
 }
 
-auto DECLFN HwbpEng::AmsiHandler(
-    _In_ PCONTEXT
+auto DECLFN HwbpEng::Amsi(
+    _In_ PEXCEPTION_POINTERS e
 ) -> LONG {
 
 }

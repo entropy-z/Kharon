@@ -203,6 +203,12 @@ enum {
 } KH_CORE;
 
 enum {
+    TdRandom,
+    TdTarget,
+    TdHwbp
+} KH_TD_ENUM;
+
+enum {
     TkConfig = 10,
     TkProcess,
     TkInjection,

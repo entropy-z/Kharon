@@ -10,16 +10,22 @@
         Rop[ i ].Rip = U_PTR( p );                 \
     }
 
+/* ======== [ Hardware Breakpoint ] ======== */
+
+enum {
+    Dr0,
+    Dr1,
+    Dr2,
+    Dr3
+} KH_DRX;
+
 typedef struct _DESCRIPTOR_HOOK {
-    ULONG  ID;
+    ULONG  ThreadID;
     HANDLE Handle;
     BOOL   Processed;
-
-    struct {
-        UPTR Address;
-        VOID ( *Detour )( PCONTEXT );
-    } Hook[4];
-
+    INT8   Drx;
+    UPTR   Address;
+    VOID ( *Detour )( PCONTEXT );
     struct _DESCRIPTOR_HOOK* Next;
     struct _DESCRIPTOR_HOOK* Prev;
 } DESCRIPTOR_HOOK, *PDESCRIPTOR_HOOK;
@@ -32,13 +38,48 @@ typedef struct _DESCRIPTOR_HOOK {
 #define SET_RET( Ctx, Val )( U_PTR( Ctx->Eax = U_PTR( Val ) ) )
 #endif
 
+#define GET_ARG_1( Ctx ) ( Self->Hw->GetArg( Ctx, 0x1 ) )
+#define GET_ARG_2( Ctx ) ( Self->Hw->GetArg( Ctx, 0x2 ) )
+#define GET_ARG_3( Ctx ) ( Self->Hw->GetArg( Ctx, 0x3 ) )
+#define GET_ARG_4( Ctx ) ( Self->Hw->GetArg( Ctx, 0x4 ) )
+#define GET_ARG_5( Ctx ) ( Self->Hw->GetArg( Ctx, 0x5 ) )
+#define GET_ARG_6( Ctx ) ( Self->Hw->GetArg( Ctx, 0x6 ) )
+#define GET_ARG_7( Ctx ) ( Self->Hw->GetArg( Ctx, 0x7 ) )
+#define GET_ARG_8( Ctx ) ( Self->Hw->GetArg( Ctx, 0x8 ) )
+#define GET_ARG_9( Ctx ) ( Self->Hw->GetArg( Ctx, 0x9 ) )
+#define GET_ARG_A( Ctx ) ( Self->Hw->GetArg( Ctx, 0xA ) )
+#define GET_ARG_B( Ctx ) ( Self->Hw->GetArg( Ctx, 0xB ) )
+
+#define SET_ARG_1( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x1 ) )
+#define SET_ARG_2( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x2 ) )
+#define SET_ARG_3( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x3 ) )
+#define SET_ARG_4( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x4 ) )
+#define SET_ARG_5( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x5 ) )
+#define SET_ARG_6( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x6 ) )
+#define SET_ARG_7( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x7 ) )
+#define SET_ARG_8( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x8 ) )
+#define SET_ARG_9( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x9 ) )
+#define SET_ARG_A( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0xA ) )
+#define SET_ARG_B( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0xB ) )
+
+/* ======== [ Syscalls ] ======== */
+
+#define SY_SEED   0xEDB88320
+#define SY_UP     -12
+#define SY_DOWN   12
+#define SY_RANGE  0xE5
+
 typedef enum ESYS_OPT {
-    Alloc,
-    Protect,
-    Write,
-    QueueApc,
-    OpenProc,
-    Last
+    syAlloc,
+    syProtect,
+    syWrite,
+    syCrThread,
+    syQueueApc,
+    syOpenThrd,
+    syOpenProc,
+    syMapView,
+    syCrSectn,
+    syLast
 };
 
 typedef struct {
@@ -50,12 +91,7 @@ typedef struct {
 
 EXTERN_C NTSTATUS ExecSyscall( ... );
 
-enum {
-    Dr0,
-    Dr1,
-    Dr2,
-    Dr3
-} KH_DRX;
+/* ======== [ Injection ] ======== */
 
 enum {
     PeReflection

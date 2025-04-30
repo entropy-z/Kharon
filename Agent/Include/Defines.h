@@ -17,6 +17,8 @@
 
 #define POST_EX_BUFFER_LENGTH 4 + 8 + 4 + 8 
 
+#define RTL_CONSTANT_OBJECT_ATTRIBUTES ( x, y ) { sizeof(OBJECT_ATTRIBUTES), NULL, x, y, NULL, NULL }
+
 #define INT3BRK asm("int3");
 
 #ifdef DEBUG
@@ -38,6 +40,7 @@
 
 /*==============[ Dereference ]==============*/
 
+#define C_DEFB( x )  ( * ( PBYTE )  ( x ) )
 #define C_DEF( x )   ( * ( PVOID* )  ( x ) )
 #define C_DEF08( x ) ( * ( UINT8*  ) ( x ) )
 #define C_DEF16( x ) ( * ( UINT16* ) ( x ) )

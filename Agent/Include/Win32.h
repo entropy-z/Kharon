@@ -2151,5 +2151,6 @@ NTSYSAPI NTSTATUS NTAPI NtQueryInformationToken( _In_ HANDLE TokenHandle, _In_ T
 NTSYSAPI NTSTATUS NTAPI NtQuerySystemInformation( _In_ SYSTEM_INFORMATION_CLASS SystemInformationClass, _Out_writes_bytes_opt_(SystemInformationLength) PVOID SystemInformation, _In_ ULONG SystemInformationLength, _Out_opt_ PULONG ReturnLength );
 NTSYSAPI NTSTATUS NTAPI SystemFunction040( PVOID Memory, ULONG MemorySize, ULONG OptionFlags );
 NTSYSAPI NTSTATUS NTAPI SystemFunction041( PVOID Memory, ULONG MemorySize, ULONG OptionFlags );
+NTSYSAPI ULONG    NTAPI RtlNtStatusToDosError( NTSTATUS Status );
 
 #endif // WIN32_H            

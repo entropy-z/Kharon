@@ -2,6 +2,13 @@
 
 using namespace Root;
 
+auto DECLFN Useful::NtStatusToError(
+    _In_ NTSTATUS NtStatus
+) -> ERROR_CODE {
+    ULONG WinError = Self->Ntdll.RtlNtStatusToDosError( NtStatus );
+    KhSetError( WinError ); return WinError;
+}
+
 auto DECLFN Useful::FixImp(
     _In_ PVOID Base,
     _In_ PIMAGE_DATA_DIRECTORY DataDir
