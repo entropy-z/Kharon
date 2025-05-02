@@ -57,7 +57,7 @@ auto DECLFN Mask::Timer(
 ) -> BOOL {
     NTSTATUS NtStatus = STATUS_SUCCESS;
     
-    ULONG  DupThreadId      = Self->Td->RndEnum();
+    ULONG  DupThreadId      = Self->Td->Rnd();
     HANDLE DupThreadHandle  = NULL;
     HANDLE MainThreadHandle = NULL;
 

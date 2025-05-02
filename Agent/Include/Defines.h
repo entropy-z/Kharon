@@ -19,6 +19,8 @@
 
 #define RTL_CONSTANT_OBJECT_ATTRIBUTES ( x, y ) { sizeof(OBJECT_ATTRIBUTES), NULL, x, y, NULL, NULL }
 
+#define G_SYM( x )	( ULONG_PTR )( StartPtr() - ( ( ULONG_PTR ) & StartPtr - ( ULONG_PTR ) x ) )
+
 #define INT3BRK asm("int3");
 
 #ifdef DEBUG

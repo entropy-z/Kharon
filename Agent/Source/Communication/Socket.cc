@@ -3,7 +3,6 @@
 auto DECLFN Socket::Exist(
     _In_ ULONG ServerID
 ) -> BOOL {
-    KhDbg( "dbg" );
     PSOCKET_CTX Current = Ctx;
 
     if ( !Current ) return FALSE;

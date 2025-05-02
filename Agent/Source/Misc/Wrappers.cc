@@ -249,15 +249,6 @@ auto DECLFN Thread::Enum(
                     if ( HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ) != Self->Session.ThreadID ) {
                         ThreadID = HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ); goto _KH_END;
                     }    
-                } else if ( Type == TdTarget ) {
-                    if ( HandleToUlong( SysThreadInfo[i].ClientId.UniqueProcess ) == ProcessID ) {
-                        Mem::Copy( ThreadInfo, SysThreadInfo, sizeof( SYSTEM_THREAD_INFORMATION ) );
-                        goto _KH_END;
-                    }
-                } else if ( Type == TdHwbp ) {
-                    if ( Flags == ALL_THREADS ) {
-                        // Self->Hwbp->SetBreak(  )
-                    }
                 }
             }
         }

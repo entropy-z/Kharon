@@ -12,6 +12,8 @@
 
 /* ======== [ Hardware Breakpoint ] ======== */
 
+#define HW_ALL_THREADS 0x25
+
 enum {
     Dr0,
     Dr1,

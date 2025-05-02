@@ -2101,6 +2101,7 @@ typedef struct {
 } IMAGE_RELOC, *PIMAGE_RELOC;
 
 /* ========== [ Expands ] ========== */
+#define THREAD_CREATE_FLAGS_CREATE_SUSPENDED 0x00000001 // NtCreateUserProcess & NtCreateThreadEx
 
 #define NtCurrentProcess() ( (HANDLE) (LONG_PTR)-1 )
 #define NtCurrentThread()  ( (HANDLE) (LONG_PTR)-2 )
