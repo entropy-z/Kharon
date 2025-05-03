@@ -1,6 +1,8 @@
 # Kharon Agent 
 
-![kharon img](Assets/kharon-1.png){: .center}
+<div style="text-align:center">
+  <img src="Assets/kharon-1.png" alt="Kharon Agent">
+</div>
 
 C2 Agent for Mythic with advanced evasion capabilities, supporting dotnet/PE/shellcode/BOF memory execution, lateral movement, pivoting, SOCKS, and more. Kharon is a fully Position-Independent Code (PIC) shellcode agent.  
 
