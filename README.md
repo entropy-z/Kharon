@@ -36,8 +36,56 @@ Standard shellcode execution for post-exploitation, similar to BOF. Includes a s
 Beyond standard BOF execution, the agent provides custom APIs such as `BeaconVirtualAlloc` and `BeaconLoadLibrary`. Future updates may include more APIs. The advantage of using these APIs is that they execute in the preferred context with stack spoofing and/or indirect syscalls.  
 
 ## Lateral Movement  
-Kharon enables remote execution on target machines using:  
-- **WMI (Windows Management Instrumentation)**  
-- **Service Control Manager (SCM)** (similar to PsExec but with its own implementation).  
+Advanced movement techniques:  
+- **WMI** (Windows Management Instrumentation) execution  
+- **SCM** (Service-based execution with custom implementation)  
+- Seamless network traversal capabilities  
 
-This allows for seamless lateral movement within a network.
+## File System Operations  
+Core file management commands:  
+| Command | Description                          | Example Usage          |
+|---------|--------------------------------------|------------------------|
+| `cd`    | Change working directory             | `cd C:\Windows\Temp`   |
+| `pwd`   | Print current working directory      | `pwd`                  |
+| `cp`    | Copy files/directories               | `cp file.txt C:\Temp`  |
+| `mv`    | Move/rename files                    | `mv old.txt new.txt`   |
+| `ls`    | List directory contents              | `ls -l C:\`            |
+| `rm`    | Delete files/directories             | `rm secret.doc`        |
+| `cat`   | View file contents                   | `cat config.ini`       |
+
+## Process Management  
+Advanced process manipulation capabilities:
+
+### Process Creation  
+- **Advanced Spoofing**:
+  - Argument spoofing
+  - PPID spoofing
+  - BlockDLL policy enforcement
+- **Output Capture**:
+  - STDOUT/STDERR via named pipes
+  - Async output streaming
+
+### Process Termination  
+- PID-based process killing
+- Force termination capability
+- Clean exit handling
+
+### Process Enumeration  
+Detailed process listing with:
+- Process metadata (Name, PID, PPID)
+- User context information
+- Command line arguments
+- Resource metrics:
+  - Handle counts
+  - Thread counts
+- Session information
+- Path details:
+  - Full process path
+  - Image name
+
+## Future Development  
+Planned enhancements:
+- Expanded BOF API support
+- Additional injection techniques
+- Improved evasion capabilities
+- Cross-platform support expansion
