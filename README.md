@@ -58,16 +58,25 @@ Here's an enhanced version of the Process Management section with more technical
 ## Process Management  
 Advanced process manipulation engine with defensive evasion capabilities:
 
-### Process Creation & Execution
+### Process Creation
 **Advanced Capabilities:**
 - `PPID Spoofing`: Masquerade as child of legitimate processes (explorer.exe, svchost.exe, etc.)
 - `Argument Spoofing`: Forge command-line arguments to evade detection
 - `BlockDLL Enforcement`: Restrict non-Microsoft DLL injection (--x  flag)
-
-**Execution Features:**
-- `Token Impersonation`: Execute with stolen tokens
 - `Suspended Process Creation`: For memory manipulation prior to execution
 - `Output Redirection`: Anon pipe streaming (STDOUT/STDERR)
+
+### Process List
+List the informations about process running like:
+- image name
+- image full path
+- command line
+- process id
+- parent process id
+- session
+- user
+- handle numbers
+- thread numbers
 
 ### Process Termination  
 Kill the existence process.
