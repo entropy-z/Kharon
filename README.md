@@ -6,13 +6,14 @@ C2 Agent for Mythic with advanced evasion capabilities, supporting dotnet/powers
 
 ## Listener
 The communication is all encrypted with AES256
-- **SMB**
-- - Named pipe-based C2 channel
-- - Blends with legitimate Windows file sharing traffic
 
-- **HTTP/S**
-- - Web-based encrypted communication
-- - Supports TLS-secured connections
+### **SMB**
+- Named pipe-based C2 channel
+- Blends with legitimate Windows file sharing traffic
+
+### **HTTP/S**
+- Web-based encrypted communication
+- Supports TLS-secured connections
 
 ## Evasion  
 - Uses hardware breakpoints to bypass AMSI/ETW.  
