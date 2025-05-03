@@ -1,5 +1,4 @@
 Build
-*.exe
 *.bin
 .vscode
 NOTES.md
