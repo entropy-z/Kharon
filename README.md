@@ -67,16 +67,16 @@ Advanced process manipulation engine with defensive evasion capabilities:
 - `Output Redirection`: Anon pipe streaming (STDOUT/STDERR)
 
 ### Process List
-List the informations about process running like:
-- image name
-- image full path
-- command line
-- process id
-- parent process id
-- session
-- user
-- handle numbers
-- thread numbers
+Detailed enumeration of running processes with the following information:
+- `Image Name`: The executable name (e.g., explorer.exe, svchost.exe)
+- `Full Path`: Complete on-disk location of the process binary
+- `Command Line`: Full execution command with arguments (if available)
+- `Process ID (PID)`: Unique numerical identifier
+- `Parent PID (PPID)`: Process that spawned the current instance
+- `Session ID`: Terminal session association
+- `User Context`: Security context under which the process runs
+- `Handle Count`: Number of open handles (files, registry keys, etc.)
+- `Thread Count`: Active execution threads
 
 ### Process Termination  
 Kill the existence process.
