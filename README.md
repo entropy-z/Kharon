@@ -2,7 +2,7 @@
 
 ![kharon img](Assets/kharon-1.png)
 
-C2 Agent for Mythic with advanced evasion capabilities, supporting dotnet/PE/shellcode/BOF memory execution, lateral movement, pivoting, SOCKS, and more. Kharon is a fully Position-Independent Code (PIC) shellcode agent.  
+C2 Agent for Mythic with advanced evasion capabilities, supporting dotnet/PE/shellcode/BOF memory execution, lateral movement, pivoting, SOCKS, and more. Kharon is a fully Position-Independent Code (PIC) shellcode agent and llvm support.  
 
 ## Evasion  
 - Uses hardware breakpoints to bypass AMSI/ETW.  
