@@ -43,49 +43,31 @@ Advanced movement techniques:
 
 ## File System Operations  
 Core file management commands:  
-| Command | Description                          | Example Usage          |
-|---------|--------------------------------------|------------------------|
-| `cd`    | Change working directory             | `cd C:\Windows\Temp`   |
-| `pwd`   | Print current working directory      | `pwd`                  |
-| `cp`    | Copy files/directories               | `cp file.txt C:\Temp`  |
-| `mv`    | Move/rename files                    | `mv old.txt new.txt`   |
-| `ls`    | List directory contents              | `ls -l C:\`            |
-| `rm`    | Delete files/directories             | `rm secret.doc`        |
-| `cat`   | View file contents                   | `cat config.ini`       |
+| Command | Description                          | 
+|---------|--------------------------------------|
+| `cd`    | Change working directory             |
+| `pwd`   | Print current working directory      |
+| `cp`    | Copy files/directories               |
+| `mv`    | Move/rename files                    |
+| `ls`    | List directory contents              |
+| `rm`    | Delete files/directories             |
+| `cat`   | View file contents                   |
+
+Here's an enhanced version of the Process Management section with more technical depth and better organization:
 
 ## Process Management  
-Advanced process manipulation capabilities:
+Advanced process manipulation engine with defensive evasion capabilities:
 
-### Process Creation  
-- **Advanced Spoofing**:
-  - Argument spoofing
-  - PPID spoofing
-  - BlockDLL policy enforcement
-- **Output Capture**:
-  - STDOUT/STDERR via named pipes
-  - Async output streaming
+### Process Creation & Execution
+**Advanced Capabilities:**
+- `PPID Spoofing`: Masquerade as child of legitimate processes (explorer.exe, svchost.exe, etc.)
+- `Argument Spoofing`: Forge command-line arguments to evade detection
+- `BlockDLL Enforcement`: Restrict non-Microsoft DLL injection (--x  flag)
+
+**Execution Features:**
+- `Token Impersonation`: Execute with stolen tokens
+- `Suspended Process Creation`: For memory manipulation prior to execution
+- `Output Redirection`: Anon pipe streaming (STDOUT/STDERR)
 
 ### Process Termination  
-- PID-based process killing
-- Force termination capability
-- Clean exit handling
-
-### Process Enumeration  
-Detailed process listing with:
-- Process metadata (Name, PID, PPID)
-- User context information
-- Command line arguments
-- Resource metrics:
-  - Handle counts
-  - Thread counts
-- Session information
-- Path details:
-  - Full process path
-  - Image name
-
-## Future Development  
-Planned enhancements:
-- Expanded BOF API support
-- Additional injection techniques
-- Improved evasion capabilities
-- Cross-platform support expansion
+Kill the existince process.
