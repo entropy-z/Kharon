@@ -360,13 +360,13 @@ auto DECLFN Package::Destroy(
 ) -> VOID {
 
     if ( Package->Buffer ) {
-        Self->Hp->Free( Package->Buffer, Package->Length );
+        Self->Hp->Free( Package->Buffer );
         Package->Buffer = nullptr;
         Package->Length = 0;
     }
 
     if ( Package ) {
-        Self->Hp->Free( Package, sizeof( PACKAGE ) );
+        Self->Hp->Free( Package );
         Package = nullptr;
     }
     
@@ -404,7 +404,7 @@ auto DECLFN Package::Transmit(
         }
     }
     
-    Success = Self->Hp->Free( FinalPacket, FinalPacketLen );
+    Success = Self->Hp->Free( FinalPacket );
     
     return Success;
 }
@@ -575,11 +575,11 @@ auto DECLFN Parser::Destroy(
     BOOL Success = TRUE;
 
     if ( Parser->Original ) {
-        Success = Self->Hp->Free( Parser->Original, Parser->Length );
+        Success = Self->Hp->Free( Parser->Original );
     }
 
     if ( Parser ) {
-        Success = Self->Hp->Free( Parser, sizeof( PARSER ) );
+        Success = Self->Hp->Free( Parser );
     }
 
     return Success;

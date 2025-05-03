@@ -8,25 +8,97 @@ auto DECLFN Library::Load(
     return (UPTR)Self->Krnl32.LoadLibraryA( LibName );
 }
 
+auto DECLFN Heap::Crypt( VOID ) -> VOID {
+    PHEAP_NODE Current = Node;
+
+    while ( Current ) {
+        if ( Current->Block && Current->Size > 0 ) {
+            Self->Usf->Xor( 
+                B_PTR( Current->Block ), 
+                Current->Size, 
+                Key, sizeof( Key ) 
+            );
+        }
+    }
+}
+
 auto DECLFN Heap::Alloc(
     _In_ ULONG Size
 ) -> PVOID {
-    return Self->Ntdll.RtlAllocateHeap( C_PTR( Self->Session.HeapHandle ), HEAP_ZERO_MEMORY, Size );
+    PVOID Block = Self->Ntdll.RtlAllocateHeap( C_PTR( Self->Session.HeapHandle ), HEAP_ZERO_MEMORY, Size );
+
+    PHEAP_NODE NewNode = (PHEAP_NODE)Self->Ntdll.RtlAllocateHeap( C_PTR( Self->Session.HeapHandle ), HEAP_ZERO_MEMORY, sizeof( HEAP_NODE ) );
+
+    NewNode->Block = Block;
+    NewNode->Size  = Size;
+
+    if ( !Node ) {
+        Node = NewNode;
+    } else {
+        PHEAP_NODE Current = Node;
+        
+        while ( Current->Next ) {
+            Current = Current->Next;
+        } 
+
+        Current->Next = NewNode;
+    }
+    
+    Count++;
+
+    return Block;
 }
 
 auto DECLFN Heap::ReAlloc(
     _In_ PVOID Block,
     _In_ ULONG Size
 ) -> PVOID {
-    return Self->Ntdll.RtlReAllocateHeap( C_PTR( Self->Session.HeapHandle ), HEAP_ZERO_MEMORY, Block, Size );
+    PVOID ReBlock = Self->Ntdll.RtlReAllocateHeap( C_PTR( Self->Session.HeapHandle ), HEAP_ZERO_MEMORY, Block, Size );
+
+    PHEAP_NODE Current = Node;
+
+    while ( Current ) {
+        if ( Current->Block = Block ) {
+            Current->Block = ReBlock;
+            Current->Size  = Size;
+            break;
+        }
+
+        Current = Current->Next;
+    }
+
+    return ReBlock;
 }
 
 auto DECLFN Heap::Free(
-	_In_ PVOID Block,
-	_In_ ULONG Size
+    _In_ PVOID Block
 ) -> BOOL {
-    Mem::Zero( U_PTR( Block ), Size );
-    return Self->Ntdll.RtlFreeHeap( C_PTR( Self->Session.HeapHandle ), 0, Block );
+    PHEAP_NODE Current  = Node;
+    PHEAP_NODE Previous = NULL;
+    BOOL       Result   = FALSE;
+
+    while ( Current ) {
+        if ( Current->Block == Block ) {
+            Mem::Zero( U_PTR( Current->Block ), Current->Size );
+            Result = Self->Ntdll.RtlFreeHeap( C_PTR( Self->Session.HeapHandle ), 0, Current->Block );
+
+            if ( Previous ) {
+                Previous->Next = Current->Next;
+            } else {
+                Node = Current->Next;
+            }
+
+            Self->Ntdll.RtlFreeHeap( C_PTR( Self->Session.HeapHandle ), 0, Current );
+            Count--;
+
+            break;
+        }
+
+        Previous = Current;
+        Current  = Current->Next;
+    }
+
+    return Result;
 }
 
 auto DECLFN Token::GetUser( 
@@ -80,7 +152,7 @@ auto DECLFN Token::GetUser(
         if ( bSuccess ) {
             (*UserNamePtr)[DomainLen] = '\\';
         } else {
-            Self->Hp->Free( *UserNamePtr, TotalLen );
+            Self->Hp->Free( *UserNamePtr );
             *UserNamePtr = NULL;
             *UserNameLen = 0;
         }
@@ -88,7 +160,7 @@ auto DECLFN Token::GetUser(
 
 _KH_END:
     if ( TokenUserPtr ) {
-        Self->Hp->Free( TokenUserPtr, ReturnLen );
+        Self->Hp->Free( TokenUserPtr );
     }
     return bSuccess;
 }
@@ -161,7 +233,7 @@ auto DECLFN Process::Create(
         SiEx.StartupInfo.dwFlags   |= STARTF_USESTDHANDLES;
     }
 
-    if ( UpdateCount           ) ProcAttr.Initialize( UpdateCount );
+    if ( UpdateCount             ) ProcAttr.Initialize( UpdateCount );
     if ( Self->Ps->Ctx.ParentID  ) ProcAttr.UpdateParentSpf( Process::Open( PROCESS_ALL_ACCESS, TRUE, Self->Ps->Ctx.ParentID ) );
     if ( Self->Ps->Ctx.BlockDlls ) ProcAttr.UpdateBlockDlls();
 
@@ -206,7 +278,7 @@ auto DECLFN Process::Create(
     }
  
 _KH_END:
-    if ( PipeBuff  ) Self->Hp->Free( PipeBuff, PipeBuffSize );
+    if ( PipeBuff  ) Self->Hp->Free( PipeBuff );
     if ( PipeWrite ) Self->Ntdll.NtClose( PipeWrite );
     if ( PipeRead  ) Self->Ntdll.NtClose( PipeRead );
 
@@ -257,7 +329,7 @@ auto DECLFN Thread::Enum(
     }
 
 _KH_END:
-    if ( SysProcInfo ) Self->Hp->Free( ValToFree, sizeof( SYSTEM_PROCESS_INFORMATION ) );
+    if ( SysProcInfo ) Self->Hp->Free( ValToFree );
 
     return ThreadID;
 }

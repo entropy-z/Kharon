@@ -9,6 +9,23 @@ auto DECLFN Useful::NtStatusToError(
     KhSetError( WinError ); return WinError;
 }
 
+auto DECLFN Useful::Xor( 
+    _In_opt_ PBYTE  Bin, 
+    _In_     SIZE_T BinSize, 
+    _In_     PBYTE  Key, 
+    _In_     SIZE_T KeySize 
+) -> VOID {
+    for ( SIZE_T i = 0x00, j = 0x00; i < BinSize; i++, j++ ) {
+        if ( j == KeySize )
+            j = 0x00;
+
+        if ( i % 2 == 0 )
+            Bin[i] = Bin[i] ^ Key[j];
+        else
+            Bin[i] = Bin[i] ^ Key[j] ^ j;
+    }
+}
+
 auto DECLFN Useful::FixImp(
     _In_ PVOID Base,
     _In_ PIMAGE_DATA_DIRECTORY DataDir

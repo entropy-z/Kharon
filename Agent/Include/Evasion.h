@@ -27,7 +27,8 @@ typedef struct _DESCRIPTOR_HOOK {
     BOOL   Processed;
     INT8   Drx;
     UPTR   Address;
-    VOID ( *Detour )( PCONTEXT );
+    PVOID This;
+    VOID ( *Detour )( PCONTEXT, PVOID );
     struct _DESCRIPTOR_HOOK* Next;
     struct _DESCRIPTOR_HOOK* Prev;
 } DESCRIPTOR_HOOK, *PDESCRIPTOR_HOOK;

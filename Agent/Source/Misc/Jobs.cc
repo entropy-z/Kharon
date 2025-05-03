@@ -128,7 +128,7 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
             if ( ToRemove->Psr ) {
                 Self->Psr->Destroy( ToRemove->Psr );
             }
-            Self->Hp->Free( ToRemove, sizeof( JOBS ) );
+            Self->Hp->Free( ToRemove );
             
             Count--;
         } else {
@@ -221,7 +221,7 @@ auto DECLFN Jobs::Remove(
         }
     }
     
-    Self->Hp->Free( Job, sizeof( JOBS ) );
+    Self->Hp->Free( Job );
     Count--;
 
     return TRUE;

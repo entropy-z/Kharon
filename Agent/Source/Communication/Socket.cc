@@ -60,7 +60,7 @@ auto DECLFN Socket::RmCtx(
     while ( Current ) {
         if ( Current->ServerID == ServerID ) {
             *Prev = Current->Next;
-            Self->Hp->Free( Current, sizeof( SOCKET_CTX) ); 
+            Self->Hp->Free( Current ); 
             Count--;
             return ERROR_SUCCESS;
         }

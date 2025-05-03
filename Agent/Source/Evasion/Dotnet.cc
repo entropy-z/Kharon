@@ -175,14 +175,14 @@ _KH_END:
         }
     
         if ( errorMessage != NULL ) {
-            // Self->Hp->Free( errorMessage, Str::LengthA( errorMessage ) );
+            // Self->Hp->Free( errorMessage );
         }
     }
 
     if ( BackupOut ) Self->Krnl32.SetStdHandle( STD_OUTPUT_HANDLE, BackupOut );
 
     if ( AsmArgv ) {
-        Self->Hp->Free( AsmArgv, Str::LengthW( *AsmArgv ) ); AsmArgv = NULL;
+        Self->Hp->Free( AsmArgv ); AsmArgv = NULL;
     }
 
     if ( SafeAsm ) {
