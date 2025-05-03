@@ -285,8 +285,6 @@ _KH_END:
     return Success;
 }
 
-#define ALL_THREADS 0x05
-
 auto DECLFN Thread::Enum( 
     _In_      INT8  Type,
     _In_opt_  ULONG ProcessID,
