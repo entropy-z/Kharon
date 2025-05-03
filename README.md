@@ -62,7 +62,7 @@ Advanced process manipulation engine with defensive evasion capabilities:
 **Advanced Capabilities:**
 - `PPID Spoofing`: Masquerade as child of legitimate processes (explorer.exe, svchost.exe, etc.)
 - `Argument Spoofing`: Forge command-line arguments to evade detection
-- `BlockDLL Enforcement`: Restrict non-Microsoft DLL injection (--x  flag)
+- `BlockDLL Enforcement`: Restrict non-Microsoft DLL injection
 - `Suspended Process Creation`: For memory manipulation prior to execution
 - `Output Redirection`: Anon pipe streaming (STDOUT/STDERR)
 
