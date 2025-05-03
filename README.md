@@ -2,7 +2,7 @@
 
 ![kharon img](Assets/kharon-1.png)
 
-C2 Agent for Mythic with advanced evasion capabilities, supporting dotnet/PE/shellcode/BOF memory execution, lateral movement, pivoting, SOCKS, and more. Kharon is a fully Position-Independent Code (PIC) shellcode agent and llvm support.  
+C2 Agent for Mythic with advanced evasion capabilities, supporting dotnet/powershell/PE/shellcode/BOF memory execution, lateral movement, pivoting, SOCKS, and more. Kharon is a fully Position-Independent Code (PIC) shellcode agent and llvm support.  
 
 ## Evasion  
 - Uses hardware breakpoints to bypass AMSI/ETW.  
@@ -22,6 +22,9 @@ Allows customization of injection techniques, including:
 
 ### Dotnet  
 Can inject .NET assemblies and keep them in memory for later execution without reloading.  
+
+### Powershell
+Its using the PowerPick dotnet, you can pass the script url and command for execution.
 
 ### PE  
 PE files can also be kept in memory and executed later. While idle, they are obfuscated using SystemFunction040/SystemFunction041 (also used for sleep obfuscation).  
