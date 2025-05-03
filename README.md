@@ -70,4 +70,4 @@ Advanced process manipulation engine with defensive evasion capabilities:
 - `Output Redirection`: Anon pipe streaming (STDOUT/STDERR)
 
 ### Process Termination  
-Kill the existince process.
+Kill the existence process.
