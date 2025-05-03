@@ -11,8 +11,8 @@ C2 Agent for Mythic with advanced evasion capabilities, supporting dotnet/powers
 - Indirect syscalls (e.g., [Halo's Gate](https://github.com/boku7/AsmHalosGate)).  
 - Call stack spoofing based on [SilentMoonwalk](https://github.com/klezVirus/SilentMoonwalk).  
 
-## Injection  
-Supports injection of dotnet assemblies, PE files, shellcode, and Beacon Object Files (BOF).  
+## Injection 
+Supports injection of dotnet assemblies, PE files, shellcode, and Beacon Object Files (BOF). All execution is inline with exception of the shellcode for a while.
 
 ### General  
 Allows customization of injection techniques, including:  
