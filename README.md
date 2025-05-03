@@ -1,8 +1,6 @@
 # Kharon Agent 
 
-<div style="text-align:center">
-  <img src="Assets/kharon-1.png" alt="Kharon Agent">
-</div>
+![kharon img](Assets/kharon-1.png)
 
 C2 Agent for Mythic with advanced evasion capabilities, supporting dotnet/PE/shellcode/BOF memory execution, lateral movement, pivoting, SOCKS, and more. Kharon is a fully Position-Independent Code (PIC) shellcode agent.  
 
@@ -19,7 +17,7 @@ Supports injection of dotnet assemblies, PE files, shellcode, and Beacon Object 
 ### General  
 Allows customization of injection techniques, including:  
 - **Allocation**: DripAlloc or standard allocation.  
-- **Writing**: WriteMemoryAPC or standard memory writing.  
+- **Writing**: WriteMemoryAPC or standard memory writing (for inline is just used custom memcpy).  
 - **Execution**: Normal thread creation, thread pool execution, or direct pointer invocation (inline execution).  
 
 ### Dotnet  
