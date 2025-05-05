@@ -122,12 +122,10 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
                 Current = List;
             }
             
-            // if ( ToRemove->Pkg ) {
-            //     Self->Pkg->Destroy( ToRemove->Pkg );
-            // }
             if ( ToRemove->Psr ) {
                 Self->Psr->Destroy( ToRemove->Psr );
             }
+
             Self->Hp->Free( ToRemove );
             
             Count--;

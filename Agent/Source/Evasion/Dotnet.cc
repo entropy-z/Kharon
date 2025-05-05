@@ -15,18 +15,18 @@ auto DECLFN Dotnet::Inline(
     KhDbg( "using app domain %S", AppDomName );
     KhDbg( "version: %S", Version );
 
-    PWCHAR* AsmArgv   = {};
-    ULONG   AsmArgc   = {};
+    PWCHAR* AsmArgv   = { 0 };
+    ULONG   AsmArgc   = { 0 };
     BOOL    Success   = FALSE;
     HANDLE  BackupOut = INVALID_HANDLE_VALUE;
     HANDLE  PipeWrite = INVALID_HANDLE_VALUE;
     HANDLE  PipeRead  = INVALID_HANDLE_VALUE;
     HWND    WinHandle = NULL;
 
-    SAFEARRAYBOUND SafeBound = {};
-    SAFEARRAY*     SafeAsm   = {};
-    SAFEARRAY*     SafeExpc  = {};
-    SAFEARRAY*	   SafeArgs  = {};
+    SAFEARRAYBOUND SafeBound = { 0 };
+    SAFEARRAY*     SafeAsm   = { 0 };
+    SAFEARRAY*     SafeExpc  = { 0 };
+    SAFEARRAY*	   SafeArgs  = { 0 };
 
     WCHAR            FmVersion[MAX_PATH] = { 0 };
     ULONG            FmBuffLen = MAX_PATH;

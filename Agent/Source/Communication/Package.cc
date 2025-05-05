@@ -384,28 +384,37 @@ auto DECLFN Package::Transmit(
     PVOID  RetBuffer  = NULL;
     UINT64 Retsize    = 0;
 
-    PCHAR  FinalPacket    = Self->Pkg->Base64Enc( (const unsigned char*)Package->Buffer, Package->Length );
-    UINT64 FinalPacketLen = Self->Pkg->Base64EncSize( Package->Length );
+    PCHAR FinalPacket = Self->Pkg->Base64Enc( (const unsigned char*)Package->Buffer, Package->Length );
+    if ( !FinalPacket) return FALSE; 
 
-    Self->Pkg->Destroy( Package );
+    UINT64 FinalPacketLen = Self->Pkg->Base64EncSize( Package->Length );
 
     if ( Self->Tsp->Send( FinalPacket, FinalPacketLen, &Base64Buff, &Base64Size ) ) {
         Success = TRUE;
     }
 
-
-    if ( Base64Buff && Base64Size ) {
-        Retsize   = Self->Pkg->Base64DecSize( (PCHAR)Base64Buff );
-        RetBuffer = Self->Hp->Alloc( Retsize );
-        base64_decode( (PCHAR)Base64Buff, (PUCHAR)RetBuffer, Retsize );
-        if ( Response && Size ) {
-            *Response = RetBuffer;
-            *Size     = Retsize;
-        }
+    if ( FinalPacket ) {
+        Self->Hp->Free( FinalPacket );
     }
-    
-    Success = Self->Hp->Free( FinalPacket );
-    
+
+    if ( Success && Base64Buff && Base64Size ) {
+        Retsize   = Self->Pkg->Base64DecSize((PCHAR)Base64Buff );
+        RetBuffer = Self->Hp->Alloc( Retsize );
+        if ( RetBuffer ) {
+            base64_decode( (PCHAR)Base64Buff, (PUCHAR)RetBuffer, Retsize );
+            if ( Response && Size ) {
+                *Response = RetBuffer;
+                *Size     = Retsize;
+            }
+        }
+
+        // Self->Hp->Free( Base64Buff );
+    }
+
+    if ( Package ) {
+        Self->Pkg->Destroy( Package );
+    }
+
     return Success;
 }
 
@@ -576,10 +585,12 @@ auto DECLFN Parser::Destroy(
 
     if ( Parser->Original ) {
         Success = Self->Hp->Free( Parser->Original );
+        Parser->Original = nullptr;
     }
 
     if ( Parser ) {
         Success = Self->Hp->Free( Parser );
+        Parser = nullptr;
     }
 
     return Success;

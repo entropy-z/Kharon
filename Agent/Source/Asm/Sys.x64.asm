@@ -6,8 +6,8 @@ GLOBAL ExecSyscall
     ExecSyscall
 		xor r10, r10                          
 		mov rax, rcx                          
-		mov r10, rax                          
-		mov eax, r14d               
+		mov r10, rax                
+		mov eax, [r14]               
 		jmp Child                               
 		xor eax, eax      
 		xor rcx, rcx      

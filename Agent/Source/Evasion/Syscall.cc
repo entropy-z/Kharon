@@ -3,8 +3,6 @@
 auto DECLFN Syscall::Fetch(
     _In_ INT8 SysIdx
 ) -> BOOL {
-    if ( !SysIdx ) return FALSE;
-
     UPTR FuncPtr = Ext[SysIdx].Address;
 
     // not hooked

