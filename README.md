@@ -16,7 +16,7 @@ The communication is all encrypted with AES256
 - Supports TLS-secured connections
 
 ## Evasion  
-- Uses hardware breakpoints lib to bypass AMSI/ETW by [rad](https://x.com/rad9800).  
+- Uses hardware breakpoints to bypass AMSI/ETW by [rad](https://x.com/rad9800) (e.g, [hwbp4mw](https://github.com/rad9800/hwbp4mw/blob/main/HWBP.c)).  
 - Sleep obfuscation via timers.  
 - Heap obfuscation during sleep (XOR).  
 - Indirect syscalls (e.g., [Halo's Gate](https://github.com/boku7/AsmHalosGate)).  
