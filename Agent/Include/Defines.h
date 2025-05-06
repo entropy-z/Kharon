@@ -23,12 +23,17 @@
 
 #define INT3BRK asm("int3");
 
+#define PAGE_SIZE 0x1000
+#define PAGE_ALIGN( x ) ( ( (ULONG_PTR) x ) + ( ( PAGE_SIZE - ( ( (ULONG_PTR)x ) & ( PAGE_SIZE - 1 ) ) ) % PAGE_SIZE ) )
+
 #ifdef DEBUG
 #define KhDbg( x, ... ) { Self->Ntdll.DbgPrint( ( "[DEBUG::%s::%s::%d] => " x "\n" ), __FILE__ ,__FUNCTION__, __LINE__, ##__VA_ARGS__ ); }
 #define KhDbgz( x, ... ) { Ntdll.DbgPrint( ( "[DEBUG::%s::%s::%d] => " x "\n" ), __FILE__ ,__FUNCTION__, __LINE__, ##__VA_ARGS__ ); }
+#define KH_DBG_MSG KhDbg( "dbg" );
 #else
 #define KhDbgz( x, ... );
 #define KhDbg( x, ... );
+#define KH_DBG_MSG
 #endif
 
 #define DECLAPI( x )  decltype( x ) * x

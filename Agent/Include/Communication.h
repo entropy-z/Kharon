@@ -17,7 +17,5 @@ typedef struct {
     PCHAR   Buffer;
     UINT32  Size;
     UINT32  Length;
-
-    BOOL    Endian;
 } PARSER, *PPARSER;
 

@@ -2153,5 +2153,13 @@ NTSYSAPI NTSTATUS NTAPI NtQuerySystemInformation( _In_ SYSTEM_INFORMATION_CLASS 
 NTSYSAPI NTSTATUS NTAPI SystemFunction040( PVOID Memory, ULONG MemorySize, ULONG OptionFlags );
 NTSYSAPI NTSTATUS NTAPI SystemFunction041( PVOID Memory, ULONG MemorySize, ULONG OptionFlags );
 NTSYSAPI ULONG    NTAPI RtlNtStatusToDosError( NTSTATUS Status );
+NTSYSAPI NTSTATUS NTAPI RtlInitializeCriticalSection( _Out_ PRTL_CRITICAL_SECTION CriticalSection );
+_Releases_exclusive_lock_(*CriticalSection) NTSYSAPI NTSTATUS NTAPI RtlLeaveCriticalSection( _Inout_ PRTL_CRITICAL_SECTION CriticalSection );
+_Acquires_exclusive_lock_(*CriticalSection) NTSYSAPI NTSTATUS NTAPI RtlEnterCriticalSection( _Inout_ PRTL_CRITICAL_SECTION CriticalSection );
+NTSYSAPI NTSTATUS NTAPI RtlDeleteCriticalSection( _Inout_ PRTL_CRITICAL_SECTION CriticalSection );
+NTSYSAPI PVOID    NTAPI RtlAddVectoredContinueHandler( _In_ ULONG First, _In_ PVECTORED_EXCEPTION_HANDLER Handler );
+NTSYSAPI PVOID    NTAPI RtlAddVectoredExceptionHandler( _In_ ULONG First, _In_ PVECTORED_EXCEPTION_HANDLER Handler );
+NTSYSAPI ULONG    NTAPI RtlRemoveVectoredContinueHandler( _In_ PVOID Handle );
+NTSYSAPI ULONG    NTAPI RtlRemoveVectoredExceptionHandler( _In_ PVOID Handle );
 
 #endif // WIN32_H            

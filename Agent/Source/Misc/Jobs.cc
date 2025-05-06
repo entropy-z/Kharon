@@ -155,9 +155,9 @@ auto DECLFN Jobs::ExecuteAll( VOID ) -> VOID {
                 Current->ExitCode = Result;
 
                 KhDbg( "job executed with exit code: %d", Current->ExitCode );
-            }
-            
+            }    
         }
+
         Current = Current->Next;
     }
 }
