@@ -4,8 +4,8 @@ auto Beacon::Output(
     INT  type, 
     PCCH data, 
     INT  len
-)->VOID {
-    Self->Pkg->Bytes( Pkg, (PUCHAR)data, len );
+) -> VOID {
+    return Self->Pkg->Bytes( Pkg, (PUCHAR)data, len );
 }
 
 auto Beacon::DataExtract(
