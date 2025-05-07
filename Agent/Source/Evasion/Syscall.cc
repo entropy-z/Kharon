@@ -3,7 +3,7 @@
 auto DECLFN Syscall::Fetch(
     _In_ INT8 SysIdx
 ) -> BOOL {
-    UPTR FuncPtr = Ext[SysIdx].Address;
+    UPTR FuncPtr = this->Ext[SysIdx].Address;
 
     // not hooked
     if ( 
@@ -16,7 +16,7 @@ auto DECLFN Syscall::Fetch(
     ) {
         BYTE High = C_DEFB( FuncPtr + 5 );
         BYTE Low  = C_DEFB( FuncPtr + 4 );
-        Ext[SysIdx].ssn = ( High << 8 ) | Low;
+        this->Ext[SysIdx].ssn = ( High << 8 ) | Low;
         goto _KH_END;
     }
 
@@ -33,7 +33,7 @@ auto DECLFN Syscall::Fetch(
            ) {
                BYTE High = C_DEFB( FuncPtr + 5 + i * SY_DOWN );
                BYTE Low  = C_DEFB( FuncPtr + 4 + i * SY_DOWN );
-               Ext[SysIdx].ssn = ( High << 8 ) | Low - i;
+               this->Ext[SysIdx].ssn = ( High << 8 ) | Low - i;
                goto _KH_END;
            }
            
@@ -47,7 +47,7 @@ auto DECLFN Syscall::Fetch(
             ) {
                 BYTE High = C_DEFB( FuncPtr + 5 + i * SY_UP );
                 BYTE Low  = C_DEFB( FuncPtr + 4 + i * SY_UP );
-                Ext[SysIdx].ssn = ( High << 8 ) | Low + i;
+                this->Ext[SysIdx].ssn = ( High << 8 ) | Low + i;
                 goto _KH_END;
             }
         }
@@ -66,7 +66,7 @@ auto DECLFN Syscall::Fetch(
             ) {
                 BYTE High = C_DEFB( FuncPtr + 5 + i * SY_DOWN );
                 BYTE Low  = C_DEFB( FuncPtr + 4 + i * SY_DOWN );
-                Ext[SysIdx].ssn = ( High << 8 ) | Low - i;
+                this->Ext[SysIdx].ssn = ( High << 8 ) | Low - i;
                 goto _KH_END;
             }
 
@@ -80,7 +80,7 @@ auto DECLFN Syscall::Fetch(
             ) {
                 BYTE High = C_DEFB( FuncPtr + 5 + i * SY_UP );
                 BYTE Low  = C_DEFB( FuncPtr + 4 + i * SY_UP );
-                Ext[SysIdx].ssn = ( High << 8 ) | Low + i;
+                this->Ext[SysIdx].ssn = ( High << 8 ) | Low + i;
                 goto _KH_END;
             }
         }
@@ -90,10 +90,10 @@ _KH_END:
 
     for ( INT x = 0, y = 1; x <= SY_RANGE; x++, y++ ) {
         if ( C_DEFB( FuncPtr + x ) == 0x0F && C_DEFB( FuncPtr + y ) == 0x05 ) {
-            Ext[SysIdx].Instruction = U_PTR( FuncPtr + x ); break;
+            this->Ext[SysIdx].Instruction = U_PTR( FuncPtr + x ); break;
         }
     }
 
-    if   ( Ext[SysIdx].ssn && Ext[SysIdx].Address && Ext[SysIdx].Instruction ) return TRUE;
+    if   ( this->Ext[SysIdx].ssn && this->Ext[SysIdx].Address && this->Ext[SysIdx].Instruction ) return TRUE;
     else return FALSE;
 }

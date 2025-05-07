@@ -1,6 +1,6 @@
 #include <Kharon.h>
 
-auto Beacon::Output( 
+auto Coff::Output( 
     INT  type, 
     PCCH data, 
     INT  len
@@ -8,32 +8,32 @@ auto Beacon::Output(
     return Self->Pkg->Bytes( Pkg, (PUCHAR)data, len );
 }
 
-auto Beacon::DataExtract(
+auto Coff::DataExtract(
     PDATAP parser, 
     PINT   size
 ) -> PCHAR {
     return (PCHAR)Self->Psr->Bytes( (PPARSER)parser, (PULONG)size );
 }
 
-auto Beacon::DataInt(
+auto Coff::DataInt(
     PDATAP parser
 )->INT {
     return Self->Psr->Int32( (PPARSER)parser );
 }
 
-auto Beacon::DataShort(
+auto Coff::DataShort(
     PDATAP parser
 ) -> SHORT {
     return Self->Psr->Int16( (PPARSER)parser );
 }
 
-auto Beacon::DataLength(
+auto Coff::DataLength(
     PDATAP parser
 ) -> INT {
     return parser->length;
 }
 
-auto Beacon::OpenProcess(
+auto Coff::OpenProcess(
     DWORD desiredAccess, 
     BOOL  inheritHandle, 
     DWORD processId
@@ -41,7 +41,7 @@ auto Beacon::OpenProcess(
     return Self->Ps->Open( desiredAccess, inheritHandle, processId );
 }
 
-auto Beacon::VirtualAlloc(
+auto Coff::VirtualAlloc(
     LPVOID Address, 
     SIZE_T Size, 
     DWORD  AllocType, 
@@ -50,7 +50,7 @@ auto Beacon::VirtualAlloc(
     return Self->Mm->Alloc( NULL, Address, Size, AllocType, Protect );
 }
 
-auto Beacon::VirtualAllocEx(
+auto Coff::VirtualAllocEx(
     HANDLE Handle,
     LPVOID Address, 
     SIZE_T Size, 
@@ -60,7 +60,7 @@ auto Beacon::VirtualAllocEx(
     return Self->Mm->Alloc( Handle, Address, Size, AllocType, Protect );
 }
 
-auto Beacon::VirtualProtect(
+auto Coff::VirtualProtect(
     LPVOID Address, 
     SIZE_T Size, 
     DWORD  NewProtect, 
@@ -69,7 +69,7 @@ auto Beacon::VirtualProtect(
     return Self->Mm->Protect( NULL, Address, Size, NewProtect, OldProtect );
 }
 
-auto Beacon::VirtualProtectEx(
+auto Coff::VirtualProtectEx(
     HANDLE Handle,
     LPVOID Address, 
     SIZE_T Size, 
@@ -79,7 +79,7 @@ auto Beacon::VirtualProtectEx(
     return Self->Mm->Protect( Handle, Address, Size, NewProtect, OldProtect );
 }
 
-auto Beacon::OpenThread(
+auto Coff::OpenThread(
     DWORD desiredAccess, 
     BOOL  inheritHandle, 
     DWORD threadId
@@ -87,7 +87,7 @@ auto Beacon::OpenThread(
     return Self->Td->Open( desiredAccess, inheritHandle, threadId );
 }
 
-auto Beacon::LoadLibraryA(
+auto Coff::LoadLibraryA(
     _In_ PCHAR LibraryName
 ) -> HMODULE {
     return (HMODULE)Self->Lib->Load( LibraryName );

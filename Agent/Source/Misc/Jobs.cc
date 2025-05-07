@@ -107,7 +107,7 @@ auto DECLFN Jobs::Send(
 }
 
 auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
-    PJOBS Current  = List;
+    PJOBS Current  = this->List;
     PJOBS Previous = nullptr;
 
     while ( Current ) {
@@ -118,8 +118,8 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
                 Previous->Next = Current->Next;
                 Current        = Current->Next;
             } else {
-                List    = Current->Next;
-                Current = List;
+                this->List = Current->Next;
+                Current    = this->List;
             }
             
             if ( ToRemove->Psr ) {
@@ -137,7 +137,7 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
 }
 
 auto DECLFN Jobs::ExecuteAll( VOID ) -> VOID {
-    PJOBS Current = List;
+    PJOBS Current = this->List;
 
     while ( Current ) {
         if ( Current->State == KH_JOB_PRE_START ) {
@@ -151,7 +151,7 @@ auto DECLFN Jobs::ExecuteAll( VOID ) -> VOID {
                 // Current->Handle = Self->Krnl32.CreateThread( 0, 0, (LPTHREAD_START_ROUTINE)&Execute, Current, 0, 0 );
             } else {
                 Current->State    = KH_JOB_RUNNING;
-                ERROR_CODE Result = Execute( Current );
+                ERROR_CODE Result = this->Execute( Current );
                 Current->ExitCode = Result;
 
                 KhDbg( "job executed with exit code: %d", Current->ExitCode );
