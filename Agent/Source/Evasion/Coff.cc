@@ -255,6 +255,7 @@ auto Coff::Loader(
                 KhDbg("processing relocation %d (Type: 0x%X)", x, Relocs[x].Type);
         
                 if ( Relocs[x].Type == IMAGE_REL_AMD64_REL32 && CoffData.Sym[i].Ptr ) {
+                    C_DEF(TmpBase[Iterator]) = CoffData.Sym[i].Ptr;
                     C_DEF32(SymReloc) = (UINT32)TmpBase + Iterator * sizeof(PVOID) - U_PTR(Relocs) - sizeof(INT32);
                     Iterator++;
                     KhDbg("applied REL32 relocation");
