@@ -542,7 +542,7 @@ auto DECLFN Parser::Int32(
     parser->Buffer += 4;
     parser->Length -= 4;
 
-    if ( ! parser->Endian )
+    if ( ! this->Endian )
         return ( INT ) intBytes;
     else
         return ( INT ) __builtin_bswap32( intBytes );
@@ -561,7 +561,7 @@ auto DECLFN Parser::Bytes(
     Mem::Copy( C_PTR( &Length ), C_PTR( parser->Buffer ), 4 );
     parser->Buffer += 4;
 
-    if ( parser->Endian )
+    if ( this->Endian )
         Length = __builtin_bswap32( Length );
 
     outdata = B_PTR( parser->Buffer );
@@ -641,7 +641,7 @@ auto DECLFN Parser::Int64(
     parser->Buffer += 8;
     parser->Length -= 8;
 
-    if ( !parser->Endian )
+    if ( !this->Endian )
         return ( INT64 ) intBytes;
     else
         return ( INT64 ) __builtin_bswap64( intBytes );

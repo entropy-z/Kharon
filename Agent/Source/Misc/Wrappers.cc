@@ -5,6 +5,7 @@ using namespace Root;
 auto DECLFN Library::Load(
     _In_ PCHAR LibName
 ) -> UPTR {
+    KhDbg("lib %s", LibName);
     return (UPTR)Self->Krnl32.LoadLibraryA( LibName );
 }
 
@@ -440,7 +441,7 @@ auto DECLFN Memory::Protect(
 
         if ( Handle == INVALID_HANDLE_VALUE || !Handle ) Handle = NtCurrentProcess();
 
-        SyscallExec( syProtect, Status, Handle, Handle, Base, Size, NewProt, OldProt );
+        SyscallExec( syProtect, Status, Handle, Base, Size, NewProt, OldProt );
         Self->Usf->NtStatusToError( Status );
 
         if   ( Status == STATUS_SUCCESS ) Success = TRUE;

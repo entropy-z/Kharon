@@ -128,7 +128,7 @@ auto DECLFN LdrLoad::Module(
         if ( !LibHash ) {
             return reinterpret_cast<UPTR>( Entry->OriginalBase );
         }
- 
+
         if ( Hsh::Str<WCHAR>( Entry->BaseDllName.Buffer ) == LibHash ) {
             return reinterpret_cast<UPTR>( Entry->OriginalBase );
         }
@@ -141,43 +141,43 @@ auto DECLFN LdrLoad::_Api(
     _In_ const UPTR ModBase,
     _In_ const UPTR SymbHash
 ) -> UPTR {
-     auto FuncPtr    = UPTR { 0 };
-     auto NtHdr      = PIMAGE_NT_HEADERS { nullptr };
-     auto DosHdr     = PIMAGE_DOS_HEADER { nullptr };
-     auto ExpDir     = PIMAGE_EXPORT_DIRECTORY { nullptr };
-     auto ExpNames   = PDWORD { nullptr };
-     auto ExpAddress = PDWORD { nullptr };
-     auto ExpOrds    = PWORD { nullptr };
-     auto SymbName   = PSTR { nullptr };
- 
-     DosHdr = reinterpret_cast<PIMAGE_DOS_HEADER>( ModBase );
-     if ( DosHdr->e_magic != IMAGE_DOS_SIGNATURE ) {
-         return 0;
-     }
- 
-     NtHdr = reinterpret_cast<PIMAGE_NT_HEADERS>( ModBase + DosHdr->e_lfanew );
-     if ( NtHdr->Signature != IMAGE_NT_SIGNATURE ) {
-         return 0;
-     }
- 
-     ExpDir     = reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( ModBase + NtHdr->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress );
-     ExpNames   = reinterpret_cast<PDWORD>( ModBase + ExpDir->AddressOfNames );
-     ExpAddress = reinterpret_cast<PDWORD>( ModBase + ExpDir->AddressOfFunctions );
-     ExpOrds    = reinterpret_cast<PWORD> ( ModBase + ExpDir->AddressOfNameOrdinals );
- 
-     for ( int i = 0; i < ExpDir->NumberOfNames; i++ ) {
-         SymbName = reinterpret_cast<PSTR>( ModBase + ExpNames[ i ] );
- 
-         if ( Hsh::Str( SymbName ) != SymbHash ) {
-             continue;
-         }
- 
-         FuncPtr = ModBase + ExpAddress[ ExpOrds[ i ] ];
- 
-         break;
-     }
- 
-     return FuncPtr;
+    auto FuncPtr    = UPTR { 0 };
+    auto NtHdr      = PIMAGE_NT_HEADERS { nullptr };
+    auto DosHdr     = PIMAGE_DOS_HEADER { nullptr };
+    auto ExpDir     = PIMAGE_EXPORT_DIRECTORY { nullptr };
+    auto ExpNames   = PDWORD { nullptr };
+    auto ExpAddress = PDWORD { nullptr };
+    auto ExpOrds    = PWORD { nullptr };
+    auto SymbName   = PSTR { nullptr };
+
+    DosHdr = reinterpret_cast<PIMAGE_DOS_HEADER>( ModBase );
+    if ( DosHdr->e_magic != IMAGE_DOS_SIGNATURE ) {
+        return 0;
+    }
+
+    NtHdr = reinterpret_cast<PIMAGE_NT_HEADERS>( ModBase + DosHdr->e_lfanew );
+    if ( NtHdr->Signature != IMAGE_NT_SIGNATURE ) {
+        return 0;
+    }
+
+    ExpDir     = reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( ModBase + NtHdr->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress );
+    ExpNames   = reinterpret_cast<PDWORD>( ModBase + ExpDir->AddressOfNames );
+    ExpAddress = reinterpret_cast<PDWORD>( ModBase + ExpDir->AddressOfFunctions );
+    ExpOrds    = reinterpret_cast<PWORD> ( ModBase + ExpDir->AddressOfNameOrdinals );
+
+    for ( int i = 0; i < ExpDir->NumberOfNames; i++ ) {
+        SymbName = reinterpret_cast<PSTR>( ModBase + ExpNames[ i ] );
+
+        if ( Hsh::Str( SymbName ) != SymbHash ) {
+            continue;
+        }
+
+        FuncPtr = ModBase + ExpAddress[ ExpOrds[ i ] ];
+
+        break;
+    }
+
+    return FuncPtr;
 }
 
 auto DECLFN Mem::Copy(

@@ -6,6 +6,12 @@
 #define RSL_TYPE( x )   .x = reinterpret_cast<decltype( x )*>( Hsh::Str( #x ) ) 
 #define RSL_API( m, f ) LdrLoad::Api<decltype(s)>( m, Hsh::Str( #f ) )
 
+// #define COFF_CHECK( m, x ) { \
+//     for ( int i = 1; i < Hsh::StructCount<decltype( Kharon::m )>(); i++ ) { \
+//         if ( Str::CompareA( m.#x, x ) ) \
+//     } \
+// }
+
 #define RSL_IMP( m ) { \
     for ( int i = 1; i < Hsh::StructCount<decltype( Kharon::m )>(); i++ ) { \
         reinterpret_cast<UPTR*>( &m )[ i ] = LdrLoad::_Api( m.Handle, reinterpret_cast<UPTR*>( &m )[ i ] ); \

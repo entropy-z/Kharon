@@ -26,8 +26,6 @@ auto DECLFN Mask::Main(
     switch( this->Ctx.TechniqueID ) {
     case MaskTimer:
         Success = this->Timer( RndTime ); break;
-    case MaskApc:
-        Success = this->Apc( RndTime ); break;
     case MaskWait:
         Success = this->Wait( RndTime ); break;
     }
@@ -213,12 +211,6 @@ _KH_END:
 
     if ( NtStatus == STATUS_SUCCESS ) { return TRUE; } 
     else { return FALSE; }
-}
-
-auto DECLFN Mask::Apc(
-    _In_ ULONG Time
-) -> BOOL {
-
 }
 
 auto DECLFN Mask::Wait(

