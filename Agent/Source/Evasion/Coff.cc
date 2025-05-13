@@ -160,8 +160,8 @@ auto Coff::Loader(
 
     // allocate memory to temporary symbol and section array
 
-    CoffData.Sec = (PSECTION_DATA)Self->Hp->Alloc( SecNbrs * sizeof( SECTION_DATA ) );
-    CoffData.Sym = (PSYMBOL_DATA)Self->Hp->Alloc( SecNbrs * sizeof( SYMBOL_DATA ) );
+    CoffData.Sec = (SECTION_DATA*)Self->Hp->Alloc( SecNbrs * sizeof( SECTION_DATA ) );
+    CoffData.Sym = (SYMBOL_DATA*)Self->Hp->Alloc( SecNbrs * sizeof( SYMBOL_DATA ) );
     KhDbg("allocated %d bytes for sections and %d bytes for symbols", 
           SecNbrs * sizeof( SECTION_DATA ), SecNbrs * sizeof( SYMBOL_DATA ));
 
@@ -246,24 +246,30 @@ auto Coff::Loader(
         for ( INT i = 0; i < SecNbrs; i++ ) {
             Relocs = (PIMAGE_RELOCATION)(Buffer + SecHdr[i].PointerToRelocations);
             KhDbg("processing %d relocations for section %d", SecHdr[i].NumberOfRelocations, i);
-        
+
             for ( INT x = 0; x < SecHdr[i].NumberOfRelocations; x++ ) {
                 PIMAGE_SYMBOL SymReloc = &Symbols[Relocs->SymbolTableIndex];
 
-                PVOID TmpBase = (CoffData.Sec[i].Base + Relocs->VirtualAddress);
+                PVOID TmpBase = C_PTR((ULONG_PTR)CoffData.Sec[i].Base + Relocs->VirtualAddress);
 
+                KhDbg( "section base %p [%d bytes]", CoffData.Sec[i].Base, CoffData.Sec[i].Size );
                 KhDbg("processing relocation %d (Type: 0x%X)", x, Relocs[x].Type);
-        
+
                 if ( Relocs[x].Type == IMAGE_REL_AMD64_REL32 && CoffData.Sym[i].Ptr ) {
                     ULONG_PTR* Ptr = (ULONG_PTR*)TmpBase;
                     Ptr[Iterator]  = (DWORD)CoffData.Sym[i].Ptr;
-                    C_DEF32(SymReloc) = (UINT32)TmpBase + Iterator * sizeof(PVOID) - U_PTR(Relocs) - sizeof(INT32);
+
+                    KhDbg("address to reloc %p %p", Ptr, TmpBase);
+
+                    C_DEF32(SymReloc) = (UINT32)((ULONG_PTR)TmpBase + Iterator * sizeof(PVOID) - U_PTR(Relocs) - sizeof(INT32));
                     Iterator++;
                     KhDbg("applied REL32 relocation");
                 } else {
                     this->RslRel( CoffData.Sec[i].Base, SymReloc, Relocs[x].Type );
                     KhDbg("applied other relocation type");
                 }
+
+                Relocs = (PIMAGE_RELOCATION)( (ULONG_PTR)Relocs + sizeof(IMAGE_RELOCATION) );
             }
         }
     }

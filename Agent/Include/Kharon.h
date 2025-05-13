@@ -1178,13 +1178,11 @@ public:
     };
 
     struct {
-        PWCHAR w; // wide pointer
         ULONG  s; // size
-        PCHAR  a; // ascii pointer
-    } Buffer = {
-        .w = NULL,
+        PCHAR  p; // pointer
+    } Out = {
         .s = 0,
-        .a = NULL
+        .p = nullptr
     };
 
     struct {
@@ -1198,6 +1196,8 @@ public:
     auto PatchExit(
         _In_ ICorRuntimeHost* IRuntime
     ) -> HRESULT;
+
+    auto VersionList( VOID ) -> VOID;
 
     auto Inline(
         _In_ PBYTE AsmBytes,

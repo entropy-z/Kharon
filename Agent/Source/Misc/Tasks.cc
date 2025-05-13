@@ -458,24 +458,29 @@ auto DECLFN Task::Dotnet(
                 Self->Hw->DotnetExit();
             }
 
-            if ( Self->Dot->Buffer.a && Self->Dot->Buffer.s ) {
-                Self->Pkg->Bytes( Package, (PUCHAR)Self->Dot->Buffer.a, Self->Dot->Buffer.s );
+            if ( Self->Dot->Out.p && Self->Dot->Out.s ) {
+                Self->Pkg->Bytes( Package, (PUCHAR)Self->Dot->Out.p, Self->Dot->Out.s );
             }
             
             break;
         }
         case SbDotList: {
+            GLOBAL_PKG = Package;
+            Self->Dot->VersionList();
+
             break;
         }
         case SbDotInvoke: {
             break;
-       }
+        }
+        case SbDotSpawn: {
+            break;
+        }
     }   
 
 _KH_END:
-    if ( Self->Dot->Buffer.a ) {
-        Self->Hp->Free( Self->Dot->Buffer.a );
-    }
+    if ( Self->Dot->Out.p ) Self->Hp->Free( Self->Dot->Out.p );
+    if ( GLOBAL_PKG ) GLOBAL_PKG = nullptr;
 
     return Code;
 }

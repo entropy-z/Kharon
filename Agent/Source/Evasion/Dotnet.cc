@@ -15,17 +15,17 @@ auto DECLFN Dotnet::Inline(
     KhDbg( "using app domain %S", AppDomName );
     KhDbg( "version: %S", Version );
 
-    PWCHAR* AsmArgv   = { 0 };
+    PWCHAR* AsmArgv   = { nullptr };
     ULONG   AsmArgc   = { 0 };
     BOOL    Success   = FALSE;
     HANDLE  BackupOut = INVALID_HANDLE_VALUE;
     HANDLE  PipeWrite = INVALID_HANDLE_VALUE;
     HANDLE  PipeRead  = INVALID_HANDLE_VALUE;
-    HWND    WinHandle = NULL;
+    HWND    WinHandle = nullptr;
 
     SAFEARRAYBOUND SafeBound = { 0 };
-    SAFEARRAY*     SafeAsm   = { 0 };
-    SAFEARRAY*     SafeExpc  = { 0 };
+    SAFEARRAY*     SafeAsm   = { nullptr };
+    SAFEARRAY*     SafeExpc  = { nullptr };
     SAFEARRAY*	   SafeArgs  = { 0 };
 
     WCHAR            FmVersion[MAX_PATH] = { 0 };
@@ -34,25 +34,27 @@ auto DECLFN Dotnet::Inline(
     BOOL             IsLoadable  = FALSE;
     HRESULT          HResult     = 0;
     VARIANT          VariantArgv = { 0 };
-    _Assembly*       Assembly    = { 0 };
-    _AppDomain*      AppDom      = { 0 };
-    _MethodInfo*     MethodInfo  = { 0 };
-    IUnknown*        AppDomThunk = { 0 };
-    IUnknown*        EnumRtm     = { 0 };
-    IEnumUnknown*    EnumUkwn    = { 0 };
-    ICLRMetaHost*    MetaHost    = { 0 };
-    ICLRRuntimeInfo* RtmInfo     = { 0 };
+    _Assembly*       Assembly    = { nullptr };
+    _AppDomain*      AppDom      = { nullptr };
+    _MethodInfo*     MethodInfo  = { nullptr };
+    IUnknown*        AppDomThunk = { nullptr };
+    IUnknown*        EnumRtm     = { nullptr };
+    IEnumUnknown*    EnumUkwn    = { nullptr };
+    ICLRMetaHost*    MetaHost    = { nullptr };
+    ICLRRuntimeInfo* RtmInfo     = { nullptr };
     ICorRuntimeHost* RtmHost     = { 0 };
 
     LONG Idx = 0;
 
     SECURITY_ATTRIBUTES SecAttr = { 0 };
 
+    // host clr in the process
     HResult = Self->Mscoree.CLRCreateInstance( 
         Self->Dot->CLSID.CLRMetaHost, Self->Dot->IID.ICLRMetaHost, (PVOID*)&MetaHost 
     );
     if ( HResult ) goto _KH_END;
 
+    //  get the last version if parameters is not passed
     if ( ( Str::CompareW( Version, L"v0.0.00000" ) == 0 ) ) {
         HResult = MetaHost->EnumerateInstalledRuntimes( &EnumUkwn );
         if ( HResult ) goto _KH_END;
@@ -81,34 +83,36 @@ auto DECLFN Dotnet::Inline(
         Self->Dot->CLSID.CorRuntimeHost, Self->Dot->IID.ICorRuntimeHost, (PVOID*)&RtmHost 
     );
     if ( HResult ) goto _KH_END;
-    
 
     HResult = RtmHost->Start();
     if ( HResult ) goto _KH_END;
-    
 
+    // create the app domain
     HResult = RtmHost->CreateDomain( AppDomName, 0, &AppDomThunk );
     if ( HResult ) goto _KH_END;
-    
 
     HResult = AppDomThunk->QueryInterface( Self->Dot->IID.AppDomain, (PVOID*)&AppDom );
     if ( HResult ) goto _KH_END;
-    
 
     SafeBound = { AsmLength, 0 };
     SafeAsm   = Self->Oleaut32.SafeArrayCreate( VT_UI1, 1, &SafeBound );
 
+    // copy the dotnet assembpy to safe array
     Mem::Copy( SafeAsm->pvData, AsmBytes, AsmLength );
 
+    // load the dotnet
     HResult = AppDom->Load_3( SafeAsm, &Assembly );
     if ( HResult ) goto _KH_END;
-    
+
+    // get the entry point
     HResult = Assembly->get_EntryPoint( &MethodInfo );
     if ( HResult ) goto _KH_END;
-    
+
+    // get the parameters requirements
     HResult = MethodInfo->GetParameters( &SafeExpc );
     if ( HResult ) goto _KH_END;
-    
+
+    // work with parameters requirements and do it
 	if ( SafeExpc ) {
 		if ( SafeExpc->cDims && SafeExpc->rgsabound[0].cElements ) {
 			SafeArgs = Self->Oleaut32.SafeArrayCreateVector( VT_VARIANT, 0, 1 );
@@ -131,8 +135,9 @@ auto DECLFN Dotnet::Inline(
 			Self->Oleaut32.SafeArrayDestroy( VariantArgv.parray );
 		}
 	}
-    
-    SecAttr = { sizeof( SECURITY_ATTRIBUTES ), NULL, TRUE };
+
+    // set the output console
+    SecAttr = { sizeof( SECURITY_ATTRIBUTES ), nullptr, TRUE };
 
     Self->Krnl32.CreatePipe( &PipeRead, &PipeWrite, &SecAttr, PIPE_BUFFER_LENGTH );
 
@@ -151,34 +156,37 @@ auto DECLFN Dotnet::Inline(
 
     KhDbg( "invoking .NET assembly" );
 
-    HResult = MethodInfo->Invoke_3( VARIANT(), SafeArgs, NULL );
+    // invoke/execute the dotnet assembly
+    HResult = MethodInfo->Invoke_3( VARIANT(), SafeArgs, nullptr );
     if ( HResult ) goto _KH_END;
 
-    Self->Dot->Buffer.a = (PCHAR)Self->Hp->Alloc( PIPE_BUFFER_LENGTH );
+    // allocate memory to output buffer
+    Self->Dot->Out.p = (PCHAR)Self->Hp->Alloc( PIPE_BUFFER_LENGTH );
 
     KhDbg( "start read output of the assembly" );
 
-    Success = Self->Krnl32.ReadFile( PipeRead, Self->Dot->Buffer.a, PIPE_BUFFER_LENGTH, &Self->Dot->Buffer.s, 0 );
+    // read the output
+    Success = Self->Krnl32.ReadFile( PipeRead, Self->Dot->Out.p, PIPE_BUFFER_LENGTH, &Self->Dot->Out.s, nullptr );
 
-    KhDbg( "dotnet asm output [%d bytes] %s", Self->Dot->Buffer.s, Self->Dot->Buffer.a );
+    KhDbg( "dotnet asm output [%d bytes] %s", Self->Dot->Out.s, Self->Dot->Out.p );
 _KH_END:
     if ( HResult ) {    
-        LPSTR errorMessage = NULL;
+        LPSTR errorMessage = nullptr;
         DWORD flags = 
             FORMAT_MESSAGE_ALLOCATE_BUFFER | 
             FORMAT_MESSAGE_FROM_SYSTEM | 
             FORMAT_MESSAGE_IGNORE_INSERTS;
     
         DWORD result = Self->Krnl32.FormatMessageA(
-            flags, NULL, HResult,MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), 
-            (LPSTR)&errorMessage, 0, NULL 
+            flags, nullptr, HResult,MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+            (LPSTR)&errorMessage, 0, nullptr
         );
     
-        if ( result > 0 && errorMessage != NULL ) {
+        if ( result > 0 && errorMessage != nullptr ) {
             KhDbg("Erro (HRESULT 0x%08X): %s\n", HResult, errorMessage);
         }
     
-        if ( errorMessage != NULL ) {
+        if ( errorMessage != nullptr ) {
             // Self->Hp->Free( errorMessage );
         }
     }
@@ -186,15 +194,15 @@ _KH_END:
     if ( BackupOut ) Self->Krnl32.SetStdHandle( STD_OUTPUT_HANDLE, BackupOut );
 
     if ( AsmArgv ) {
-        Self->Hp->Free( AsmArgv ); AsmArgv = NULL;
+        Self->Hp->Free( AsmArgv ); AsmArgv = nullptr;
     }
 
     if ( SafeAsm ) {
-        Self->Oleaut32.SafeArrayDestroy( SafeAsm ); SafeAsm = NULL;
+        Self->Oleaut32.SafeArrayDestroy( SafeAsm ); SafeAsm = nullptr;
     }
 
     if ( SafeArgs ) {
-        Self->Oleaut32.SafeArrayDestroy( SafeArgs ); SafeArgs = NULL;
+        Self->Oleaut32.SafeArrayDestroy( SafeArgs ); SafeArgs = nullptr;
     }
 
     if ( MethodInfo ) {
@@ -210,6 +218,49 @@ _KH_END:
     }
 
     return HResult;
+}
+
+auto Dotnet::VersionList( VOID ) -> VOID {
+
+    HRESULT HResult = S_OK;
+
+    PWCHAR FmVersion = (PWCHAR)Self->Hp->Alloc( MAX_PATH );
+    ULONG  FmBuffLen = MAX_PATH;
+
+    ICLRRuntimeInfo* RtmInfo     = { 0 };
+    IUnknown*        EnumRtm     = { 0 };
+    IEnumUnknown*    EnumUkwn    = { 0 };
+    ICLRMetaHost*    MetaHost    = { 0 };
+
+    // host clr in the process
+    HResult = Self->Mscoree.CLRCreateInstance(
+        Self->Dot->CLSID.CLRMetaHost, Self->Dot->IID.ICLRMetaHost, (PVOID*)&MetaHost
+    );
+    if ( HResult ) goto _KH_END;
+
+    //  get the last version if parameters is not passed
+    HResult = MetaHost->EnumerateInstalledRuntimes( &EnumUkwn );
+    if ( HResult ) goto _KH_END;
+
+    while ( EnumUkwn->Next( 1, &EnumRtm, 0 ) == S_OK) {
+        if ( !EnumRtm ) continue;
+
+        if ( SUCCEEDED( EnumRtm->QueryInterface( Self->Dot->IID.ICLRRuntimeInfo, (PVOID*)&RtmInfo) ) && RtmInfo ) {
+
+            if ( SUCCEEDED( RtmInfo->GetVersionString( FmVersion, &FmBuffLen ) ) ) {
+                Self->Pkg->Bytes( GLOBAL_PKG, (PUCHAR)FmVersion, FmBuffLen );
+                KhDbg("supported version: %S", FmVersion);
+            }
+        }
+    }
+
+_KH_END:
+    if ( MetaHost ) MetaHost->Release();
+    if ( EnumUkwn ) EnumUkwn->Release();
+    if ( EnumRtm  ) EnumRtm->Release();
+    if ( RtmInfo  ) RtmInfo->Release();
+
+    return;
 }
 
 // auto Dotnet::PatchExit(

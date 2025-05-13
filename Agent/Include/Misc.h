@@ -236,7 +236,7 @@ enum {
     SbDtUnload,
     SbDotList,
     SbDotInvoke,
-    SbDtSpawn
+    SbDotSpawn
 } KH_DOTNET;
 
 enum {
