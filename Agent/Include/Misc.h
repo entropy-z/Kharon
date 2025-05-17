@@ -215,19 +215,20 @@ enum {
 } KH_TD_ENUM;
 
 enum {
-    TkConfig = 10,
-    TkProcess,
-    TkInjection,
-    TkFileSystem,
-    TkUpload,
-    TkDownload,
-    TkGetInfo,
-    TkSelfDelete,
-    TkExit,
-    TkDotnet,
-    TkSocks,
-    TkExecSc,
-    TkExecPE,
+    TskConfig = 10,
+    TskProcess,
+    TskInjection,
+    TskFileSystem,
+    TskUpload,
+    TskDownload,
+    TskGetInfo,
+    TskSelfDelete,
+    TskExit,
+    TskDotnet,
+    TskSocks,
+    TskExecSc,
+    TskExecPE,
+    TskExecBof,
     TaskLast
 } KH_TASKS;
 

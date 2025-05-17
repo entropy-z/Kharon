@@ -6,7 +6,7 @@ auto Coff::DataParse(
     INT    size
 ) -> VOID {
     G_KHARON
-    KhDbg("dbg");
+
     if (parser == NULL) {
         return;
     }
@@ -24,7 +24,7 @@ auto Coff::Output(
     INT  len
 ) -> VOID {
     G_KHARON
-    KhDbg("dbg");
+
     // return Self->Pkg->Bytes( Pkg, (PUCHAR)data, len );
 }
 
@@ -47,7 +47,6 @@ auto Coff::DataExtract(
     PINT   size
 ) -> PCHAR {
     G_KHARON
-    KhDbg("dbg");
     return (PCHAR)Self->Psr->Bytes( (PPARSER)parser, (PULONG)size );
 }
 
@@ -55,7 +54,6 @@ auto Coff::DataInt(
     PDATAP parser
 )->INT {
     G_KHARON
-    KhDbg("dbg");
     return Self->Psr->Int32( (PPARSER)parser );
 }
 
@@ -63,7 +61,6 @@ auto Coff::DataShort(
     PDATAP parser
 ) -> SHORT {
     G_KHARON
-    KhDbg("dbg");
     return Self->Psr->Int16( (PPARSER)parser );
 }
 

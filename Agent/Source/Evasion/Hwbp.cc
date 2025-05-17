@@ -48,7 +48,7 @@ auto DECLFN HwbpEng::Install(
         NewEntry->Prev = Current;
     }
 
-    Self->Ntdll.RtlLeaveCriticalSection( CritSec);
+    Self->Ntdll.RtlLeaveCriticalSection( CritSec );
 
     return this->Insert(Address, Drx, TRUE, ThreadID);
 }

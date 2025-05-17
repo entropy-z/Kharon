@@ -2161,5 +2161,8 @@ NTSYSAPI PVOID    NTAPI RtlAddVectoredContinueHandler( _In_ ULONG First, _In_ PV
 NTSYSAPI PVOID    NTAPI RtlAddVectoredExceptionHandler( _In_ ULONG First, _In_ PVECTORED_EXCEPTION_HANDLER Handler );
 NTSYSAPI ULONG    NTAPI RtlRemoveVectoredContinueHandler( _In_ PVOID Handle );
 NTSYSAPI ULONG    NTAPI RtlRemoveVectoredExceptionHandler( _In_ PVOID Handle );
+// NTSYSAPI ULONG    NTAPI RtlFillMemory( void* Destination, size_t Length, int Fill );
+WINAPI   BOOL  EnumProcessModules( HANDLE hProcess, HMODULE *lphModule, DWORD cb, LPDWORD lpcbNeeded );
+WINAPI   DWORD GetModuleFileNameExA( HANDLE hProcess, HMODULE hModule, LPSTR lpFilename, DWORD nSize );
 
 #endif // WIN32_H            

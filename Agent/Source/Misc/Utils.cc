@@ -26,6 +26,35 @@ auto DECLFN Useful::Xor(
     }
 }
 
+auto DECLFN Useful::FixTls(
+    _In_ PVOID Base,
+    _In_ PIMAGE_DATA_DIRECTORY DataDir
+) -> VOID {
+    if ( DataDir->Size ) {
+        PIMAGE_TLS_DIRECTORY TlsDir   = (PIMAGE_TLS_DIRECTORY)( U_PTR( Base ) + DataDir->VirtualAddress );
+        KhDbg("%p", TlsDir);
+        PIMAGE_TLS_CALLBACK* Callback = (PIMAGE_TLS_CALLBACK*)TlsDir->AddressOfCallBacks;
+        KhDbg("%p", Callback);
+
+        if ( Callback ) {
+            for ( INT i = 0; Callback[i] != nullptr; ++i ) {
+                Callback[i]( Base, DLL_PROCESS_ATTACH, nullptr );
+            }
+        }
+    }
+}
+
+auto DECLFN Useful::FixExp(
+    _In_ PVOID Base,
+    _In_ PIMAGE_DATA_DIRECTORY DataDir
+) -> VOID {
+    if ( DataDir->Size ) {
+        PIMAGE_RUNTIME_FUNCTION_ENTRY FncEntry = (PIMAGE_RUNTIME_FUNCTION_ENTRY)( U_PTR( Base ) + DataDir->VirtualAddress );
+
+        Self->Ntdll.RtlAddFunctionTable( (PRUNTIME_FUNCTION)FncEntry, DataDir->Size / sizeof( IMAGE_RUNTIME_FUNCTION_ENTRY ), U_PTR( Base ) );
+    }
+}
+
 auto DECLFN Useful::FixImp(
     _In_ PVOID Base,
     _In_ PIMAGE_DATA_DIRECTORY DataDir

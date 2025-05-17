@@ -40,8 +40,8 @@
 #define DECLTYPE( x ) ( decltype( x ) )
 #define DECLFN        __attribute__( ( section( ".text$B" ) ) )
 
-#define SHARED_PSR         Self->Psr->Shared
-#define GLOBAL_PKG         Self->Pkg->Global
+#define G_PARSER          Self->Psr->Shared
+#define G_PACKAGE         Self->Pkg->Global
 #define BEG_BUFFER_LENGTH  0x1000
 #define PIPE_BUFFER_LENGTH 0x10000
 

