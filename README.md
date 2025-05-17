@@ -50,7 +50,7 @@ Beyond standard BOF execution, the agent provides custom APIs such as `BeaconVir
 Advanced movement techniques:  
 - **WMI** (Windows Management Instrumentation) execution  
 - **SCM** (Service-based execution with custom implementation)  
-- Seamless network traversal capabilities  
+- **WinRM** (winrm execution via COM without spawn powershell binary)
 
 ## File System Operations  
 Core file management commands:  

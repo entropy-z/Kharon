@@ -57,6 +57,8 @@ auto DECLFN Task::Dispatcher(
 
             KhDbg( "creating job with task uuid: %s", TaskUUID );
 
+            KhDbg("parser %p buff %p %d", Parser, Parser->Buffer, Parser->Length);
+
             PJOBS NewJob = Self->Jbs->Create( TaskUUID, Parser );
             if ( !NewJob ) {
                 KhDbg( "Failed to create job for task %d", TaskID );
@@ -81,10 +83,6 @@ _KH_END:
     
     if ( DataPsr ) {
         Self->Hp->Free( DataPsr );
-    }
-
-    if ( Self->Pkg->Global ) {
-        Self->Pkg->Destroy( Self->Pkg->Global );
     }
 
     KhDbg( "heap allocation count: %d", Self->Hp->Count );
@@ -123,6 +121,9 @@ auto DECLFN Task::ExecBof(
     PBYTE BofArgs = Self->Psr->Bytes( Parser, &BofArgc );
 
     Self->Cf->Loader( BofBuff, BofLen, BofArgs, BofArgc );
+
+    G_PACKAGE = nullptr;
+    G_PARSER  = nullptr;
 
     return KhGetError;
 }

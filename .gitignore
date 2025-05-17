@@ -1,7 +1,6 @@
 Build
 *.bin
+.venv
 .vscode
 NOTES.md
 ldr*
-a.py
-poc.*

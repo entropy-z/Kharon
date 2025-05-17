@@ -68,8 +68,8 @@ def PostC2(Data):
 
     for Task in range(Tasks):
         TaskLength = Psr.Int32()
-        TaskData = Psr.Pad(TaskLength)
-        TaskPsr = Parser(TaskData, TaskLength)
+        TaskData   = Psr.Pad(TaskLength)
+        TaskPsr    = Parser(TaskData, TaskLength)
         
         TaskUUID = TaskPsr.Bytes().replace(b'\x00', b'')
         try:
@@ -107,6 +107,8 @@ def PostC2(Data):
 
     if RespSck:
         JsonData["socks"] = RespSck
+
+    RespPostDbg(f"command id: {CommandID}")
 
     RespPostDbg(f"JSON data: {JsonData}")
     RespPostDbg("------------------------")

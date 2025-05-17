@@ -21,6 +21,8 @@ def RespTasking( Tasks, Socks ) -> bytes:
     SockPkg = Packer()
     TaskLength = len(Tasks)
 
+    RespTaskDbg(f"task quantity {TaskLength}")
+
     for Sock in Socks:
         TaskLength += 1
         SrvId = Sock["server_id"]
@@ -57,7 +59,7 @@ def RespTasking( Tasks, Socks ) -> bytes:
         Pkg.Bytes( SockPkg.buffer )
 
     for Task in Tasks:
-        Command = Task["command"]
+        Command  = Task["command"]
         TaskUUID = Task["id"].encode()
 
         Parameters = {}
@@ -133,7 +135,7 @@ def RespTasking( Tasks, Socks ) -> bytes:
 
         task_data = TaskPkg.buffer
 
-        RespTaskDbg(f"task uuid: {TaskUUID} with data [{len(task_data)} bytes]")
+        RespTaskDbg(f"task uuid: {TaskUUID} with data {task_data} [{len(task_data)} bytes]")
         Pkg.Bytes(task_data)
 
     RespTaskDbg("------------------------")

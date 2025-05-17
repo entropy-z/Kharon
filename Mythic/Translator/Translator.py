@@ -43,7 +43,7 @@ class KharonTranslator( TranslationContainer ):
             AgTlDbg( f"Responses: {InputMsg.Message["responses"]}" );
             Response.Message = RespPosting( InputMsg.Message["responses"] );
         
-        AgTlDbg( f"buffer [{len( Response.Message )}]" );
+        AgTlDbg( f"buffer {Response.Message} [{len( Response.Message )}]" );
         AgTlDbg( "-----------------------\n" );
 
         return Response
@@ -70,7 +70,7 @@ class KharonTranslator( TranslationContainer ):
         elif Action == Jobs['post_response']['hex_code']:
             Response.Message = PostC2( ActionData );
         
-        C2TlDbg( f"buffer: {len(Response.Message)}" );
+        C2TlDbg( f"buffer: {Response.Message} {len(Response.Message)}" );
         C2TlDbg( "-----------------------\n" );
 
         return Response

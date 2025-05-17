@@ -40,19 +40,21 @@ class PwdCommand(CommandBase):
             
         try:
             RawResponse = bytes.fromhex(response)
+            if RawResponse and RawResponse[0] == 0x13:
+                RawResponse = RawResponse[1:]
             Psr = Parser(RawResponse, len(RawResponse))
             output = Psr.Str()
             
+            output = ''.join(char for char in output if char.isprintable())
+            
             await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                 TaskID=task.Task.ID,
-                Response=output.encode("utf-8")
+                Response=output.encode()
             ))
-
             return PTTaskProcessResponseMessageResponse(
                 TaskID=task.Task.ID,
                 Success=True
             )
-
         except Exception as e:
             await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                 TaskID=task.Task.ID,

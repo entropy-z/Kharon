@@ -78,7 +78,7 @@ auto DECLFN Heap::ReAlloc(
 auto DECLFN Heap::Free(
     _In_ PVOID Block
 ) -> BOOL {
-    if (!Block) return FALSE;
+    if ( !Block ) return FALSE;
 
     PHEAP_NODE Current = Node;
     PHEAP_NODE Previous = NULL;

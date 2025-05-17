@@ -1158,7 +1158,7 @@ public:
 
     auto ExecuteAll( VOID ) -> VOID;
     
-    auto Execute(
+    auto static Execute(
         _In_ PJOBS Job
     ) -> ERROR_CODE;
     

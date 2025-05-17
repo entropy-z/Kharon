@@ -2,14 +2,6 @@ import logging, json
 import traceback
 import pathlib
 
-from mythic_container.PayloadBuilder    import *
-from mythic_container.MythicCommandBase import *
-from mythic_container.MythicRPC         import *
-from distutils.dir_util                 import copy_tree
-
-import logging, json
-import traceback
-import pathlib
 from mythic_container.PayloadBuilder import *
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
@@ -32,7 +24,7 @@ class KharonAgent( PayloadType ):
         BuildParameter(
             name           = "Spawnto",
             parameter_type = BuildParameterType.String,
-            default_value  = "C:\\Windows\\System32\\svchost.exe",
+            default_value  = "C:\\Windows\\System32\\notepad.exe",
             description    ="used to fork and run routines",
         ),
         BuildParameter(
@@ -59,7 +51,7 @@ class KharonAgent( PayloadType ):
         BuildParameter(
             name            = "Mask",
             parameter_type  = BuildParameterType.ChooseOne,
-            choices         = [ "timer", "apc", "none"],
+            choices         = [ "timer", "none"],
             default_value   = "none",
             description     = "technique to beacon obfuscate in memory during sleep",
         ),

@@ -23,23 +23,23 @@ auto Coff::RslRel(
     _In_ PVOID  Rel,
     _In_ UINT16 Type
 ) -> VOID {
-    PVOID FlRel = (PVOID)((ULONG_PTR)Base + *(UINT32*)Rel);
+    PVOID FlRel = (PVOID)((ULONG_PTR)Base + C_DEF32( Rel ));
 
     switch (Type) {
         case IMAGE_REL_AMD64_REL32:
-            *(UINT32*)Rel = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32)); break;
+            C_DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32)); break;
         case IMAGE_REL_AMD64_REL32_1:
-            *(UINT32*)Rel = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 1); break;
+            C_DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 1); break;
         case IMAGE_REL_AMD64_REL32_2:
-            *(UINT32*)Rel = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 2); break;
+            C_DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 2); break;
         case IMAGE_REL_AMD64_REL32_3:
-            *(UINT32*)Rel = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 3); break;
+            C_DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 3); break;
         case IMAGE_REL_AMD64_REL32_4:
-            *(UINT32*)Rel = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 4); break;
+            C_DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 4); break;
         case IMAGE_REL_AMD64_REL32_5:
-            *(UINT32*)Rel = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 5); break;
+            C_DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 5); break;
         case IMAGE_REL_AMD64_ADDR64:
-            *(UINT64*)Rel = (UINT64)(ULONG_PTR)FlRel; break;
+            C_DEF64( Rel ) = (UINT64)(ULONG_PTR)FlRel; break;
     }
 }
 

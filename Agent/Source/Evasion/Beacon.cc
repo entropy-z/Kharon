@@ -25,7 +25,7 @@ auto Coff::Output(
 ) -> VOID {
     G_KHARON
 
-    // return Self->Pkg->Bytes( Pkg, (PUCHAR)data, len );
+    return Self->Pkg->Bytes( G_PACKAGE, (PUCHAR)data, len );
 }
 
 auto Coff::Printf(

@@ -66,22 +66,22 @@ class ConfigCommand(CommandBase):
     config {-option} [value]
 
     Configure agent settings. Available options:
-
-    -mask [timer|apc|none]        - Change the sleep mask technique
-    -bypass                       - Set bypass on amsi and etw using Hardware Breakpojnt
-    -injection-sc [classic|stomp] - Change shellcode injection technique
-    -sleep [seconds]              - Change sleep time (positive integer)
-    -jitter [percentage]          - Change jitter (0-100)
-    -killdate [YYYY-MM-DD]        - Set kill date
-    -ppid [pid]                   - Set parent process ID
+        -mask [timer|apc|none]        - Change the sleep mask technique
+        -bypass                       - Set bypass on amsi and etw using Hardware Breakpoint
+        -injection-sc [classic|stomp] - Change shellcode injection technique
+        -sleep [seconds]              - Change sleep time (positive integer)
+        -jitter [percentage]          - Change jitter (0-100)
+        -killdate [YYYY-MM-DD]        - Set kill date
+        -ppid [pid]                   - Set parent process ID | valid to any process createtion like binary execution and fork commands
+        -args [argument]              - Argument to spoof in the process creation | valid to proc-run, proc-cmd and proc-pwsh
 
     Examples:
-    config -mask timer
-    config -injection-sc stomp
-    config -sleep 5
-    config -jitter 10
-    config -killdate 2040-01-01
-    config -ppid 1234
+        config -mask timer
+        config -injection-sc stomp
+        config -sleep 5
+        config -jitter 10
+        config -killdate 2040-01-01
+        config -ppid 1234
     """
     description = "Configure agent settings";
     version     = 1;

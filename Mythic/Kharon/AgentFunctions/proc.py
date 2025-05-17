@@ -167,18 +167,18 @@ class ProcCommand(CommandBase):
     proc -action <action> [parameters]
 
     Actions and Parameters:
-    - run  -command <command>  - Run a process
-    - cmd  -command <command>  - Run command using cmd.exe
-    - pwsh -command <command>  - Run command using powershell.exe
-    - kill -pid <pid>          - Kill process by ID
-    - list                     - List running processes
+        run  -command <command>  - Run a process
+        cmd  -command <command>  - Run command using cmd.exe
+        pwsh -command <command>  - Run command using powershell.exe
+        kill -pid <pid>          - Kill process by ID
+        list                     - List running processes
 
     Examples:
-    proc -action cmd -command "dir"
-    proc -action run -command "notepad.exe"
-    proc -action pwsh -command "Get-Process | Where-Object { $_.CPU -gt 100 }"
-    proc -action kill -pid 1234
-    proc -action list
+        proc -action cmd -command "dir"
+        proc -action run -command "notepad.exe"
+        proc -action pwsh -command "Get-Process | Where-Object { $_.CPU -gt 100 }"
+        proc -action kill -pid 1234
+        proc -action list
     """
     description = "Process management utility with subcommands for running, listing, and killing processes";
     version     = 1;

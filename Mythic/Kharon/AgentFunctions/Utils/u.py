@@ -62,7 +62,7 @@ class Parser:
         return buf;
 
     def Str( self ) -> str:
-        return self.Bytes().decode('utf-8', errors="ignore");
+        return self.Bytes().decode('utf-8', errors="replace");
     
     def Wstr( self ):
         return self.Bytes().decode( 'utf-16' );
