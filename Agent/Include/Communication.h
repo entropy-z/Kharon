@@ -5,7 +5,6 @@
 #define KH_SOCKET_DATA  30
 
 typedef struct {
-    UINT32  CommandID;
     PVOID   Buffer;
     size_t  Length;
     size_t  Size;

@@ -384,11 +384,13 @@ auto DECLFN Package::Transmit(
     PVOID  RetBuffer  = NULL;
     UINT64 Retsize    = 0;
 
-    PCHAR FinalPacket = Self->Pkg->Base64Enc( (const unsigned char*)Package->Buffer, Package->Length );
-    if ( !FinalPacket) return FALSE; 
+    PVOID  TmpBuff = Package->Buffer;
+    SIZE_T TmpLen  = Package->Length;
+
+    PCHAR FinalPacket = Self->Pkg->Base64Enc( (const unsigned char*)TmpBuff, TmpLen );
+    if ( !FinalPacket ) return FALSE; 
 
     UINT64 FinalPacketLen = Self->Pkg->Base64EncSize( Package->Length );
-
     if ( Self->Tsp->Send( FinalPacket, FinalPacketLen, &Base64Buff, &Base64Size ) ) {
         Success = TRUE;
     }
@@ -407,12 +409,7 @@ auto DECLFN Package::Transmit(
                 *Size     = Retsize;
             }
         }
-
-        // Self->Hp->Free( Base64Buff );
-    }
-
-    if ( Package ) {
-        Self->Pkg->Destroy( Package );
+        if ( Base64Buff ) Self->Hp->Free( Base64Buff );
     }
 
     return Success;
@@ -468,14 +465,14 @@ auto DECLFN Package::Str(
     _In_ PPACKAGE package, 
     _In_ PCHAR    data 
 ) -> VOID {
-    return Self->Pkg->Bytes( package, (PBYTE) data, Str::LengthA( data ) );
+    return Self->Pkg->Bytes( package, (BYTE*) data, Str::LengthA( data ) );
 }
 
 auto DECLFN Package::Wstr( 
     _In_ PPACKAGE package, 
     _In_ PWCHAR   data 
 ) -> VOID {
-    return Self->Pkg->Bytes( package, (PBYTE) data, Str::LengthW( data ) * 2 );
+    return Self->Pkg->Bytes( package, (BYTE*) data, Str::LengthW( data ) * 2 );
 }
 
 auto DECLFN Parser::New( 
@@ -514,14 +511,14 @@ auto DECLFN Parser::NewTask(
 auto DECLFN Parser::Pad(
     _In_  PPARSER parser,
     _Out_ ULONG size
-) -> PBYTE {
+) -> BYTE* {
     if (!parser)
         return NULL;
 
     if (parser->Length < size)
         return NULL;
 
-    PBYTE padData = B_PTR(parser->Buffer);
+    BYTE* padData = B_PTR(parser->Buffer);
 
     parser->Buffer += size;
     parser->Length -= size;
@@ -550,16 +547,13 @@ auto DECLFN Parser::Int32(
 
 auto DECLFN Parser::Bytes( 
     _In_ PPARSER parser, 
-    _In_ PULONG  size 
-) -> PBYTE {
+    _In_ ULONG*  size 
+) -> BYTE* {
     UINT32  Length  = 0;
-    PBYTE   outdata = NULL;
-
+    BYTE*   outdata = NULL;
 
     if ( parser->Length < 4 || !parser->Buffer )
         return NULL;
-
-    KhDbg("%p %d", parser->Buffer, parser->Length);
 
     Mem::Copy( C_PTR( &Length ), C_PTR( parser->Buffer ), 4 );
     parser->Buffer += 4;
@@ -567,11 +561,9 @@ auto DECLFN Parser::Bytes(
     if ( !this->Endian )
         Length = __builtin_bswap32( Length );
 
-
     outdata = B_PTR( parser->Buffer );
     if ( outdata == NULL )
         return NULL;
-
 
     parser->Length -= 4;
     parser->Length -= Length;
@@ -603,14 +595,14 @@ auto DECLFN Parser::Destroy(
 
 auto DECLFN Parser::Str( 
     _In_ PPARSER parser, 
-    _In_ PULONG size 
+    _In_ ULONG* size 
 ) -> PCHAR {
     return ( PCHAR ) Self->Psr->Bytes( parser, size );
 }
 
 auto DECLFN Parser::Wstr( 
     _In_ PPARSER parser, 
-    _In_ PULONG  size 
+    _In_ ULONG*  size 
 ) -> PWCHAR {
      return ( PWCHAR )Self->Psr->Bytes( parser, size );
 }

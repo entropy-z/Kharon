@@ -5,6 +5,7 @@ import re
 import base64
 import struct
 import ast
+import logging
 from struct import pack, calcsize
 
 JOB_CHECKIN  = 0xf1;
@@ -117,15 +118,6 @@ Commands = {
     # Configuration command with subcommands
     "config": {
         "hex_code": T_CONFIG,
-        "subcommands": {
-            "sleep":  {"sub": SB_CFG_SLEEP},
-            "ppid":   {"sub": SB_CFG_PPID},
-            "block":  {"sub": SB_CFG_BLOCK},
-            "mask":   {"sub": SB_CFG_MASK},
-            "curdir": {"sub": SB_CFG_CURDIR},
-            "injection-sc": {"sub": SB_INJ_SC},
-            "injection-pe": {"sub": SB_INJ_PE}
-        }
     },
     
     # Process command with subcommands
@@ -225,7 +217,7 @@ class Parser:
 
     def Int64( self ):
 
-        val = struct.unpack( ">i", self.buffer[ :8 ] );
+        val = struct.unpack( ">q", self.buffer[ :8 ] );
         self.buffer = self.buffer[ 8: ];
 
         return val[ 0 ];
@@ -266,26 +258,34 @@ def is_valid_base64(s: str) -> bool:
     except:
         return False
     
-def RespChkDbg( Input:str ) -> None:
-    print( f"[DEBUG::RESP::CHECKIN] => {Input}" );
+def Dbg1( Input:str ) -> None:
+    ConcStr = f"CHECKIN => {Input}";
+    logging.info(ConcStr)
 
-def RespPostDbg( Input:str ) -> None:
-    print( f"[DEBUG::RESP::POST] => {Input}" );
+def Dbg2( Input:str ) -> None:
+    ConcStr = f"POST => {Input}";
+    logging.info(ConcStr)
 
-def RespTaskDbg( Input:str ) -> None:
-    print( f"[DEBUG::RESP::TASK] => {Input}" );
+def Dbg3( Input:str ) -> None:
+    ConcStr = f"TASK => {Input}";
+    logging.info(ConcStr)
 
-def GetChkDbg( Input:str ) -> None:
-    print( f"[DEBUG::GET::CHECKIN] => {Input}" );
+def Dbg4( Input:str ) -> None:
+    ConcStr = f"CHECKIN => {Input}";
+    logging.info(ConcStr)
 
-def GetTaskDbg( Input:str ) -> None:
-    print( f"[DEBUG::GET::TASK] => {Input}" );
+def Dbg5( Input:str ) -> None:
+    ConcStr = f"TASK => {Input}";
+    logging.info(ConcStr)
 
-def GetPostDbg( Input:str ) -> None:
-    print( f"[DEBUG::GET::POST] => {Input}" );
+def Dbg6( Input:str ) -> None:
+    ConcStr = f"POST => {Input}";
+    logging.info(ConcStr)
 
-def C2TlDbg( Input:str ) -> None:
-    print( f"[DEBUG::C2::FMT] => {Input}" );
+def Dbg7( Input:str ) -> None:
+    ConcStr = f"FMT => {Input}";
+    logging.info(ConcStr)
 
-def AgTlDbg( Input:str ) -> None:
-    print( f"[DEBUG::AG::FMT] => {Input}" );
+def Dbg8( Input:str ) -> None:
+    ConcStr = f"FMT => {Input}";
+    logging.info(ConcStr)

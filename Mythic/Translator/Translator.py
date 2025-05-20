@@ -17,14 +17,14 @@ class KharonTranslator( TranslationContainer ):
     author      = "@ Oblivion";
 
     async def translate_to_c2_format( self, InputMsg: TrMythicC2ToCustomMessageFormatMessage ) -> TrMythicC2ToCustomMessageFormatMessageResponse:
-        AgTlDbg( "------------------------" );
+        Dbg8( "------------------------" );
 
         Response = TrMythicC2ToCustomMessageFormatMessageResponse( Success=True );
         
         Action = InputMsg.Message["action"];
         
-        AgTlDbg( f"Action: {Action}" );
-        AgTlDbg( f"Input Json: {InputMsg.Message}" );
+        Dbg8( f"Action: {Action}" );
+        Dbg8( f"Input Json: {InputMsg.Message}" );
 
         if "socks" in InputMsg.Message and InputMsg.Message["socks"]:
             SocksKey = InputMsg.Message["socks"]
@@ -32,25 +32,25 @@ class KharonTranslator( TranslationContainer ):
             SocksKey = []
 
         if Action == "checkin":
-            AgTlDbg( f"ID: {InputMsg.Message["id"]}" );
+            Dbg8( f"ID: {InputMsg.Message["id"]}" );
             Response.Message = CheckinImp( InputMsg.Message["id"] );
         
         elif Action == "get_tasking":
-            AgTlDbg( f"Tasks: {InputMsg.Message["tasks"]}" );
+            Dbg8( f"Tasks: {InputMsg.Message["tasks"]}" );
             Response.Message = RespTasking( InputMsg.Message["tasks"], SocksKey );
 
         elif Action == "post_response":
-            AgTlDbg( f"Responses: {InputMsg.Message["responses"]}" );
+            Dbg8( f"Responses: {InputMsg.Message["responses"]}" );
             Response.Message = RespPosting( InputMsg.Message["responses"] );
         
-        AgTlDbg( f"buffer {Response.Message} [{len( Response.Message )}]" );
-        AgTlDbg( "-----------------------\n" );
+        Dbg8( f"buffer [{len( Response.Message )}]" );
+        Dbg8( "-----------------------\n" );
 
         return Response
 
 
     async def translate_from_c2_format( self, InputMsg: TrCustomMessageToMythicC2FormatMessage ) -> TrCustomMessageToMythicC2FormatMessageResponse:
-        C2TlDbg( "------------------------" );
+        Dbg7( "------------------------" );
 
         Response = TrCustomMessageToMythicC2FormatMessageResponse( Success=True );
         
@@ -58,11 +58,11 @@ class KharonTranslator( TranslationContainer ):
         Action      = AgentMsg[0];
         ActionData  = AgentMsg[1:];
 
-        C2TlDbg( f"raw {AgentMsg}" )
-        C2TlDbg( f"Action: {Action}" );
+        Dbg7( f"raw {AgentMsg}" )
+        Dbg7( f"Action: {Action}" );
 
         if Action == Jobs['checkin']['hex_code']:
-            Response.Message = CheckinC2( ActionData );
+            Response.Message = await CheckinC2( ActionData );
         
         elif Action == Jobs['get_tasking']['hex_code']:
             Response.Message = GetTaskingC2( ActionData );
@@ -70,7 +70,7 @@ class KharonTranslator( TranslationContainer ):
         elif Action == Jobs['post_response']['hex_code']:
             Response.Message = PostC2( ActionData );
         
-        C2TlDbg( f"buffer: {Response.Message} {len(Response.Message)}" );
-        C2TlDbg( "-----------------------\n" );
+        Dbg7( f"buffer: {len(Response.Message)}" );
+        Dbg7( "-----------------------\n" );
 
         return Response

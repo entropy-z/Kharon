@@ -60,6 +60,7 @@ class ExecScCommand(CommandBase):
     author = "@Oblivion"
     attackmapping = ["T1055", "T1064"]
     argument_class = ExecScArguments
+    browser_script = BrowserScript(script_name="usf_new", author="@Oblivion", for_new_ui=True)
     attributes = CommandAttributes(
         supported_os=[SupportedOS.Windows],
     )
@@ -98,11 +99,6 @@ class ExecScCommand(CommandBase):
         
         if args:
             task.args.add_arg("args_bytes", base64.b64encode(args.encode()).decode())
-        
-        await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
-            TaskID=task.Task.ID,
-            Response="Executing shellcode..."
-        ))
 
         return PTTaskCreateTaskingMessageResponse(
             TaskID=task.Task.ID,

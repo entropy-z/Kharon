@@ -60,7 +60,6 @@ auto DECLFN Jobs::Send(
 
             Self->Pkg->Int32( PostJobs, Current->Pkg->Length );
             Self->Pkg->Pad( PostJobs, UC_PTR( Current->Pkg->Buffer ), Current->Pkg->Length );
-            Self->Pkg->Destroy( Current->Pkg );
             Current->State = KH_JOB_TERMINATE;
         } else if ( 
             Current->State    == KH_JOB_RUNNING && 
@@ -94,7 +93,6 @@ auto DECLFN Jobs::Send(
                 Self->Pkg->Str( PostJobs, Unknown );
             }
 
-            Self->Pkg->Destroy( Current->Pkg );
             Current->State = KH_JOB_TERMINATE;
         }
         
@@ -120,6 +118,10 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
             } else {
                 this->List = Current->Next;
                 Current    = this->List;
+            }
+
+            if ( ToRemove->Pkg ) {
+                Self->Pkg->Destroy( ToRemove->Pkg );
             }
             
             if ( ToRemove->Psr ) {

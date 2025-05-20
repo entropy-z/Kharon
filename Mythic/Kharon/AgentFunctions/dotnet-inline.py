@@ -3,6 +3,7 @@ from mythic_container.MythicRPC import *
 
 from .Utils.u import *
 
+import logging
 import json
 import os
 import random
@@ -17,6 +18,7 @@ class DotnetInlineArguments(TaskArguments):
                 name="file",
                 cli_name="file",
                 type=ParameterType.String,
+                dynamic_query_function=self.get_files,
                 description="Name or UUID of existing .NET assembly to execute",
                 parameter_group_info=[
                     ParameterGroupInfo(
@@ -147,7 +149,6 @@ class DotnetInlineArguments(TaskArguments):
             else:
                 self.add_arg("upload", dictionary["upload"])
 
-        # Configuração do AppDomain
         if "appdomain" in dictionary:
             if not isinstance(dictionary["appdomain"], str):
                 raise ValueError("'appdomain' must be a string")
@@ -164,7 +165,6 @@ class DotnetInlineArguments(TaskArguments):
             self.add_arg("version", dictionary.get("version", dictionary["version"]))
         else:
             self.add_arg("version", dictionary.get("version", "v0.0.00000"))
-        
 
         args = dictionary.get("args", "")
         if isinstance(args, list):
@@ -192,7 +192,6 @@ class DotnetInlineArguments(TaskArguments):
                 raise ValueError("Invalid JSON format")
         else:
             try:
-                # Manual command line parsing
                 argv = shlex.split(self.command_line)
                 args_dict = {}
                 i = 0
@@ -235,31 +234,58 @@ class DotnetInlineArguments(TaskArguments):
             except Exception as e:
                 raise ValueError(f"Error parsing command line: {str(e)}")
 
+    async def get_files(self, callback: PTRPCDynamicQueryFunctionMessage) -> PTRPCDynamicQueryFunctionMessageResponse:
+        response = PTRPCDynamicQueryFunctionMessageResponse()
+        file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
+            CallbackID=callback.Callback,
+            LimitByCallback=False,
+            IsDownloadFromAgent=False,
+            IsScreenshot=False,
+            IsPayload=False,
+            Filename="",
+        ))
+        if file_resp.Success:
+            file_names = []
+            for f in file_resp.Files:
+                if f.Filename not in file_names and f.Filename.endswith(".exe"):
+                    file_names.append(f.Filename)
+            response.Success = True
+            response.Choices = file_names
+            return response
+        else:
+            await SendMythicRPCOperationEventLogCreate(MythicRPCOperationEventLogCreateMessage(
+                CallbackId=callback.Callback,
+                Message=f"Failed to get files: {file_resp.Error}",
+                MessageLevel="warning"
+            ))
+            response.Error = f"Failed to get files: {file_resp.Error}"
+            return response
 
 class DotnetInlineCommand(CommandBase):
     cmd = "dotnet-inline"
     needs_admin = False
-    help_cmd = """
+    help_cmd = \
+    """
     Execute a .NET assembly in the current process
 
     Usage with existing file:
-    dotnet-inline --file <name_or_uuid> [--args "<arguments>"] [--appdomain <name>] [--keep] [--version <version>]
+        dotnet-inline --file <name_or_uuid> [--args "<arguments>"] [--appdomain <name>] [--keep] [--version <version>]
 
     Usage with new file upload:
-    dotnet-inline --upload @<path_to_file> [--args "<arguments>"] [--appdomain <name>] [--keep] [--version <version>]
+        dotnet-inline --upload @<path_to_file> [--args "<arguments>"] [--appdomain <name>] [--keep] [--version <version>]
 
     Options:
-    -file       Name or UUID of existing .NET assembly
-    -upload     Upload new assembly (prefix path with @)
-    -args       Arguments to pass to assembly (use quotes for complex args)
-    -appdomain  AppDomain name (random if not specified)
-    -keep       Keep AppDomain loaded after execution
-    -version    .NET version (default: v4.0.30319)
+        -file       Name or UUID of existing .NET assembly
+        -upload     Upload new assembly (prefix path with @)
+        -args       Arguments to pass to assembly (use quotes for complex args)
+        -appdomain  AppDomain name (random if not specified)
+        -keep       Keep AppDomain loaded after execution
+        -version    .NET version (default: v4.0.30319)
 
     Examples:
-    dotnet-inline -file Rubeus.exe -args "triage"
-    dotnet-inline -file cf2bde20-d03e-461a-a3dd-a8a5a2693bf0 -args "-group=user"
-    dotnet-inline -upload @/tmp/Seatbelt.exe -args "--group=user --computername=DC01"
+        dotnet-inline -file Rubeus.exe -args "triage"
+        dotnet-inline -file cf2bde20-d03e-461a-a3dd-a8a5a2693bf0 -args "-group=user"
+        dotnet-inline -upload @/tmp/Seatbelt.exe -args "--group=user --computername=DC01"
     """
     description = "Execute a .NET assembly in the current process with support for file uploads and complex arguments"
     version = 2
@@ -316,11 +342,11 @@ class DotnetInlineCommand(CommandBase):
                 file_search = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
                     TaskID=task.Task.ID,
                     Filename=file_identifier,
-                    LimitByCallback=True,
+                    LimitByCallback=False,
                     MaxResults=1
                 ))
             
-            if not file_search.Success or len(file_search.Files) == 0:
+            if file_search.Success is False or len(file_search.Files) < 0: 
                 raise Exception(f"File '{file_identifier}' not found in Mythic")
             
             file_id = file_search.Files[0].AgentFileId
@@ -357,6 +383,37 @@ class DotnetInlineCommand(CommandBase):
             display_params.append(f"-args \"{task.args.get_arg('args')}\"")
         else:
             task.args.set_arg("args", " ");
+        
+
+        UUID = task.Payload.UUID;
+
+        search_resp: MythicRPCAgentStorageSearchMessageResponse = await SendMythicRPCAgentStorageSearch(MythicRPCAgentStorageSearchMessage(
+            UUID
+        ))
+        
+        AgentStorage = b""
+
+        for i in search_resp.AgentStorageMessages:
+            AgentStorage = base64.b64decode( i["data"] )
+                    
+        AgentData = StorageExtract( AgentStorage )
+
+        bypass_dotnet = AgentData["evasion"]["bypass_dotnet"]
+
+        DisplayMsg  = f"[+] Sending {file_name} with {len(file_contents.Content)} bytes\n"
+
+        if bypass_dotnet != "none":
+            DisplayMsg += f"[+] Using Hardware Breakpoint to bypass {bypass_dotnet}\n"
+        else:
+            DisplayMsg += f"[+] Hardware Breakpoint bypass disabled\n"
+
+
+        DisplayMsg += f"[+] Patch exit disabled\n"
+
+        await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+            TaskID=task.Task.ID,
+            Response=DisplayMsg
+        ))
 
         task.args.add_arg("file_contents", file_contents.Content.hex() )
 
@@ -379,11 +436,12 @@ class DotnetInlineCommand(CommandBase):
         Psr = Parser( response, len( response ) );
         bResp = ""
         bResp = Psr.Bytes()
-
+        
+        DisplayMsg = f"[+] Dotnet Output:\n\n" + bResp.decode("utf-8")
 
         await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
             TaskID=task.Task.ID,
-            Response=bResp
+            Response=DisplayMsg
         ))
 
         return PTTaskProcessResponseMessageResponse(

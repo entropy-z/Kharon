@@ -23,16 +23,13 @@ function(task, responses){
                     rows.push(row);
                 }
                 
-                // Special formatting for certain fields
                 rows = rows.map(row => {
-                    // Highlight memory addresses
                     if (row.Field.plaintext.includes("Start") || 
                         row.Field.plaintext.includes("End") || 
                         row.Field.plaintext.includes("Heap") || 
                         row.Field.plaintext.includes("Gdt")) {
                         row.Value.cellStyle = {"backgroundColor": "rgba(255, 255, 0, 0.1)"};
                     }
-                    // Highlight security-related fields
                     if (row.Field.plaintext.includes("Elevate") || 
                         row.Field.plaintext.includes("Mask") || 
                         row.Field.plaintext.includes("ProcAch")) {

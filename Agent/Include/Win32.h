@@ -20,7 +20,7 @@ typedef struct {
         ULONG_PTR Value;
         PVOID ValuePtr;
     };
-    PSIZE_T ReturnLength;
+    SIZE_T* ReturnLength;
 } PS_ATTRIBUTE, *PPS_ATTRIBUTE;
 
 typedef struct {
@@ -194,7 +194,7 @@ typedef struct _RTL_DRIVE_LETTER_CURDIR {
 
 typedef struct _RTL_BITMAP {
     ULONG SizeOfBitMap;
-    PULONG Buffer;
+    ULONG* Buffer;
 } RTL_BITMAP, *PRTL_BITMAP;
 
 typedef struct _RTL_USER_PROCESS_PARAMETERS {
@@ -602,7 +602,7 @@ typedef struct _PEB {
     //
     // Pointer to a critical section used to synchronize access to the PEB.
     //
-    PRTL_CRITICAL_SECTION FastPebLock;
+    RTL_CRITICAL_SECTION* FastPebLock;
 
     //
     // Pointer to a singly linked list used by ATL.
@@ -812,7 +812,7 @@ typedef struct _PEB {
     //
     // Pointer to the loader lock critical section.
     //
-    PRTL_CRITICAL_SECTION LoaderLock;
+    RTL_CRITICAL_SECTION* LoaderLock;
 
     //
     // Major version of the operating system.
@@ -1034,7 +1034,7 @@ typedef struct _PEB {
     //
     // Pointer to the thread pool worker list lock.
     //
-    PRTL_CRITICAL_SECTION TppWorkerpListLock;
+    RTL_CRITICAL_SECTION* TppWorkerpListLock;
 
     //
     // Pointer to the thread pool worker list.
@@ -2117,52 +2117,52 @@ NTSYSAPI NTSTATUS NTAPI NtClose( _In_ HANDLE Handle );
 NTSYSAPI PVOID    NTAPI RtlAllocateHeap( _In_ PVOID HeapHandle, _In_opt_ ULONG Flags, _In_ SIZE_T Size );
 NTSYSAPI PVOID    NTAPI RtlReAllocateHeap( _In_ PVOID HeapHandle, _In_ ULONG Flags, PVOID BaseAddress, _In_ SIZE_T Size );
 NTSYSAPI ULONG    NTAPI RtlFreeHeap( _In_ PVOID HeapHandle, _In_opt_ ULONG Flags, PVOID BaseAddress );
-NTSYSAPI NTSTATUS NTAPI NtAllocateVirtualMemory( _In_ HANDLE ProcessHandle, _Inout_ _At_(*BaseAddress, _Readable_bytes_(*RegionSize) _Writable_bytes_(*RegionSize) _Post_readable_byte_size_(*RegionSize)) PVOID *BaseAddress, _In_ ULONG_PTR ZeroBits, _Inout_ PSIZE_T RegionSize, _In_ ULONG AllocationType, _In_ ULONG PageProtection );
-NTSYSAPI NTSTATUS NTAPI NtWriteVirtualMemory( _In_ HANDLE ProcessHandle, _In_opt_ PVOID BaseAddress, _In_reads_bytes_(NumberOfBytesToWrite) PVOID Buffer, _In_ SIZE_T NumberOfBytesToWrite, _Out_opt_ PSIZE_T NumberOfBytesWritten );
-NTSYSAPI NTSTATUS NTAPI NtFreeVirtualMemory( _In_ HANDLE ProcessHandle, _Inout_ PVOID *BaseAddress, _Inout_ PSIZE_T RegionSize, _In_ ULONG FreeType );
-NTSYSAPI NTSTATUS NTAPI NtProtectVirtualMemory( _In_ HANDLE ProcessHandle, _Inout_ PVOID *BaseAddress, _Inout_ PSIZE_T RegionSize, _In_ ULONG NewProtection, _Out_ PULONG OldProtection );
-NTSYSAPI NTSTATUS NTAPI NtCreateSection( _Out_ PHANDLE SectionHandle, _In_ ACCESS_MASK DesiredAccess, _In_opt_ PCOBJECT_ATTRIBUTES ObjectAttributes, _In_opt_ PLARGE_INTEGER MaximumSize, _In_ ULONG SectionPageProtection, _In_ ULONG AllocationAttributes, _In_opt_ HANDLE FileHandle );
-NTSYSAPI NTSTATUS NTAPI NtMapViewOfSection( _In_ HANDLE SectionHandle, _In_ HANDLE ProcessHandle, _Inout_ _At_(*BaseAddress, _Readable_bytes_(*ViewSize) _Writable_bytes_(*ViewSize) _Post_readable_byte_size_(*ViewSize)) PVOID *BaseAddress, _In_ ULONG_PTR ZeroBits, _In_ SIZE_T CommitSize, _Inout_opt_ PLARGE_INTEGER SectionOffset, _Inout_ PSIZE_T ViewSize, _In_ SECTION_INHERIT InheritDisposition, _In_ ULONG AllocationType, _In_ ULONG PageProtection );
+NTSYSAPI NTSTATUS NTAPI NtAllocateVirtualMemory( _In_ HANDLE ProcessHandle, _Inout_ _At_(*BaseAddress, _Readable_bytes_(*RegionSize) _Writable_bytes_(*RegionSize) _Post_readable_byte_size_(*RegionSize)) PVOID *BaseAddress, _In_ ULONG_PTR ZeroBits, _Inout_ SIZE_T* RegionSize, _In_ ULONG AllocationType, _In_ ULONG PageProtection );
+NTSYSAPI NTSTATUS NTAPI NtWriteVirtualMemory( _In_ HANDLE ProcessHandle, _In_opt_ PVOID BaseAddress, _In_reads_bytes_(NumberOfBytesToWrite) PVOID Buffer, _In_ SIZE_T NumberOfBytesToWrite, _Out_opt_ SIZE_T* NumberOfBytesWritten );
+NTSYSAPI NTSTATUS NTAPI NtFreeVirtualMemory( _In_ HANDLE ProcessHandle, _Inout_ PVOID *BaseAddress, _Inout_ SIZE_T* RegionSize, _In_ ULONG FreeType );
+NTSYSAPI NTSTATUS NTAPI NtProtectVirtualMemory( _In_ HANDLE ProcessHandle, _Inout_ PVOID *BaseAddress, _Inout_ SIZE_T* RegionSize, _In_ ULONG NewProtection, _Out_ ULONG* OldProtection );
+NTSYSAPI NTSTATUS NTAPI NtCreateSection( _Out_ HANDLE* SectionHandle, _In_ ACCESS_MASK DesiredAccess, _In_opt_ PCOBJECT_ATTRIBUTES ObjectAttributes, _In_opt_ LARGE_INTEGER* MaximumSize, _In_ ULONG SectionPageProtection, _In_ ULONG AllocationAttributes, _In_opt_ HANDLE FileHandle );
+NTSYSAPI NTSTATUS NTAPI NtMapViewOfSection( _In_ HANDLE SectionHandle, _In_ HANDLE ProcessHandle, _Inout_ _At_(*BaseAddress, _Readable_bytes_(*ViewSize) _Writable_bytes_(*ViewSize) _Post_readable_byte_size_(*ViewSize)) PVOID *BaseAddress, _In_ ULONG_PTR ZeroBits, _In_ SIZE_T CommitSize, _Inout_opt_ LARGE_INTEGER* SectionOffset, _Inout_ SIZE_T* ViewSize, _In_ SECTION_INHERIT InheritDisposition, _In_ ULONG AllocationType, _In_ ULONG PageProtection );
 // NTSYSAPI void     NTAPI RtlCopyMemory( void* Destination, const void* Source, size_t Length );
 // NTSYSAPI void     NTAPI RtlFillMemory( void* Destination, size_t Length, int Fill );
-NTSYSAPI NTSTATUS NTAPI NtOpenProcess( _Out_ PHANDLE ProcessHandle, _In_ ACCESS_MASK DesiredAccess, _In_ PCOBJECT_ATTRIBUTES ObjectAttributes, _In_opt_ PCLIENT_ID ClientId );
-NTSYSAPI NTSTATUS NTAPI NtOpenThread( _Out_ PHANDLE ThreadHandle, _In_ ACCESS_MASK DesiredAccess, _In_ PCOBJECT_ATTRIBUTES ObjectAttributes, _In_opt_ PCLIENT_ID ClientId );
-NTSYSAPI NTSTATUS NTAPI NtCreateThreadEx( _Out_ PHANDLE ThreadHandle, _In_ ACCESS_MASK DesiredAccess, _In_opt_ PCOBJECT_ATTRIBUTES ObjectAttributes, _In_ HANDLE ProcessHandle, _In_ PUSER_THREAD_START_ROUTINE StartRoutine, _In_opt_ PVOID Argument, _In_ ULONG CreateFlags, _In_ SIZE_T ZeroBits, _In_ SIZE_T StackSize, _In_ SIZE_T MaximumStackSize, _In_opt_ PPS_ATTRIBUTE_LIST AttributeList );
+NTSYSAPI NTSTATUS NTAPI NtOpenProcess( _Out_ HANDLE* ProcessHandle, _In_ ACCESS_MASK DesiredAccess, _In_ PCOBJECT_ATTRIBUTES ObjectAttributes, _In_opt_ PCLIENT_ID ClientId );
+NTSYSAPI NTSTATUS NTAPI NtOpenThread( _Out_ HANDLE* ThreadHandle, _In_ ACCESS_MASK DesiredAccess, _In_ PCOBJECT_ATTRIBUTES ObjectAttributes, _In_opt_ PCLIENT_ID ClientId );
+NTSYSAPI NTSTATUS NTAPI NtCreateThreadEx( _Out_ HANDLE* ThreadHandle, _In_ ACCESS_MASK DesiredAccess, _In_opt_ PCOBJECT_ATTRIBUTES ObjectAttributes, _In_ HANDLE ProcessHandle, _In_ PUSER_THREAD_START_ROUTINE StartRoutine, _In_opt_ PVOID Argument, _In_ ULONG CreateFlags, _In_ SIZE_T ZeroBits, _In_ SIZE_T StackSize, _In_ SIZE_T MaximumStackSize, _In_opt_ PPS_ATTRIBUTE_LIST AttributeList );
 NTSYSAPI VOID     NTAPI RtlExitUserThread( _In_ NTSTATUS ExitStatus ); 
 NTSYSAPI VOID     NTAPI RtlExitUserProcess( _In_ NTSTATUS ExitStatus );
 NTSYSAPI NTSTATUS NTAPI NtGetContextThread( _In_ HANDLE ThreadHandle, _Inout_ PCONTEXT ThreadContext );
 NTSYSAPI NTSTATUS NTAPI NtSetContextThread( _In_ HANDLE ThreadHandle, _In_ PCONTEXT ThreadContext );
-NTSYSAPI NTSTATUS NTAPI NtCreateEvent( _Out_ PHANDLE EventHandle, _In_ ACCESS_MASK DesiredAccess, _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes, _In_ EVENT_TYPE EventType, _In_ BOOLEAN InitialState );
+NTSYSAPI NTSTATUS NTAPI NtCreateEvent( _Out_ HANDLE* EventHandle, _In_ ACCESS_MASK DesiredAccess, _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes, _In_ EVENT_TYPE EventType, _In_ BOOLEAN InitialState );
 NTSYSAPI NTSTATUS NTAPI NtContinue( _In_ PCONTEXT ContextRecord, _In_ BOOLEAN TestAlert );
-NTSYSAPI NTSTATUS NTAPI NtWaitForSingleObject( _In_ HANDLE Handle, _In_ BOOLEAN Alertable, _In_opt_ PLARGE_INTEGER Timeout );
-NTSYSAPI NTSTATUS NTAPI NtSignalAndWaitForSingleObject( _In_ HANDLE SignalHandle, _In_ HANDLE WaitHandle, _In_ BOOLEAN Alertable, _In_opt_ PLARGE_INTEGER Timeout );
+NTSYSAPI NTSTATUS NTAPI NtWaitForSingleObject( _In_ HANDLE Handle, _In_ BOOLEAN Alertable, _In_opt_ LARGE_INTEGER* Timeout );
+NTSYSAPI NTSTATUS NTAPI NtSignalAndWaitForSingleObject( _In_ HANDLE SignalHandle, _In_ HANDLE WaitHandle, _In_ BOOLEAN Alertable, _In_opt_ LARGE_INTEGER* Timeout );
 NTSYSAPI NTSTATUS NTAPI NtTestAlert( VOID );
-NTSYSAPI NTSTATUS NTAPI NtAlertResumeThread( _In_ HANDLE ThreadHandle, _Out_opt_ PULONG PreviousSuspendCount );
+NTSYSAPI NTSTATUS NTAPI NtAlertResumeThread( _In_ HANDLE ThreadHandle, _Out_opt_ ULONG* PreviousSuspendCount );
 NTSYSAPI NTSTATUS NTAPI NtQueueApcThread( _In_ HANDLE ThreadHandle, _In_ PPS_APC_ROUTINE ApcRoutine, _In_opt_ PVOID ApcArgument1, _In_opt_ PVOID ApcArgument2, _In_opt_ PVOID ApcArgument3 );
-NTSYSAPI NTSTATUS NTAPI RtlCreateTimer( _In_ HANDLE TimerQueueHandle, _Out_ PHANDLE Handle, _In_ WAITORTIMERCALLBACKFUNC Function, _In_opt_ PVOID Context, _In_ ULONG DueTime, _In_ ULONG Period, _In_ ULONG Flags );
-NTSYSAPI NTSTATUS NTAPI RtlCreateTimerQueue( _Out_ PHANDLE TimerQueueHandle );
+NTSYSAPI NTSTATUS NTAPI RtlCreateTimer( _In_ HANDLE TimerQueueHandle, _Out_ HANDLE* Handle, _In_ WAITORTIMERCALLBACKFUNC Function, _In_opt_ PVOID Context, _In_ ULONG DueTime, _In_ ULONG Period, _In_ ULONG Flags );
+NTSYSAPI NTSTATUS NTAPI RtlCreateTimerQueue( _Out_ HANDLE* TimerQueueHandle );
 NTSYSAPI NTSTATUS NTAPI RtlDeleteTimer( _In_ HANDLE TimerQueueHandle, _In_ HANDLE TimerToCancel, _In_opt_ HANDLE Event );
 NTSYSAPI NTSTATUS NTAPI RtlDeleteTimerQueue( _In_ HANDLE TimerQueueHandle );
 NTSYSAPI NTSTATUS NTAPI NtSetInformationVirtualMemory( _In_ HANDLE ProcessHandle, _In_ VIRTUAL_MEMORY_INFORMATION_CLASS VmInformationClass, _In_ SIZE_T NumberOfEntries, _In_reads_(NumberOfEntries) PMEMORY_RANGE_ENTRY VirtualAddresses, _In_reads_bytes_(VmInformationLength) PVOID VmInformation, _In_ ULONG VmInformationLength );
 NTSYSAPI NTSTATUS NTAPI LdrGetProcedureAddress( HMODULE ModuleHandle, PANSI_STRING FunctionName OPTIONAL, WORD Oridinal, PVOID *FunctionAddress );
-NTSYSAPI NTSTATUS NTAPI LdrLoadDll( PWCHAR PathToFile, ULONG Flags, PUNICODE_STRING ModuleFileName, PHANDLE ModuleHandle );
-NTSYSAPI NTSTATUS NTAPI NtQueryInformationProcess( _In_ HANDLE ProcessHandle, _In_ PROCESSINFOCLASS ProcessInformationClass, _Out_writes_bytes_(ProcessInformationLength) PVOID ProcessInformation, _In_ ULONG ProcessInformationLength, _Out_opt_ PULONG ReturnLength );
+NTSYSAPI NTSTATUS NTAPI LdrLoadDll( PWCHAR PathToFile, ULONG Flags, PUNICODE_STRING ModuleFileName, HANDLE* ModuleHandle );
+NTSYSAPI NTSTATUS NTAPI NtQueryInformationProcess( _In_ HANDLE ProcessHandle, _In_ PROCESSINFOCLASS ProcessInformationClass, _Out_writes_bytes_(ProcessInformationLength) PVOID ProcessInformation, _In_ ULONG ProcessInformationLength, _Out_opt_ ULONG* ReturnLength );
 NTSYSAPI NTSTATUS NTAPI NtSetEvent( _In_ HANDLE EventHandle, _Out_opt_ PLONG PreviousState );
-NTSYSAPI NTSTATUS NTAPI NtQueryInformationToken( _In_ HANDLE TokenHandle, _In_ TOKEN_INFORMATION_CLASS TokenInformationClass, _Out_writes_bytes_to_opt_(TokenInformationLength, *ReturnLength) PVOID TokenInformation, _In_ ULONG TokenInformationLength, _Out_ PULONG ReturnLength );
-NTSYSAPI NTSTATUS NTAPI NtQuerySystemInformation( _In_ SYSTEM_INFORMATION_CLASS SystemInformationClass, _Out_writes_bytes_opt_(SystemInformationLength) PVOID SystemInformation, _In_ ULONG SystemInformationLength, _Out_opt_ PULONG ReturnLength );
+NTSYSAPI NTSTATUS NTAPI NtQueryInformationToken( _In_ HANDLE TokenHandle, _In_ TOKEN_INFORMATION_CLASS TokenInformationClass, _Out_writes_bytes_to_opt_(TokenInformationLength, *ReturnLength) PVOID TokenInformation, _In_ ULONG TokenInformationLength, _Out_ ULONG* ReturnLength );
+NTSYSAPI NTSTATUS NTAPI NtQuerySystemInformation( _In_ SYSTEM_INFORMATION_CLASS SystemInformationClass, _Out_writes_bytes_opt_(SystemInformationLength) PVOID SystemInformation, _In_ ULONG SystemInformationLength, _Out_opt_ ULONG* ReturnLength );
 NTSYSAPI NTSTATUS NTAPI SystemFunction040( PVOID Memory, ULONG MemorySize, ULONG OptionFlags );
 NTSYSAPI NTSTATUS NTAPI SystemFunction041( PVOID Memory, ULONG MemorySize, ULONG OptionFlags );
 NTSYSAPI ULONG    NTAPI RtlNtStatusToDosError( NTSTATUS Status );
-NTSYSAPI NTSTATUS NTAPI RtlInitializeCriticalSection( _Out_ PRTL_CRITICAL_SECTION CriticalSection );
-_Releases_exclusive_lock_(*CriticalSection) NTSYSAPI NTSTATUS NTAPI RtlLeaveCriticalSection( _Inout_ PRTL_CRITICAL_SECTION CriticalSection );
-_Acquires_exclusive_lock_(*CriticalSection) NTSYSAPI NTSTATUS NTAPI RtlEnterCriticalSection( _Inout_ PRTL_CRITICAL_SECTION CriticalSection );
-NTSYSAPI NTSTATUS NTAPI RtlDeleteCriticalSection( _Inout_ PRTL_CRITICAL_SECTION CriticalSection );
+NTSYSAPI NTSTATUS NTAPI RtlInitializeCriticalSection( _Out_ RTL_CRITICAL_SECTION* CriticalSection );
+_Releases_exclusive_lock_(*CriticalSection) NTSYSAPI NTSTATUS NTAPI RtlLeaveCriticalSection( _Inout_ RTL_CRITICAL_SECTION* CriticalSection );
+_Acquires_exclusive_lock_(*CriticalSection) NTSYSAPI NTSTATUS NTAPI RtlEnterCriticalSection( _Inout_ RTL_CRITICAL_SECTION* CriticalSection );
+NTSYSAPI NTSTATUS NTAPI RtlDeleteCriticalSection( _Inout_ RTL_CRITICAL_SECTION* CriticalSection );
 NTSYSAPI PVOID    NTAPI RtlAddVectoredContinueHandler( _In_ ULONG First, _In_ PVECTORED_EXCEPTION_HANDLER Handler );
 NTSYSAPI PVOID    NTAPI RtlAddVectoredExceptionHandler( _In_ ULONG First, _In_ PVECTORED_EXCEPTION_HANDLER Handler );
 NTSYSAPI ULONG    NTAPI RtlRemoveVectoredContinueHandler( _In_ PVOID Handle );
 NTSYSAPI ULONG    NTAPI RtlRemoveVectoredExceptionHandler( _In_ PVOID Handle );
 // NTSYSAPI ULONG    NTAPI RtlFillMemory( void* Destination, size_t Length, int Fill );
 WINAPI   BOOL  EnumProcessModules( HANDLE hProcess, HMODULE *lphModule, DWORD cb, LPDWORD lpcbNeeded );
-WINAPI   DWORD GetModuleFileNameExA( HANDLE hProcess, HMODULE hModule, LPSTR lpFilename, DWORD nSize );
+WINAPI   DWORD K32GetModuleFileNameExA( HANDLE hProcess, HMODULE hModule, LPSTR lpFilename, DWORD nSize );
 
 #endif // WIN32_H            

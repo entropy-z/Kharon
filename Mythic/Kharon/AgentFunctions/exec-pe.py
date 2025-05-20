@@ -60,13 +60,13 @@ class ExecScCommand(CommandBase):
     author = "@Oblivion"
     attackmapping = ["T1055", "T1064"]
     argument_class = ExecScArguments
+    browser_script = BrowserScript(script_name="usf_new", author="@Oblivion", for_new_ui=True)
     attributes = CommandAttributes(
         supported_os=[SupportedOS.Windows],
     )
 
     async def create_go_tasking(self, task: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         file_id = task.args.get_arg("file")
-        pid = task.args.get_arg("pid")
         args = task.args.get_arg("args")
         
         file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(

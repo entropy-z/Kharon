@@ -132,9 +132,9 @@ auto Coff::RslApi(
 }
 
 auto Coff::Loader(
-    _In_ PBYTE Buffer,
+    _In_ BYTE* Buffer,
     _In_ ULONG Size,
-    _In_ PBYTE Args,
+    _In_ BYTE* Args,
     _In_ ULONG Argc
 ) -> BOOL {
     PVOID  MmBase   = nullptr;
@@ -270,7 +270,7 @@ auto Coff::Loader(
     KhDbg("allocated memory at 0x%p", MmBase);
 
     // 
-    // copy sections to 
+    // copy sections to memory allocated and align the page
     // 
     TmpBase = MmBase;
     for (INT i = 0; i < SecNbrs; i++) {
@@ -283,7 +283,7 @@ auto Coff::Loader(
         );
 
         Mem::Copy(
-            (PBYTE)TmpBase + SecHdr[i].VirtualAddress,
+            (BYTE*)TmpBase + SecHdr[i].VirtualAddress,
             Buffer + SecHdr[i].PointerToRawData,
             SecHdr[i].SizeOfRawData
         );
@@ -341,7 +341,7 @@ auto Coff::Loader(
 
                     KhDbg("found 'go' function at 0x%p (Section %d, Offset 0x%X)", GoPtr, j, Symbols[i].Value);
 
-                    VOID ( *Go )( PBYTE, ULONG ) = ( decltype( Go ) )( GoPtr );
+                    VOID ( *Go )( BYTE*, ULONG ) = ( decltype( Go ) )( GoPtr );
                     KhDbg("calling 'go' function");
                     Go( Args, Argc );
                 }

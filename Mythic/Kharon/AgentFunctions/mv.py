@@ -42,6 +42,7 @@ class MvCommand(CommandBase):
     author = "@Oblivion"
     attackmapping = ["T1564", "T1070"]
     argument_class = MvArguments
+    browser_script = BrowserScript(script_name="usf_new", author="@Oblivion", for_new_ui=True)
     attributes = CommandAttributes(
         supported_os=[SupportedOS.Windows],
         builtin=True,

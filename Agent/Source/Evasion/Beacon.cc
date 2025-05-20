@@ -47,7 +47,7 @@ auto Coff::DataExtract(
     PINT   size
 ) -> PCHAR {
     G_KHARON
-    return (PCHAR)Self->Psr->Bytes( (PPARSER)parser, (PULONG)size );
+    return (PCHAR)Self->Psr->Bytes( (PPARSER)parser, (ULONG*)size );
 }
 
 auto Coff::DataInt(

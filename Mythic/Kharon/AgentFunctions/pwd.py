@@ -19,6 +19,7 @@ class PwdCommand(CommandBase):
     author = "@Oblivion"
     attackmapping = ["T1083"]
     argument_class = PwdArguments
+    browser_script = BrowserScript(script_name="usf_new", author="@Oblivion", for_new_ui=True)
     attributes = CommandAttributes(
         supported_os=[SupportedOS.Windows],
         builtin=True,

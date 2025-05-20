@@ -229,15 +229,16 @@ enum {
     TskExecSc,
     TskExecPE,
     TskExecBof,
+    TskToken,
     TaskLast
 } KH_TASKS;
 
 enum {
-    SbDotInline = 5,
-    SbDtUnload,
-    SbDotList,
-    SbDotInvoke,
-    SbDotSpawn
+    DotInline = 5,
+    DtUnload,
+    DotList,
+    DotInvoke,
+    DotFork
 } KH_DOTNET;
 
 enum {
@@ -248,16 +249,27 @@ enum {
 #define TSK_LENGTH ( TaskLast - 9 )
 
 enum {
-    SbCfgSleep = 15,
-    SbCfgMask,
-    SbCfgSc,
-    SbCfgPe,
-    SbCfgPpid,
-    SbCfgBlockDlls,
-    SbCfgCurDir,
-    sbCfgSpawn,
-    SbCfgJitter
+    CfgJitter = 14,
+    CfgSleep,
+    CfgMask,
+    CfgSc,
+    CfgPe,
+    CfgPpid,
+    CfgBlockDlls,
+    CfgCurDir,
+    CfgArg,
+    CfgSpawn,
+    CfgKilldate,
+    CfgWorktime
 } SB_CONFIG;
+
+enum {
+    TknGetUUID = 10,
+    TknSteal,
+    TknMake,
+    TknGetPriv,
+    TknStore
+} SB_TOKEN;
 
 enum {
     SbExitThread = 20,
@@ -271,14 +283,14 @@ enum {
 } SB_PROCESS;
 
 enum {
-    SbFsList = 30,
-    SbFsRead,
-    SbFsCwd,
-    SbFsMove,
-    SbFsCopy,
-    SbFsMakeDir,
-    SbFsDelete,
-    SbFsChangeDir
+    FsList = 30,
+    FsRead,
+    FsCwd,
+    FsMove,
+    FsCopy,
+    FsMakeDir,
+    FsDelete,
+    FsChangeDir
 } SB_FILESYSTEM;
 
 #endif

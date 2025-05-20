@@ -3,7 +3,7 @@
 using namespace mscorlib;
 
 auto DECLFN Dotnet::Inline(
-    _In_ PBYTE AsmBytes,
+    _In_ BYTE* AsmBytes,
     _In_ ULONG AsmLength,
     _In_ PWSTR Arguments,
     _In_ PWSTR AppDomName,

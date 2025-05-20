@@ -16,6 +16,7 @@ auto DECLFN Thread::Enum(
     BOOL                        bkSuccess     = FALSE;
 
     Self->Ntdll.NtQuerySystemInformation( SystemProcessInformation, NULL, NULL, &ReturnLen );
+    if ( !ReturnLen ) goto _KH_END;
 
     SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)Self->Hp->Alloc( ReturnLen );
     ValToFree   = SysProcInfo;
@@ -53,7 +54,7 @@ auto DECLFN Thread::Create(
     _In_  PVOID  Parameter,
     _In_  ULONG  StackSize,
     _In_  ULONG  Flags,
-    _Out_ PULONG ThreadID
+    _Out_ ULONG* ThreadID
 ) -> HANDLE {
     HANDLE Handle = INVALID_HANDLE_VALUE;
 
