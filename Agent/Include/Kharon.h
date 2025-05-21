@@ -796,6 +796,15 @@ struct _LOAD_CTX {
     UPTR LibraryName;
 };
 
+struct _CLR_CTX {
+    UPTR CLRCreateInstancePtr;
+    UPTR Arg1;
+    UPTR Arg2;
+    UPTR Arg3;
+};
+
+typedef _CLR_CTX CLR_CTX;
+
 typedef _LOAD_CTX LOAD_CTX;
 
 class Spoof {

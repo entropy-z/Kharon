@@ -1,7 +1,7 @@
 #include <Kharon.h>
 
-// EXTERN_C HRESULT CLRCreateInstanceProxy( _In_ UPTR Context );
-EXTERN_C HMODULE LoadLibraryAProxy( _In_ UPTR Context );
+EXTERN_C VOID CLRCreateInstanceProxy( _In_ PVOID Context );
+EXTERN_C VOID LoadLibraryAProxy( _In_ PVOID Context );
 
 auto DECLFN Spoof::WorkCall(
     _In_ UPTR Context,
@@ -15,30 +15,40 @@ auto DECLFN Spoof::WorkCall(
 
     switch ( Identifier ) {
         case WkrClrCreateInstance: {
-            // WorkerCallback = (WORKERCALLBACKFUNC)&CLRCreateInstanceProxy; break;
+            WorkerCallback = (WORKERCALLBACKFUNC)CLRCreateInstanceProxy; break;
         }
         case WkrLoadLibraryA: {
-            // WorkerCallback = (WORKERCALLBACKFUNC)LoadLibraryAProxy; break;
-            WorkerCallback = (WORKERCALLBACKFUNC)static_cast<LOAD_CTX*>( (PVOID)Context )->LoadLibraryAPtr;
-            Context        = static_cast<LOAD_CTX*>( (PVOID)Context )->LibraryName; break;
+            WorkerCallback = (WORKERCALLBACKFUNC)LoadLibraryAProxy; break;
+            // WorkerCallback = (WORKERCALLBACKFUNC)static_cast<LOAD_CTX*>( (PVOID)Context )->LoadLibraryAPtr;
+            // Context        = static_cast<LOAD_CTX*>( (PVOID)Context )->LibraryName; break;
         }
         default:
             return STATUS_INVALID_PARAMETER;
     }
     
     Status = Self->Ntdll.NtCreateEvent( &Notify, EVENT_ALL_ACCESS, nullptr, NotificationEvent, FALSE );
+    KhDbg("%X", Status);
     if ( Status != STATUS_SUCCESS ) goto _KH_END;
 
-    Status = Self->Ntdll.RtlQueueWorkItem( WorkerCallback, (PVOID)Context, WT_EXECUTEDEFAULT );
+    KhDbg("callback %p ctx %p", WorkerCallback, Context);
+    INT3BRK
+
+    Status = Self->Ntdll.RtlQueueWorkItem( (WORKERCALLBACKFUNC)WorkerCallback, (PVOID)Context, WT_EXECUTEDEFAULT );
     if ( Status != STATUS_SUCCESS ) goto _KH_END;
+
+    KH_DBG_MSG
 
     Status = Self->Ntdll.RtlQueueWorkItem( (WORKERCALLBACKFUNC)Self->Krnl32.SetEvent, (PVOID)Notify, WT_EXECUTEDEFAULT );
     if ( Status != STATUS_SUCCESS ) goto _KH_END;
+
+    KH_DBG_MSG
     
      WtRest = Self->Krnl32.WaitForSingleObject( Notify, INFINITE );
      if ( WtRest != WAIT_OBJECT_0 ) {
         Status = STATUS_TIMEOUT;
      }
+
+     KH_DBG_MSG
 
 _KH_END:
     if ( Notify ) Self->Ntdll.NtClose( Notify );

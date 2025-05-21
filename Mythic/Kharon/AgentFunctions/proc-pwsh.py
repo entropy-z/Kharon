@@ -75,7 +75,7 @@ class ProcPwshCommand(CommandBase):
         ProcID = Psr.Int32();
         TdID   = Psr.Int32();
         
-        FinalOutput = f"[+] powershell.exe Created with ID: {ProcID} and Main Thread ID: {TdID}\n[+] Received {len(Output)} bytes from agent\n[+] Output:\n\n{Output.decode("utf-8")}"
+        FinalOutput = f"[+] powershell.exe Created with ID: {ProcID} and Main Thread ID: {TdID}\n[+] Received {len(Output)} bytes from agent\n[+] Output:\n\n{Output.decode('utf-8')}"
 
         await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
             TaskID=task.Task.ID,

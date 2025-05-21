@@ -28,6 +28,8 @@ auto DECLFN Dotnet::Inline(
     SAFEARRAY*     SafeExpc  = { nullptr };
     SAFEARRAY*	   SafeArgs  = { 0 };
 
+    CLR_CTX Context = { 0 };
+
     WCHAR            FmVersion[MAX_PATH] = { 0 };
     ULONG            FmBuffLen = MAX_PATH;
 
@@ -48,13 +50,20 @@ auto DECLFN Dotnet::Inline(
 
     SECURITY_ATTRIBUTES SecAttr = { 0 };
 
+    Context.CLRCreateInstancePtr = (UPTR)Self->Mscoree.CLRCreateInstance;
+
+    Context.Arg1 = (UPTR)&Self->Dot->CLSID.CLRMetaHost;
+    Context.Arg2 = (UPTR)&Self->Dot->CLSID.CLRMetaHost;
+    Context.Arg3 = (UPTR)( (PVOID*)( &MetaHost ) );
+
     //
     // host clr in the process
     //
-    HResult = Self->Mscoree.CLRCreateInstance( 
-        Self->Dot->CLSID.CLRMetaHost, Self->Dot->IID.ICLRMetaHost, (PVOID*)&MetaHost 
-    );
-    if ( HResult ) goto _KH_END;
+    Self->Spf->WorkCall( (UPTR)&Context, WkrClrCreateInstance );
+    // HResult = Self->Mscoree.CLRCreateInstance( 
+    //     Self->Dot->CLSID.CLRMetaHost, Self->Dot->IID.ICLRMetaHost, (PVOID*)&MetaHost 
+    // );
+    if ( HResult || !MetaHost ) goto _KH_END;
 
     //
     //  get the last version if parameters is not passed

@@ -32,15 +32,15 @@ class KharonTranslator( TranslationContainer ):
             SocksKey = []
 
         if Action == "checkin":
-            Dbg8( f"ID: {InputMsg.Message["id"]}" );
+            Dbg8( f"ID: {InputMsg.Message['id']}" );
             Response.Message = CheckinImp( InputMsg.Message["id"] );
         
         elif Action == "get_tasking":
-            Dbg8( f"Tasks: {InputMsg.Message["tasks"]}" );
+            Dbg8( f"Tasks: {InputMsg.Message['tasks']}" );
             Response.Message = RespTasking( InputMsg.Message["tasks"], SocksKey );
 
         elif Action == "post_response":
-            Dbg8( f"Responses: {InputMsg.Message["responses"]}" );
+            Dbg8( f"Responses: {InputMsg.Message['responses']}" );
             Response.Message = RespPosting( InputMsg.Message["responses"] );
         
         Dbg8( f"buffer [{len( Response.Message )}]" );

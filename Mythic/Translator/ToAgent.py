@@ -160,7 +160,7 @@ def RespPosting( Responses ):
         else: 
             Data += b"\x00";
     
-    Dbg2( f"status: {Response["status"]}" );
+    Dbg2( f"status: {Response['status']}" );
 
     if Response["status"] == "success":
         Pkg.Int32( 1 );
