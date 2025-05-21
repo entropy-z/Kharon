@@ -69,6 +69,7 @@ x86: nasm86 $(OBJ86)
 	@ $(CCX86) -o $(BUILD_PATH)/Bin/obj/$(notdir $@) -c $< $(CFLAGS) $(DEFS)
 
 nasm64:
+	@ $(ASMCC) -f win64 Source/Asm/ProxyCall.x64.asm -o $(BUILD_PATH)/Bin/obj/proxy.x64.obj
 	@ $(ASMCC) -f win64 Source/Asm/Sys.x64.asm -o $(BUILD_PATH)/Bin/obj/sys.x64.obj
 	@ $(ASMCC) -f win64 Source/Asm/Entry.x64.asm -o $(BUILD_PATH)/Bin/obj/entry.x64.obj
 

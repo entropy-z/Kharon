@@ -2100,6 +2100,133 @@ typedef struct {
     WORD Type   :4;
 } IMAGE_RELOC, *PIMAGE_RELOC;
 
+typedef unsigned char UBYTE;
+
+typedef union _UNWIND_CODE {
+    struct {
+        UBYTE CodeOffset;  // 0xFF00
+        UBYTE UnwindOp : 4; // 0x000f OPCODE
+        UBYTE OpInfo : 4;   // 0x00f0 
+    };
+    USHORT FrameOffset;
+} UNWIND_CODE, * PUNWIND_CODE;
+
+typedef struct _UNWIND_INFO {
+    UBYTE Version : 3;
+    UBYTE Flags : 5;    // 4 bytes
+    UBYTE SizeOfProlog; // 4 bytes
+    UBYTE CountOfCodes; // 4 bytes
+    UBYTE FrameRegister : 4; 
+    UBYTE FrameOffset : 4; // 4bytes
+    UNWIND_CODE UnwindCode[1];
+    union {
+        OPTIONAL ULONG ExceptionHandler;
+        OPTIONAL ULONG FunctionEntry;
+    };
+    OPTIONAL ULONG ExceptionData[]; 
+} UNWIND_INFO, * PUNWIND_INFO;
+
+struct _REG_CTX {
+    UPTR Rax;
+    UPTR Rcx;
+    UPTR Rdx;
+    UPTR Rsp;
+    UPTR Rbp;
+    UPTR Rsi;
+    UPTR Rdi;
+    UPTR R8;
+    UPTR R9;
+    UPTR R10;
+    UPTR R11;
+    UPTR R12;
+    UPTR R13;
+    UPTR R14;
+    UPTR R15;
+    UPTR Rip;
+    UPTR Reserved;
+    UPTR StackSize;
+};
+
+typedef _REG_CTX REG_CTX;
+
+typedef enum _UNWIND_OP_CODES {
+    // x86_64. https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64.
+    UWOP_PUSH_NONVOL = 0,
+    UWOP_ALLOC_LARGE,       // 1
+    UWOP_ALLOC_SMALL,       // 2
+    UWOP_SET_FPREG,         // 3
+    UWOP_SAVE_NONVOL,       // 4
+    UWOP_SAVE_NONVOL_BIG,   // 5
+    UWOP_EPILOG,            // 6
+    UWOP_SPARE_CODE,        // 7
+    UWOP_SAVE_XMM128,       // 8
+    UWOP_SAVE_XMM128BIG,    // 9
+    UWOP_PUSH_MACH_FRAME,   // 10
+
+    // ARM64. https://docs.microsoft.com/en-us/cpp/build/arm64-exception-handling
+    UWOP_ALLOC_MEDIUM,
+    UWOP_SAVE_R19R20X,
+    UWOP_SAVE_FPLRX,
+    UWOP_SAVE_FPLR,
+    UWOP_SAVE_REG,
+    UWOP_SAVE_REGX,
+    UWOP_SAVE_REGP,
+    UWOP_SAVE_REGPX,
+    UWOP_SAVE_LRPAIR,
+    UWOP_SAVE_FREG,
+    UWOP_SAVE_FREGX,
+    UWOP_SAVE_FREGP,
+    UWOP_SAVE_FREGPX,
+    UWOP_SET_FP,
+    UWOP_ADD_FP,
+    UWOP_NOP,
+    UWOP_END,
+    UWOP_SAVE_NEXT,
+    UWOP_TRAP_FRAME,
+    UWOP_CONTEXT,
+    UWOP_CLEAR_UNWOUND_TO_CALL,
+    // ARM: https://docs.microsoft.com/en-us/cpp/build/arm-exception-handling
+
+    UWOP_ALLOC_HUGE,
+    UWOP_WIDE_ALLOC_MEDIUM,
+    UWOP_WIDE_ALLOC_LARGE,
+    UWOP_WIDE_ALLOC_HUGE,
+
+    UWOP_WIDE_SAVE_REG_MASK,
+    UWOP_WIDE_SAVE_SP,
+    UWOP_SAVE_REGS_R4R7LR,
+    UWOP_WIDE_SAVE_REGS_R4R11LR,
+    UWOP_SAVE_FREG_D8D15,
+    UWOP_SAVE_REG_MASK,
+    UWOP_SAVE_LR,
+    UWOP_SAVE_FREG_D0D15,
+    UWOP_SAVE_FREG_D16D31,
+    UWOP_WIDE_NOP, // UWOP_NOP
+    UWOP_END_NOP,  // UWOP_END
+    UWOP_WIDE_END_NOP,
+    // Custom implementation opcodes (implementation specific).
+    UWOP_CUSTOM,
+} UNWIND_OP_CODES;
+
+typedef enum _SPF_REG {
+    SpfRAX = 0,
+    SpfRCX,
+    SpfRDX,
+    SpfRBX,
+    SpfRSP,
+    SpfRBP,
+    SpfRSI,
+    SpfRDI,
+    SpfR8,
+    SpfR9,
+    SpfR10,
+    SpfR11,
+    SpfR12,
+    SpfR13,
+    SpfR14,
+    SpfR15
+};
+
 /* ========== [ Expands ] ========== */
 #define THREAD_CREATE_FLAGS_CREATE_SUSPENDED 0x00000001 // NtCreateUserProcess & NtCreateThreadEx
 
@@ -2164,5 +2291,6 @@ NTSYSAPI ULONG    NTAPI RtlRemoveVectoredExceptionHandler( _In_ PVOID Handle );
 // NTSYSAPI ULONG    NTAPI RtlFillMemory( void* Destination, size_t Length, int Fill );
 WINAPI   BOOL  EnumProcessModules( HANDLE hProcess, HMODULE *lphModule, DWORD cb, LPDWORD lpcbNeeded );
 WINAPI   DWORD K32GetModuleFileNameExA( HANDLE hProcess, HMODULE hModule, LPSTR lpFilename, DWORD nSize );
+NTSYSAPI NTSTATUS NTAPI RtlQueueWorkItem( _In_ WORKERCALLBACKFUNC Function, _In_opt_ PVOID Context, _In_ ULONG Flags );
 
 #endif // WIN32_H            

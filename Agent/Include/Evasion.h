@@ -134,6 +134,11 @@ enum {
     RegRbx = 0x23
 } KH_REG;
 
+enum {
+    WkrClrCreateInstance,
+    WkrLoadLibraryA
+} WRK_CBACK;
+
 /* ========= [ Coff ] ========= */
 
 #define COFF_VAR 0x10
