@@ -71,6 +71,11 @@ _KH_END:
     return Success;
 }
 
+/*
+ * @brief
+ * module stomp technique to shellcode injection
+ * 
+ */
 auto DECLFN Injection::Stomp(
     _In_  ULONG   ProcessID,
     _In_  BYTE*   Buffer,
@@ -111,7 +116,6 @@ auto DECLFN Injection::Stomp(
     // 
     // get random library if not loaded in the process
     // 
-
     do {
         LibName = Self->Lib->GetRnd();
 

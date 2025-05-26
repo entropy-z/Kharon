@@ -1,5 +1,6 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
+from .Utils.u import *
 import json
 import base64
 
@@ -11,22 +12,15 @@ class ExecScArguments(TaskArguments):
                 name="file",
                 cli_name="file",
                 type=ParameterType.File,
-                description="Shellcode file ID in Mythic to inject",
+                dynamic_query_function=self.get_exe_files,
+                description="PE name in Mythic to inject",
                 parameter_group_info=[ParameterGroupInfo(required=True)]
-            ),
-            CommandParameter(
-                name="pid",
-                cli_name="pid",
-                type=ParameterType.Number,
-                description="Process ID to inject into (optional)",
-                default_value=0,
-                parameter_group_info=[ParameterGroupInfo(required=False)]
             ),
             CommandParameter(
                 name="args",
                 cli_name="args",
                 type=ParameterType.String,
-                description="Arguments for shellcode execution (optional)",
+                description="Arguments for PE execution (optional)",
                 parameter_group_info=[ParameterGroupInfo(required=False)]
             )
         ]
@@ -51,10 +45,37 @@ class ExecScArguments(TaskArguments):
             elif len(parts) > 1:
                 self.add_arg("args", " ".join(parts[1:]))
 
+    async def get_exe_files(self, callback: PTRPCDynamicQueryFunctionMessage) -> PTRPCDynamicQueryFunctionMessageResponse:
+        response = PTRPCDynamicQueryFunctionMessageResponse()
+        file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
+            CallbackID=callback.Callback,
+            LimitByCallback=False,
+            IsDownloadFromAgent=False,
+            IsScreenshot=False,
+            IsPayload=False,
+            Filename="",
+        ))
+        if file_resp.Success:
+            file_names = []
+            for f in file_resp.Files:
+                if f.Filename not in file_names and f.Filename.endswith(".exe"):
+                    file_names.append(f.Filename)
+            response.Success = True
+            response.Choices = file_names
+            return response
+        else:
+            await SendMythicRPCOperationEventLogCreate(MythicRPCOperationEventLogCreateMessage(
+                CallbackId=callback.Callback,
+                Message=f"Failed to get files: {file_resp.Error}",
+                MessageLevel="warning"
+            ))
+            response.Error = f"Failed to get files: {file_resp.Error}"
+            return response
+
 class ExecScCommand(CommandBase):
-    cmd = "exec-sc"
+    cmd = "exec-pe"
     needs_admin = False
-    help_cmd = "exec-sc <file_id> [pid] [args]"
+    help_cmd = "exec-pe -file <file_id> [pid] [args]"
     description = "Execute shellcode in memory"
     version = 1
     author = "@Oblivion"
@@ -86,15 +107,12 @@ class ExecScCommand(CommandBase):
             
         file_info = file_resp.Files[0]
         output = f"Executing shellcode file: {file_info.Filename}"
-        
-        if pid > 0:
-            output += f" in PID: {pid}"
+
         if args:
             output += f" with args: {args}"
         
         task.args.remove_arg("file")
         task.args.add_arg("file_contents", file_content.Content.hex())
-        task.args.add_arg("pid", pid)
         
         if args:
             task.args.add_arg("args_bytes", base64.b64encode(args.encode()).decode())

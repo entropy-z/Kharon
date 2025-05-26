@@ -50,29 +50,17 @@ class PwPickCommand(CommandBase):
     )
 
     async def create_go_tasking(self, task: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
-        # Prepare parameters for dotnet-inline subtask
-        params = {
-            "file": "PowerPick.exe",
-            "args": f"-c \"{task.args.get_arg('command')}\""
-        }
         
-        if task.args.get_arg("url"):
-            params["args"] += f" -d \"{task.args.get_arg('url')}\""
+        task.args.add_arg("file", "kh_PowerPick.exe")
+        task.args.add_arg("args", f"-c \"{task.args.get_arg("command")}\" -d \"{task.args.get_arg("url")}\"")
 
-        # Create the subtask
-        subtask: MythicRPCTaskCreateSubtaskMessageResponse = await SendMythicRPCTaskCreateSubtask(MythicRPCTaskCreateSubtaskMessage(
-            TaskID=task.Task.ID,
-            Token=task.Task.TokenID,
-            CommandName="dotnet-inline",
-            Params=json.dumps(params),
-            SubtaskCallbackFunction="completion_callback"
-        ))
+        task.args.remove_arg("command")
+        task.args.remove_arg("url")
         
-        # Return success with display parameters
         display_params = f"-command \"{task.args.get_arg('command')}\""
         if task.args.get_arg("url"):
             display_params += f" -url \"{task.args.get_arg('url')}\""
-            
+        
         return PTTaskCreateTaskingMessageResponse(
             Success=True,
             DisplayParams=display_params,

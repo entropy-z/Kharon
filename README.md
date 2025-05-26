@@ -2,7 +2,7 @@
 
 ![kharon img](Assets/kharon-1.png)
 
-C2 Agent for Mythic with advanced evasion capabilities, supporting dotnet/powershell/PE/shellcode/BOF memory execution, lateral movement, pivoting, SOCKS, and more. Kharon is a fully Position-Independent Code (PIC) shellcode based on [Startdust Project](https://github.com/Cracked5pider/Stardust) by [C5pider](https://x.com/C5pider) and llvm support. 
+C2 Agent for Mythic with advanced evasion capabilities, supporting dotnet/powershell/PE/shellcode/BOF memory execution, lateral movement, pivoting, SOCKS, and more. Kharon is a fully Position-Independent Code (PIC) shellcode and llvm support. 
 
 ## Listener
 The communication is all encrypted with AES256
@@ -16,11 +16,11 @@ The communication is all encrypted with AES256
 - Supports TLS-secured connections
 
 ## Evasion  
-- Uses hardware breakpoints to bypass AMSI/ETW by [rad](https://x.com/rad9800) (e.g, [hwbp4mw](https://github.com/rad9800/hwbp4mw)).  
+- Uses hardware breakpoints to bypass AMSI/ETW.
 - Sleep obfuscation via timers.  
 - Heap obfuscation during sleep (XOR).  
 - Indirect syscalls (e.g., [Halo's Gate](https://github.com/boku7/AsmHalosGate)).  
-- Call stack spoofing based on [SilentMoonwalk](https://github.com/klezVirus/SilentMoonwalk).  
+- Call stack spoofing.
 
 ## Injection 
 Supports injection of dotnet assemblies, PE files, shellcode, and Beacon Object Files (BOF). All execution is inline with exception of the shellcode for a while.

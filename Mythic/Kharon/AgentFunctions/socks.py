@@ -9,7 +9,7 @@ class SocksArguments(TaskArguments):
         self.args = [
             CommandParameter(
                 name="port", 
-                cli_name="Port",
+                cli_name="port",
                 display_name="Port",
                 type=ParameterType.Number,
                 description="Port to start the socks server on.",
@@ -20,7 +20,7 @@ class SocksArguments(TaskArguments):
             ),
             CommandParameter(
                 name="action",
-                cli_name="Action",
+                cli_name="action",
                 display_name="Action",
                 type=ParameterType.ChooseOne,
                 choices=["start", "stop"],
@@ -33,7 +33,7 @@ class SocksArguments(TaskArguments):
             ),
             CommandParameter(
                 name="username",
-                cli_name="Username",
+                cli_name="username",
                 display_name="Port Auth Username",
                 type=ParameterType.String,
                 description="Must auth as this user to use the SOCKS port.",
@@ -132,8 +132,11 @@ class SocksCommand(CommandBase):
                     Response="Stopped SOCKS5 server on port {}".format(taskData.args.get_arg("port"))
                 ))
                 
+
                 response.TaskStatus = MythicStatus.Success
                 response.Completed = True
+        
+        response.DisplayParams = f"-action {taskData.args.get_arg("action")} -port {taskData.args.get_arg("port")}"
         return response
 
 

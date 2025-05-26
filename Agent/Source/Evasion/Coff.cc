@@ -18,6 +18,101 @@ typedef struct {
     SECTION_DATA* Sec;
 } COFF_DATA;
 
+auto Coff::GetCmdID(
+    VOID* Address
+) -> ULONG {
+    BOF_OBJ* Obj = Node;
+
+    while ( Obj ) {
+        if ( Address >= Obj->MmBegin && Address < Obj->MmEnd ) {
+            return Obj->CmdID; 
+        }
+        Obj = Obj->Next;
+    }
+
+    return 0; 
+}
+
+auto Coff::GetTask(
+    VOID* Address
+) -> CHAR* {
+    BOF_OBJ* Obj = Node;
+
+    while ( Obj ) {
+        if ( Address >= Obj->MmBegin && Address < Obj->MmEnd ) {
+            return Obj->UUID; 
+        }
+        Obj = Obj->Next;
+    }
+
+    return nullptr; 
+}
+
+auto Coff::Add(
+    VOID* MmBegin,
+    VOID* MmEnd,
+    CHAR* UUID,
+    ULONG CmdID
+) -> BOF_OBJ* {
+    BOF_OBJ* NewObj = (BOF_OBJ*)Self->Hp->Alloc( sizeof( BOF_OBJ ) );
+
+    if (
+        !MmBegin ||
+        !MmEnd   ||
+        !UUID
+    ) {
+        return nullptr;
+    }
+
+    NewObj->MmBegin = MmBegin;
+    NewObj->MmEnd   = MmEnd;
+    NewObj->UUID    = UUID;
+    NewObj->CmdID   = CmdID;
+
+    if ( !this->Node ) {
+        this->Node = NewObj;
+    } else {
+        BOF_OBJ* Current = Node;
+
+        while ( Current->Next ) {
+            Current = Current->Next;
+        }
+
+        Current->Next = NewObj;
+    }
+
+    return NewObj;
+}
+
+auto Coff::Rm(
+    BOF_OBJ* Obj
+) -> BOOL {
+    if ( !Obj || !this->Node ) {
+        return FALSE; 
+    }
+
+    if ( this->Node == Obj ) {
+        BOF_OBJ* NextNode = this->Node->Next;
+        Self->Hp->Free( this->Node );
+        this->Node = NextNode;
+        return TRUE;
+    }
+
+    BOF_OBJ* Previous = this->Node;
+    while ( Previous->Next && Previous->Next != Obj) {
+        Previous = Previous->Next;
+    }
+
+    if ( Previous->Next == Obj ) {
+        BOF_OBJ* NextNode = Obj->Next;
+        Self->Hp->Free(Obj);      
+        Previous->Next = NextNode;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
 auto Coff::RslRel(
     _In_ PVOID  Base,
     _In_ PVOID  Rel,
@@ -54,11 +149,11 @@ auto Coff::RslApi(
     //
     // check if is Beacon api and resolve this function
     //
-    if ( Str::CompareCountA( SymName, "Beacon", 6 ) == 0 ) {
+    if ( Str::StartsWithA( SymName, "Beacon" ) ) {
         for ( int i = 0; i < sizeof( ApiTable ) / sizeof( ApiTable[0] ); i++ ) {
-            KhDbg("Checking ApiTable[%d] (Hash: 0x%X vs Target: 0x%X)", i, ApiTable[i].SymHash, Hsh::Str( SymName ));
-            if ( Hsh::Str( SymName ) == ApiTable[i].SymHash ) {
-                ApiAddress = ApiTable[i].SymPtr;
+            KhDbg("Checking ApiTable[%d] (Hash: 0x%X vs Target: 0x%X)", i, ApiTable[i].Hash, Hsh::Str( SymName ));
+            if ( Hsh::Str( SymName ) == ApiTable[i].Hash ) {
+                ApiAddress = ApiTable[i].Ptr;
                 KhDbg("Found match at index %d (Address: 0x%p)", i, ApiAddress);
                 break;
             }
@@ -66,6 +161,13 @@ auto Coff::RslApi(
     }
 
     KhDbg("symbol not in ApiTable, attempting dynamic resolution");
+
+    //
+    // check GetProcAddress or GetModuleHandle
+    //
+    if ( Hsh::Str( SymName ) == Hsh::Str( "GetProcAddress"   ) ) return (PVOID)Self->Krnl32.GetProcAddress;
+    if ( Hsh::Str( SymName ) == Hsh::Str( "GetModuleHandleA" ) ) return (PVOID)Self->Krnl32.GetModuleHandleA;
+    if ( Hsh::Str( SymName ) == Hsh::Str( "GetModuleHandleW" ) ) return (PVOID)Self->Krnl32.GetModuleHandleW;
 
     //
     // if not beacon api, resolve the windows api
@@ -96,8 +198,8 @@ auto Coff::RslApi(
         LibName = RawBuff;
         FncName = &RawBuff[OffSet+1];
 
-        Str::ToLowerChar( LibName );
-        Str::ToLowerChar( FncName );
+        // Str::ToLowerChar( LibName );
+        // Str::ToLowerChar( FncName );
 
         INT totalLength = Str::LengthA(LibName) + Str::LengthA(".dll") + 1;
 
@@ -118,8 +220,10 @@ auto Coff::RslApi(
             KhDbg("lib found at %p", LibPtr);
         }
 
+        if ( !LibPtr ) return nullptr;
+
         KhDbg("resolving function %s in library 0x%p", FncName, LibPtr);
-        FncPtr = LdrLoad::Api<PVOID>( (UPTR)LibPtr, Hsh::Str<CHAR>( FncName ) );
+        FncPtr = (PVOID)Self->Krnl32.GetProcAddress( (HMODULE)LibPtr, FncName ); //LdrLoad::Api<PVOID>( (UPTR)LibPtr, Hsh::Str<CHAR>( FncName ) );
         
         if ( FncPtr ) {
             ApiAddress = FncPtr;
@@ -135,7 +239,9 @@ auto Coff::Loader(
     _In_ BYTE* Buffer,
     _In_ ULONG Size,
     _In_ BYTE* Args,
-    _In_ ULONG Argc
+    _In_ ULONG Argc,
+    _In_ CHAR* UUID,
+    _In_ ULONG CmdID
 ) -> BOOL {
     PVOID  MmBase   = nullptr;
     ULONG  MmSize   = 0;
@@ -235,22 +341,24 @@ auto Coff::Loader(
 
         KhDbg("processing symbol %d: %s (Class: 0x%X)", i, SymName, StorageClass);
 
-        if ( Str::CompareCountA( "__imp_", SymName, 6 ) == 0 ) {
-            MmSize = PAGE_ALIGN( MmSize + sizeof(PVOID) );
+        if (Str::StartsWithA(SymName, "__imp_")) {
+            MmSize = PAGE_ALIGN(MmSize + sizeof(PVOID));
             CoffData.Sym[i].Type = COFF_IMP;
-            CoffData.Sym[i].Ptr  = this->RslApi(SymName);
+            CoffData.Sym[i].Ptr = this->RslApi(SymName);
             KhDbg("import symbol resolved to 0x%p", CoffData.Sym[i].Ptr);
-        } else if ( ISFCN( Symbols[i].Type ) ) {
+        } 
+        else if (ISFCN(Symbols[i].Type)) {
             CoffData.Sym[i].Type = COFF_FNC;
-            CoffData.Sym[i].Rva  = Symbols[i].Value;
-        } else if (
-            !ISFCN( Symbols[i].Type )                &&
+            CoffData.Sym[i].Rva = Symbols[i].Value;
+        } 
+        else if (
+            !ISFCN(Symbols[i].Type) &&
             StorageClass == IMAGE_SYM_CLASS_EXTERNAL &&
-            !Str::CompareCountA("__imp_", SymName, 6)
+            !Str::StartsWithA(SymName, "__imp_") 
         ) {
             CoffData.Sym[i].Type = COFF_VAR;
-            CoffData.Sym[i].Rva  = Symbols[i].Value;
-            KhDbg("variable symbol identified");
+            CoffData.Sym[i].Rva = Symbols[i].Value;
+            KhDbg("variable symbol identified: %s", SymName);
         }
     }
 
@@ -301,26 +409,41 @@ auto Coff::Loader(
         PVOID* ImportTable = (PVOID*)LastSec;
         for ( INT i = 0; i < SecNbrs; i++ ) {
             Relocs = (PIMAGE_RELOCATION)( Buffer + SecHdr[i].PointerToRelocations );
-            KhDbg("processing %d relocations for section %d", SecHdr[i].NumberOfRelocations, i);
+            KhDbg("processing %d relocations for section %s %d", SecHdr[i].NumberOfRelocations, SecHdr[i].Name, i);
 
             for ( INT x = 0; x < SecHdr[i].NumberOfRelocations; x++ ) {
                 PIMAGE_SYMBOL SymReloc = &Symbols[Relocs[x].SymbolTableIndex];
                 PVOID RelocAddr = (PVOID)((ULONG_PTR)CoffData.Sec[i].Base + Relocs[x].VirtualAddress);
 
+                KhDbg("processing symbol: %s", CoffData.Sym[Relocs[x].SymbolTableIndex].Name);
+
                 if ( Relocs[x].Type == IMAGE_REL_AMD64_REL32 && CoffData.Sym[Relocs[x].SymbolTableIndex].Type == COFF_IMP ) {
 
                     ImportTable[Iterator] = CoffData.Sym[Relocs[x].SymbolTableIndex].Ptr;
-
                     C_DEF32( RelocAddr ) = (UINT32)((ULONG_PTR)&ImportTable[Iterator] - (ULONG_PTR)RelocAddr - 4);
                     Iterator++;
                     KhDbg("applied REL32 import relocation at %p", RelocAddr);
 
                 } else {
                     PVOID TargetBase = CoffData.Sec[SymReloc->SectionNumber-1].Base;
-                    this->RslRel(TargetBase, RelocAddr, Relocs[x].Type);
-                    KhDbg("applied other relocation type");
+                    PVOID TargetAddr = (PVOID)((ULONG_PTR)TargetBase + SymReloc->Value);
+                    this->RslRel(TargetAddr, RelocAddr, Relocs[x].Type);
+
+                    KhDbg("relocated target %p", TargetAddr);
                 }
             }
+        }
+    }
+
+    //
+    // Set proper memory protections
+    //
+    for (INT j = 0; j < SecNbrs; j++) {
+        ULONG OldProt = 0;
+        
+        if ( SecHdr[j].Characteristics & IMAGE_SCN_MEM_EXECUTE) {
+            ULONG NewProt = PAGE_EXECUTE_READ;
+            Self->Mm->Protect(nullptr, CoffData.Sec[j].Base, CoffData.Sec[j].Size, NewProt, &OldProt);
         }
     }
 
@@ -337,13 +460,16 @@ auto Coff::Loader(
                     PVOID GoPtr = C_PTR( U_PTR( CoffData.Sec[j].Base ) + Symbols[i].Value );
                     ULONG OldProt = 0;
 
-                    Self->Mm->Protect( nullptr, CoffData.Sec[j].Base, CoffData.Sec[j].Size, PAGE_EXECUTE_READ, &OldProt );
-
                     KhDbg("found 'go' function at 0x%p (Section %d, Offset 0x%X)", GoPtr, j, Symbols[i].Value);
+
+                    BOF_OBJ* Obj = (BOF_OBJ*)this->Add( MmBase, C_PTR( U_PTR( MmBase ) + MmSize ), UUID, CmdID );
+                    if ( Obj ) KhDbg("added the object to the list");
 
                     VOID ( *Go )( BYTE*, ULONG ) = ( decltype( Go ) )( GoPtr );
                     KhDbg("calling 'go' function");
                     Go( Args, Argc );
+
+                    if ( this->Rm( Obj ) ) KhDbg("removed the object to the list");
                 }
             }
         }
@@ -355,4 +481,6 @@ _KH_END:
     if ( CoffData.Sym ) Self->Hp->Free( CoffData.Sym );
 
     KhDbg("COFF loading completed");
+    
+    return TRUE;
 }

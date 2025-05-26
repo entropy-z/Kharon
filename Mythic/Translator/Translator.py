@@ -43,7 +43,7 @@ class KharonTranslator( TranslationContainer ):
             Dbg8( f"Responses: {InputMsg.Message['responses']}" );
             Response.Message = RespPosting( InputMsg.Message["responses"] );
         
-        Dbg8( f"buffer [{len( Response.Message )}]" );
+        Dbg8( f"buffer {Response.Message} [{len( Response.Message )}]" );
         Dbg8( "-----------------------\n" );
 
         return Response
@@ -58,11 +58,17 @@ class KharonTranslator( TranslationContainer ):
         Action      = AgentMsg[0];
         ActionData  = AgentMsg[1:];
 
-        Dbg7( f"raw {AgentMsg}" )
+        # Dbg7( f"raw {AgentMsg}" )
         Dbg7( f"Action: {Action}" );
 
         if Action == Jobs['checkin']['hex_code']:
             Response.Message = await CheckinC2( ActionData );
+        
+        elif Action == Jobs['quick_out']['hex_code']:
+            Response.Message = QuickOut( ActionData );
+
+        elif Action == Jobs['quick_msg']['hex_code']:
+            Response.Message = QuickMsg( ActionData );
         
         elif Action == Jobs['get_tasking']['hex_code']:
             Response.Message = GetTaskingC2( ActionData );
@@ -70,7 +76,7 @@ class KharonTranslator( TranslationContainer ):
         elif Action == Jobs['post_response']['hex_code']:
             Response.Message = PostC2( ActionData );
         
-        Dbg7( f"buffer: {len(Response.Message)}" );
+        # Dbg7( f"buffer: {Response.Message} length {len(Response.Message)}" );
         Dbg7( "-----------------------\n" );
 
         return Response

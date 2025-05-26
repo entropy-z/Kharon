@@ -50,19 +50,9 @@ auto DECLFN Dotnet::Inline(
 
     SECURITY_ATTRIBUTES SecAttr = { 0 };
 
-    Context.CLRCreateInstancePtr = (UPTR)Self->Mscoree.CLRCreateInstance;
-
-    Context.Arg1 = (UPTR)&Self->Dot->CLSID.CLRMetaHost;
-    Context.Arg2 = (UPTR)&Self->Dot->CLSID.CLRMetaHost;
-    Context.Arg3 = (UPTR)( (PVOID*)( &MetaHost ) );
-
-    //
-    // host clr in the process
-    //
-    Self->Spf->WorkCall( (UPTR)&Context, WkrClrCreateInstance );
-    // HResult = Self->Mscoree.CLRCreateInstance( 
-    //     Self->Dot->CLSID.CLRMetaHost, Self->Dot->IID.ICLRMetaHost, (PVOID*)&MetaHost 
-    // );
+    HResult = Self->Mscoree.CLRCreateInstance( 
+        Self->Dot->CLSID.CLRMetaHost, Self->Dot->IID.ICLRMetaHost, (PVOID*)&MetaHost 
+    );
     if ( HResult || !MetaHost ) goto _KH_END;
 
     //

@@ -341,8 +341,8 @@ class KharonAgent( PayloadType ):
         proc           = await asyncio.create_subprocess_shell( CommandBuild, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE );
         stdout, stderr = await proc.communicate();
 
-        print( f"\n\nstdout: \n{stdout.decode("cp850")}" );
-        print( f"\n\nstrerr: \n{stderr.decode("cp850")}" );
+        print( f"\n\nstdout: \n{stdout.decode('cp850')}" );
+        print( f"\n\nstrerr: \n{stderr.decode('cp850')}" );
         
         await SendMythicRPCPayloadUpdatebuildStep(MythicRPCPayloadUpdateBuildStepMessage(
                 PayloadUUID = self.uuid,

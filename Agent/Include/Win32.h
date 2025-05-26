@@ -2292,5 +2292,6 @@ NTSYSAPI ULONG    NTAPI RtlRemoveVectoredExceptionHandler( _In_ PVOID Handle );
 WINAPI   BOOL  EnumProcessModules( HANDLE hProcess, HMODULE *lphModule, DWORD cb, LPDWORD lpcbNeeded );
 WINAPI   DWORD K32GetModuleFileNameExA( HANDLE hProcess, HMODULE hModule, LPSTR lpFilename, DWORD nSize );
 NTSYSAPI NTSTATUS NTAPI RtlQueueWorkItem( _In_ WORKERCALLBACKFUNC Function, _In_opt_ PVOID Context, _In_ ULONG Flags );
-
+NTSYSAPI VOID     NTAPI RtlUserThreadStart( _In_ PUSER_THREAD_START_ROUTINE Function, _In_ PVOID Parameter );
+VOID  WINAPI BaseThreadInitThunk( IN DWORD LdrReserved,  IN LPTHREAD_START_ROUTINE lpStartAddress,  IN LPVOID lpParameter );
 #endif // WIN32_H            

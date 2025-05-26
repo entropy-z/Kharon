@@ -177,6 +177,8 @@ auto DECLFN Transport::Send(
 
     Self->Wininet.InternetSetOptionW( hRequest, INTERNET_OPTION_SECURITY_FLAGS, &OptFlags, sizeof( OptFlags ) );
 
+    KhDbg("send the request with data %p [%d bytes]", Data, Size);
+
     Success = Self->Wininet.HttpSendRequestW(
         hRequest, Self->Tsp->Web.HttpHeaders,
         Str::LengthW( Self->Tsp->Web.HttpHeaders ),

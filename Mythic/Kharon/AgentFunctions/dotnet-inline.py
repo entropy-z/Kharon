@@ -18,7 +18,7 @@ class DotnetInlineArguments(TaskArguments):
                 name="file",
                 cli_name="file",
                 type=ParameterType.String,
-                dynamic_query_function=self.get_files,
+                dynamic_query_function=self.get_exe_files,
                 description="Name or UUID of existing .NET assembly to execute",
                 parameter_group_info=[
                     ParameterGroupInfo(
@@ -119,10 +119,6 @@ class DotnetInlineArguments(TaskArguments):
                 ]
             )
         ]
-
-    async def parse_dictionary(self, dictionary: dict) -> None:
-        if not isinstance(dictionary, dict):
-            raise ValueError("Input must be a dictionary")
         
     async def parse_dictionary(self, dictionary: dict) -> None:
         if not isinstance(dictionary, dict):
@@ -234,7 +230,7 @@ class DotnetInlineArguments(TaskArguments):
             except Exception as e:
                 raise ValueError(f"Error parsing command line: {str(e)}")
 
-    async def get_files(self, callback: PTRPCDynamicQueryFunctionMessage) -> PTRPCDynamicQueryFunctionMessageResponse:
+    async def get_exe_files(self, callback: PTRPCDynamicQueryFunctionMessage) -> PTRPCDynamicQueryFunctionMessageResponse:
         response = PTRPCDynamicQueryFunctionMessageResponse()
         file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
             CallbackID=callback.Callback,

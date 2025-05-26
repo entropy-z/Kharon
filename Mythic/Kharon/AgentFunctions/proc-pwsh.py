@@ -55,7 +55,7 @@ class ProcPwshCommand(CommandBase):
 
     async def create_go_tasking(self, task: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         command = task.args.get_arg("command")
-        task.args.add_arg("command", f"powershell.exe -c {command}")
+        task.args.add_arg("command", f"powershell.exe -c \"{command}\"")
         task.args.add_arg("action", "pwsh")
         return PTTaskCreateTaskingMessageResponse(
             TaskID=task.Task.ID,

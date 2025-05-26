@@ -411,7 +411,7 @@ auto DECLFN Str::CompareCountA(
 ) -> INT {
     INT16 Idx = 0;
 
-    while (*Str1 && (*Str1 == *Str2) && Idx == Count ) {
+    while (*Str1 && (*Str1 == *Str2) && Idx < Count) {
         ++Str1;
         ++Str2;
 
@@ -429,6 +429,24 @@ auto DECLFN Str::CompareA(
         ++Str2;
     }
     return static_cast<INT>(*Str1) - static_cast<INT>(*Str2);
+}
+
+auto DECLFN Str::StartsWithA(
+    PCSTR Str, 
+    PCSTR Prefix
+) -> BOOL {
+    if (!Str || !Prefix) {
+        return FALSE;
+    }
+
+    while (*Prefix) {
+        if (*Str != *Prefix) {
+            return FALSE; 
+        }
+        ++Str;
+        ++Prefix;
+    }
+    return TRUE;
 }
 
 auto DECLFN Str::CompareW( 

@@ -220,7 +220,7 @@ class ConfigCommand( CommandBase ):
                 if str(param_value).lower() not in ["classic", "stomp"]:
                     validation_errors.append("Invalid injection-sc value. Must be classic or stomp")
             elif param_name == "sleep":
-                if param_value <= 0:
+                if param_value < 0:
                     validation_errors.append("Sleep value must be a positive integer")
             elif param_name == "jitter":
                 if param_value < 0 or param_value > 100:

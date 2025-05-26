@@ -29,8 +29,6 @@ auto DECLFN Spoof::WorkCall(
     Status = Self->Ntdll.NtCreateEvent( &Notify, EVENT_ALL_ACCESS, nullptr, NotificationEvent, FALSE );
     if ( Status != STATUS_SUCCESS ) goto _KH_END;
 
-    KhDbg("callback %p ctx %p", WorkerCallback, Context);
-
     Status = Self->Ntdll.RtlQueueWorkItem( (WORKERCALLBACKFUNC)WorkerCallback, (PVOID)Context, WT_EXECUTEDEFAULT );
     if ( Status != STATUS_SUCCESS ) goto _KH_END;
 
@@ -48,34 +46,50 @@ _KH_END:
     return Status;
 }
 
-auto DECLFN Spoof::TimerCall(
-    _In_ UPTR Context,
-    _In_ INT8 Identifier
-) -> LONG {
+EXTERN_C PVOID SpoofCall( UPTR Lib, UPTR Fnc, PVOID );
 
+template <typename... Args>
+auto DECLFN Spoof::Call(
+    _In_ UPTR Lib, 
+    _In_ UPTR Fnc, 
+    Args... args
+) {
+    PVOID RtmFunction = nullptr;
+
+    Setup.ArgCount   = sizeof...( Args );
+    RtmFunction      = GetRtmEntry( Self->Ntdll.Handle, ( (UPTR)Self->Ntdll.RtlUserThreadStart - Self->Ntdll.Handle ) );
+    Setup.FirstSize  = this->GetStackSize( Self->Ntdll.Handle, &static_cast<PIMAGE_RUNTIME_FUNCTION_ENTRY>( RtmFunction )->UnwindInfoAddress );
+    RtmFunction      = GetRtmEntry( Self->Krnl32.Handle, ( (UPTR)Self->Krnl32.BaseThreadInitThunk - Self->Krnl32.Handle ) );
+    Setup.SecondSize = this->GetStackSize( Self->Krnl32.Handle, &static_cast<PIMAGE_RUNTIME_FUNCTION_ENTRY>( RtmFunction )->UnwindInfoAddress );
+
+    // for ( INT í = 0; i < Setup.ArgCount; i++ ) {
+    //     Setup.Args[i] = args[i];
+    // }
+
+    return SpoofCall( Lib, Fnc, (PVOID)&Setup );
 }
 
-// auto DECLFN Spoof::GetRtmEntry(
-//     _In_ UPTR LibBase,
-//     _In_ UPTR FncOffset
-// ) -> PIMAGE_RUNTIME_FUNCTION_ENTRY {
-//     PRUNTIME_FUNCTION       FncTable = { 0 };
-//     PIMAGE_EXPORT_DIRECTORY ExpDir   = { 0 };
-//     PIMAGE_NT_HEADERS       Header   = { 0 };
-//     PIMAGE_DATA_DIRECTORY   DataDir  = { 0 };
+auto DECLFN Spoof::GetRtmEntry(
+    _In_ UPTR LibBase,
+    _In_ UPTR FncOffset
+) -> PIMAGE_RUNTIME_FUNCTION_ENTRY {
+    PRUNTIME_FUNCTION       FncTable = { 0 };
+    PIMAGE_EXPORT_DIRECTORY ExpDir   = { 0 };
+    PIMAGE_NT_HEADERS       Header   = { 0 };
+    PIMAGE_DATA_DIRECTORY   DataDir  = { 0 };
 
-//     Header   = (PIMAGE_NT_HEADERS)( LibBase + ( (PIMAGE_DOS_HEADER)( LibBase ) )->e_lfanew );
-//     DataDir  = &Header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
-//     FncTable = (PRUNTIME_FUNCTION)( LibBase + DataDir->VirtualAddress );
-//     DataDir  = &Header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-//     ExpDir   = (PIMAGE_EXPORT_DIRECTORY)( LibBase + DataDir->VirtualAddress );
+    Header   = (PIMAGE_NT_HEADERS)( LibBase + ( (PIMAGE_DOS_HEADER)( LibBase ) )->e_lfanew );
+    DataDir  = &Header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
+    FncTable = (PRUNTIME_FUNCTION)( LibBase + DataDir->VirtualAddress );
+    DataDir  = &Header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    ExpDir   = (PIMAGE_EXPORT_DIRECTORY)( LibBase + DataDir->VirtualAddress );
 
-//     for ( INT i = 0; i < ExpDir->NumberOfFunctions; i++ ) {
-//         if ( FncTable[i].BeginAddress == FncOffset ) return (PIMAGE_RUNTIME_FUNCTION_ENTRY)( FncTable + i );
-//     }
+    for ( INT i = 0; i < ExpDir->NumberOfFunctions; i++ ) {
+        if ( FncTable[i].BeginAddress == FncOffset ) return (PIMAGE_RUNTIME_FUNCTION_ENTRY)( FncTable + i );
+    }
 
-//     return nullptr;
-// }
+    return nullptr;
+}
 
 // auto DECLFN Spoof::GetStackSize(
 //     _In_ UPTR  LibBase,

