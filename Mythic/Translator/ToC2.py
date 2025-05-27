@@ -225,7 +225,7 @@ def QuickMsg( Data ):
     elif CallbackType == KH_CALLBACK_OUTPUT:
         FinalMsg = f"[+] Received Output:\n{CallbackMsg}"
     else:
-        FinalMsg = f"[?] Callback type not recognized... (just can be used [CALLBACK_OUTPUT|CALLBACK_ERROR])"
+        FinalMsg = f"[?] Callback type not recognized... (just can be used [CALLBACK_OUTPUT|CALLBACK_ERROR])\n"
 
     logging.info(f"MSG =>  with task uuid: {UUID} and callback type: {CallbackType}")
 

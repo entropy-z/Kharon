@@ -47,34 +47,31 @@ class ScreenshotCommand(CommandBase):
         try:
             if response:
                 image_data = bytes.fromhex(response)
-                logging.info(f"[+] Screenshot size: {len(image_data)} bytes")
                 
-                # 1. Envia o arquivo da screenshot via RPC
                 file_resp = await SendMythicRPCFileCreate(MythicRPCFileCreateMessage(
                     TaskID=task.Task.ID,
                     FileContents=image_data,
-                    Filename=f"screenshot_{task.Task.ID}.bmp",  # ou .png
+                    Filename=f"screenshot_{task.Task.ID}.bmp",
                     DeleteAfterFetch=False,
-                    IsScreenshot=True  # Importante para aparecer na aba de screenshots
+                    IsScreenshot=True,
+                    IsDownloadFromAgent=True
                 ))
                 
-                # 2. Retorna o resultado para o operador
                 if file_resp.Success:
                     await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                         TaskID=task.Task.ID,
-                        Response=f"✅ Screenshot salva como 'screenshot_{task.Task.ID}.bmp' (ID: {file_resp.AgentFileId})"
+                        Response=f"[+] Screenshot saved as screenshot_{task.Task.ID}.bmp (File ID: {file_resp.AgentFileId})"
                     ))
                 else:
                     await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                         TaskID=task.Task.ID,
-                        Response=f"❌ Falha ao enviar screenshot: {file_resp.Error}"
+                        Response=f"[x] Failed to upload screenshot: {file_resp.Error}"
                     ))
 
         except Exception as e:
-            logging.error(f"[!] Erro ao processar screenshot: {e}", exc_info=True)
             await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                 TaskID=task.Task.ID,
-                Response=f"❌ Falha crítica: {str(e)}"
+                Response=f"[x] Screenshot processing failed: {str(e)}"
             ))
         
         return PTTaskProcessResponseMessageResponse(TaskID=task.Task.ID, Success=True)

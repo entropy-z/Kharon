@@ -64,8 +64,15 @@ class ScqueryCommand(CommandBase):
     async def create_go_tasking(self, task: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         content: bytes = await get_content_by_name("kh_sc_query.x64.o", task.Task.ID)
 
-        hostname = task.args.get_arg("hostname") or ""
-        service_name = task.args.get_arg("service_name") or ""
+        hostname = task.args.get_arg("hostname") or ''
+        service_name = task.args.get_arg("service_name") or '' 
+        display_params = ""
+
+        if hostname :
+            display_params += f" -hostname {hostname}"
+        
+        if service_name:
+            display_params += f" -service {service_name}"
 
         bof_args = [
             {"type": "char", "value": hostname},
@@ -75,12 +82,14 @@ class ScqueryCommand(CommandBase):
         task.args.remove_arg("hostname")
         task.args.remove_arg("service_name")
         task.args.add_arg("bof_file", content.hex())
+        task.args.add_arg("bof_id", 0, ParameterType.Number)
         task.args.add_arg("bof_args", json.dumps(bof_args))
 
         return PTTaskCreateTaskingMessageResponse(
             TaskID=task.Task.ID,
             CommandName="exec-bof",
-            TokenID=task.Task.TokenID
+            TokenID=task.Task.TokenID,
+            DisplayParams=display_params
         )
   
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:

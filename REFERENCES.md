@@ -1,6 +1,7 @@
 - [SilentMoonwalk](https://github.com/klezVirus/SilentMoonwalk)
 - [Startdust Project](https://github.com/Cracked5pider/Stardust) by [C5pider](https://x.com/C5pider)
 - [Xenon](https://github.com/MythicAgents/Xenon) by [c0rnbread](https://x.com/0xC0rnbread)
+- https://github.com/joaoviictorti/rustclr/
 - https://github.com/trustedsec/CS-Situational-Awareness-BOF
 - https://github.com/trustedsec/CS-Remote-OPs-BOF
 - https://github.com/RalfHacker/Kerbeus-BOF

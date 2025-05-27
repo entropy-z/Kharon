@@ -118,12 +118,17 @@ def RespTasking(Tasks, Socks) -> bytes:
             if "bof_id" in Parameters:
                 tsk_psr.Int32( Parameters["bof_id"] )
 
-            if "bof_arguments" in Parameters and isinstance(Parameters["bof_arguments"], list):
-                Dbg3(f"Processing bof_arguments: {Parameters['bof_arguments']}")
-                for arg in Parameters["bof_arguments"]:
+            BofArgs = []
+            if "bof_args" in Parameters:
+                BofArgs = ast.literal_eval(Parameters["bof_args"])
+
+            if BofArgs and isinstance(BofArgs, list):
+                Dbg3(f"Processing bof_args: {BofArgs}")
+                for arg in BofArgs:
                     try:
-                        if isinstance(arg, list) and len(arg) == 2:
-                            arg_type, value = arg
+                        if isinstance(arg, dict) and "type" in arg and "value" in arg:
+                            arg_type = arg["type"]
+                            value = arg["value"]
                             Dbg3(f"Processing argument - type: {arg_type}, value: {value}")
                             
                             if arg_type == "int16":
@@ -152,9 +157,10 @@ def RespTasking(Tasks, Socks) -> bytes:
                     except Exception as e:
                         Dbg3(f"Failed to process argument {arg}: {str(e)}")
                         raise ValueError(f"Failed to process argument {arg}: {str(e)}")
-            
+
+            Dbg3(f"[{args_buffer.length}] {args_buffer.buffer}")
             tsk_psr.Int32(args_buffer.length) 
-            tsk_psr.Pad(args_buffer.buffer) 
+            tsk_psr.Pad(args_buffer.buffer)
         else:
             # Handle regular parameters
             for Key, Val in Parameters.items():
