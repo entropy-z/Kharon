@@ -118,7 +118,7 @@ auto DECLFN Transport::Checkin(
     return TRUE;
 }
 
-auto DECLFN Transport::Send(
+auto DECLFN Transport::WebSend(
     _In_      PVOID   Data,
     _In_      UINT64  Size,
     _Out_opt_ PVOID  *RecvData,

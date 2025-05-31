@@ -37,7 +37,11 @@ class MvCommand(CommandBase):
     cmd = "mv"
     needs_admin = False
     help_cmd = "mv <source> <destination>"
-    description = "Move or rename files/directories"
+    description = \
+    """
+    Move or rename files/directories" \
+    Category: Native
+    """
     version = 1
     author = "@Oblivion"
     attackmapping = ["T1564", "T1070"]

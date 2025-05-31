@@ -4,7 +4,7 @@ import logging
 
 from .Utils.u import *
 
-class WhoamiArguments( TaskArguments ):
+class UptimeArguments( TaskArguments ):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
         self.args = []
@@ -12,19 +12,19 @@ class WhoamiArguments( TaskArguments ):
     async def parse_arguments(self):
         pass
 
-class WhoamiCommand( CommandBase ):
+class UptimeCommand( CommandBase ):
     cmd         = "uptime"
     needs_admin = False
     help_cmd    = "uptime"
     description = \
     """
-    Get Username, SID, Token Privileges and Groups from current User
+    Return information about the boot time on the local or remote computer
 
     Category: Beacon Object File
     """
     version = 1
     author = "@Oblivion"
-    argument_class = WhoamiArguments
+    argument_class = UptimeArguments
     browser_script = BrowserScript(script_name="usf_new", author="@Oblivion", for_new_ui=True)
     attributes = CommandAttributes(
         supported_os=[SupportedOS.Windows],

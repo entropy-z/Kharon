@@ -40,7 +40,7 @@ def RespTasking(Tasks, Socks) -> bytes:
         Dbg3(f"socks id: {SrvId}")
 
         if Data is not None:
-            Dbg3(f"socks data: [{len(base64.b64decode(Data))} bytes]")
+            Dbg3(f"socks data: {Data[:30]} [{len(base64.b64decode(Data))} bytes]")
         
         # Build sock package
         SockPkg.Int16(T_SOCKS)

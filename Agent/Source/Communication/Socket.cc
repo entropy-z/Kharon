@@ -69,3 +69,67 @@ auto DECLFN Socket::RmCtx(
     }
     return ERROR_NOT_FOUND;
 }
+
+auto Socket::RecvAll( SOCKET Socket, PVOID Buffer, DWORD Length, PDWORD BytesRead ) -> BOOL {
+    DWORD tret   = 0;
+    DWORD nret   = 0;
+    PVOID Start = Buffer;
+
+    while ( tret < Length )
+    {
+        nret = Self->Ws2_32.recv( Socket, (CHAR*)Start, Length - tret, 0 );
+
+        if ( nret == SOCKET_ERROR )
+        {
+            KhDbg( "recv Failed" )
+            *BytesRead = tret;
+            return FALSE;
+        }
+
+        Start  = C_PTR( U_PTR( Start ) + nret );
+        tret  += nret;
+    }
+
+    *BytesRead = tret;
+
+    return TRUE;
+}
+
+auto Socket::InitWSA( VOID ) -> BOOL {
+    WSADATA WsData = { 0 };
+    DWORD   Result = 0;
+
+    if ( !Self->Sckt->Initialized ) {
+        KhDbg( "Init Windows Socket..." )
+
+        if ( ( Result = Self->Ws2_32.WSAStartup( MAKEWORD( 2, 2 ), &WsData ) ) != 0 )
+        {
+            KhDbg( "WSAStartup Failed: %d\n", Result )
+
+            Self->Ws2_32.WSACleanup();
+            return FALSE;
+        }
+
+        Self->Sckt->Initialized = TRUE;
+    }
+
+    return TRUE;
+}
+
+auto DECLFN Socket::LogData(
+    _In_ const char* description,
+    _In_ const BYTE* data,
+    _In_ ULONG length
+) -> VOID {
+    if (!data || length == 0) return;
+    
+    KhDbg("%s (%d bytes):", description, length);
+    for (ULONG i = 0; i < length; i++) {
+        if (i % 16 == 0) {
+            if (i > 0) Self->Ntdll.DbgPrint("\n");
+            Self->Ntdll.DbgPrint("[%04X] ", i);
+        }
+        Self->Ntdll.DbgPrint("%02X ", data[i]);
+    }
+    Self->Ntdll.DbgPrint("\n");
+}

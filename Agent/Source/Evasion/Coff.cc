@@ -344,7 +344,7 @@ auto Coff::Loader(
         if (Str::StartsWithA(SymName, "__imp_")) {
             MmSize = PAGE_ALIGN(MmSize + sizeof(PVOID));
             CoffData.Sym[i].Type = COFF_IMP;
-            CoffData.Sym[i].Ptr = this->RslApi(SymName);
+            CoffData.Sym[i].Ptr  = this->RslApi(SymName);
             KhDbg("import symbol resolved to 0x%p", CoffData.Sym[i].Ptr);
         } 
         else if (ISFCN(Symbols[i].Type)) {

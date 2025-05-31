@@ -4,7 +4,7 @@ import logging
 
 from .Utils.u import *
 
-class DnscacheArguments( TaskArguments ):
+class AdcsenumArguments( TaskArguments ):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
         self.args = []
@@ -12,7 +12,7 @@ class DnscacheArguments( TaskArguments ):
     async def parse_arguments(self):
         pass
 
-class DnscacheCommand( CommandBase ):
+class AdcsenumCommand( CommandBase ):
     cmd         = "adcs-enum"
     needs_admin = False
     help_cmd    = "adcs-enum"
@@ -24,7 +24,7 @@ class DnscacheCommand( CommandBase ):
     """
     version = 1
     author = "@Oblivion"
-    argument_class = DnscacheArguments
+    argument_class = AdcsenumArguments
     browser_script = BrowserScript(script_name="usf_new", author="@Oblivion", for_new_ui=True)
     attributes = CommandAttributes(
         supported_os=[SupportedOS.Windows],

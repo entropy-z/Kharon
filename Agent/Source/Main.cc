@@ -174,8 +174,6 @@ auto DECLFN Kharon::Init(
         &PsBasicInfoEx, sizeof( PsBasicInfoEx ), NULL 
     );
 
-    this->Mm->Alloc( nullptr, 0x1000, 0x3000, 0x40);
-
     this->Krnl32.GlobalMemoryStatusEx( &MemInfoEx );
     this->Krnl32.GetNativeSystemInfo( &SysInfo );
 

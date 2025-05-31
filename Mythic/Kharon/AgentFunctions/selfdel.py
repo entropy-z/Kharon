@@ -10,7 +10,7 @@ class SelfdelArguments( TaskArguments ):
     async def parse_arguments(self):
         pass
 
-class PwdCommand( CommandBase ):
+class SeldelCommand( CommandBase ):
     cmd = "selfdel"
     needs_admin = False
     help_cmd = "selfdel"
@@ -38,36 +38,7 @@ class PwdCommand( CommandBase ):
         )
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
-        if not response:
-            return PTTaskProcessResponseMessageResponse(
-                TaskID=task.Task.ID,
-                Success=True
-            )
-            
-        try:
-            RawResponse = bytes.fromhex(response)
-            if RawResponse and RawResponse[0] == 0x13:
-                RawResponse = RawResponse[1:]
-            Psr = Parser(RawResponse, len(RawResponse))
-            output = Psr.Str()
-            
-            output = ''.join(char for char in output if char.isprintable())
-            
-            await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
-                TaskID=task.Task.ID,
-                Response=output.encode()
-            ))
-            return PTTaskProcessResponseMessageResponse(
-                TaskID=task.Task.ID,
-                Success=True
-            )
-        except Exception as e:
-            await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
-                TaskID=task.Task.ID,
-                Response=f"Error processing response: {str(e)}".encode('utf-8')
-            ))
-            return PTTaskProcessResponseMessageResponse(
-                TaskID=task.Task.ID,
-                Success=False,
-                Error=str(e)
-            )
+        return PTTaskProcessResponseMessageResponse(
+            TaskID=task.Task.ID,
+            Success=True
+        )

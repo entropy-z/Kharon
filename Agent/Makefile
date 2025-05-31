@@ -76,10 +76,6 @@ nasm64:
 nasm86:
 	@ $(ASMCC) -f win32 Source/Asm/Entry.x64.asm -o $(BUILD_PATH)/Bin/obj/entry.x86.obj
 
-stomper:
-	@ $(CCX64) test/stomper.cc -o test/stomper.x64.exe -w
-	@ $(CCX86) test/stomper.cc -o test/stomper.x86.exe -w
-
 clean:
 	@ rm -f $(BUILD_PATH)/obj/*.x64.obj
 	@ rm -f $(BUILD_PATH)/obj/*.x86.obj

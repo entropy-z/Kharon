@@ -64,7 +64,7 @@ class ScqueryCommand(CommandBase):
     async def create_go_tasking(self, task: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         content: bytes = await get_content_by_name("kh_sc_query.x64.o", task.Task.ID)
 
-        hostname = task.args.get_arg("hostname") or ''
+        hostname = task.args.get_arg("hostname") or 'localhost'
         service_name = task.args.get_arg("service_name") or '' 
         display_params = ""
 

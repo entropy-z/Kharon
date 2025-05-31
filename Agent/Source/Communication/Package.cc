@@ -408,6 +408,8 @@ auto DECLFN Package::Transmit(
             if ( Response && Size ) {
                 *Response = RetBuffer;
                 *Size     = Retsize;
+            } else {
+                Self->Hp->Free( RetBuffer );
             }
         }
         if ( Base64Buff ) Self->Hp->Free( Base64Buff );

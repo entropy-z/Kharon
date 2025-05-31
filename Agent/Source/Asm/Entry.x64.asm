@@ -28,9 +28,9 @@ GLOBAL EndPtr
 [SECTION .text$C]
     EndPtr:
         call RetEndPtr
-    ret
+        ret
 
     RetEndPtr:
         mov	rax, [rsp]
         sub	rax, 0x5
-    ret
+        ret

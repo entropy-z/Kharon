@@ -32,7 +32,7 @@ auto DECLFN Heap::Alloc(
         sizeof( HEAP_NODE )
     );
     if ( !NewNode ) {
-        Self->Ntdll.RtlFreeHeap( C_PTR(Self->Session.HeapHandle), 0, Block );
+        Self->Ntdll.RtlFreeHeap( C_PTR( Self->Session.HeapHandle ), 0, Block );
         return NULL;
     }
 
@@ -63,7 +63,7 @@ auto DECLFN Heap::ReAlloc(
     HEAP_NODE* Current = Node;
 
     while ( Current ) {
-        if ( Current->Block = Block ) {
+        if ( Current->Block == Block ) {
             Current->Block = ReBlock;
             Current->Size  = Size;
             break;
@@ -91,9 +91,6 @@ auto DECLFN Heap::Free(
                 Result = Self->Ntdll.RtlFreeHeap( C_PTR( Self->Session.HeapHandle ), 0, Current->Block );
                 Current->Block = nullptr;
                 Current->Size  = 0;
-                if ( !Result ) {
-                    break;
-                }
             }
 
             if ( Previous ) {
@@ -102,7 +99,7 @@ auto DECLFN Heap::Free(
                 Node = Current->Next;
             }
 
-            Self->Ntdll.RtlFreeHeap( C_PTR( Self->Session.HeapHandle ), 0, Current );
+            Result = Self->Ntdll.RtlFreeHeap( C_PTR( Self->Session.HeapHandle ), 0, Current );
             Current = nullptr;
             this->Count--;
             break;

