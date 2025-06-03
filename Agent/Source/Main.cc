@@ -262,11 +262,17 @@ auto DECLFN Kharon::Init(
     KhDbgz( "used ram: %d\n", this->Machine.UsedRAM );
 
     KhDbgz( "======== Transport Informations ========" );
+    KhDbgz("profile c2: %X", PROFILE_C2);
+#if PROFILE_C2 == PROFILE_WEB
     KhDbgz( "host: %S", this->Tsp->Web.Host );
     KhDbgz( "port: %d", this->Tsp->Web.Port );
     KhDbgz( "endpoint: %S", this->Tsp->Web.EndPoint );
     KhDbgz( "user agent: %S", this->Tsp->Web.UserAgent );
     KhDbgz( "secure: %d\n", this->Tsp->Web.Secure );
+#endif
+#if PROFILE_C2 == PROFILE_SMB
+    KhDbgz( "smb pipe name: %s", this->Tsp->Pipe.Name );
+#endif
 
     KhDbgz( "collected informations and setup agent" );
 
@@ -276,14 +282,12 @@ auto DECLFN Kharon::Init(
 auto DECLFN Kharon::Start( 
     _In_ UPTR Argument 
 ) -> VOID {
-    BOOL Success = FALSE;
-    
     KhDbgz( "initializing the principal routine" );
 
     //
     // do checkin routine (request + validate connection)
     //
-    Success = this->Tsp->Checkin();
+    this->Tsp->Checkin();
 
     do {            
         //

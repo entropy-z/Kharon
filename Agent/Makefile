@@ -36,7 +36,9 @@ DEFS := \
     -D WEB_PORT=$(WEB_PORT) \
     -D WEB_ENDPOINT='L"$(WEB_ENDPOINT)"' \
     -D WEB_USER_AGENT='L"$(WEB_USER_AGENT)"' \
-    -D WEB_ENDPOINT_QUANTITY=$(WEB_ENDPOINT_QUANTITY)
+    -D WEB_ENDPOINT_QUANTITY=$(WEB_ENDPOINT_QUANTITY) \
+	-D PROFILE_C2=${PROFILE_C2} \
+	-D SMB_PIPE_NAME=${SMB_PIPE_NAME} \
 
 all: release debug
 release: x64 x86
@@ -52,7 +54,7 @@ x64: nasm64 $(OBJ64)
 	@ echo "compiling x64 project"
 	@ $(CCX64) $(BUILD_PATH)/Bin/obj/*.x64.obj -o $(BUILD_PATH)/Bin/$(NAME).x64.exe $(CFLAGS) 
 	@ objcopy --dump-section .text=$(BUILD_PATH)/Bin/$(NAME).x64.bin $(BUILD_PATH)/Bin/$(NAME).x64.exe
-	# @ rm $(BUILD_PATH)/$(NAME).x64.exe
+	@ rm $(BUILD_PATH)/Bin/$(NAME).x64.exe
 
 x86: nasm86 $(OBJ86)
 	@ echo "compiling x86 project"

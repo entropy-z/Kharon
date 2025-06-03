@@ -71,11 +71,11 @@ class ProcPwshCommand(CommandBase):
 
         sub_id = int.from_bytes(Psr.Pad(1), byteorder="big")
 
-        Output = Psr.Bytes();
         ProcID = Psr.Int32();
         TdID   = Psr.Int32();
+        Output = Psr.Bytes();
         
-        FinalOutput = f"[+] powershell.exe Created with ID: {ProcID} and Main Thread ID: {TdID}\n[+] Received {len(Output)} bytes from agent\n[+] Output:\n\n{Output.decode('utf-8')}"
+        FinalOutput = f"[+] powershell.exe Created with ID: {ProcID} and Main Thread ID: {TdID}\n[+] Received {len(Output)} bytes from agent\n[+] Output:\n\n{Output.decode('cp850')}"
 
         await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
             TaskID=task.Task.ID,

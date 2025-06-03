@@ -1,304 +1,383 @@
-import logging, json
-import traceback
+import logging
 import pathlib
+import asyncio
+import os
+import tempfile
+import traceback
+from distutils.dir_util import copy_tree
 
 from mythic_container.PayloadBuilder import *
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
-from distutils.dir_util import copy_tree
-import asyncio, os, tempfile, base64
 
-class KharonAgent( PayloadType ):
-    name             = "Kharon";
-    file_extension   = "bin";
-    author           = "@ Oblivion";
-    supported_os     = [SupportedOS.Windows];
-    wrapper          = False;
-    wrapped_payloads = [];
-    note             = \
-    """
-    Kharon agent. Version: v0.0.1
-    """
-    supports_dynamic_loading = False;
-    c2_profiles      = ["http", "smb"];
-    translation_container = "KharonTranslator";
+class KharonAgent(PayloadType):
+    name = "Kharon"
+    file_extension = "bin"
+    author = "@Oblivion"
+    supported_os = [SupportedOS.Windows]
+    wrapper = False
+    wrapped_payloads = []
+    note = "Kharon agent. Version: v0.0.1"
+    supports_dynamic_loading = False
+    c2_profiles = ["http", "smb"]
+    translation_container = "KharonTranslator"
+
+    # Path configurations
+    AgentPath = pathlib.Path(".") / "Kharon"
+    AgentIconPath = AgentPath / "Kharon.jpg"
+    AgentCodePath = pathlib.Path(".") / ".." / "Agent"
+    LoaderCodePath = pathlib.Path(".") / ".." / "Loader"
+    BrowserScriptPath = AgentPath / "BrowserScripts"
+
+    agent_code_path = AgentPath
+    agent_icon_path = AgentIconPath
+    agent_browserscript_path = BrowserScriptPath
+
     build_parameters = [
         BuildParameter(
-            name            = "Debug",
-            parameter_type  = BuildParameterType.Boolean,
-            default_value   = "false",
-            description     = "0.01 - [GLOBAL] Generate with debug strings. The debug output is handled using DbgPrint and can be viewed in a debugger",
+            name="Debug",
+            parameter_type=BuildParameterType.Boolean,
+            default_value=False,
+            description="0.1 [GLOBAL] Enable debug output (uses DbgPrint visible in debugger)"
         ),
         BuildParameter(
-            name            = "Format",
-            parameter_type  = BuildParameterType.ChooseOne,
-            choices         = ["exe", "dll", "svc", "bin"],
-            default_value   = "bin",
-            description     = "0.02 - [GLOBAL] Executable (.exe), Dynamic Linked Library (.dll), Service Executable (.svc.exe) and Shellcode (.bin)",
+            name="Format",
+            parameter_type=BuildParameterType.ChooseOne,
+            choices=["exe", "dll", "svc", "bin"],
+            default_value="bin",
+            description="0.2 [GLOBAL] Output format (executable, DLL, service, or shellcode)"
         ),
         BuildParameter(
-            name            = "Architecture",
-            parameter_type  = BuildParameterType.ChooseOne,
-            choices         = ["x64", "x86"],
-            default_value   = "x64",
-            description     = "0.03 - [GLOBAL] Architecture to compile",
+            name="Architecture",
+            parameter_type=BuildParameterType.ChooseOne,
+            choices=["x64", "x86"],
+            default_value="x64",
+            description="0.3 [GLOBAL] Target architecture"
         ),
         BuildParameter(
-            name            = "Injection Shellcode",
-            parameter_type  = BuildParameterType.ChooseOne,
-            choices         = ["Classic", "Stomp"],
-            default_value   = "Classic",
-            description     = "1.01 - [AGENT] Technique used to injection shellcode in memory",
+            name="Injection Shellcode",
+            parameter_type=BuildParameterType.ChooseOne,
+            choices=["Classic", "Stomp"],
+            default_value="Classic",
+            description="1.6 [AGENT] Shellcode injection technique"
         ),
         BuildParameter(
-            name            = "Mask",
-            parameter_type  = BuildParameterType.ChooseOne,
-            choices         = ["Timer", "None"],
-            default_value   = "None",
-            description     = "1.02 - [AGENT] Technique to beacon obfuscate in memory during sleep",
+            name="Mask",
+            parameter_type=BuildParameterType.ChooseOne,
+            choices=["Timer", "None"],
+            default_value="None",
+            description="1.0 [AGENT] Memory obfuscation technique during sleep"
         ),
         BuildParameter(
-            name            = "Heap Mask",
-            parameter_type  = BuildParameterType.Boolean,
-            default_value   = False,
-            description     = "1.03 - [AGENT] Obfuscate the heap during sleep",
+            name="Heap Mask",
+            parameter_type=BuildParameterType.Boolean,
+            default_value=False,
+            description="1.1 [AGENT] Obfuscate heap during sleep"
         ),
         BuildParameter(
-            name            = "Indirect Syscall",
-            parameter_type  = BuildParameterType.Boolean,
-            default_value   = False,
-            description     = "1.04 - [AGENT] Use indirect syscalls",
+            name="Indirect Syscall",
+            parameter_type=BuildParameterType.Boolean,
+            default_value=False,
+            description="1.2 [AGENT] Use indirect syscalls"
         ),
         BuildParameter(
-            name            = "Hardware Breakpoint",
-            parameter_type  = BuildParameterType.ChooseOne,
-            choices         = ["ETW", "AMSI", "All", "None"],
-            default_value   = "None",
-            description     = "1.05 - [AGENT] Use hardware breakpoint to bypass ETW/AMSI",
+            name="Hardware Breakpoint",
+            parameter_type=BuildParameterType.ChooseOne,
+            choices=["ETW", "AMSI", "All", "None"],
+            default_value="None",
+            description="1.3 [AGENT] Hardware breakpoint bypass technique"
         ),
         BuildParameter(
-            name            = "Call Stack Spoofing",
-            parameter_type  = BuildParameterType.Boolean,
-            default_value   = "false",
-            description     = "1.06 - [AGENT] Spoof the call stack of the specifieds WinAPIs",
+            name="Call Stack Spoofing",
+            parameter_type=BuildParameterType.Boolean,
+            default_value=False,
+            description="1.4 [AGENT] Spoof call stack for certain WinAPIs"
         ),
         BuildParameter(
-            name            = "BOF Hook",
-            parameter_type  = BuildParameterType.Boolean,
-            default_value   = False,
-            description     = "1.07 - [AGENT] Beacon Object File hooks",
+            name="BOF Hook",
+            parameter_type=BuildParameterType.Boolean,
+            default_value=False,
+            description="1.5 [AGENT] Enable Beacon Object File hooks"
         ),
         BuildParameter(
-            name           = "Killdate",
-            parameter_type = BuildParameterType.Date,
-            description    = "1.08 - [AGENT] Date to kill the agent",
+            name="Killdate",
+            parameter_type=BuildParameterType.Date,
+            description="1.7 [AGENT] Date when agent will self-terminate"
         ),
         BuildParameter(
-            name           = "Self Delete",
-            parameter_type = BuildParameterType.Boolean,
-            default_value  = False,
-            description    = "1.09 - [AGENT] Self deletion in kill date routine",
+            name="Self Delete",
+            parameter_type=BuildParameterType.Boolean,
+            default_value=False,
+            description="1.8 [AGENT] Enable self-deletion in killdate routine"
         ),
         BuildParameter(
-            name           = "Exit Method",
-            parameter_type = BuildParameterType.ChooseOne,
-            choices        = ["Process", "Thread"],
-            default_value  = "Process",
-            description    = "1.10 - [AGENT] Exit method to kill date routine",
+            name="Exit Method",
+            parameter_type=BuildParameterType.ChooseOne,
+            choices=["Process", "Thread"],
+            default_value="Process",
+            description="1.9 [AGENT] Exit method for killdate routine"
         )
     ]
 
-    AgentPath = pathlib.Path(".") / "Kharon";
-    AgentIconPath = AgentPath / "Kharon.jpg";
-    AgentCodePath = pathlib.Path(".") / ".." / "Agent";
-    BrowserScriptPath = AgentPath / "BrowserScripts";
-
-    agent_path      = AgentPath;
-    agent_icon_path = AgentIconPath;
-    agent_code_path = AgentCodePath;
-    agent_browserscript_path = BrowserScriptPath;
-    
     build_steps = [
-        BuildStep(step_name="Gathering Files", step_description="Making sure all commands have backing files on disk"),
-        BuildStep(step_name="Applying configuration", step_description="Stamping in configuration values"),
-        BuildStep(step_name="Compiling", step_description="Compiling with clang")
+        BuildStep(step_name="Gathering Files", step_description="Collecting required build files"),
+        BuildStep(step_name="Configuring Profile", step_description="Applying C2 profile settings"),
+        BuildStep(step_name="Setting Security", step_description="Configuring security features"),
+        BuildStep(step_name="Compiling Agent", step_description="Building the agent shellcode"),
+        BuildStep(step_name="Embedding Shellcode", step_description="Preparing loader with agent shellcode"),
+        BuildStep(step_name="Compiling Loader", step_description="Building the loader executable")
     ]
 
-    # Build the actual agent payload
     async def build(self) -> BuildResponse:
-
-        logging.basicConfig( level=logging.INFO );
-
-        print( f"path: {self.AgentIconPath}" );
-
-        resp = BuildResponse( status=BuildStatus.Success );
+        resp = BuildResponse(status=BuildStatus.Success)
         
-        Config = {
+        try:
+            # Step 1: Initialize and gather files
+            await self.update_build_step("Gathering Files", "Preparing build environment")
+            agent_temp_dir = tempfile.TemporaryDirectory(suffix=self.uuid)
+            copy_tree(str(self.AgentCodePath), agent_temp_dir.name)
+
+            # Create loader temp directory early for EXE format
+            if self.get_parameter("Format") == "exe":
+                loader_temp_dir = tempfile.TemporaryDirectory(suffix=self.uuid + "_loader")
+                copy_tree(str(self.LoaderCodePath), loader_temp_dir.name)
+
+            # Step 2: Process C2 profile configuration
+            c2_profile = self.c2info[0].get_c2profile()["name"]
+            config = self.process_c2_configuration(c2_profile)
+            await self.update_build_step("Configuring Profile", f"Applied {c2_profile.upper()} profile settings")
+
+            # Step 3: Prepare security configurations
+            build_config = self.prepare_build_configuration(config, c2_profile)
+            await self.update_build_step("Setting Security", "Applied security configurations")
+
+            # Step 4: Compile the agent
+            compile_command = self.generate_compile_agent(agent_temp_dir.name, build_config)
+            await self.update_build_step("Compiling Agent", f"Running: {compile_command}")
+            
+            proc = await asyncio.create_subprocess_shell(
+                compile_command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            agent_output_file = self.get_agent_output_path(agent_temp_dir.name)
+
+            logging.info(f"stdout: {stdout.decode('utf-8', errors='ignore')}")
+            logging.info(f"stderr: {stderr.decode('utf-8', errors='ignore')}")
+
+            if not os.path.exists(agent_output_file):
+                resp.status = BuildStatus.Error
+                resp.error_message = "Agent compilation failed - no output file produced"
+                resp.build_stderr = stderr.decode('utf-8', errors='ignore')
+                resp.build_stdout = stdout.decode('utf-8', errors='ignore')
+                return resp
+
+            # Handle non-EXE formats
+            if self.get_parameter("Format") != "exe":
+                resp.payload = open(agent_output_file, "rb").read()
+                resp.updated_filename = f"Kharon.{build_config['arch']}.{self.get_parameter('Format')}"
+                return resp
+
+            # Step 5: Embed shellcode into loader (EXE format only)
+            await self.update_build_step("Embedding Shellcode", "Converting agent to loader format")
+            
+            # Read the compiled shellcode
+            with open(agent_output_file, "rb") as f:
+                shellcode_bytes = f.read()
+            
+            # Generate C-style array
+            hex_array = self.generate_hex_array(shellcode_bytes)
+            
+            # Update Agent.h in loader directory
+            agent_h_path = os.path.join(loader_temp_dir.name, "Agent.h")
+            with open(agent_h_path, "w") as f:
+                f.write("#pragma once\n\n")
+                f.write("__attribute__((section(\".text\")))\n")
+                f.write("unsigned char Shellcode[] = {\n")
+                f.write(hex_array)
+                f.write("\n};\n\n")
+                f.write(f"unsigned int ShellcodeSize = sizeof(Shellcode);\n")
+
+            # Step 6: Compile the loader (EXE format only)
+            compile_command = self.generate_compile_loader(loader_temp_dir.name, build_config)
+            await self.update_build_step("Compiling Loader", f"Running: {compile_command}")
+            
+            proc = await asyncio.create_subprocess_shell(
+                compile_command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            logging.info(f"stdout: {stdout.decode('utf-8', errors='ignore')}")
+            logging.info(f"stderr: {stderr.decode('utf-8', errors='ignore')}")
+
+            loader_output_file = os.path.join(loader_temp_dir.name, "Bin", f"Kharon.{build_config['arch']}.exe")
+            
+            if os.path.exists(loader_output_file):
+                resp.payload = open(loader_output_file, "rb").read()
+                resp.updated_filename = f"Kharon.{build_config['arch']}.exe"
+            else:
+                resp.status = BuildStatus.Error
+                resp.error_message = "Loader compilation failed - no output file produced"
+                resp.build_stderr = stderr.decode('utf-8', errors='ignore')
+                resp.build_stdout = stdout.decode('utf-8', errors='ignore')
+
+        except Exception as e:
+            resp.status = BuildStatus.Error
+            resp.error_message = str(e)
+            logging.error(f"Build failed: {traceback.format_exc()}")
+
+        return resp
+
+    def generate_hex_array(self, shellcode_bytes: bytes) -> str:
+        """Convert shellcode bytes to formatted C-style hex array"""
+        hex_lines = []
+        for i in range(0, len(shellcode_bytes), 12):
+            chunk = shellcode_bytes[i:i+12]
+            hex_lines.append("    " + ", ".join([f"0x{byte:02x}" for byte in chunk]))
+        return ",\n".join(hex_lines)
+
+    def process_c2_configuration(self, c2_profile: str) -> dict:
+        """Process C2-specific configuration parameters"""
+        config = {
+            "c2_profile": c2_profile,
             "payload_uuid": self.uuid,
-            "callback_host": "",
-            "User-Agent": "",
-            "callback_jitter": 0,
-            "callback_interval": 0,
-            "httpMethod": "POST",
-            "post_uri": "",
-            "headers": [],
-            "callback_port": 80,
-            "ssl":False,
-            "proxyEnabled": False,
-            "proxy_host": "",
-            "proxy_user": "",
-            "proxy_pass": "",
         }
 
-        stdout_err = "";
+        if c2_profile == "http":
+            http_config = {
+                "callback_host": "",
+                "User-Agent": "",
+                "callback_jitter": 0,
+                "callback_interval": 0,
+                "httpMethod": "POST",
+                "post_uri": "",
+                "callback_port": 80,
+                "ssl": False,
+                "proxyEnabled": False,
+                "proxy_host": "",
+                "proxy_user": "",
+                "proxy_pass": "",
+            }
 
-        for c2 in self.c2info:
-            profile = c2.get_c2profile()
-            for key, val in c2.get_parameters_dict().items():
-                print( key, val )
-                if isinstance(val, dict) and 'enc_key' in val:
-                    stdout_err += "Setting {} to {}".format(key, val["enc_key"] if val["enc_key"] is not None else "")
-                    encKey = base64.b64decode(val["enc_key"]) if val["enc_key"] is not None else ""
-                elif key == "headers":
-                    Config["User-Agent"]= val["User-Agent"];
-                else:
-                    Config[key] = val
-            break
+            # Get HTTP parameters from Mythic
+            for c2 in self.c2info:
+                params = c2.get_parameters_dict()
+                for key in http_config.keys():
+                    if key in params:
+                        if key == "headers" and "User-Agent" in params[key]:
+                            http_config["User-Agent"] = params[key]["User-Agent"]
+                        else:
+                            http_config[key] = params[key]
+                break
 
-        if "https://" in Config["callback_host"]:
-            Config["ssl"] = True;
+            # Process HTTP-specific configurations
+            http_config["callback_host"] = http_config["callback_host"].replace(
+                "https://", "").replace("http://", "")
+            http_config["post_uri"] = "/" + http_config["post_uri"].lstrip("/")
+            http_config["ssl"] = "https://" in self.c2info[0].get_parameters_dict().get("callback_host", "")
+            
+            config.update(http_config)
 
-        Config["callback_host"] = Config["callback_host"].replace("https://", "").replace("http://","");
+        elif c2_profile == "smb":
+            smb_config = {"pipename": ""}
+            
+            # Get SMB parameters from Mythic
+            for c2 in self.c2info:
+                smb_config.update(c2.get_parameters_dict())
+                break
+
+            config.update(smb_config)
+
+        return config
+
+    def prepare_build_configuration(self, config: dict, c2_profile: str) -> dict:
+        """Prepare all build configurations and compiler definitions"""
+        arch = self.get_parameter("Architecture")
+        debug = "on" if self.get_parameter("Debug") else "off"
         
-        if Config["proxy_host"] != "":
-            Config["proxyEnabled"] = True;
-        
-        print( f"Config: {Config}" );
-
-        await SendMythicRPCPayloadUpdatebuildStep(MythicRPCPayloadUpdateBuildStepMessage(
-                PayloadUUID = self.uuid,
-                StepName    = "Gathering Files",
-                StepStdout  = "Found all files for payload",
-                StepSuccess = True
-        ));
-
-        AgentPath = tempfile.TemporaryDirectory( suffix=self.uuid )
-        copy_tree( str( self.agent_code_path ), AgentPath.name )
-        
-        await SendMythicRPCPayloadUpdatebuildStep(MythicRPCPayloadUpdateBuildStepMessage(
-                PayloadUUID = self.uuid,
-                StepName    = "Applying configuration",
-                StepStdout  = "All configuration setting applied",
-                StepSuccess = True
-        ));
-
-        Mask = {
-            "None" : 3,
-            "Timer": 1,
+        build_config = {
+            "arch": arch,
+            "debug": debug,
+            "base_defs": [
+                f"ARCH={arch}",
+                f"DBGMODE={debug}",
+                f"KH_SLEEP_TIME={config.get('callback_interval', 0)}",
+                f"KH_SLEEP_JITTER={config.get('callback_jitter', 0)}",
+                f"KH_AGENT_UUID={config['payload_uuid']}",
+            ],
+            "security_defs": [
+                f"KH_SLEEP_MASK={self.get_mask_value()}",
+                f"KH_HEAP_MASK={1 if self.get_parameter('Heap Mask') else 0}",
+                f"KH_INDIRECT_SYSCALL_ENABLED={1 if self.get_parameter('Indirect Syscall') else 0}",
+                f"KH_HARDWARE_BREAKPOINT_BYPASS_DOTNET={self.get_hardware_breakpoint_value()}",
+                f"KH_INJECTION_SC={self.get_injection_value()}",
+            ],
+            "c2_defs": []
         }
-        
-        InjectionPE = {
-            "Reflection": 0
+
+        # Add C2-specific definitions
+        if c2_profile == "http":
+            build_config["c2_defs"].extend([
+                f"PROFILE_C2=0x25",  # Changed to 0x25 for HTTP
+                f"WEB_PORT={config.get('callback_port', 80)}",
+                f"WEB_HOST={config['callback_host']}",
+                f"WEB_ENDPOINT={config['post_uri']}",
+                f'WEB_USER_AGENT="{config["User-Agent"]}"',
+                f"WEB_SECURE_ENABLED={1 if config['ssl'] else 0}",
+            ])
+        elif c2_profile == "smb":
+            build_config["c2_defs"].extend([
+                f"PROFILE_C2=0x15",  # Changed to 0x15 for SMB
+                f"SMB_PIPE_NAME={config['pipename']}",
+            ])
+
+        return build_config
+
+    def generate_compile_agent(self, build_dir: str, config: dict) -> str:
+        """Generate the compilation command for the agent"""
+        all_defs = config["base_defs"] + config["security_defs"] + config["c2_defs"]
+        make_args = " ".join(all_defs)
+        build_type = f"{config['arch']}-{'debug' if config['debug'] == 'on' else 'release'}"
+        return f"make -C {build_dir} {build_type} BUILD_PATH={build_dir} {make_args}"
+
+    def generate_compile_loader(self, build_dir: str, config: dict) -> str:
+        """Generate the compilation command for the loader"""
+        build_type = f"{config['arch']}-{'debug' if config['debug'] == 'on' else 'release'}"
+        return f"make -C {build_dir} {build_type} BUILD_PATH={build_dir}"
+
+    def get_agent_output_path(self, build_dir: str) -> str:
+        """Determine the correct output file path for the agent"""
+        arch = self.get_parameter("Architecture")
+        return os.path.join(build_dir, "Bin", f"Kharon.{arch}.bin")
+
+    def get_mask_value(self) -> int:
+        mask_choices = {"Timer": 1, "None": 3}
+        return mask_choices.get(self.get_parameter("Mask"), 3)
+
+    def get_hardware_breakpoint_value(self) -> str:
+        hwbp_choices = {
+            "ETW": "0x400",
+            "AMSI": "0x700",
+            "All": "0x100",
+            "None": "0x000",
         }
+        return hwbp_choices.get(self.get_parameter("Hardware Breakpoint"), "0x000")
 
-        InjectionSc = {
-            "Classic": 0,
-            "Stomp": 1
-        }
+    def get_injection_value(self) -> int:
+        inj_choices = {"Classic": 0, "Stomp": 1}
+        return inj_choices.get(self.get_parameter("Injection Shellcode"), 0)
 
-        Arch       = self.get_parameter( "Architecture" );
-        Format     = self.get_parameter( "Format" );
-        Debug      = self.get_parameter( "Debug" );
-        InjSc      = self.get_parameter( "Injection Shellcode" );
-        MaskID     = self.get_parameter( "Mask" );
-        HeapMask   = self.get_parameter( "Heap Mask" );
-        Spawntox64 = self.get_parameter( "Spawnto" );
-        Syscalls   = self.get_parameter( "Indirect Syscall" );
-        HardBreak  = self.get_parameter( "Hardware Breakpoint" );
-
-        MakeArg = f"";
-
-        if HeapMask is True:
-            HeapMask = 1;
-        else:
-            HeapMask = 0;
-        
-        if Debug is True:
-            Debug   = "on";
-            MakeArg = f"{Arch}-debug";
-        else:
-            Debug   = "off";
-            MakeArg = f"{Arch}-release";
-
-        Config['post_uri'] = ( "/" + Config['post_uri'] );
-
-        Secure = 0;
-
-        if Config["ssl"] is True:
-            Secure = 1;
-        
-        if HardBreak == "ETW":
-            HardBreak = 0x400
-        elif HardBreak == "AMSI":
-            HardBreak = 0x700
-        elif HardBreak == "All":
-            HardBreak = 0x100
-        elif HardBreak == "None":
-            HardBreak = 0x000
-
-        if Syscalls is True:
-            Syscalls = 1
-        else:
-            Syscalls = 0
-
-        Def = {
-            "Arch"      : f"ARCH={Arch}",
-            "Dbg"       : f"DBGMODE={Debug}",
-            "Mask"      : f"KH_SLEEP_MASK={Mask[MaskID]}",
-            "Time"      : f"KH_SLEEP_TIME={Config['callback_interval']}",
-            "Jitter"    : f"KH_SLEEP_JITTER={Config['callback_jitter']}",
-            "InjSc"     : f"KH_INJECTION_SC={InjectionSc[InjSc]}",
-            "InjPE"     : f"KH_INJECTION_PE={0}",
-            "HeapMask"  : f"KH_HEAP_MASK={HeapMask}",
-            "Syscall"   : f"KH_INDIRECT_SYSCALL_ENABLED={Syscalls}",
-            "Hwbp"      : f"KH_HARDWARE_BREAKPOINT_BYPASS_DOTNET={HardBreak}",
-            "Spawntox64": f"KH_SPAWNTO_X64={Spawntox64}",
-            "uuid"      : f"KH_AGENT_UUID={Config['payload_uuid']}",
-            "web-port"  : f"WEB_PORT={Config['callback_port']}",
-            "web-host"  : f"WEB_HOST={Config['callback_host']}",
-            "web-endpt" : f"WEB_ENDPOINT={Config['post_uri']}",
-            "web-ua"    : f"WEB_USER_AGENT=\"{Config['User-Agent']}\"",
-            "web-secure": f"WEB_SECURE_ENABLED={Secure}"
-        };
-
-        AllDefs = " ".join( Def.values() );
-        
-        CommandBuild   = f"make -C {AgentPath.name} {MakeArg} BUILD_PATH={AgentPath.name} {AllDefs};";
-
-        FileNameExe = ( AgentPath.name + f"/Bin/Kharon.{Arch}.exe" );
-        FileNameBin = ( AgentPath.name + f"/Bin/Kharon.{Arch}.bin" );
-
-        print( f"\n\n exe path: {FileNameExe} bin path: {FileNameBin}" )
-        print( f"command for build exe: \n{CommandBuild}" )
-
-        proc           = await asyncio.create_subprocess_shell( CommandBuild, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE );
-        stdout, stderr = await proc.communicate();
-
-        print( f"\n\nstdout: \n{stdout.decode('cp850')}" );
-        print( f"\n\nstrerr: \n{stderr.decode('cp850')}" );
-        
-        await SendMythicRPCPayloadUpdatebuildStep(MythicRPCPayloadUpdateBuildStepMessage(
-                PayloadUUID = self.uuid,
-                StepName    = "Compile",
-                StepStdout  = "Successfuly compiled Kharon Agent",
-                StepSuccess = True
-        ));
-
-        build_msg    = "";
-        resp.updated_filename = f"Kharon.{Arch}.{Format}"
-        resp.payload = open( FileNameBin, "rb" ).read();
-        
-        resp.build_stderr = stderr;
-        resp.build_stdout = stdout;
-
-        return resp;
+    async def update_build_step(self, step_name: str, message: str, success: bool = True):
+        """Helper method to update build step status"""
+        await SendMythicRPCPayloadUpdatebuildStep(
+            MythicRPCPayloadUpdateBuildStepMessage(
+                PayloadUUID=self.uuid,
+                StepName=step_name,
+                StepStdout=message,
+                StepSuccess=success
+            )
+        )

@@ -84,7 +84,6 @@ auto Coff::DataInt(
     DATAP* parser
 )->INT {
     G_KHARON
-
     return Self->Psr->Int32( (PPARSER)parser );
 }
 

@@ -4,7 +4,10 @@ from .Utils.u import *
 
 from collections import OrderedDict
 import json
+import logging
 import struct
+
+logging.basicConfig( level=logging.INFO );
 
 class LsArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):
@@ -54,7 +57,7 @@ class LsCommand(CommandBase):
         )
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
-        try:
+        try:            
             if not response:
                 return PTTaskProcessResponseMessageResponse(
                     TaskID=task.Task.ID,
@@ -66,6 +69,8 @@ class LsCommand(CommandBase):
             output_data = []
 
             sub_id = int.from_bytes(Psr.Pad(1), byteorder="big")
+
+            logging.info(f"list search me")
 
             if sub_id == SB_FS_LS:
                 file_list = []
@@ -112,6 +117,8 @@ class LsCommand(CommandBase):
                     "DirectoryListing": file_list,
                     "Count": len(file_list)
                 }
+
+                logging.info(f"list {output_data}")
             
             await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                 TaskID=task.Task.ID,

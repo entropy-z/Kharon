@@ -8,9 +8,9 @@ async def CheckinC2(Data) -> dict:
     UUID = Psr.Pad(36)
     StorageData = Psr.buffer
 
-    OsName = "Windows"
-    OsArch = Psr.Pad(1)
-    OscArc = ""
+    OsName  = "Windows"
+    OsArch  = Psr.Pad(1)
+    OscArc  = ""
 
     if isinstance(OsArch, bytes):
         OsArch = int.from_bytes(OsArch, byteorder='big', signed=False)
@@ -205,7 +205,8 @@ def QuickOut(Data):
 
         Response = {
             "task_id": UUID.decode("utf-8", errors="ignore"),
-            "process_response": ProcessOut
+            "process_response": ProcessOut,
+            "completed": False
         }
 
     JsonData["responses"].append(Response)
@@ -234,7 +235,8 @@ def QuickMsg( Data ):
         "responses": [
             {
                 "task_id": UUID.decode("utf-8"),
-                "user_output": FinalMsg
+                "user_output": FinalMsg,
+                "completed": False
             }
         ],
     }
@@ -259,11 +261,13 @@ def PostC2(Data):
         for Task in range(Tasks):
             Index += 1
             try:
+                Profile = Psr.Int32()
                 TaskLength = Psr.Int32()
                 if TaskLength <= 0:
                     Dbg2(f"Invalid task length: {TaskLength}")
                     continue
-                    
+                
+                Dbg2(f"profile c2 task: {Profile}")
                 Dbg2(f"task #{Index} len:{TaskLength}")
                 TaskData = Psr.Pad(TaskLength)
                 if len(TaskData) < TaskLength:
@@ -281,6 +285,8 @@ def PostC2(Data):
                 try:
                     CommandID = TaskPsr.Pad(2)
                     CommandID = int.from_bytes(CommandID, byteorder="big") if len(CommandID) == 2 else 0
+
+                    Dbg2(f"Process command id: {CommandID}")
                 except Exception as e:
                     CommandID = 0
                     Dbg2(f"Failed to read CommandID: {str(e)}")
@@ -350,7 +356,7 @@ def process_delegates(TaskUUID, Message, Psr:Parser):
     for delegate in delegates:
         uuid         = Psr.Str()
         profile_name = Psr.Int32()
-        message      = Psr.Str()
+        message      = Psr.Bytes()
 
         delegate_data = {
             "uuid": uuid,

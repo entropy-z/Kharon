@@ -18,7 +18,7 @@ class InsCallbackRmCommand( CommandBase ):
     help_cmd    = "callback-rm"
     description = \
     """
-    Get Environment variables from current process
+    Remote Instrumentation Callback
 
     Category: Beacon Object File
     """
@@ -32,7 +32,7 @@ class InsCallbackRmCommand( CommandBase ):
 
     async def create_go_tasking(self, task: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
     
-        content:bytes = await get_content_by_name( "kh_env.x64.o", task.Task.ID )
+        content:bytes = await get_content_by_name( "kh_rmcallback.x64.o", task.Task.ID )
 
         task.args.add_arg("bof_file", content.hex())
 

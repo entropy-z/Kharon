@@ -238,7 +238,7 @@ class Packer:
         self.length += 4 + len(data)
         return
     
-    def Bytes( self, data: str ) -> None:
+    def Bytes( self, data: bytes ) -> None:
 
         fmt = "<L{}s".format( len( data ) + 1 );
 

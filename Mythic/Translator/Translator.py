@@ -76,7 +76,7 @@ class KharonTranslator( TranslationContainer ):
         elif Action == Jobs['post_response']['hex_code']:
             Response.Message = PostC2( ActionData );
         
-        # Dbg7( f"buffer: {Response.Message} length {len(Response.Message)}" );
+        Dbg7( f"buffer: {Response.Message} length {len(Response.Message)}" );
         Dbg7( "-----------------------\n" );
 
         return Response

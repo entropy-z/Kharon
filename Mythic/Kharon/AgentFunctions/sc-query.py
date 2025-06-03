@@ -15,7 +15,7 @@ class ScqueryArguments(TaskArguments):
                 display_name="Service Name",
                 type=ParameterType.String,
                 description="Target service name to query",
-                parameter_group_info=[ParameterGroupInfo(required=False)]
+                parameter_group_info=[ParameterGroupInfo(required=True)]
             ),
             CommandParameter(
                 name="hostname",

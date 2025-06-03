@@ -16,9 +16,9 @@ def CheckinImp( uuid ):
 def RespTasking(Tasks, Socks) -> bytes:
     Dbg3("------------------------")
 
-    Pkg = Packer()
-    JobID = Jobs["get_tasking"]["hex_code"]
-    TaskLength = len(Tasks) + len(Socks)  # Total de tasks inclui Socks
+    Pkg        = Packer()
+    JobID      = Jobs["get_tasking"]["hex_code"]
+    TaskLength = len( Tasks ) + len( Socks )  
 
     Dbg3(f"task quantity {TaskLength}")
 
@@ -26,9 +26,7 @@ def RespTasking(Tasks, Socks) -> bytes:
     Pkg.Int8(JobID)
     Pkg.Int32(TaskLength)
 
-    # Process and add each sock as separate package
     for Sock in Socks:
-        # Create individual package for each sock
         SockPkg = Packer()
         
         SrvId = Sock["server_id"]

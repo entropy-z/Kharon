@@ -27,7 +27,7 @@ struct _SMB_PROFILE_DATA {
     PACKAGE* Pkg;
     PARSER*  Psr;
 
-    SMB_PROFILE_DATA* Next;
+    _SMB_PROFILE_DATA* Next;
 };
 
 typedef _SMB_PROFILE_DATA SMB_PROFILE_DATA;

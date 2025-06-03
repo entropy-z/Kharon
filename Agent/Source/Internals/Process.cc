@@ -97,17 +97,21 @@ auto DECLFN Process::Create(
             );
             if ( !Success ) { goto _KH_END; }
 
-            Self->Pkg->Bytes( G_PACKAGE, PipeBuff, TmpValue );
+            KhDbg( "pipe buffer: %d", PipeBuffSize );
+            KhDbg( "pipe read  : %d", TmpValue );
 
+            Self->Ps->Out.p = PipeBuff;
+            Self->Ps->Out.s = TmpValue;
         } else {
             KhDbg( "No data available in pipe" );
         }
     }
 
 _KH_END:
-    if ( PipeBuff  ) Self->Hp->Free( PipeBuff );
     if ( PipeWrite ) Self->Ntdll.NtClose( PipeWrite );
     if ( PipeRead  ) Self->Ntdll.NtClose( PipeRead );
+    if ( PsInfo->hProcess ) Self->Ntdll.NtClose( PsInfo->hProcess );
+    if ( PsInfo->hThread  ) Self->Ntdll.NtClose( PsInfo->hThread  );
 
     return Success;
 }
