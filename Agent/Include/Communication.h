@@ -18,3 +18,16 @@ typedef struct {
     UINT32  Length;
 } PARSER, *PPARSER;
 
+struct _SMB_PROFILE_DATA {
+    CHAR* SmbUUID;
+    CHAR* AgentUUID;
+    
+    HANDLE Handle;
+
+    PACKAGE* Pkg;
+    PARSER*  Psr;
+
+    SMB_PROFILE_DATA* Next;
+};
+
+typedef _SMB_PROFILE_DATA SMB_PROFILE_DATA;

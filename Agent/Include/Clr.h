@@ -2,7 +2,7 @@
 #define CLR_H
 
 #include <windows.h>
-#include <mscoree.h>
+#include <Mscoree.hh>
 
 
 /* this ALWAYS GENERATED file contains the definitions for the interfaces */
