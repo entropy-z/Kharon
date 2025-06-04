@@ -588,8 +588,8 @@ auto DECLFN Parser::Int32(
 ) -> INT32 {
     INT32 intBytes = 0;
 
-    if ( parser->Length < 4 )
-        return 0;
+    // if ( parser->Length < 4 )
+        // return 0;
 
     Mem::Copy( C_PTR( &intBytes ), C_PTR( parser->Buffer ), 4 );
 

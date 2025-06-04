@@ -346,7 +346,9 @@ namespace Root {
         struct {
             UPTR Handle;
     
+            DECLAPI( FreeLibrary );
             DECLAPI( LoadLibraryA ); 
+            DECLAPI( LoadLibraryW );
             DECLAPI( GetProcAddress );
             DECLAPI( GetModuleHandleA );
             DECLAPI( GetModuleHandleW );
@@ -443,7 +445,9 @@ namespace Root {
             DECLAPI( UpdateProcThreadAttribute );
             DECLAPI( DeleteProcThreadAttributeList );
         } Krnl32 = {
+            RSL_TYPE( FreeLibrary ),
             RSL_TYPE( LoadLibraryA ),
+            RSL_TYPE( LoadLibraryW ),
             RSL_TYPE( GetProcAddress ),
             RSL_TYPE( GetModuleHandleA ),
             RSL_TYPE( GetModuleHandleW ),

@@ -62,8 +62,6 @@ auto DECLFN Transport::WebSend(
 
     Self->Wininet.InternetSetOptionW( hRequest, INTERNET_OPTION_SECURITY_FLAGS, &OptFlags, sizeof( OptFlags ) );
 
-    KhDbg("send the request with data %p [%d bytes]", Data, Size);
-
     Success = Self->Wininet.HttpSendRequestW(
         hRequest, Self->Tsp->Web.HttpHeaders,
         Str::LengthW( Self->Tsp->Web.HttpHeaders ),
@@ -122,8 +120,6 @@ auto DECLFN Transport::WebSend(
             }
         }
         
-        KhDbg( "request: at %p [%d bytes]", RespBuffer, RespSize );
-
         if ( RespBuffer ) *RecvData = RespBuffer;
         if ( RecvSize   ) *RecvSize = RespSize;
 

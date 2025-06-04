@@ -228,7 +228,7 @@ class Packer:
 
     def Int64( self, data ) -> None:
 
-        self.buffer += pack( "<i", data );
+        self.buffer += pack( "<q", data );
         self.length += 8;
 
         return;
@@ -306,7 +306,7 @@ class Parser:
         return buf;
 
     def Str( self ) -> str:
-        return self.Bytes().decode( 'utf-8' );
+        return self.Bytes().decode( 'utf-8', errors="replace" );
     
     def Wstr( self ):
         return self.Bytes().decode( 'utf-16' );

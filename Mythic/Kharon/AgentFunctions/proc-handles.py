@@ -5,26 +5,18 @@ import json
 
 from .Utils.u import *
 
-class ScDelArguments(TaskArguments):
+class ScDescArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
         self.args = [
             CommandParameter(
-                name="service_name",
-                cli_name="service_name",
-                display_name="Service Name",
+                name="pid",
+                cli_name="pid",
+                display_name="pid",
                 type=ParameterType.String,
-                description="Target service name to query",
+                description="Target Process ID to enumerate handles",
                 parameter_group_info=[ParameterGroupInfo(required=True)]
             ),
-            CommandParameter(
-                name="hostname",
-                cli_name="hostname",
-                display_name="Hostname",
-                type=ParameterType.String,
-                description="Target host to query (default: localhost)",
-                parameter_group_info=[ParameterGroupInfo(required=False)]
-            )
         ]
 
     async def parse_arguments(self):
@@ -34,53 +26,45 @@ class ScDelArguments(TaskArguments):
             else:
                 args = self.command_line.split()
                 if len(args) >= 1:
-                    self.add_arg("hostname", args[0])
-                if len(args) >= 2:
-                    self.add_arg("service_name", args[1])
+                    self.add_arg("pid", args[0])
 
     async def parse_dictionary(self, dictionary):
         self.load_args_from_dictionary(dictionary)
 
 
-class ScDelCommand(CommandBase):
-    cmd = "sc-del"
-    needs_admin = True
-    help_cmd = "sc-del -hostname [hostname] -service [service_name]"
+class ProcHandlesCommand(CommandBase):
+    cmd = "proc-handles"
+    needs_admin = False
+    help_cmd = "proc-handles -pid [pid]"
     description = \
     """
-    Enumerates status for active services and drivers.
-    Query can be performed against a specific service or all services if none specified.
+    List handles for target process
     
     Category: Beacon Object File
     """
     version = 1
     author = "@Oblivion"
-    argument_class = ScDelArguments
+    argument_class = ScDescArguments
     browser_script = BrowserScript(script_name="usf_new", author="@Oblivion", for_new_ui=True)
     attributes = CommandAttributes(
         supported_os=[SupportedOS.Windows],
     )
 
     async def create_go_tasking(self, task: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
-        content: bytes = await get_content_by_name("kh_sc_delete.x64.o", task.Task.ID)
+        content: bytes = await get_content_by_name("kh_pslist_handles.x64.o", task.Task.ID)
 
-        hostname = task.args.get_arg("hostname") or 'localhost'
-        service_name = task.args.get_arg("service_name") or '' 
+        proc_id = task.args.get_arg("pid")
         display_params = ""
 
-        if hostname :
-            display_params += f" -hostname {hostname}"
-        
-        if service_name:
-            display_params += f" -service {service_name}"
+        if proc_id :
+            display_params += f" -pid {proc_id}"
 
         bof_args = [
-            {"type": "char", "value": hostname},
-            {"type": "char", "value": service_name}
+            {"type": "int32", "value": int(proc_id)},
         ]
 
-        task.args.remove_arg("hostname")
-        task.args.remove_arg("service_name")
+        task.args.remove_arg("proc_id")
+
         task.args.add_arg("bof_file", content.hex())
         task.args.add_arg("bof_id", 0, ParameterType.Number)
         task.args.add_arg("bof_args", json.dumps(bof_args))

@@ -14,13 +14,34 @@ class SpyofficeArguments( TaskArguments ):
                 display_name="pid",
                 type=ParameterType.String,
                 description="Process ID of the any office process",
-                parameter_group_info=[ParameterGroupInfo(required=False)]
+                parameter_group_info=[ParameterGroupInfo(required=True)]
             )
         ]
 
     async def parse_arguments(self):
-        pass
-
+        if len(self.command_line) > 0:
+            if self.command_line[0] == "{":
+                # JSON input
+                try:
+                    json_data = json.loads(self.command_line)
+                    self.add_arg("pid", json_data["pid"])
+                except:
+                    raise Exception("Failed to parse JSON arguments")
+            else:
+                # Command line input (e.g., "pid=1234")
+                try:
+                    for arg in self.command_line.split():
+                        if "=" in arg:
+                            key, value = arg.split("=", 1)
+                            if key.lower() == "pid":
+                                self.add_arg("pid", value)
+                except:
+                    raise Exception("Failed to parse command line arguments")
+        
+        # Verify required arguments
+        if not self.get_arg("pid"):
+            raise Exception("Missing required argument: pid")
+        
 class SpyofficeCommand( CommandBase ):
     cmd         = "spy-office"
     needs_admin = False

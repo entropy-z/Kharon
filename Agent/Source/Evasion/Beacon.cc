@@ -82,7 +82,7 @@ auto Coff::DataExtract(
 
 auto Coff::DataInt(
     DATAP* parser
-)->INT {
+)-> INT {
     G_KHARON
     return Self->Psr->Int32( (PPARSER)parser );
 }

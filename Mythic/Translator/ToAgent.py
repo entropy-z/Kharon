@@ -129,7 +129,7 @@ def RespTasking(Tasks, Socks) -> bytes:
                             value = arg["value"]
                             Dbg3(f"Processing argument - type: {arg_type}, value: {value}")
                             
-                            if arg_type == "int16":
+                            if arg_type == "int16" or "short":
                                 args_buffer.Int16(int(value))
                             elif arg_type == "int32":
                                 args_buffer.Int32(int(value))

@@ -163,9 +163,12 @@ auto Coff::RslApi(
     KhDbg("symbol not in ApiTable, attempting dynamic resolution");
 
     //
-    // check GetProcAddress or GetModuleHandle
+    // check GetProcAddress, GetModuleHandle or LoadLibrary
     //
     if ( Hsh::Str( SymName ) == Hsh::Str( "GetProcAddress"   ) ) return (PVOID)Self->Krnl32.GetProcAddress;
+    if ( Hsh::Str( SymName ) == Hsh::Str( "FreeLibrary"      ) ) return (PVOID)Self->Krnl32.FreeLibrary;
+    if ( Hsh::Str( SymName ) == Hsh::Str( "LoadLibraryW"     ) ) return (PVOID)Self->Krnl32.LoadLibraryW;
+    if ( Hsh::Str( SymName ) == Hsh::Str( "LoadLibraryA"     ) ) return (PVOID)Self->Krnl32.LoadLibraryA;
     if ( Hsh::Str( SymName ) == Hsh::Str( "GetModuleHandleA" ) ) return (PVOID)Self->Krnl32.GetModuleHandleA;
     if ( Hsh::Str( SymName ) == Hsh::Str( "GetModuleHandleW" ) ) return (PVOID)Self->Krnl32.GetModuleHandleW;
 

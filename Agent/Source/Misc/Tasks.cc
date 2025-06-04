@@ -1446,7 +1446,7 @@ auto DECLFN Task::Process(
                 UserToken = Self->Tkn->GetUser( TokenHandle );            
                                 
                 if ( !UserToken ) {
-                    Self->Pkg->Str( Package, "N/A" );
+                    Self->Pkg->Str( Package, "-" );
                 } else {
                     Self->Pkg->Str( Package, UserToken );
                     Self->Hp->Free( UserToken );
@@ -1457,18 +1457,6 @@ auto DECLFN Task::Process(
                 }
                 
                 Self->Pkg->Int32( Package, Isx64 );
-
-                // FileTime.dwHighDateTime = SysProcInfo->CreateTime.HighPart;
-                // FileTime.dwLowDateTime  = SysProcInfo->CreateTime.LowPart;
-            
-                // Self->Krnl32.FileTimeToSystemTime( &FileTime, &CreateTime );
-            
-                // Self->Pkg->Int16( Package, CreateTime.wDay );
-                // Self->Pkg->Int16( Package, CreateTime.wMonth );
-                // Self->Pkg->Int16( Package, CreateTime.wYear );
-                // Self->Pkg->Int16( Package, CreateTime.wHour );
-                // Self->Pkg->Int16( Package, CreateTime.wMinute );
-                // Self->Pkg->Int16( Package, CreateTime.wSecond );
                 
                 SysThreadInfo = SysProcInfo->Threads;
             
