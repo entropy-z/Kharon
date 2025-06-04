@@ -136,7 +136,7 @@ class SocksCommand(CommandBase):
                 response.TaskStatus = MythicStatus.Success
                 response.Completed = True
         
-        response.DisplayParams = f"-action {taskData.args.get_arg("action")} -port {taskData.args.get_arg("port")}"
+        response.DisplayParams = f"-action {taskData.args.get_arg('action')} -port {taskData.args.get_arg('port')}"
         return response
 
 
