@@ -49,3 +49,5 @@ Advanced movement techniques:
 - Any Netapi32 commands
 - Slack cookie dump
 - ipconfig, whoami, env, arp, dns cache and uptime
+
+Check the [References](REFERENCES.md)!
