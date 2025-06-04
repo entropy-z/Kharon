@@ -1,0 +1,14 @@
+- firewall interaction
+- scheduletask interaction
+- remote port foward
+- working time
+- dns listener
+- externals listener
+- llvm string obf
+- loader injection options
+- loader antidebug options
+- loader antivm and control options
+- COM exploitations
+- file time stomping
+- pe keep
+- dotnet keep
