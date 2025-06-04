@@ -2075,6 +2075,10 @@ public:
 
     auto Current( VOID ) -> HANDLE;
 
+    auto Use(
+        _In_ ULONG TokenID
+    ) -> BOOL;
+
     auto TdOpen(
         _In_  HANDLE  ThreadHandle,
         _In_  ULONG   RightsAccess,

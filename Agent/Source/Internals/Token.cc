@@ -77,6 +77,12 @@ _KH_END:
     return UserDom;
 }
 
+auto DECLFN Token::Use(
+    _In_ ULONG TokenID
+) -> BOOL {
+    
+}
+
 auto DECLFN Token::Steal(
     _In_ ULONG ProcessID
 ) -> HANDLE {
