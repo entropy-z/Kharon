@@ -2075,8 +2075,18 @@ public:
 
     auto Current( VOID ) -> HANDLE;
 
-    auto Use(
+    auto GetByID(
         _In_ ULONG TokenID
+    ) -> HANDLE;
+
+    auto Rm(
+        _In_ ULONG TokenID
+    ) -> BOOL;
+
+    auto Rev2Self( VOID ) -> BOOL;
+
+    auto Use(
+        _In_ HANDLE TokenHandle
     ) -> BOOL;
 
     auto TdOpen(

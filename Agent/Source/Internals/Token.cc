@@ -77,10 +77,64 @@ _KH_END:
     return UserDom;
 }
 
-auto DECLFN Token::Use(
+auto DECLFN Token::GetByID(
+    _In_ ULONG TokenID
+) -> HANDLE {
+    TOKEN_NODE* Current = this->Node;
+
+    while ( Current->Next ) {
+        if ( TokenID == Current->TokenID ) {
+            return Current->Handle;
+        }
+
+        Current = Current->Next;
+    }
+
+    return nullptr;
+}
+
+auto DECLFN Token::Rev2Self( VOID ) -> BOOL {
+    return this->Use( this->Current() );
+}
+
+auto DECLFN Token::Rm(
     _In_ ULONG TokenID
 ) -> BOOL {
-    
+    TOKEN_NODE* Current  = this->Node;
+    TOKEN_NODE* Previous = nullptr;
+
+    if ( !Current ) {
+        return FALSE;
+    }
+
+    if ( Current->TokenID == TokenID ) {
+        this->Node = Current->Next;
+        Self->Ntdll.NtClose( Current->Handle );
+        Self->Hp->Free( Current->User );
+        Self->Hp->Free( Current);
+        return TRUE;
+    }
+
+    while ( Current && Current->TokenID != TokenID ) {
+        Previous = Current;
+        Current = Current->Next;
+    }
+
+    if ( Current ) {
+        Previous->Next = Current->Next;
+        Self->Ntdll.NtClose( Current->Handle );
+        Self->Hp->Free( Current->User );
+        Self->Hp->Free( Current );
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+auto DECLFN Token::Use(
+    _In_ HANDLE TokenHandle
+) -> BOOL {
+    return ImpersonateLoggedOnUser( TokenHandle ); 
 }
 
 auto DECLFN Token::Steal(
