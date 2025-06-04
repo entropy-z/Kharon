@@ -12,3 +12,4 @@
 - file time stomping
 - pe keep
 - dotnet keep
+- keylogger
