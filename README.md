@@ -43,7 +43,7 @@ Advanced movement techniques:
 - **BlockDLL Enforcement**: Restrict non-Microsoft DLL injection
 
 ## Kerberos Interactions
-Some command to kerberos interaction like klist, ptt, describe, triage, ptt, s4u and more.
+Some command to kerberos interaction like klist, ptt, describe, triage, s4u and more.
 
 ## Misc Commands
 - Registry Interaction
