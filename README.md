@@ -33,9 +33,9 @@ Allows customization of injection techniques, including:
 
 ## Lateral Movement  
 Advanced movement techniques:  
-- **WMI**: (Windows Management Instrumentation) execution  
-- **SCM**: (Service-based execution with custom implementation)  
-- **WinRM**: (Windows Remote Management execution via COM without spawn powershell binary)
+- **WMI**: Windows Management Instrumentation execution  
+- **SCM**: Service-based execution with custom implementation 
+- **WinRM**: Windows Remote Management execution via COM without spawn powershell binary
 
 ## Process Creation
 - **PPID Spoofing**: Masquerade as child of legitimate processes (explorer.exe, svchost.exe, etc.)
