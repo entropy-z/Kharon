@@ -52,7 +52,7 @@ class PwPickCommand(CommandBase):
     async def create_go_tasking(self, task: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         
         task.args.add_arg("file", "kh_PowerPick.exe")
-        task.args.add_arg("args", f"-c \"{task.args.get_arg("command")}\" -d \"{task.args.get_arg("url")}\"")
+        task.args.add_arg("args", f"-c \"{task.args.get_arg('command')}\" -d \"{task.args.get_arg("url")}\"")
 
         task.args.remove_arg("command")
         task.args.remove_arg("url")
