@@ -1430,8 +1430,10 @@ auto DECLFN Task::Process(
                 if ( CommandLine->Buffer ) {
                     Self->Pkg->Wstr( Package, CommandLine->Buffer );
                 } else {
-                    Self->Pkg->Wstr( Package, L"N/A" );
+                    Self->Pkg->Wstr( Package, L"-" );
                 }
+
+                Self->Hp->Free( CommandLine );
       
                 Self->Pkg->Int32( Package, HandleToUlong( SysProcInfo->UniqueProcessId ) );
                 Self->Pkg->Int32( Package, HandleToUlong( SysProcInfo->InheritedFromUniqueProcessId ) );
@@ -1466,7 +1468,7 @@ auto DECLFN Task::Process(
                     // Self->Pkg->Int32( Package, SysThreadInfo[i].Priority );
                     // Self->Pkg->Int32( Package, SysThreadInfo[i].ThreadState );
                 // }
-                if ( ProcessHandle && ProcessHandle != INVALID_HANDLE_VALUE ) Self->Ntdll.NtClose( ProcessHandle );
+                // if ( ProcessHandle && ProcessHandle != INVALID_HANDLE_VALUE ) Self->Ntdll.NtClose( ProcessHandle );
                 if ( TokenHandle && TokenHandle != INVALID_HANDLE_VALUE     ) Self->Ntdll.NtClose( TokenHandle );
             
                 SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)( U_PTR( SysProcInfo ) + SysProcInfo->NextEntryOffset );
