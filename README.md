@@ -5,8 +5,8 @@
 C2 Agent for Mythic with advanced evasion capabilities, supporting dotnet/powershell/PE/shellcode/BOF memory execution, lateral movement, pivoting, SOCKS, and more. Kharon is a fully Position-Independent Code (PIC) shellcode and llvm support. 
 
 ## Listener
-- **SMB**: Named pipe-based C2 channel
 - **HTTP/S**: Web-based encrypted communication
+- **SMB**: Named pipe-based C2 channel
 
 ## Evasion  
 - Uses hardware breakpoints to bypass AMSI/ETW.
