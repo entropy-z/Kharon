@@ -134,7 +134,7 @@ auto DECLFN Token::Rm(
 auto DECLFN Token::Use(
     _In_ HANDLE TokenHandle
 ) -> BOOL {
-    return ImpersonateLoggedOnUser( TokenHandle ); 
+    // return ImpersonateLoggedOnUser( TokenHandle ); 
 }
 
 auto DECLFN Token::Steal(

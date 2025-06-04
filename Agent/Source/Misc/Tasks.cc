@@ -1337,7 +1337,7 @@ auto DECLFN Task::Token(
         case TknGetPriv: {
             break;
         }
-        case TknSteal: {    
+        case TknSteal: {
             break;
         }
     }

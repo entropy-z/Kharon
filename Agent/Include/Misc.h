@@ -269,7 +269,9 @@ enum {
     TknSteal,
     TknMake,
     TknGetPriv,
-    TknStore
+    TknStore,
+    TknUse,
+    TknRm
 } SB_TOKEN;
 
 enum {
