@@ -68,7 +68,7 @@ typedef interface ICLRMetaHost ICLRMetaHost;
 #include "unknwn.h"
 #include "oaidl.h"
 #include "ocidl.h"
-#include "mscoree.h"
+#include <mscoree.h>
 
 #ifdef __cplusplus
 extern "C"{

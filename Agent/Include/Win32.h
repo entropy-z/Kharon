@@ -2293,7 +2293,8 @@ WINAPI   BOOL  EnumProcessModules( HANDLE hProcess, HMODULE *lphModule, DWORD cb
 WINAPI   DWORD K32GetModuleFileNameExA( HANDLE hProcess, HMODULE hModule, LPSTR lpFilename, DWORD nSize );
 NTSYSAPI NTSTATUS NTAPI RtlQueueWorkItem( _In_ WORKERCALLBACKFUNC Function, _In_opt_ PVOID Context, _In_ ULONG Flags );
 NTSYSAPI VOID     NTAPI RtlUserThreadStart( _In_ PUSER_THREAD_START_ROUTINE Function, _In_ PVOID Parameter );
-NTSTATUS NTAPI 	TpAllocPool (_Out_ PTP_POOL *PoolReturn, _Reserved_ PVOID Reserved);
-NTSYSAPI VOID NTAPI (_Inout_ PTP_TIMER Timer, _In_opt_ PLARGE_INTEGER DueTime, _In_ LONG Period, _In_opt_ LONG WindowLength);
+NTSTATUS NTAPI 	TpAllocPool(_Out_ PTP_POOL *PoolReturn, _Reserved_ PVOID Reserved);
+NTSTATUS NTAPI 	TpAllocTimer(_Out_ PTP_TIMER *Timer, _In_ PTP_TIMER_CALLBACK Callback, _Inout_opt_ PVOID Context, _In_opt_ PTP_CALLBACK_ENVIRON CallbackEnviron);
+NTSYSAPI VOID NTAPI TpSetTimer(_Inout_ PTP_TIMER Timer, _In_opt_ PLARGE_INTEGER DueTime, _In_ LONG Period, _In_opt_ LONG WindowLength);
 VOID  WINAPI BaseThreadInitThunk( IN DWORD LdrReserved,  IN LPTHREAD_START_ROUTINE lpStartAddress,  IN LPVOID lpParameter );
 #endif // WIN32_H            
