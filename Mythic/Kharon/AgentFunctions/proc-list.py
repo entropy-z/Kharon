@@ -105,7 +105,7 @@ class ProcListCommand(CommandBase):
                                 BinPath=ImagePath,
                                 CommandLine=CommandLn,
                                 User=TokenUser,
-                                IntegrityLevel=SessionID,
+                                IntegrityLevel=SessionID
                             )
                             mythic_process_list.append(mythic_process)
                         except Exception as e:

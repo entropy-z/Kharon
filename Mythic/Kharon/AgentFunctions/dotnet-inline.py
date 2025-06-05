@@ -433,7 +433,7 @@ class DotnetInlineCommand(CommandBase):
         bResp = ""
         bResp = Psr.Bytes()
         
-        DisplayMsg = f"[+] Dotnet Output:\n\n" + bResp.decode("utf-8")
+        DisplayMsg = f"[+] Dotnet Output:\n\n" + bResp.decode("cp850")
 
         await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
             TaskID=task.Task.ID,

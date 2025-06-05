@@ -367,6 +367,7 @@ namespace Root {
 
             DECLAPI( GetConsoleWindow );
             DECLAPI( AllocConsole );
+            DECLAPI( FreeConsole );
 
             DECLAPI( CreateTransaction );
 
@@ -466,6 +467,7 @@ namespace Root {
 
             RSL_TYPE( GetConsoleWindow ),
             RSL_TYPE( AllocConsole ),
+            RSL_TYPE( FreeConsole ),
         
             RSL_TYPE( CreateTransaction ),
 
@@ -1918,10 +1920,6 @@ public:
         _In_ PJOBS Job
     ) -> ERROR_CODE;
 
-    auto Info( 
-        _In_ PJOBS Job
-    ) -> ERROR_CODE;
-
     auto FileSystem( 
         _In_ PJOBS Job
     ) -> ERROR_CODE;
@@ -1947,7 +1945,6 @@ public:
         Mgmt[0].ID = TskExit,       Mgmt[0].Run = &Task::Exit,
         Mgmt[1].ID = TskFileSystem, Mgmt[1].Run = &Task::FileSystem,
         Mgmt[2].ID = TskProcess,    Mgmt[2].Run = &Task::Process,
-        Mgmt[3].ID = TskGetInfo,    Mgmt[3].Run = &Task::Info,
         Mgmt[4].ID = TskExecBof,    Mgmt[4].Run = &Task::ExecBof,
         Mgmt[5].ID = TskExecSc,     Mgmt[5].Run = &Task::ExecSc,
         Mgmt[6].ID = TskConfig,     Mgmt[6].Run = &Task::Config,

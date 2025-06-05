@@ -172,7 +172,7 @@ auto DECLFN Dotnet::Inline(
     if ( !WinHandle ) {
         Self->Krnl32.AllocConsole();
 
-        if ( !( WinHandle = Self->Krnl32.GetConsoleWindow() ) ) {
+        if ( ( WinHandle = Self->Krnl32.GetConsoleWindow() ) ) {
             Self->User32.ShowWindow( WinHandle, SW_HIDE );
         }
     }
@@ -191,7 +191,7 @@ auto DECLFN Dotnet::Inline(
     //
     // allocate memory to output buffer
     //
-    Self->Dot->Out.p = (PCHAR)Self->Hp->Alloc( PIPE_BUFFER_LENGTH );
+    Self->Dot->Out.p = (CHAR*)Self->Hp->Alloc( PIPE_BUFFER_LENGTH );
 
     KhDbg( "start read output of the assembly" );
 
@@ -224,6 +224,8 @@ _KH_END:
     }
 
     if ( BackupOut ) Self->Krnl32.SetStdHandle( STD_OUTPUT_HANDLE, BackupOut );
+
+    if ( Self->Krnl32.GetConsoleWindow() ) Self->Krnl32.FreeConsole();
 
     if ( AsmArgv ) {
         Self->Hp->Free( AsmArgv ); AsmArgv = nullptr;
