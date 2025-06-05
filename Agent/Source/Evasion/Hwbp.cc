@@ -319,14 +319,14 @@ auto DECLFN HwbpEng::MainHandler(
                 Current->Processed = TRUE;
             }
     
-            if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, FALSE ) ) {
+            if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, TRUE ) ) {
                 goto _KH_END;
             }
     
             VOID ( *Detour )( PCONTEXT, PVOID ) = Current->Detour;
             Detour( e->ContextRecord, Self );
     
-            if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, TRUE ) ) {
+            if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, FALSE ) ) {
                 goto _KH_END;
             }
     
@@ -414,7 +414,7 @@ auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
         // if ( this->DotnetBypass == KH_BYPASS_ETW || this->DotnetBypass == KH_BYPASS_ALL ) {
         //     if ( !this->Etw.NtTraceEvent ) {
         //         this->Etw.NtTraceEvent = (UPTR)LdrLoad::Api<UPTR>( Self->Ntdll.Handle, Hsh::Str( "NtTraceEvent" ) );
-        //         KhDbg("NtTraceEvent %p %X", this->Etw.NtTraceEvent, this->Etw.NtTraceEvent );
+        //         KhDbg("NtTraceEvent %p", this->Etw.NtTraceEvent );
         //     }
 
         //     Success = this->Install( this->Etw.NtTraceEvent, Dr1, (PVOID)this->EtwThunk, Self->Session.ThreadID );
@@ -427,7 +427,7 @@ auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
 
                 if ( this->Amsi.Handle ) {
                     this->Amsi.AmsiScanBuffer = (UPTR)LdrLoad::Api<UPTR>( this->Amsi.Handle, Hsh::Str( "AmsiScanBuffer" ) );
-                    KhDbg("AmsiScanBuffer %p %X", this->Amsi.AmsiScanBuffer, this->Amsi.AmsiScanBuffer );
+                    KhDbg("AmsiScanBuffer %p", this->Amsi.AmsiScanBuffer );
                 }
 
                 Success = this->Install( this->Amsi.AmsiScanBuffer, Dr2, (PVOID)this->AmsiThunk, Self->Session.ThreadID );
