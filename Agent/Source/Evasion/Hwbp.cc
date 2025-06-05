@@ -457,12 +457,12 @@ auto DECLFN HwbpEng::AmsiThunk(
     _In_ PCONTEXT Ctx,
     _In_ PVOID    This 
 ) -> VOID {
-    static_cast<HwbpEng*>( This )->AmsiDetour( Ctx );
+    static_cast<Root::Kharon*>( This )->Hw->AmsiDetour( Ctx );
 }
 
 auto DECLFN HwbpEng::EtwThunk(
     _In_ PCONTEXT Ctx,
     _In_ PVOID    This 
 ) -> VOID {
-    static_cast<HwbpEng*>( This )->EtwDetour( Ctx );
+    static_cast<Root::Kharon*>( This )->Hw->EtwDetour( Ctx );
 }
