@@ -35,6 +35,23 @@ auto DECLFN Mask::Main(
     return Success;
 }
 
+auto DECLFN Mask::SetEventThunk(
+    PTP_CALLBACK_INSTANCE Instance,
+    PVOID                 Event,
+    PTP_TIMER             Timer
+) -> VOID {
+    Self->Krnl32.SetEvent( Event );
+}
+
+auto DECLFN Mask::RtlCaptureContextThunk(
+    PTP_CALLBACK_INSTANCE Instance,
+    PVOID                 Context,
+    PTP_TIMER             Timer
+) -> VOID {
+    Self->Ntdll.RtlCaptureContext( (CONTEXT*)Context );
+    ( (CONTEXT*)Context )->Rsp = (UPTR)__builtin_return_address( 0 );
+}
+
 auto DECLFN Mask::Timer(
     _In_ ULONG Time
 ) -> BOOL {

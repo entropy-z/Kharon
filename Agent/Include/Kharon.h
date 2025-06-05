@@ -599,6 +599,8 @@ namespace Root {
     
             DECLAPI( RtlQueueWorkItem );
 
+            DECLAPI( TpAllocTimer );
+            DECLAPI( TpSetTimer );
             DECLAPI( RtlCreateTimer );
             DECLAPI( RtlDeleteTimer );
             DECLAPI( RtlCreateTimerQueue );
@@ -665,6 +667,8 @@ namespace Root {
 
             RSL_TYPE( RtlQueueWorkItem ),
 
+            RSL_TYPE( TpAllocTimer ),
+            RSL_TYPE( TpSetTimer ),
             RSL_TYPE( RtlCreateTimer ),
             RSL_TYPE( RtlDeleteTimer ),
             RSL_TYPE( RtlCreateTimerQueue ),
@@ -2250,6 +2254,18 @@ public:
         .TechniqueID = KH_SLEEP_MASK,
         .Heap        = KH_HEAP_MASK
     };
+
+    auto SetEventThunk(
+        PTP_CALLBACK_INSTANCE Instance,
+        PVOID                 Event,
+        PTP_TIMER             Timer
+    ) -> VOID;
+
+    auto RtlCaptureContextThunk(
+        PTP_CALLBACK_INSTANCE Instance,
+        PVOID                 Context,
+        PTP_TIMER             Timer
+    ) -> VOID;
 
     auto Main(
         _In_ ULONG Time

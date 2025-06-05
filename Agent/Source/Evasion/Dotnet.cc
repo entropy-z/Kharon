@@ -170,6 +170,7 @@ auto DECLFN Dotnet::Inline(
     //
     // set the output console
     //
+
     SecAttr = { sizeof( SECURITY_ATTRIBUTES ), nullptr, TRUE };
 
     Self->Krnl32.CreatePipe( &PipeRead, &PipeWrite, &SecAttr, PIPE_BUFFER_LENGTH );
