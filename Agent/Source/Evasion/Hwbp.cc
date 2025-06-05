@@ -324,7 +324,7 @@ auto DECLFN HwbpEng::MainHandler(
             }
     
             VOID ( *Detour )( PCONTEXT, PVOID ) = Current->Detour;
-            Detour( e->ContextRecord, this );
+            Detour( e->ContextRecord, Self );
     
             if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, TRUE ) ) {
                 goto _KH_END;
