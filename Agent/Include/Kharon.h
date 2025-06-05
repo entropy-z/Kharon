@@ -2255,13 +2255,13 @@ public:
         .Heap        = KH_HEAP_MASK
     };
 
-    auto SetEventThunk(
+    auto static SetEventThunk(
         PTP_CALLBACK_INSTANCE Instance,
         PVOID                 Event,
         PTP_TIMER             Timer
     ) -> VOID;
 
-    auto RtlCaptureContextThunk(
+    auto static RtlCaptureContextThunk(
         PTP_CALLBACK_INSTANCE Instance,
         PVOID                 Context,
         PTP_TIMER             Timer

