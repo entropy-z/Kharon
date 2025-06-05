@@ -86,8 +86,6 @@ auto DECLFN HwbpEng::SetBreak(
         Ctx.Dr7 = this->SetDr7( Ctx.Dr7, 0, (Drx * 2), 2 ); // desactive breakpoint
     }
 
-    
-
     Status = Self->Ntdll.NtSetContextThread( Handle, &Ctx );
     
     if ( Handle != NtCurrentThread() ) {
@@ -321,8 +319,6 @@ auto DECLFN HwbpEng::MainHandler(
                 Current->Processed = TRUE;
             }
     
-            KhDbg("break");
-            INT3BRK
             if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, FALSE ) ) {
                 goto _KH_END;
             }
@@ -330,8 +326,6 @@ auto DECLFN HwbpEng::MainHandler(
             VOID ( *Detour )( PCONTEXT, PVOID ) = Current->Detour;
             Detour( e->ContextRecord, Self );
     
-            KhDbg("break");
-            INT3BRK
             if ( ! this->SetBreak( Self->Session.ThreadID, Current->Address, Current->Drx, TRUE ) ) {
                 goto _KH_END;
             }
