@@ -57,7 +57,7 @@ class LsCommand(CommandBase):
         )
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
-        try:            
+        try:
             if not response:
                 return PTTaskProcessResponseMessageResponse(
                     TaskID=task.Task.ID,
@@ -70,9 +70,17 @@ class LsCommand(CommandBase):
 
             sub_id = int.from_bytes(Psr.Pad(1), byteorder="big")
 
-            logging.info(f"list search me")
-
             if sub_id == SB_FS_LS:
+                parent_dir = MythicRPCFileBrowserData(
+                    IsFile=False,
+                    Permissions="",
+                    AccessTime="",
+                    ModifyTime="",
+                    Size=0,
+                    UpdateDeleted=True,
+                    Files=[]
+                )
+                
                 file_list = []
                 
                 while Psr.buffer:
@@ -108,6 +116,16 @@ class LsCommand(CommandBase):
                         }
                         file_info['Attributes'] = "".join(v for k, v in AttrMap.items() if Attribute & k) or "?"
                         
+                        child_entry = MythicRPCFileBrowserDataChildren(
+                            Name=file_info['Name'],
+                            IsFile=file_info['Type'] == "<FILE>",
+                            Permissions=file_info['Attributes'],
+                            AccessTime=file_info['Accessed'],
+                            ModifyTime=file_info['Modified'],
+                            Size=FileSize if file_info['Type'] == "<FILE>" else 0,
+                        )
+                        
+                        parent_dir.Files.append(child_entry)
                         file_list.append(file_info)
                     
                     except struct.error:
@@ -118,11 +136,14 @@ class LsCommand(CommandBase):
                     "Count": len(file_list)
                 }
 
-                logging.info(f"list {output_data}")
+                await SendMythicRPCFileBrowserCreate(MythicRPCFileBrowserCreateMessage(
+                    TaskID=task.Task.ID,
+                    FileBrowser=parent_dir
+                ))
             
             await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                 TaskID=task.Task.ID,
-                Response=json.dumps(output_data, indent=4)
+                Response=json.dumps(output_data, indent=4).encode('utf-8')
             ))
 
             return PTTaskProcessResponseMessageResponse(

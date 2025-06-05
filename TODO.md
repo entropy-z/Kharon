@@ -11,5 +11,6 @@
 - COM exploitations
 - file time stomping
 - pe keep
+- release version
 - dotnet keep
 - keylogger

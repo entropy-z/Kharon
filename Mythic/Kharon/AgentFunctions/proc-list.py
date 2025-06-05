@@ -58,11 +58,10 @@ class ProcListCommand(CommandBase):
                     Success=True
                 )
                 
-            MythicRPC
-
             RawResponse = bytes.fromhex(response)
             Psr = Parser(RawResponse, len(RawResponse))
             process_list = []
+            mythic_process_list = []
 
             sub_id = int.from_bytes(Psr.Pad(1), byteorder="big")
 
@@ -82,6 +81,7 @@ class ProcListCommand(CommandBase):
                             TokenUser = Psr.Str()
                             Isx64     = Psr.Int32()
 
+                            # Create process info for the response
                             process_info = {
                                 "Image Name": ImageName,
                                 "Image Path": ImagePath,
@@ -95,8 +95,26 @@ class ProcListCommand(CommandBase):
                                 "Architecture": "x86" if Isx64 else "x64"
                             }
                             process_list.append(process_info)
+
+                            mythic_process = MythicRPCProcessCreateData(
+                                Host=task.Callback.Host,  
+                                ProcessID=ProcessID,
+                                ParentProcessID=ParentID,
+                                Architecture="x86" if Isx64 else "x64",
+                                Name=ImageName,
+                                BinPath=ImagePath,
+                                CommandLine=CommandLn,
+                                User=TokenUser,
+                                IntegrityLevel=SessionID,
+                            )
+                            mythic_process_list.append(mythic_process)
                         except Exception as e:
                             continue
+
+                    await SendMythicRPCProcessCreate(MythicRPCProcessesCreateMessage(
+                        TaskID=task.Task.ID,
+                        Processes=mythic_process_list
+                    ))
 
                     await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                         TaskID=task.Task.ID,
@@ -116,6 +134,10 @@ class ProcListCommand(CommandBase):
                 Success=True
             )
         except Exception as e:
+            await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                TaskID=task.Task.ID,
+                Response=f"Error processing response: {str(e)}".encode('utf-8')
+            ))
             return PTTaskProcessResponseMessageResponse(
                 TaskID=task.Task.ID,
                 Success=False,

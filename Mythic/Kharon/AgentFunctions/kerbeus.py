@@ -10,7 +10,7 @@ class KerbeusBaseCommand(CommandBase):
     )
     
     async def load_bof(self, task: PTTaskMessageAllData):
-        bof_name = self.cmd.replace("krb_", "")
+        bof_name = self.cmd.replace("krb-", "")
         return await get_content_by_name(f"{bof_name}.x64.o", task.Task.ID)
 
 # ========== AS-REP Roasting ==========
@@ -70,9 +70,9 @@ class KrbAsreproastingArguments(TaskArguments):
                         self.add_arg("aes", True)
 
 class KrbAsreproastingCommand(KerbeusBaseCommand):
-    cmd = "krb_asreproasting"
+    cmd = "krb-asreproasting"
     needs_admin = False
-    help_cmd = "krb_asreproasting -user:USER [-dc:DC] [-domain:DOMAIN] [-aes]"
+    help_cmd = "krb-asreproasting -user:USER [-dc:DC] [-domain:DOMAIN] [-aes]"
     description = "Perform AS-REP roasting to get crackable hashes for users with Kerberos pre-authentication disabled"
     version = 1
     author = "@RalfHacker"
@@ -245,13 +245,13 @@ class KrbAsktgtArguments(TaskArguments):
                         self.add_arg("opsec", True)
 
 class KrbAsktgtCommand(KerbeusBaseCommand):
-    cmd = "krb_asktgt"
+    cmd = "krb-asktgt"
     needs_admin = False
     help_cmd = """
-    krb_asktgt -user:USER -password:PASSWORD [-domain:DOMAIN] [-dc:DC] [-enctype:{rc4|aes256}] [-ptt] [-nopac] [-opsec]
-    krb_asktgt -user:USER -aes256:HASH [-domain:DOMAIN] [-dc:DC] [-ptt] [-nopac] [-opsec]
-    krb_asktgt -user:USER -rc4:HASH [-domain:DOMAIN] [-dc:DC] [-ptt] [-nopac]
-    krb_asktgt -user:USER -nopreauth [-domain:DOMAIN] [-dc:DC] [-ptt]
+    krb-asktgt -user:USER -password:PASSWORD [-domain:DOMAIN] [-dc:DC] [-enctype:{rc4|aes256}] [-ptt] [-nopac] [-opsec]
+    krb-asktgt -user:USER -aes256:HASH [-domain:DOMAIN] [-dc:DC] [-ptt] [-nopac] [-opsec]
+    krb-asktgt -user:USER -rc4:HASH [-domain:DOMAIN] [-dc:DC] [-ptt] [-nopac]
+    krb-asktgt -user:USER -nopreauth [-domain:DOMAIN] [-dc:DC] [-ptt]
     """
     description = "Request a Kerberos Ticket Granting Ticket (TGT)"
     version = 1
@@ -438,9 +438,9 @@ class KrbAsktgsArguments(TaskArguments):
                         self.add_arg("opsec", True)
 
 class KrbAsktgsCommand(KerbeusBaseCommand):
-    cmd = "krb_asktgs"
+    cmd = "krb-asktgs"
     needs_admin = False
-    help_cmd = "krb_asktgs -ticket:BASE64 -service:SPN1,SPN2,... [-domain:DOMAIN] [-dc:DC] [-tgs:BASE64] [-targetdomain:DOMAIN] [-targetuser:USER] [-enctype:{rc4|aes256}] [-ptt] [-keylist] [-u2u] [-opsec]"
+    help_cmd = "krb-asktgs -ticket:BASE64 -service:SPN1,SPN2,... [-domain:DOMAIN] [-dc:DC] [-tgs:BASE64] [-targetdomain:DOMAIN] [-targetuser:USER] [-enctype:{rc4|aes256}] [-ptt] [-keylist] [-u2u] [-opsec]"
     description = "Request a Kerberos Ticket Granting Service (TGS) ticket"
     version = 1
     author = "@RalfHacker"
@@ -550,9 +550,9 @@ class KrbChangepwArguments(TaskArguments):
                         self.add_arg("targetdomain", arg.split(":", 1)[1])
 
 class KrbChangepwCommand(KerbeusBaseCommand):
-    cmd = "krb_changepw"
+    cmd = "krb-changepw"
     needs_admin = False
-    help_cmd = "krb_changepw -ticket:BASE64 -new:PASSWORD [-dc:DC] [-targetuser:USER] [-targetdomain:DOMAIN]"
+    help_cmd = "krb-changepw -ticket:BASE64 -new:PASSWORD [-dc:DC] [-targetuser:USER] [-targetdomain:DOMAIN]"
     description = "Reset a user's password using a supplied TGT"
     version = 1
     author = "@RalfHacker"
@@ -608,9 +608,9 @@ class KrbDescribeArguments(TaskArguments):
                         self.add_arg("ticket", arg.split(":", 1)[1])
 
 class KrbDescribeCommand(KerbeusBaseCommand):
-    cmd = "krb_describe"
+    cmd = "krb-describe"
     needs_admin = False
-    help_cmd = "krb_describe -ticket:BASE64"
+    help_cmd = "krb-describe -ticket:BASE64"
     description = "Parse and describe a Kerberos ticket"
     version = 1
     author = "@RalfHacker"
@@ -689,9 +689,9 @@ class KrbDumpArguments(TaskArguments):
                         self.add_arg("client", arg.split(":", 1)[1])
 
 class KrbDumpCommand(KerbeusBaseCommand):
-    cmd = "krb_dump"
+    cmd = "krb-dump"
     needs_admin = False
-    help_cmd = "krb_dump [-luid:LOGINID] [-user:USER] [-service:SERVICE] [-client:CLIENT]"
+    help_cmd = "krb-dump [-luid:LOGINID] [-user:USER] [-service:SERVICE] [-client:CLIENT]"
     description = "Dump Kerberos tickets from memory"
     version = 1
     author = "@RalfHacker"
@@ -768,9 +768,9 @@ class KrbHashArguments(TaskArguments):
                         self.add_arg("domain", arg.split(":", 1)[1])
 
 class KrbHashCommand(KerbeusBaseCommand):
-    cmd = "krb_hash"
+    cmd = "krb-hash"
     needs_admin = False
-    help_cmd = "krb_hash -password:PASSWORD [-user:USER] [-domain:DOMAIN]"
+    help_cmd = "krb-hash -password:PASSWORD [-user:USER] [-domain:DOMAIN]"
     description = "Calculate Kerberos encryption keys from password"
     version = 1
     author = "@RalfHacker"
@@ -866,11 +866,11 @@ class KrbKerberoastingArguments(TaskArguments):
                         self.add_arg("ticket", arg.split(":", 1)[1])
 
 class KrbKerberoastingCommand(KerbeusBaseCommand):
-    cmd = "krb_kerberoasting"
+    cmd = "krb-kerberoasting"
     needs_admin = False
     help_cmd = """
-    krb_kerberoasting -spn:SPN [-nopreauth:USER] [-dc:DC] [-domain:DOMAIN]
-    krb_kerberoasting -spn:SPN -ticket:BASE64 [-dc:DC]
+    krb-kerberoasting -spn:SPN [-nopreauth:USER] [-dc:DC] [-domain:DOMAIN]
+    krb-kerberoasting -spn:SPN -ticket:BASE64 [-dc:DC]
     """
     description = "Perform Kerberoasting to get crackable service account hashes"
     version = 1
@@ -959,9 +959,9 @@ class KrbKlistArguments(TaskArguments):
                         self.add_arg("client", arg.split(":", 1)[1])
 
 class KrbKlistCommand(KerbeusBaseCommand):
-    cmd = "krb_klist"
+    cmd = "krb-klist"
     needs_admin = False
-    help_cmd = "krb_klist [-luid:LOGINID] [-user:USER] [-service:SERVICE] [-client:CLIENT]"
+    help_cmd = "krb-klist [-luid:LOGINID] [-user:USER] [-service:SERVICE] [-client:CLIENT]"
     description = "List Kerberos tickets in memory"
     version = 1
     author = "@RalfHacker"
@@ -1028,9 +1028,9 @@ class KrbPttArguments(TaskArguments):
                         self.add_arg("luid", arg.split(":", 1)[1])
 
 class KrbPttCommand(KerbeusBaseCommand):
-    cmd = "krb_ptt"
+    cmd = "krb-ptt"
     needs_admin = False
-    help_cmd = "krb_ptt -ticket:BASE64 [-luid:LOGONID]"
+    help_cmd = "krb-ptt -ticket:BASE64 [-luid:LOGONID]"
     description = "Submit a Kerberos ticket to the current logon session"
     version = 1
     author = "@RalfHacker"
@@ -1081,9 +1081,9 @@ class KrbPurgeArguments(TaskArguments):
                         self.add_arg("luid", arg.split(":", 1)[1])
 
 class KrbPurgeCommand(KerbeusBaseCommand):
-    cmd = "krb_purge"
+    cmd = "krb-purge"
     needs_admin = False
-    help_cmd = "krb_purge [-luid:LOGONID]"
+    help_cmd = "krb-purge [-luid:LOGONID]"
     description = "Purge Kerberos tickets from memory"
     version = 1
     author = "@RalfHacker"
@@ -1155,9 +1155,9 @@ class KrbRenewArguments(TaskArguments):
                         self.add_arg("ptt", True)
 
 class KrbRenewCommand(KerbeusBaseCommand):
-    cmd = "krb_renew"
+    cmd = "krb-renew"
     needs_admin = False
-    help_cmd = "krb_renew -ticket:BASE64 [-dc:DC] [-ptt]"
+    help_cmd = "krb-renew -ticket:BASE64 [-dc:DC] [-ptt]"
     description = "Renew a Kerberos TGT"
     version = 1
     author = "@RalfHacker"
@@ -1320,9 +1320,9 @@ class KrbS4uArguments(TaskArguments):
                         self.add_arg("self", True)
 
 class KrbS4uCommand(KerbeusBaseCommand):
-    cmd = "krb_s4u"
+    cmd = "krb-s4u"
     needs_admin = False
-    help_cmd = "krb_s4u -ticket:BASE64 -service:SPN {-impersonateuser:USER | -tgs:BASE64} [-domain:DOMAIN] [-dc:DC] [-altservice:SERVICE] [-ptt] [-nopac] [-opsec] [-self]"
+    help_cmd = "krb-s4u -ticket:BASE64 -service:SPN {-impersonateuser:USER | -tgs:BASE64} [-domain:DOMAIN] [-dc:DC] [-altservice:SERVICE] [-ptt] [-nopac] [-opsec] [-self]"
     description = "Perform S4U constrained delegation abuse"
     version = 1
     author = "@RalfHacker"
@@ -1499,9 +1499,9 @@ class KrbCrossS4uArguments(TaskArguments):
                         self.add_arg("self", True)
 
 class KrbCrossS4uCommand(KerbeusBaseCommand):
-    cmd = "krb_cross_s4u"
+    cmd = "krb-cross_s4u"
     needs_admin = False
-    help_cmd = "krb_cross_s4u -ticket:BASE64 -service:SPN -targetdomain:DOMAIN -targetdc:DC {-impersonateuser:USER | -tgs:BASE64} [-domain:DOMAIN] [-dc:DC] [-altservice:SERVICE] [-nopac] [-self]"
+    help_cmd = "krb-cross_s4u -ticket:BASE64 -service:SPN -targetdomain:DOMAIN -targetdc:DC {-impersonateuser:USER | -tgs:BASE64} [-domain:DOMAIN] [-dc:DC] [-altservice:SERVICE] [-nopac] [-self]"
     description = "Perform S4U constrained delegation abuse across domains"
     version = 1
     author = "@RalfHacker"
@@ -1569,9 +1569,9 @@ class KrbTgtdelegArguments(TaskArguments):
                         self.add_arg("target", arg.split(":", 1)[1])
 
 class KrbTgtdelegCommand(KerbeusBaseCommand):
-    cmd = "krb_tgtdeleg"
+    cmd = "krb-tgtdeleg"
     needs_admin = False
-    help_cmd = "krb_tgtdeleg [-target:SPN]"
+    help_cmd = "krb-tgtdeleg [-target:SPN]"
     description = "Retrieve a usable TGT for the current user without elevation by abusing the Kerberos GSS-API"
     version = 1
     author = "@RalfHacker"
@@ -1652,9 +1652,9 @@ class KrbTriageArguments(TaskArguments):
                         self.add_arg("client", arg.split(":", 1)[1])
 
 class KrbTriageCommand(KerbeusBaseCommand):
-    cmd = "krb_triage"
+    cmd = "krb-triage"
     needs_admin = False
-    help_cmd = "krb_triage [-luid:LOGINID] [-user:USER] [-service:SERVICE] [-client:CLIENT]"
+    help_cmd = "krb-triage [-luid:LOGINID] [-user:USER] [-service:SERVICE] [-client:CLIENT]"
     description = "List Kerberos tickets in table format"
     version = 1
     author = "@RalfHacker"
@@ -1704,64 +1704,64 @@ Kerbeus BOF by HackerRalf help:
 Ticket requests and renewals:
 
     Retrieve a TGT
-        krb_asktgt -user:USER -password:PASSWORD [-domain:DOMAIN] [-dc:DC] [-enctype:{rc4|aes256}] [-ptt] [-nopac] [-opsec]
-        krb_asktgt -user:USER -aes256:HASH [-domain:DOMAIN] [-dc:DC] [-ptt] [-nopac] [-opsec]
-        krb_asktgt -user:USER -rc4:HASH [-domain:DOMAIN] [-dc:DC] [-ptt] [-nopac]
-        krb_asktgt -user:USER -nopreauth [-domain:DOMAIN] [-dc:DC] [-ptt]
+        krb-asktgt -user:USER -password:PASSWORD [-domain:DOMAIN] [-dc:DC] [-enctype:{rc4|aes256}] [-ptt] [-nopac] [-opsec]
+        krb-asktgt -user:USER -aes256:HASH [-domain:DOMAIN] [-dc:DC] [-ptt] [-nopac] [-opsec]
+        krb-asktgt -user:USER -rc4:HASH [-domain:DOMAIN] [-dc:DC] [-ptt] [-nopac]
+        krb-asktgt -user:USER -nopreauth [-domain:DOMAIN] [-dc:DC] [-ptt]
 
     Retrieve a TGS
-        krb_asktgs -ticket:BASE64 -service:SPN1,SPN2,... [-domain:DOMAIN] [-dc:DC] [-tgs:BASE64] [-targetdomain:DOMAIN] [-targetuser:USER] [-enctype:{rc4|aes256}] [-ptt] [-keylist] [-u2u] [-opsec]
+        krb-asktgs -ticket:BASE64 -service:SPN1,SPN2,... [-domain:DOMAIN] [-dc:DC] [-tgs:BASE64] [-targetdomain:DOMAIN] [-targetuser:USER] [-enctype:{rc4|aes256}] [-ptt] [-keylist] [-u2u] [-opsec]
 
     Renew a TGT
-        krb_renew -ticket:BASE64 [-dc:DC] [-ptt]
+        krb-renew -ticket:BASE64 [-dc:DC] [-ptt]
 
 Constrained delegation abuse:
 
     Perform S4U constrained delegation abuse:
-        krb_s4u -ticket:BASE64 -service:SPN {-impersonateuser:USER | -tgs:BASE64} [-domain:DOMAIN] [-dc:DC] [-altservice:SERVICE] [-ptt] [-nopac] [-opsec] [-self]
+        krb-s4u -ticket:BASE64 -service:SPN {-impersonateuser:USER | -tgs:BASE64} [-domain:DOMAIN] [-dc:DC] [-altservice:SERVICE] [-ptt] [-nopac] [-opsec] [-self]
 
     Perform S4U constrained delegation abuse across domains:
-        krb_cross_s4u -ticket:BASE64 -service:SPN -targetdomain:DOMAIN -targetdc:DC {-impersonateuser:USER | -tgs:BASE64} [-domain:DOMAIN] [-dc:DC] [-altservice:SERVICE] [-nopac] [-self]
+        krb-cross_s4u -ticket:BASE64 -service:SPN -targetdomain:DOMAIN -targetdc:DC {-impersonateuser:USER | -tgs:BASE64} [-domain:DOMAIN] [-dc:DC] [-altservice:SERVICE] [-nopac] [-self]
 
 Ticket management:
 
     Submit a TGT
-        krb_ptt -ticket:BASE64 [-luid:LOGONID]
+        krb-ptt -ticket:BASE64 [-luid:LOGONID]
 
     Purge tickets
-        krb_purge [-luid:LOGONID]
+        krb-purge [-luid:LOGONID]
 
     Parse and describe a ticket
-        krb_describe -ticket:BASE64
+        krb-describe -ticket:BASE64
 
     Triage tickets
-        krb_triage [-luid:LOGINID] [-user:USER] [-service:SERVICE] [-client:CLIENT]
+        krb-triage [-luid:LOGINID] [-user:USER] [-service:SERVICE] [-client:CLIENT]
 
     List tickets
-        krb_klist [-luid:LOGINID] [-user:USER] [-service:SERVICE] [-client:CLIENT]
+        krb-klist [-luid:LOGINID] [-user:USER] [-service:SERVICE] [-client:CLIENT]
 
     Dump tickets
-        krb_dump [-luid:LOGINID] [-user:USER] [-service:SERVICE] [-client:CLIENT]
+        krb-dump [-luid:LOGINID] [-user:USER] [-service:SERVICE] [-client:CLIENT]
 
     Retrieve a usable TGT for the current user without elevation by abusing the Kerberos GSS-API
-        krb_tgtdeleg [-target:SPN]
+        krb-tgtdeleg [-target:SPN]
 
 Roasting:
 
     Perform Kerberoasting:
-        krb_kerberoasting -spn:SPN [-nopreauth:USER] [-dc:DC] [-domain:DOMAIN]
-        krb_kerberoasting -spn:SPN -ticket:BASE64 [-dc:DC]
+        krb-kerberoasting -spn:SPN [-nopreauth:USER] [-dc:DC] [-domain:DOMAIN]
+        krb-kerberoasting -spn:SPN -ticket:BASE64 [-dc:DC]
 
     Perform AS-REP roasting:
-        krb_asreproasting -user:USER [-dc:DC] [-domain:DOMAIN] [-aes]
+        krb-asreproasting -user:USER [-dc:DC] [-domain:DOMAIN] [-aes]
 
 Miscellaneous:
 
     Calculate rc4_hmac, aes128_cts_hmac_sha1, aes256_cts_hmac_sha1 hashes:
-        krb_hash -password:PASSWORD [-user:USER] [-domain:DOMAIN]
+        krb-hash -password:PASSWORD [-user:USER] [-domain:DOMAIN]
 
     Reset a user's password from a supplied TGT
-        krb_changepw -ticket:BASE64 -new:PASSWORD [-dc:DC] [-targetuser:USER] [-targetdomain:DOMAIN]
+        krb-changepw -ticket:BASE64 -new:PASSWORD [-dc:DC] [-targetuser:USER] [-targetdomain:DOMAIN]
         """
         
         await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(

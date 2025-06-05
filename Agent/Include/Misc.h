@@ -231,8 +231,15 @@ enum {
     TskExecPE,
     TskExecBof,
     TskToken,
+    TskPivot,
     TaskLast
 } KH_TASKS;
+
+enum {
+    PvtLink = 10,
+    PvtUnlink,
+    PvtList
+} KH_PIVOT;
 
 enum {
     DotInline = 5,
@@ -265,7 +272,7 @@ enum {
 } SB_CONFIG;
 
 enum {
-    TknGetUUID = 10,
+    TknGetUID = 10,
     TknSteal,
     TknMake,
     TknGetPriv,

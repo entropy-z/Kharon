@@ -1,6 +1,7 @@
 import struct
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
+from collections import OrderedDict
 
 SB_CFG_JITTER   = 14;
 SB_CFG_SLEEP    = 15;

