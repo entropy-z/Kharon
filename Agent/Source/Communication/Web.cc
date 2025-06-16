@@ -55,23 +55,23 @@ auto DECLFN Transport::WebSend(
             SECURITY_FLAG_IGNORE_WEAK_SIGNATURE;
     }        
 
-    WCHAR TargetUrl[MAX_PATH*2] = { 0 };
+    // WCHAR TargetUrl[MAX_PATH*2] = { 0 };
 
-    if ( Self->Tsp->Web.Secure ) {
-        Str::ContatW( TargetUrl, L"https://", Str::LengthW( L"https://" ) );    
-    } else {
+    // if ( Self->Tsp->Web.Secure ) {
+    //     Str::ContatW( TargetUrl, L"https://", Str::LengthW( L"https://" ) );    
+    // } else {
 
-    }
+    // }
 
-    Str::ContatW( TargetUrl, Self->Tsp->Web.Host, Str::LengthW( Self->Tsp->Web.Host ) );
+    // Str::ContatW( TargetUrl, Self->Tsp->Web.Host, Str::LengthW( Self->Tsp->Web.Host ) );
 
-    for ( INT i = 0; i < WEB_HTTP_COOKIES_QTT; i++ )
-        Self->Wininet.InternetSetCookieW(
-            Self->Tsp->Web.Host,
-            nullptr,
-            Self->Tsp->Web.Cookies[i]            
-        );
-    }
+    // for ( INT i = 0; i < WEB_HTTP_COOKIES_QTT; i++ )
+    //     Self->Wininet.InternetSetCookieW(
+    //         Self->Tsp->Web.Host,
+    //         nullptr,
+    //         Self->Tsp->Web.Cookies[i]            
+    //     );
+    // }
 
     hRequest = Self->Wininet.HttpOpenRequestW( 
         hConnect, L"POST", Self->Tsp->Web.EndPoint, NULL, 

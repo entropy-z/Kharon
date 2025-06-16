@@ -2682,4 +2682,5 @@ NTSTATUS NTAPI 	TpAllocPool(_Out_ PTP_POOL *PoolReturn, _Reserved_ PVOID Reserve
 NTSTATUS NTAPI 	TpAllocTimer(_Out_ PTP_TIMER *Timer, _In_ PTP_TIMER_CALLBACK Callback, _Inout_opt_ PVOID Context, _In_opt_ PTP_CALLBACK_ENVIRON CallbackEnviron);
 NTSYSAPI VOID NTAPI TpSetTimer(_Inout_ PTP_TIMER Timer, _In_opt_ PLARGE_INTEGER DueTime, _In_ LONG Period, _In_opt_ LONG WindowLength);
 VOID  WINAPI BaseThreadInitThunk( IN DWORD LdrReserved,  IN LPTHREAD_START_ROUTINE lpStartAddress,  IN LPVOID lpParameter );
+ULONG StringCchPrintfW( LPWSTR pszDest, size_t cchDest, LPWSTR pszFormat, ... );
 #endif // WIN32_H             

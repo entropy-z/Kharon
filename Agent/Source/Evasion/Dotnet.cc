@@ -735,23 +735,6 @@ auto Dotnet::Pwsh(
 
     KH_DBG_MSG
 
-    SAFEARRAY* args = Self->Oleaut32.SafeArrayCreateVector(VT_VARIANT, 0, 0);
-    if (!args) {
-        KhDbg("[x] Failed to create SAFEARRAY");
-        return E_OUTOFMEMORY;
-    }
-
-    VARIANT vtArgs;
-    Self->Oleaut32.VariantInit(&vtArgs);
-    vtArgs.vt = VT_ARRAY | VT_VARIANT;
-    vtArgs.parray = args;
-
-    HResult = CreatePipelineMethod->Invoke_3(
-        vtArgs,
-        nullptr, 
-        &VarPipe
-    );
-
     HResult = CreatePipelineMethod->Invoke_3(VARIANT(), nullptr, &VarPipe);
     if (FAILED(HResult)) {
         KhDbg("Failed to create pipeline: 0x%08X", HResult);

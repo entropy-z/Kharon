@@ -837,6 +837,7 @@ namespace Root {
             DECLAPI( InternetConnectW    );
             DECLAPI( HttpOpenRequestW    );
             DECLAPI( InternetSetOptionW  );
+            DECLAPI( InternetSetCookieW  );
             DECLAPI( HttpSendRequestW    );
             DECLAPI( HttpQueryInfoW      );
             DECLAPI( InternetReadFile    );
@@ -846,6 +847,7 @@ namespace Root {
             RSL_TYPE( InternetConnectW    ),
             RSL_TYPE( HttpOpenRequestW    ),
             RSL_TYPE( InternetSetOptionW  ),
+            RSL_TYPE( InternetSetCookieW  ),
             RSL_TYPE( HttpSendRequestW    ),
             RSL_TYPE( HttpQueryInfoW      ),
             RSL_TYPE( InternetReadFile    ),
