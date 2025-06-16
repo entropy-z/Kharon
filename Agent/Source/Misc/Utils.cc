@@ -26,6 +26,105 @@ auto DECLFN Useful::Xor(
     }
 }
 
+
+auto DECLFN Useful::CfgAddrAdd( 
+    _In_ PVOID ImageBase,
+    _In_ PVOID Function
+) -> VOID {
+    CFG_CALL_TARGET_INFO Cfg      = { 0 };
+    MEMORY_RANGE_ENTRY   MemRange = { 0 };
+    VM_INFORMATION       VmInfo   = { 0 };
+    PIMAGE_NT_HEADERS    NtHdrs   = { 0 };
+    ULONG                Output   = 0x00;
+    NTSTATUS             Status   = STATUS_SUCCESS;
+
+    NtHdrs                  = (PIMAGE_NT_HEADERS)( U_PTR( ImageBase ) + ( ( PIMAGE_DOS_HEADER ) ImageBase )->e_lfanew );
+    MemRange.NumberOfBytes  = (SIZE_T)( NtHdrs->OptionalHeader.SizeOfImage + 0x1000 - 1 ) &~( 0x1000 - 1 );
+    MemRange.VirtualAddress = ImageBase;
+
+    Cfg.Flags  = CFG_CALL_TARGET_VALID;
+    Cfg.Offset = U_PTR( Function ) - U_PTR( ImageBase );
+
+    VmInfo.dwNumberOfOffsets = 1;
+    VmInfo.plOutput          = &Output;
+    VmInfo.ptOffsets         = &Cfg;
+    VmInfo.pMustBeZero       = FALSE;
+    VmInfo.pMoarZero         = FALSE;
+
+    Status = Self->Ntdll.NtSetInformationVirtualMemory( 
+        NtCurrentProcess(),
+        VmCfgCallTargetInformation,
+        1,
+        &MemRange,
+        &VmInfo,
+        sizeof( VmInfo )
+    );
+
+    if ( Status != STATUS_SUCCESS ) {
+        KhDbg( "failed with status: %X", Status );
+    }
+}
+
+auto DECLFN Useful::CfgPrivAdd(
+    _In_ HANDLE hProcess,
+    _In_ PVOID  Address,
+    _In_ DWORD  Size
+) -> VOID {
+    CFG_CALL_TARGET_INFO Cfg      = { 0 };
+    MEMORY_RANGE_ENTRY   MemRange = { 0 };
+    VM_INFORMATION       VmInfo   = { 0 };
+    PIMAGE_NT_HEADERS    NtHeader = { 0 };
+    ULONG                Output   = { 0 };
+    NTSTATUS             Status   = { 0 };
+
+    MemRange.NumberOfBytes  = Size;
+    MemRange.VirtualAddress = Address;
+    
+    Cfg.Flags  = CFG_CALL_TARGET_VALID;
+    Cfg.Offset = 0;
+
+    VmInfo.dwNumberOfOffsets = 1;
+    VmInfo.plOutput          = &Output;
+    VmInfo.ptOffsets         = &Cfg;
+    VmInfo.pMustBeZero       = FALSE;
+    VmInfo.pMoarZero         = FALSE;
+
+    Status = Self->Ntdll.NtSetInformationVirtualMemory( 
+        hProcess, 
+        VmCfgCallTargetInformation, 
+        1, 
+        &MemRange, 
+        &VmInfo, 
+        sizeof( VmInfo ) 
+    );
+
+    if ( Status != STATUS_SUCCESS ) {
+        KhDbg( "failed with status: %X", Status );
+    }
+}
+
+auto DECLFN Useful::CfgCheck( VOID ) -> BOOL {
+    NTSTATUS Status = STATUS_SUCCESS;
+    EXTENDED_PROCESS_INFORMATION ProcInfoEx = { 0 };
+
+    ProcInfoEx.ExtendedProcessInfo       = ProcessControlFlowGuardPolicy;
+    ProcInfoEx.ExtendedProcessInfoBuffer = 0;
+    
+    Status = Self->Ntdll.NtQueryInformationProcess( 
+        NtCurrentProcess(),
+        ProcessCookie | ProcessUserModeIOPL,
+        &ProcInfoEx,
+        sizeof( ProcInfoEx ),
+        NULL
+    );
+    if ( Status != STATUS_SUCCESS ) {
+        KhDbg( "failed with status: %X", Status );
+    }
+
+    KhDbg( "Control Flow Guard (CFG) Enabled: %s", ProcInfoEx.ExtendedProcessInfoBuffer ? "TRUE" : "FALSE" );
+    return ProcInfoEx.ExtendedProcessInfoBuffer;
+}
+
 auto DECLFN Useful::FixTls(
     _In_ PVOID Base,
     _In_ PIMAGE_DATA_DIRECTORY DataDir
@@ -399,9 +498,54 @@ auto DECLFN Str::LengthA(
 auto DECLFN Str::LengthW( 
     LPCWSTR String 
 ) -> SIZE_T {
+    if (!String) {  
+        return 0;
+    }
+
     LPCWSTR End = String;
-    while (*End) ++End;
-    return End - String;
+    while (*End) {
+        ++End;
+    }
+    return static_cast<SIZE_T>(End - String);
+}
+
+auto DECLFN Str::CompareWCountL(
+    const wchar_t* str1,
+    const wchar_t* str2,
+    size_t count
+) -> int {
+    if (count == 0) return 0;
+    if (!str1 || !str2) return (!str1 && !str2) ? 0 : (!str1 ? -1 : 1);
+
+    while (count-- > 0) {
+        int diff = Str::ToLowerWchar(*str1) - Str::ToLowerWchar(*str2);
+        if (diff != 0) return diff;
+        if (*str1 == L'\0') break;
+        str1++;
+        str2++;
+    }
+    return 0;
+}
+
+auto DECLFN Str::CompareCountW( 
+    PCWSTR Str1, 
+    PCWSTR Str2, 
+    INT16  Count 
+) -> INT {  
+    if (!Str1 || !Str2) {
+        return Str1 ? 1 : (Str2 ? -1 : 0);
+    }
+
+    for (INT16 Idx = 0; Idx < Count; ++Idx) {
+        if (Str1[Idx] != Str2[Idx]) {
+            return static_cast<INT16>(Str1[Idx]) - static_cast<INT16>(Str2[Idx]);
+        }
+        if (Str1[Idx] == L'\0') {  
+            return 0;
+        }
+    }
+
+    return 0;  
 }
 
 auto DECLFN Str::CompareCountA( 
@@ -431,9 +575,9 @@ auto DECLFN Str::CompareA(
     return static_cast<INT>(*Str1) - static_cast<INT>(*Str2);
 }
 
-auto DECLFN Str::StartsWithA(
-    PCSTR Str, 
-    PCSTR Prefix
+auto DECLFN Str::StartsWith(
+    PBYTE Str, 
+    PBYTE Prefix
 ) -> BOOL {
     if (!Str || !Prefix) {
         return FALSE;

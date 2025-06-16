@@ -19,9 +19,9 @@ class KharonTranslator( TranslationContainer ):
     async def translate_to_c2_format( self, InputMsg: TrMythicC2ToCustomMessageFormatMessage ) -> TrMythicC2ToCustomMessageFormatMessageResponse:
         Dbg8( "------------------------" );
 
-        Response = TrMythicC2ToCustomMessageFormatMessageResponse( Success=True );
-        
-        Action = InputMsg.Message["action"];
+        Response  = TrMythicC2ToCustomMessageFormatMessageResponse( Success=True );
+        Action    = InputMsg.Message["action"];
+        AgentUUID = InputMsg.UUID
         
         Dbg8( f"Action: {Action}" );
         Dbg8( f"Input Json: {InputMsg.Message}" );
@@ -33,7 +33,8 @@ class KharonTranslator( TranslationContainer ):
 
         if Action == "checkin":
             Dbg8( f"ID: {InputMsg.Message['id']}" );
-            Response.Message = CheckinImp( InputMsg.Message["id"] );
+            Response.Message = await CheckinImp( InputMsg.Message["id"], InputMsg.UUID );
+            AgentUUID        =  InputMsg.Message["id"]
         
         elif Action == "get_tasking":
             Dbg8( f"Tasks: {InputMsg.Message['tasks']}" );
@@ -43,26 +44,60 @@ class KharonTranslator( TranslationContainer ):
             Dbg8( f"Responses: {InputMsg.Message['responses']}" );
             Response.Message = RespPosting( InputMsg.Message["responses"] );
         
-        Dbg8( f"buffer {Response.Message} [{len( Response.Message )}]" );
+        search_resp: MythicRPCAgentStorageSearchMessageResponse = await SendMythicRPCAgentStorageSearch(MythicRPCAgentStorageSearchMessage(
+            AgentUUID
+        ))
+        StorageMsg = base64.b64decode( base64.b64decode( search_resp.AgentStorageMessages[0]["data"].encode("utf-8") ).decode("utf-8") )
+        EncryptKey = StorageMsg[-16:]
+        Crypter    = LokyCrypt( EncryptKey )  
+        PlainTxt   = Response.Message
+        CipherTxt  = Crypter.encrypt( Response.Message )
+
+        Response.Message = CipherTxt
+
+        Dbg8( f"Key      {EncryptKey}" )
+        Dbg8( f"plain    {PlainTxt}  [{len( PlainTxt )}]" );
+        Dbg8( f"cipher   {CipherTxt} [{len( CipherTxt )}]" );
+        Dbg8( f"response {Response.Message} [{len( Response.Message )}]" );
         Dbg8( "-----------------------\n" );
 
         return Response
 
-
     async def translate_from_c2_format( self, InputMsg: TrCustomMessageToMythicC2FormatMessage ) -> TrCustomMessageToMythicC2FormatMessageResponse:
         Dbg7( "------------------------" );
 
-        Response = TrCustomMessageToMythicC2FormatMessageResponse( Success=True );
-        
-        AgentMsg    = InputMsg.Message;
-        Action      = AgentMsg[0];
-        ActionData  = AgentMsg[1:];
+        Response     = TrCustomMessageToMythicC2FormatMessageResponse( Success=True );
+        EncryptKey   = b""
 
-        # Dbg7( f"raw {AgentMsg}" )
+        search_resp: MythicRPCAgentStorageSearchMessageResponse = await SendMythicRPCAgentStorageSearch(MythicRPCAgentStorageSearchMessage(
+            InputMsg.UUID
+        ))
+
+        if search_resp.Success is True and search_resp.AgentStorageMessages:
+            print( search_resp.AgentStorageMessages[0]["data"].encode("utf-8") )
+            StorageMsg = base64.b64decode( base64.b64decode( search_resp.AgentStorageMessages[0]["data"].encode("utf-8") ).decode("utf-8") )
+            Dbg7(f"searched: {search_resp.Success}")
+            EncryptKey   = StorageMsg[-16:]
+            if not EncryptKey or len(EncryptKey) != 16:
+                EncryptKey = InputMsg.Message[-16:] 
+        else:
+            EncryptKey = InputMsg.Message[-16:]
+
+        AgentMsg  = InputMsg.Message;
+        Crypter   = LokyCrypt( EncryptKey )  
+        TextPlain = Crypter.decrypt( AgentMsg )
+
+        Dbg7( f"raw enc: {AgentMsg}" )
+
+        Action      = TextPlain[0];
+        ActionData  = TextPlain[1:];
+
+        Dbg7( f"raw dec: {TextPlain}" )
         Dbg7( f"Action: {Action}" );
+        Dbg7( f"Encrypt Key: {EncryptKey} [{len(EncryptKey)}]" );
 
         if Action == Jobs['checkin']['hex_code']:
-            Response.Message = await CheckinC2( ActionData );
+            Response.Message = await CheckinC2( ActionData, EncryptKey );
         
         elif Action == Jobs['quick_out']['hex_code']:
             Response.Message = QuickOut( ActionData );

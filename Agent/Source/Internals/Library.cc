@@ -3,6 +3,7 @@
 auto DECLFN Library::Load(
     _In_ PCHAR LibName
 ) -> UPTR {
+    G_KHARON
     return (UPTR)Self->Krnl32.LoadLibraryA( LibName );
 }
 

@@ -2,11 +2,11 @@ from Translator.Utils import *
 from mythic_container.MythicRPC import *
 import ipaddress
 
-async def CheckinC2(Data) -> dict:
+async def CheckinC2(Data, Key) -> dict:
     Psr = Parser(Data, len(Data))
 
     UUID = Psr.Pad(36)
-    StorageData = Psr.buffer
+    StorageData = Psr.buffer + Key
 
     OsName  = "Windows"
     OsArch  = Psr.Pad(1)
@@ -117,6 +117,8 @@ async def CheckinC2(Data) -> dict:
     percent_ram = Psr.Int32()
     processors_nbr = Psr.Int32()
 
+    encryption_key = Key
+
     print(f"\n[*] System Resources:")
     print(f"    Processor: {processor_name}")
     print(f"    Total RAM: {total_ram}MB")
@@ -125,16 +127,11 @@ async def CheckinC2(Data) -> dict:
     print(f"    RAM Usage: {percent_ram}%")
     print(f"    Processor Count: {processors_nbr}")
 
+    print( f"encryption_key: {encryption_key}" )
+
     await SendMythicRPCAgentStorageCreate(MythicRPCAgentstorageCreateMessage(
         UUID.decode("utf-8"), StorageData
     ))
-
-    search_resp: MythicRPCAgentStorageSearchMessageResponse = await SendMythicRPCAgentStorageSearch(MythicRPCAgentStorageSearchMessage(
-        UUID.decode("utf-8")
-    ))
-
-    if search_resp.Success:
-        print(search_resp.AgentStorageMessages)
 
     JsonData = {
         "action": "checkin",
@@ -304,10 +301,10 @@ def PostC2(Data):
 
                         if not bool( Ext ) and TaskPsr.length > 0:
                             try:
-                                Data = TaskPsr.Bytes()#.decode("utf-8")
+                                Data = TaskPsr.Bytes().decode("utf-8")
                                 Dbg2(f"sending socks encoded: {Data[:30]}... [{len(Data)} bytes]")
-                                Data = base64.b64encode(Data).decode("utf-8")
-                                Dbg2(f"sending socks encoded: {Data[:30]}... [{len(Data)} bytes]")
+                                # Data = base64.b64encode(Data).decode("utf-8")
+                                # Dbg2(f"sending socks encoded: {Data[:30]}... [{len(Data)} bytes]")
                             except Exception as e:
                                 Dbg2(f"Failed to encode socks data: {str(e)}")
                                 Data = ""
@@ -376,6 +373,8 @@ def process_normal_task(TaskUUID, CommandID, TaskPsr:Parser):
     elif CommandID == JOB_ERROR:
         ErrorCode = TaskPsr.Int32()
         ErrorMsg  = TaskPsr.Bytes().decode("utf-8")  
+
+        Dbg2(f"[{ErrorCode}] {ErrorMsg}")
 
         if ErrorCode < 0:
             hex_code = f"{ErrorCode & 0xFFFFFFFF:X}" 

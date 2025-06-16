@@ -25,7 +25,8 @@ class ExecbofArguments(TaskArguments):
                         group_name="Default",
                         ui_position=1
                     )
-                ]),
+                ]
+            ),
             CommandParameter(
                 name="bof_file",
                 display_name="new",

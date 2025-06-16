@@ -2,10 +2,24 @@ from Translator.Utils import *
 
 import ipaddress
 
-def CheckinImp( uuid ):
+async def CheckinImp( new, old ):
     Dbg1( "------------------------" );
 
-    Data = uuid.encode();
+    search_resp: MythicRPCAgentStorageSearchMessageResponse = await SendMythicRPCAgentStorageSearch(MythicRPCAgentStorageSearchMessage(
+        old
+    ))
+
+    print(search_resp.AgentStorageMessages[0]["data"] )
+
+    create: MythicRPCAgentstorageCreateMessageResponse = await SendMythicRPCAgentStorageCreate(MythicRPCAgentstorageCreateMessage(
+        new, search_resp.AgentStorageMessages[0]["data"].encode("utf-8")
+    ))
+
+    rm_searc: MythicRPCAgentStorageRemoveMessageResponse = await SendMythicRPCAgentStorageRemove(MythicRPCAgentStorageRemoveMessage(
+        old
+    ))
+
+    Data = new.encode();
 
     Dbg1( f"data: {Data}" );
 

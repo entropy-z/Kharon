@@ -388,6 +388,18 @@ auto DECLFN Package::Transmit(
     PVOID  TmpBuff = Package->Buffer;
     SIZE_T TmpLen  = Package->Length;
 
+    UCHAR* EncryptStart = (UCHAR*)( (UPTR)( TmpBuff ) + 36 ); 
+    ULONG  EncryptLen   = (ULONG )( TmpLen - 36 );  
+
+    Self->Crp->Encrypt( (UCHAR**)&EncryptStart, (ULONG*)&EncryptLen );
+    TmpLen = EncryptLen + 36;
+
+    Mem::Copy( (PVOID)( (UPTR)( TmpBuff ) + 36 ), EncryptStart, EncryptLen );
+
+    if ( ! Self->Session.Connected ) {
+        Mem::Copy( (PVOID)( (UPTR)( TmpBuff ) + ( TmpLen - sizeof( Self->Crp->Key ) ) ), Self->Crp->Key, sizeof( Self->Crp->Key ) );
+    }
+
     PCHAR FinalPacket = this->Base64Enc( (const unsigned char*)TmpBuff, TmpLen );
     if ( !FinalPacket ) return FALSE; 
 
@@ -406,6 +418,9 @@ auto DECLFN Package::Transmit(
         if ( RetBuffer ) {
             base64_decode( (PCHAR)Base64Buff, (PUCHAR)RetBuffer, Retsize );
             if ( Response && Size ) {
+                UCHAR* DecBuff = (UCHAR*)( (UPTR)( RetBuffer ) + 36 );
+                ULONG  DecLen  = ( Retsize - 36 );
+                Self->Crp->Decrypt( DecBuff, &DecLen );
                 *Response = RetBuffer;
                 *Size     = Retsize;
             } else {

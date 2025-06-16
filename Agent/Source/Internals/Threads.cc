@@ -91,5 +91,5 @@ auto DECLFN Thread::QueueAPC(
     _In_opt_ PVOID  Argument2,
     _In_opt_ PVOID  Argument3
 ) -> LONG {
-    // return Self->Ntdll.NtQueueApcThread( ThreadHandle, static_cast<PPS_APC_ROUTINE>(CallbackFnc), Argument1, Argument2, Argument3 );
+    return Self->Ntdll.NtQueueApcThread( ThreadHandle, (PPS_APC_ROUTINE)(CallbackFnc), Argument1, Argument2, Argument3 );
 }

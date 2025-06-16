@@ -18,10 +18,10 @@ class TokenUUIDArguments(TaskArguments):
                     raise ValueError(f"Failed to parse command line: {str(e)}")
 
 class TokenUUIDCommand(CommandBase):
-    cmd = "token-getuuid"
+    cmd = "token-rev2self"
     needs_admin = False
-    help_cmd = "token-getuuid"
-    description = "Steal an access token from a specified process and optionally use it"
+    help_cmd = "token-rev2self"
+    description = "Revert token to self"
     version = 1
     author = "@Oblivion"
     attackmapping = ["T1070", "T1485", "T1134"]
@@ -39,7 +39,7 @@ class TokenUUIDCommand(CommandBase):
             CommandName="token"
         )
         
-        task.args.add_arg("action", "getuuid")
+        task.args.add_arg("action", "rev2self")
         
         return response
 
@@ -52,21 +52,29 @@ class TokenUUIDCommand(CommandBase):
                     Completed=True
                 )
             
+            # Parse the binary response
             raw_response = bytes.fromhex(response)
             psr = Parser(raw_response, len(raw_response))
             
-            token_uuid = psr.Bytes()
+            success = psr.Int32()
 
-            token_message =  f"{token_uuid[1:].decode("utf-8", "ignore")}"
+            token_message = ""
+            # Create token in Mythic
+            if bool( success ) is True:
+                token_message =  f"Token reverted\n"
+            else:
+                token_message =  f"Token fail to revert\n"
 
+            # Send detailed response to operator
             await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                 TaskID=task.Task.ID,
-                Response=token_message
+                Response=token_message.encode('utf-8')
             ))
 
             return PTTaskProcessResponseMessageResponse(
                 TaskID=task.Task.ID,
-                Success=True
+                Success=True,
+                Completed=True
             )
 
         except Exception as e:

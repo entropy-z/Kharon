@@ -111,15 +111,27 @@ namespace Mem {
 }
 
 namespace Str {
+    auto CompareWCountL(
+        const wchar_t* str1,
+        const wchar_t* str2,
+        size_t count
+    ) -> int;
+    
+    auto CompareCountW( 
+        PCWSTR Str1, 
+        PCWSTR Str2, 
+        INT16  Count 
+    ) -> INT;
+
     auto WCharToChar( 
         PCHAR  Dest, 
         PWCHAR Src, 
         SIZE_T MaxAllowed 
     ) -> SIZE_T;
 
-    auto StartsWithA(
-        PCSTR Str, 
-        PCSTR Prefix
+    auto StartsWith(
+        PBYTE Str, 
+        PBYTE Prefix
     ) -> BOOL;
 
     auto CharToWChar( 
@@ -272,13 +284,14 @@ enum {
 } SB_CONFIG;
 
 enum {
-    TknGetUID = 10,
+    TknGetUUID = 10,
     TknSteal,
     TknMake,
     TknGetPriv,
     TknStore,
     TknUse,
-    TknRm
+    TknRm,
+    TknRev2Self
 } SB_TOKEN;
 
 enum {

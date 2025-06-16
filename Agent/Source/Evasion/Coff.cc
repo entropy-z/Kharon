@@ -149,7 +149,7 @@ auto Coff::RslApi(
     //
     // check if is Beacon api and resolve this function
     //
-    if ( Str::StartsWithA( SymName, "Beacon" ) ) {
+    if ( Str::StartsWith( (PBYTE)SymName, (PBYTE)"Beacon" ) ) {
         for ( int i = 0; i < sizeof( ApiTable ) / sizeof( ApiTable[0] ); i++ ) {
             KhDbg("Checking ApiTable[%d] (Hash: 0x%X vs Target: 0x%X)", i, ApiTable[i].Hash, Hsh::Str( SymName ));
             if ( Hsh::Str( SymName ) == ApiTable[i].Hash ) {
@@ -187,7 +187,7 @@ auto Coff::RslApi(
 
         Mem::Zero( (UPTR)RawBuff, sizeof( RawBuff ) );
         Mem::Copy( RawBuff, SymName, Str::LengthA( SymName ) );
-        KhDbg("raw symbol name: %s %d", RawBuff, sizeof(RawBuff) );
+        KhDbg("Raw symbol name: %s %d", RawBuff, sizeof(RawBuff) );
 
         // todo: add hook to specified functions
         for ( INT i = 0; i < sizeof( RawBuff ); i++ ) {
@@ -344,7 +344,7 @@ auto Coff::Loader(
 
         KhDbg("processing symbol %d: %s (Class: 0x%X)", i, SymName, StorageClass);
 
-        if (Str::StartsWithA(SymName, "__imp_")) {
+        if (Str::StartsWith( (PBYTE)SymName, (PBYTE)"__imp_") ) {
             MmSize = PAGE_ALIGN(MmSize + sizeof(PVOID));
             CoffData.Sym[i].Type = COFF_IMP;
             CoffData.Sym[i].Ptr  = this->RslApi(SymName);
@@ -357,7 +357,7 @@ auto Coff::Loader(
         else if (
             !ISFCN(Symbols[i].Type) &&
             StorageClass == IMAGE_SYM_CLASS_EXTERNAL &&
-            !Str::StartsWithA(SymName, "__imp_") 
+            !Str::StartsWith( (PBYTE)SymName, (PBYTE)"__imp_" ) 
         ) {
             CoffData.Sym[i].Type = COFF_VAR;
             CoffData.Sym[i].Rva = Symbols[i].Value;

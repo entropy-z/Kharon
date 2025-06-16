@@ -15,7 +15,9 @@ auto DECLFN Process::Open(
         SyscallExec( syOpenProc, Status, &Handle, RightsAccess, &ClientID );
         Self->Usf->NtStatusToError( Status );
     } else {
+        KhDbg( "%d", KhGetError );
         Handle = Self->Krnl32.OpenProcess( RightsAccess, InheritHandle, ProcessID );
+        KhDbg( "%X %d", Handle, KhGetError );
     }
 
     return Handle;

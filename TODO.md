@@ -1,5 +1,6 @@
 - firewall interaction
 - scheduletask interaction
+- registry interaction
 - remote port foward
 - working time
 - dns listener
@@ -15,3 +16,5 @@
 - dotnet keep
 - keylogger
 - dotnet elastic edr evasion
+- module stomping
+- socks

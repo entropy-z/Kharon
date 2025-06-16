@@ -306,7 +306,7 @@ class Parser:
 
 def StorageExtract(Data):
     """Extract and organize all agent storage data efficiently"""
-    
+
     Psr = Parser(Data, len(Data))
     
     # Architecture detection
@@ -380,6 +380,9 @@ def StorageExtract(Data):
     ram_usage = f"{Psr.Int32()}%"
     processor_count = Psr.Int32()
 
+    # Encryption Key
+    encrypt_key = Psr.Pad( 16 )
+
     # Build the JSON structure
     data = {
         "basic_info": {
@@ -433,7 +436,9 @@ def StorageExtract(Data):
             "used_ram": used_ram,
             "ram_usage": ram_usage,
             "processor_count": processor_count
-        }
+        },
+
+        "encryption_key": encrypt_key
     }
 
     return data

