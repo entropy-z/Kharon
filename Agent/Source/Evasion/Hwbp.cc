@@ -67,12 +67,12 @@ auto DECLFN HwbpEng::SetBreak(
 
     if ( ThreadID != Self->Session.ThreadID ) {
         Handle = Self->Td->Open( THREAD_ALL_ACCESS, FALSE, ThreadID );
+        Status = Self->Ntdll.NtGetContextThread( Handle, &Ctx );
         if ( Handle == INVALID_HANDLE_VALUE ) return FALSE;
     } else {
-        Handle = NtCurrentThread();
+        Self->Ntdll.RtlCaptureContext( &Ctx );
     }
-
-    Status = Self->Ntdll.NtGetContextThread( Handle, &Ctx );
+    
     if (!NT_SUCCESS(Status)) {
         if ( Handle != NtCurrentThread() ) Self->Ntdll.NtClose( Handle );
         return FALSE;
@@ -85,11 +85,12 @@ auto DECLFN HwbpEng::SetBreak(
         (&Ctx.Dr0)[Drx] = 0;
         Ctx.Dr7 = this->SetDr7( Ctx.Dr7, 0, (Drx * 2), 2 ); // desactive breakpoint
     }
-
-    Status = Self->Ntdll.NtSetContextThread( Handle, &Ctx );
     
     if ( Handle != NtCurrentThread() ) {
+        Status = Self->Ntdll.NtSetContextThread( Handle, &Ctx );
         Self->Ntdll.NtClose( Handle );
+    } else {
+        Self->Ntdll.NtContinue( &Ctx, FALSE );
     }
 
     return NT_SUCCESS(Status);

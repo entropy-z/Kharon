@@ -1563,8 +1563,8 @@ public:
         PWCHAR AssemblyName;
     } Invoke[5] = {};
 
-    BOOL KeepLoad = FALSE;
-    BOOL ExitBp   = TRUE;
+    BOOL KeepLoad   = FALSE;
+    BOOL ExitBypass = FALSE;
 
     auto CreateVariantCmd(
         WCHAR* Command

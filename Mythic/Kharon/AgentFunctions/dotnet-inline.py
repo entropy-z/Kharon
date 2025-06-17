@@ -389,9 +389,12 @@ class DotnetInlineCommand(CommandBase):
         
         AgentStorage = b""
 
+        logging.info( f"herehere: {UUID}" )        
+
         for i in search_resp.AgentStorageMessages:
             AgentStorage = base64.b64decode( i["data"] )
-                    
+
+        logging.info( f"herehere: {AgentStorage}" )        
         AgentData = StorageExtract( AgentStorage )
 
         bypass_dotnet = AgentData["evasion"]["bypass_dotnet"]

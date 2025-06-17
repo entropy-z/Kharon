@@ -15,9 +15,9 @@ async def CheckinImp( new, old ):
         new, search_resp.AgentStorageMessages[0]["data"].encode("utf-8")
     ))
 
-    rm_searc: MythicRPCAgentStorageRemoveMessageResponse = await SendMythicRPCAgentStorageRemove(MythicRPCAgentStorageRemoveMessage(
-        old
-    ))
+    # rm_searc: MythicRPCAgentStorageRemoveMessageResponse = await SendMythicRPCAgentStorageRemove(MythicRPCAgentStorageRemoveMessage(
+    #     old
+    # ))
 
     Data = new.encode();
 

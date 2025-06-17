@@ -178,13 +178,6 @@ auto DECLFN Dotnet::Inline(
     if ( HResult ) goto _KH_END;
 
     //
-    // Patch Exit routine
-    //
-    if ( this->ExitBp ) {
-        this->PatchExit( RtmHost );
-    }
-
-    //
     // create the app domain
     //
     HResult = RtmHost->CreateDomain( AppDomName, 0, &AppDomThunk );
@@ -274,6 +267,13 @@ auto DECLFN Dotnet::Inline(
     Self->Krnl32.SetStdHandle( STD_OUTPUT_HANDLE, PipeWrite );
 
     KhDbg( "invoking .NET assembly" );
+
+    //
+    // Patch Exit routine
+    //
+    if ( this->ExitBypass ) {
+        this->PatchExit( RtmHost );
+    }
 
     //
     // invoke/execute the dotnet assembly

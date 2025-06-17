@@ -87,11 +87,14 @@ class ExecScCommand(CommandBase):
             
         file_info = file_resp.Files[0]
         output = f"Executing shellcode file: {file_info.Filename}"
-        
+        display = f"-file {file_info.Filename}"
+
         if pid > 0:
-            output += f" in PID: {pid}"
+            display += f" -pid {pid}"
+            output  += f" in PID: {pid}"
         if args:
-            output += f" with args: {args}"
+            display += f" -args {args}"
+            output  += f" with args: {args}"
         
         task.args.remove_arg("file")
         task.args.add_arg("file_contents", file_content.Content.hex())
