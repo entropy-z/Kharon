@@ -91,57 +91,56 @@ auto DECLFN Spoof::GetRtmEntry(
     return nullptr;
 }
 
-// auto DECLFN Spoof::GetStackSize(
-//     _In_ UPTR  LibBase,
-//     _In_ PVOID UnwInfo
-// ) -> ULONG {
-//     PUNWIND_INFO      UwInfo  = reinterpret_cast<PUNWIND_INFO>( UnwInfo );
-//     PUNWIND_CODE      UwCode  = UwInfo->UnwindCode;
-//     PRUNTIME_FUNCTION RtmFnc  = { 0 };
-//     REG_CTX           Context = { 0 };
+auto DECLFN Spoof::GetStackSize(
+    _In_ UPTR  LibBase,
+    _In_ PVOID UnwInfo
+) -> ULONG {
+    PUNWIND_INFO      UwInfo  = reinterpret_cast<PUNWIND_INFO>( UnwInfo );
+    PUNWIND_CODE      UwCode  = UwInfo->UnwindCode;
+    PRUNTIME_FUNCTION RtmFnc  = { 0 };
+    REG_CTX           Context = { 0 };
 
-//     ULONG FrameSize = 0;
-//     ULONG Offset    = 0;
-//     ULONG Index     = 0;
-//     ULONG CodeCount = UwInfo->CountOfCodes;
+    ULONG FrameSize = 0;
+    ULONG Offset    = 0;
+    ULONG Index     = 0;
+    ULONG CodeCount = UwInfo->CountOfCodes;
 
-//     while ( Index < CodeCount ) {
+    while ( Index < CodeCount ) {
+        switch ( UwCode->OpInfo ) {
+            case UWOP_PUSH_NONVOL: {
+                if ( UwCode->OpInfo == SpfRSP ) return 0;
+                Offset += 8; break;
+            }
+            case UWOP_ALLOC_LARGE: {
+                UwCode = (PUNWIND_CODE)( (PUINT16)UwCode + 1 );
+                Index++;
+                FrameSize = UwCode->FrameOffset;
+
+                if ( UwCode->OpInfo == 0 ) {
+                    FrameSize *= 8;
+                } else {
+                    UwCode = (PUNWIND_CODE)( (PUINT16)UwCode + 1 );
+                    Index++;
+                    FrameSize += UwCode->FrameOffset << 16;
+                }
+
+                Offset += FrameSize; break;
+            }
+            case UWOP_ALLOC_SMALL: {
+                Offset += 8 * ( UwCode->OpInfo + 1 ); break;
+            }
+            case UWOP_SET_FPREG: {
+                break;
+            }
+            case UWOP_SAVE_NONVOL: {
+                if ( UwCode->OpInfo == SpfRSP ) return 0;
+                else {
+                    C_DEF32( &Context + UwCode->OpInfo )  = Offset + ( (UNWIND_CODE*)( U_32( UwCode + 1 ) ) )->FrameOffset * 8;
+
+                    // UwCode.
+                }
+            } 
+        }
         
-//         switch ( UwCode->OpInfo ) {
-//             case UWOP_PUSH_NONVOL: {
-//                 if ( UwCode->OpInfo == SpfRSP ) return 0;
-//                 Offset += 8; break;
-//             }
-//             case UWOP_ALLOC_LARGE: {
-//                 UwCode = (PUNWIND_CODE)( (PUINT16)UwCode + 1 );
-//                 Index++;
-//                 FrameSize = UwCode->FrameOffset;
-
-//                 if ( UwCode->OpInfo == 0 ) {
-//                     FrameSize *= 8;
-//                 } else {
-//                     UwCode = (PUNWIND_CODE)( (PUINT16)UwCode + 1 );
-//                     Index++;
-//                     FrameSize += UwCode->FrameOffset << 16;
-//                 }
-
-//                 Offset += FrameSize; break;
-//             }
-//             case UWOP_ALLOC_SMALL: {
-//                 Offset += 8 * ( UwCode->OpInfo + 1 ); break;
-//             }
-//             case UWOP_SET_FPREG: {
-//                 break;
-//             }
-//             case UWOP_SAVE_NONVOL: {
-//                 if ( UwCode->OpInfo == SpfRSP ) return 0;
-//                 else {
-//                     C_DEF32( &Context + UwCode->OpInfo )  = Offset + ( (UNWIND_CODE*)( U_32( UwCode + 1 ) ) )->FrameOffset * 8;
-
-//                     UwCode.
-//                 }
-//             } 
-//         }
-        
-//     }
-// }
+    }
+}

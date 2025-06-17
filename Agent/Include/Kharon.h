@@ -747,6 +747,7 @@ namespace Root {
 
             DECLAPI( VariantClear );
             DECLAPI( VariantInit );
+            DECLAPI( SafeArrayGetDim );
             DECLAPI( SafeArrayAccessData );
             DECLAPI( SafeArrayGetLBound );
             DECLAPI( SafeArrayGetUBound );
@@ -759,6 +760,7 @@ namespace Root {
         } Oleaut32 = {
             RSL_TYPE( VariantClear ),
             RSL_TYPE( VariantInit ),
+            RSL_TYPE( SafeArrayGetDim ),
             RSL_TYPE( SafeArrayAccessData ),
             RSL_TYPE( SafeArrayGetLBound ),
             RSL_TYPE( SafeArrayGetUBound ),
@@ -1536,13 +1538,15 @@ public:
         IID ICLRMetaHost;
         IID ICLRRuntimeInfo;
         IID ICorRuntimeHost;
+        IID IDispatch;
     } IID = {
         .MscorlibAsm      = { 0x17156360, 0x2F1A, 0x384A, { 0xBC, 0x52, 0xFD, 0xE9, 0x3C, 0x21, 0x5C, 0x5B } },
         .IHostControl     = { 0x02CA073C, 0x7079, 0x4860, { 0x88, 0x0A, 0xC2, 0xF7, 0xA4, 0x49, 0xC9, 0x91 } },
         .AppDomain        = { 0x05F696DC, 0x2B29, 0x3663, { 0xAD, 0x8B, 0xC4, 0x38, 0x9C, 0xF2, 0xA7, 0x13 } },
         .ICLRMetaHost     = { 0xD332DB9E, 0xB9B3, 0x4125, { 0x82, 0x07, 0xA1, 0x48, 0x84, 0xF5, 0x32, 0x16 } },
         .ICLRRuntimeInfo  = { 0xBD39D1D2, 0xBA2F, 0x486a, { 0x89, 0xB0, 0xB4, 0xB0, 0xCB, 0x46, 0x68, 0x91 } },
-        .ICorRuntimeHost  = { 0xcb2f6722, 0xab3a, 0x11d2, { 0x9c, 0x40, 0x00, 0xc0, 0x4f, 0xa3, 0x0a, 0x3e } }
+        .ICorRuntimeHost  = { 0xcb2f6722, 0xab3a, 0x11d2, { 0x9c, 0x40, 0x00, 0xc0, 0x4f, 0xa3, 0x0a, 0x3e } },
+        .IDispatch        = { 0x00020400, 0x0000, 0x0000, { 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 } }
     };
 
     struct {
@@ -1561,6 +1565,15 @@ public:
 
     BOOL KeepLoad = FALSE;
     BOOL ExitBp   = TRUE;
+
+    auto CreateVariantCmd(
+        WCHAR* Command
+    ) -> VARIANT;
+    
+    auto CreateSafeArray(
+        VARIANT* Args, 
+        UINT     Argc
+    ) -> SAFEARRAY*;
 
     auto GetAssemblyLoaded(
         _In_  IAppDomain* AppDomain,

