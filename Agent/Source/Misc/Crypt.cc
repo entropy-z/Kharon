@@ -13,14 +13,14 @@ auto DECLFN Crypt::Cycle(
     if ( Loky == LokyEnc ) {
         for ( INT32 Round = 0; Round < NUM_ROUNDS; Round++ ) {
             UINT32 Temp = Right;
-            Right = Left ^ ( Right + ( (UINT32)Key[Round % sizeof(this->Key)] ) );
+            Right = Left ^ ( Right + ( (UINT32)this->LokKey[Round % sizeof(this->LokKey)] ) );
             Left  = Temp;
         }
     }
     else if ( Loky == LokyDec ) {
         for ( INT32 Round = NUM_ROUNDS - 1; Round >= 0; Round-- ) {
             UINT32 Temp  = Left;
-            Left  = Right ^ ( Left + ( (UINT32)Key[Round % sizeof(this->Key)] ) );
+            Left  = Right ^ ( Left + ( (UINT32)this->LokKey[Round % sizeof(this->LokKey)] ) );
             Right = Temp;
         }
     }
@@ -107,5 +107,20 @@ auto DECLFN Crypt::Encrypt(
     
     for ( ULONG i = 0; i < *Length; i += BLOCK_SIZE ) {
         this->Cycle( *Block + i, LokyEnc );
+    }
+}
+
+auto DECLFN Crypt::Xor( 
+    _In_opt_ BYTE*  Bin, 
+    _In_     SIZE_T BinSize
+) -> VOID {
+    for ( SIZE_T i = 0x00, j = 0x00; i < BinSize; i++, j++ ) {
+        if ( j == sizeof( this->XorKey ) )
+            j = 0x00;
+
+        if ( i % 2 == 0 )
+            Bin[i] = Bin[i] ^ this->XorKey[j];
+        else
+            Bin[i] = Bin[i] ^ this->XorKey[j] ^ j;
     }
 }

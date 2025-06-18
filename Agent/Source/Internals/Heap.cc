@@ -7,10 +7,9 @@ auto DECLFN Heap::Crypt( VOID ) -> VOID {
 
     while ( Current ) {
         if ( Current->Block && Current->Size > 0 ) {
-            Self->Usf->Xor(
+            Self->Crp->Xor(
                 B_PTR( Current->Block ),
-                Current->Size,
-                this->Key, sizeof( this->Key )
+                Current->Size
             );
         }
 

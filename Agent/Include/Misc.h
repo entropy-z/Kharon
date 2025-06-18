@@ -130,8 +130,8 @@ namespace Str {
     ) -> SIZE_T;
 
     auto StartsWith(
-        PBYTE Str, 
-        PBYTE Prefix
+        BYTE* Str, 
+        BYTE* Prefix
     ) -> BOOL;
 
     auto CharToWChar( 

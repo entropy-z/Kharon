@@ -787,7 +787,7 @@ auto DECLFN Task::Socks(
                 KhDbg( "Data sent" );
 
                 ULONG BuffRecvL = max( 0x1000, DataLen * 2 );
-                PBYTE BuffRecv  = (PBYTE)Self->Hp->Alloc( BuffRecvL );
+                BYTE* BuffRecv  = (BYTE*)Self->Hp->Alloc( BuffRecvL );
 
                 KhDbg( "Allocating buffer to receive data: %d", BuffRecvL );
 
@@ -804,7 +804,7 @@ auto DECLFN Task::Socks(
                         if ( IoCtlRes == 0 && DataAvail > 0 ) {
                             if ( ( TotalRead + DataAvail ) > BuffRecvL ) {
                                 ULONG NewLen  = BuffRecvL * 2;
-                                PBYTE NewBuff = (PBYTE)Self->Hp->ReAlloc( BuffRecv, NewLen );
+                                BYTE* NewBuff = (BYTE*)Self->Hp->ReAlloc( BuffRecv, NewLen );
 
                                 BuffRecv  = NewBuff;
                                 BuffRecvL = NewLen;
@@ -912,7 +912,7 @@ auto DECLFN Task::Socks(
         
 //         B64Data = Self->Psr->Bytes( Parser, &B64DataLen );
 //         DataLen = Self->Pkg->Base64DecSize((PCHAR)B64Data );
-//         Data = (PBYTE)Self->Hp->Alloc( DataLen );
+//         Data = (BYTE*)Self->Hp->Alloc( DataLen );
 //         if (!Data) {
 //             KhDbg("SOCKS5: ERROR: Allocation failed (Size=%u)", DataLen);
 //             return ERROR_OUTOFMEMORY;
@@ -1010,7 +1010,7 @@ auto DECLFN Task::Socks(
 
 //             KhDbg("SOCKS5: Connection established");
 
-//             ResponseData = (PBYTE)Self->Hp->Alloc(10);
+//             ResponseData = (BYTE*)Self->Hp->Alloc(10);
 //             if (!ResponseData) {
 //                 KhDbg("SOCKS5: ERROR: Failed to allocate response buffer");
 //                 Self->Ws2_32.closesocket(newSocket);

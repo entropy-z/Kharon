@@ -19,7 +19,7 @@ typedef struct {
 } COFF_DATA;
 
 auto Coff::GetCmdID(
-    VOID* Address
+    PVOID Address
 ) -> ULONG {
     BOF_OBJ* Obj = Node;
 
@@ -34,7 +34,7 @@ auto Coff::GetCmdID(
 }
 
 auto Coff::GetTask(
-    VOID* Address
+    PVOID Address
 ) -> CHAR* {
     BOF_OBJ* Obj = Node;
 
@@ -49,8 +49,8 @@ auto Coff::GetTask(
 }
 
 auto Coff::Add(
-    VOID* MmBegin,
-    VOID* MmEnd,
+    PVOID MmBegin,
+    PVOID MmEnd,
     CHAR* UUID,
     ULONG CmdID
 ) -> BOF_OBJ* {
@@ -149,7 +149,7 @@ auto Coff::RslApi(
     //
     // check if is Beacon api and resolve this function
     //
-    if ( Str::StartsWith( (PBYTE)SymName, (PBYTE)"Beacon" ) ) {
+    if ( Str::StartsWith( (BYTE*)SymName, (BYTE*)"Beacon" ) ) {
         for ( int i = 0; i < sizeof( ApiTable ) / sizeof( ApiTable[0] ); i++ ) {
             KhDbg("Checking ApiTable[%d] (Hash: 0x%X vs Target: 0x%X)", i, ApiTable[i].Hash, Hsh::Str( SymName ));
             if ( Hsh::Str( SymName ) == ApiTable[i].Hash ) {
@@ -344,7 +344,7 @@ auto Coff::Loader(
 
         KhDbg("processing symbol %d: %s (Class: 0x%X)", i, SymName, StorageClass);
 
-        if (Str::StartsWith( (PBYTE)SymName, (PBYTE)"__imp_") ) {
+        if (Str::StartsWith( (BYTE*)SymName, (BYTE*)"__imp_") ) {
             MmSize = PAGE_ALIGN(MmSize + sizeof(PVOID));
             CoffData.Sym[i].Type = COFF_IMP;
             CoffData.Sym[i].Ptr  = this->RslApi(SymName);
@@ -357,7 +357,7 @@ auto Coff::Loader(
         else if (
             !ISFCN(Symbols[i].Type) &&
             StorageClass == IMAGE_SYM_CLASS_EXTERNAL &&
-            !Str::StartsWith( (PBYTE)SymName, (PBYTE)"__imp_" ) 
+            !Str::StartsWith( (BYTE*)SymName, (BYTE*)"__imp_" ) 
         ) {
             CoffData.Sym[i].Type = COFF_VAR;
             CoffData.Sym[i].Rva = Symbols[i].Value;

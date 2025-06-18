@@ -442,7 +442,7 @@ auto DECLFN Dotnet::GetAssemblyLoaded(
             KhDbg( "[%d] %S", i, AsmName2 );
 
             if ( SUCCEEDED( HResult ) && AsmName2 ) {
-                if ( Str::StartsWith( (PBYTE)AsmName2, (PBYTE)AsmName1 ) ) {
+                if ( Str::StartsWith( (BYTE*)AsmName2, (BYTE*)AsmName1 ) ) {
                     KhDbg( "%S found", AsmName2 ); *Assembly = AsmTmp; break;
                 }
             }
@@ -558,7 +558,7 @@ _KH_END:
 
 auto Dotnet::Pwsh(
     _In_     WCHAR* Command,
-    _In_opt_ PBYTE  Script
+    _In_opt_ BYTE*  Script
 ) -> HRESULT {
     HRESULT HResult = S_OK;
 

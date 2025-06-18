@@ -257,3 +257,108 @@ auto Coff::LoadLibraryA(
     G_KHARON
     return (HMODULE)Self->Lib->Load( LibraryName );
 }
+
+auto Coff::UseToken(
+    HANDLE token
+) -> BOOL {
+    G_KHARON
+
+    return Self->Tkn->Use( token );
+}
+
+auto Coff::RevertToken(
+    VOID
+) -> VOID {
+    G_KHARON
+
+    Self->Tkn->Rev2Self();
+}
+
+auto Coff::AddValue(
+    PCCH  key, 
+    PVOID ptr
+) -> BOOL {
+    G_KHARON
+
+    if ( Self->Cf->GetValue( key ) ) return FALSE;
+
+    USER_DATA* NewData = (USER_DATA*)Self->Hp->Alloc( sizeof( USER_DATA ) );
+    if ( ! NewData ) return FALSE;
+
+    NewData->Key = (CHAR*)key;
+    NewData->Ptr = ptr;
+
+    if ( ! Self->Cf->UserData ) {
+        Self->Cf->UserData = NewData;
+    } else {
+        USER_DATA* Head = Self->Cf->UserData;
+        while ( Head->Next ) {
+            Head = Head->Next;
+        }
+        Head->Next = NewData;
+    }
+
+    return TRUE;
+}
+
+auto Coff::GetValue(
+    PCCH key
+) -> PVOID {
+
+}
+
+auto Coff::RmValue(
+    PCCH key
+) -> BOOL {
+
+}
+
+// auto Coff::DataStoreGetItem(
+//     SIZE_T Index
+// ) -> DATA_STORE* {
+//     G_KHARON
+
+//     return Self->Cf->Store[Index];
+// }
+
+// auto Coff::DataStoreProtectItem(
+//     SIZE_T Index
+// ) -> VOID {
+//     G_KHARON
+
+//     if ( Self->Cf->Store[Index] ) {
+//         Self->Crp->Xor( 
+//             (BYTE*)Self->Cf->Store[Index]->Buffer, 
+//             Self->Cf->Store[Index]->Length 
+//         );
+
+//         Self->Cf->Store[Index]->Masked = TRUE;
+//     }
+
+//     return;
+// }
+
+// auto Coff::DataStoreUnprotectItem(
+//     SIZE_T Index
+// ) -> VOID {
+//     G_KHARON
+
+//     if ( Self->Cf->Store[Index] ) {
+//         Self->Crp->Xor( 
+//             (BYTE*)Self->Cf->Store[Index]->Buffer, 
+//             Self->Cf->Store[Index]->Length 
+//         );
+
+//         Self->Cf->Store[Index]->Masked = FALSE;
+//     }
+
+//     return;
+// }
+
+// auto Coff::DataStoreMaxEntries(
+//     VOID
+// ) -> SIZE_T {
+//     G_KHARON
+
+//     return sizeof( Self->Cf->Store );
+// }

