@@ -285,8 +285,10 @@ auto Coff::AddValue(
     USER_DATA* NewData = (USER_DATA*)Self->Hp->Alloc( sizeof( USER_DATA ) );
     if ( ! NewData ) return FALSE;
 
-    NewData->Key = (CHAR*)key;
+    NewData->Key = (CHAR*)Self->Hp->Alloc( Str::LengthA( key ) +1 );
     NewData->Ptr = ptr;
+
+    Mem::Copy( NewData->Key, (PVOID)key, Str::LengthA( key ) );
 
     if ( ! Self->Cf->UserData ) {
         Self->Cf->UserData = NewData;
@@ -304,7 +306,21 @@ auto Coff::AddValue(
 auto Coff::GetValue(
     PCCH key
 ) -> PVOID {
+    G_KHARON
 
+    USER_DATA* Head = Self->Cf->UserData;
+
+    while ( 1 ) {
+        if ( Str::CompareA( Head->Key, key ) == 0 ) {
+            return Head->Ptr;
+        }
+
+        if ( Head->Next ) {
+            Head = Head->Next
+        } else {
+            break;
+        }
+    }   
 }
 
 auto Coff::RmValue(
