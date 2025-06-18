@@ -70,7 +70,7 @@ auto DECLFN HwbpEng::SetBreak(
         Status = Self->Ntdll.NtGetContextThread( Handle, &Ctx );
         if ( Handle == INVALID_HANDLE_VALUE ) return FALSE;
     } else {
-        Self->Ntdll.RtlCaptureContext( &Ctx );
+        Status = Self->Ntdll.NtGetContextThread( Handle, &Ctx );
     }
     
     // if ( !NT_SUCCESS( Status) && ThreadID != Self->Session.ThreadID ) {
