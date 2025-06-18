@@ -73,10 +73,10 @@ auto DECLFN HwbpEng::SetBreak(
         Self->Ntdll.RtlCaptureContext( &Ctx );
     }
     
-    if ( !NT_SUCCESS( Status) && ThreadID != Self->Session.ThreadID ) {
-        if ( Handle != NtCurrentThread() ) Self->Ntdll.NtClose( Handle );
-        return FALSE;
-    }
+    // if ( !NT_SUCCESS( Status) && ThreadID != Self->Session.ThreadID ) {
+    //     if ( Handle != NtCurrentThread() ) Self->Ntdll.NtClose( Handle );
+    //     return FALSE;
+    // }
 
     if ( Init ) {
         (&Ctx.Dr0)[Drx] = Address;
