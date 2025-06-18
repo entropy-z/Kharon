@@ -111,12 +111,12 @@ auto DECLFN Transport::WebSend(
         RespSize = ContentLength;
         
         if ( RespSize ) {
-            RespBuffer = C_PTR( Self->Hp->Alloc( RespSize + 1 ) );
+            RespBuffer = PTR( Self->Hp->Alloc( RespSize + 1 ) );
             Self->Wininet.InternetReadFile( hRequest, RespBuffer, RespSize, &BytesRead );
         } else {
             RespSize   = 0;
             RespBuffer = NULL;
-            TmpBuffer  = C_PTR( Self->Hp->Alloc( BEG_BUFFER_LENGTH ) );
+            TmpBuffer  = PTR( Self->Hp->Alloc( BEG_BUFFER_LENGTH ) );
 
             do {
                 Self->Wininet.InternetReadFile( hRequest, TmpBuffer, BEG_BUFFER_LENGTH, &BytesRead );
@@ -124,12 +124,12 @@ auto DECLFN Transport::WebSend(
                 RespSize += BytesRead;
 
                 if ( !RespBuffer ) {
-                    RespBuffer = C_PTR( Self->Hp->Alloc( RespSize ) );
+                    RespBuffer = PTR( Self->Hp->Alloc( RespSize ) );
                 } else {
-                    RespBuffer = C_PTR( Self->Hp->ReAlloc( RespBuffer, RespSize ) );
+                    RespBuffer = PTR( Self->Hp->ReAlloc( RespBuffer, RespSize ) );
                 }
 
-                Mem::Copy( C_PTR( U_PTR( RespBuffer ) + ( RespSize - BytesRead ) ), TmpBuffer, BytesRead );
+                Mem::Copy( PTR( U_PTR( RespBuffer ) + ( RespSize - BytesRead ) ), TmpBuffer, BytesRead );
                 Mem::Zero( U_PTR( TmpBuffer ), BytesRead );
                 
             } while ( BytesRead > 0 );

@@ -67,9 +67,9 @@ auto DECLFN Thread::Create(
         Self->Usf->NtStatusToError( Status );
     } else {
         if ( ProcessHandle ) {
-            Handle = Self->Krnl32.CreateRemoteThread( ProcessHandle, 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, C_PTR( Parameter ), Flags, ThreadID );
+            Handle = Self->Krnl32.CreateRemoteThread( ProcessHandle, 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, PTR( Parameter ), Flags, ThreadID );
         } else {
-            Handle = Self->Krnl32.CreateThread( 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, C_PTR( Parameter ), Flags, ThreadID );
+            Handle = Self->Krnl32.CreateThread( 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, PTR( Parameter ), Flags, ThreadID );
         }
     }
 

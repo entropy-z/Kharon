@@ -54,17 +54,11 @@ auto DECLFN Spoof::Call(
     _In_ UPTR Fnc, 
     Args... args
 ) {
-    PVOID RtmFunction = nullptr;
+    
+    do {
+        this->Setup.Gadget.Ptr = Self->Usf->FindGadget( this->Setup.Gadget.Lib, 0x23 );
 
-    Setup.ArgCount   = sizeof...( Args );
-    RtmFunction      = GetRtmEntry( Self->Ntdll.Handle, ( (UPTR)Self->Ntdll.RtlUserThreadStart - Self->Ntdll.Handle ) );
-    Setup.FirstSize  = this->GetStackSize( Self->Ntdll.Handle, &static_cast<PIMAGE_RUNTIME_FUNCTION_ENTRY>( RtmFunction )->UnwindInfoAddress );
-    RtmFunction      = GetRtmEntry( Self->Krnl32.Handle, ( (UPTR)Self->Krnl32.BaseThreadInitThunk - Self->Krnl32.Handle ) );
-    Setup.SecondSize = this->GetStackSize( Self->Krnl32.Handle, &static_cast<PIMAGE_RUNTIME_FUNCTION_ENTRY>( RtmFunction )->UnwindInfoAddress );
-
-    // for ( INT í = 0; i < Setup.ArgCount; i++ ) {
-    //     Setup.Args[i] = args[i];
-    // }
+    } while ( ! this->Setup.Gadget.Size );
 
     return SpoofCall( Lib, Fnc, (PVOID)&Setup );
 }
@@ -91,25 +85,29 @@ auto DECLFN Spoof::GetRtmEntry(
     return nullptr;
 }
 
-auto DECLFN Spoof::GetStackSize(
+// auto DECLFN Spoof::StackSizeWrapper(
+//     _In_ PVOID RetAddress
+// )
+
+auto DECLFN Spoof::StackSize(
     _In_ UPTR  LibBase,
     _In_ PVOID UnwInfo
 ) -> ULONG {
-    PUNWIND_INFO      UwInfo  = reinterpret_cast<PUNWIND_INFO>( UnwInfo );
-    PUNWIND_CODE      UwCode  = UwInfo->UnwindCode;
-    PRUNTIME_FUNCTION RtmFnc  = { 0 };
+    UNWIND_INFO*      UwInfo  = reinterpret_cast<PUNWIND_INFO>( UnwInfo );
+    UNWIND_CODE*      UwCode  = UwInfo->UnwindCode;
+    RUNTIME_FUNCTION* RtmFnc  = { 0 };
     REG_CTX           Context = { 0 };
 
     ULONG FrameSize = 0;
-    ULONG Offset    = 0;
+    ULONG Total     = 0;
     ULONG Index     = 0;
     ULONG CodeCount = UwInfo->CountOfCodes;
 
     while ( Index < CodeCount ) {
-        switch ( UwCode->OpInfo ) {
+        switch ( UwCode->UnwindOp ) {
             case UWOP_PUSH_NONVOL: {
                 if ( UwCode->OpInfo == SpfRSP ) return 0;
-                Offset += 8; break;
+                Total += 8; break;
             }
             case UWOP_ALLOC_LARGE: {
                 UwCode = (PUNWIND_CODE)( (PUINT16)UwCode + 1 );
@@ -124,10 +122,10 @@ auto DECLFN Spoof::GetStackSize(
                     FrameSize += UwCode->FrameOffset << 16;
                 }
 
-                Offset += FrameSize; break;
+                Total += FrameSize; break;
             }
             case UWOP_ALLOC_SMALL: {
-                Offset += 8 * ( UwCode->OpInfo + 1 ); break;
+                Total += 8 * ( UwCode->OpInfo + 1 ); break;
             }
             case UWOP_SET_FPREG: {
                 break;
@@ -135,7 +133,7 @@ auto DECLFN Spoof::GetStackSize(
             case UWOP_SAVE_NONVOL: {
                 if ( UwCode->OpInfo == SpfRSP ) return 0;
                 else {
-                    C_DEF32( &Context + UwCode->OpInfo )  = Offset + ( (UNWIND_CODE*)( U_32( UwCode + 1 ) ) )->FrameOffset * 8;
+                    DEF32( &Context + UwCode->OpInfo )  = Total + ( (UNWIND_CODE*)( U_32( UwCode + 1 ) ) )->FrameOffset * 8;
 
                     // UwCode.
                 }

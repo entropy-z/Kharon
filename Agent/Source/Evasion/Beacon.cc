@@ -274,30 +274,67 @@ auto Coff::RevertToken(
     Self->Tkn->Rev2Self();
 }
 
+auto Coff::RmValue(
+    PCCH key
+) -> BOOL {
+    G_KHARON
+
+    if ( ! Self->Cf->UserData ) return FALSE;
+
+    VALUE_DICT* Prev    = nullptr;
+    VALUE_DICT* Current = Self->Cf->UserData;
+
+    while ( Current ) {
+        if ( Str::CompareA( Current->Key, key ) == 0) {
+            if (!Prev) {
+                Self->Cf->UserData = Current->Next;
+            } else {
+                Prev->Next = Current->Next;
+            }
+
+            Self->Hp->Free( Current->Key );
+            Self->Hp->Free( Current );
+            
+            return TRUE;
+        }
+
+        Prev    = Current;
+        Current = Current->Next;
+    }
+
+    return FALSE;
+}
+
 auto Coff::AddValue(
     PCCH  key, 
     PVOID ptr
 ) -> BOOL {
     G_KHARON
 
-    if ( Self->Cf->GetValue( key ) ) return FALSE;
+    if ( !key || Self->Cf->GetValue( key ) ) return FALSE;
 
-    USER_DATA* NewData = (USER_DATA*)Self->Hp->Alloc( sizeof( USER_DATA ) );
-    if ( ! NewData ) return FALSE;
+    VALUE_DICT* NewData = (VALUE_DICT*)Self->Hp->Alloc( sizeof( VALUE_DICT ) );
+    if ( !NewData ) return FALSE;
+    
+    size_t keyLen = Str::LengthA(key);
+    NewData->Key = (CHAR*)Self->Hp->Alloc(keyLen + 1);
+    if (!NewData->Key) {
+        Self->Hp->Free(NewData);
+        return FALSE;
+    }
 
-    NewData->Key = (CHAR*)Self->Hp->Alloc( Str::LengthA( key ) +1 );
+    Mem::Copy( NewData->Key, (PVOID)key, keyLen );
+    NewData->Key[keyLen] = '\0';
     NewData->Ptr = ptr;
 
-    Mem::Copy( NewData->Key, (PVOID)key, Str::LengthA( key ) );
-
-    if ( ! Self->Cf->UserData ) {
+    if (!Self->Cf->UserData) {
         Self->Cf->UserData = NewData;
     } else {
-        USER_DATA* Head = Self->Cf->UserData;
-        while ( Head->Next ) {
-            Head = Head->Next;
+        VALUE_DICT* Tail = Self->Cf->UserData;
+        while (Tail->Next) {
+            Tail = Tail->Next;
         }
-        Head->Next = NewData;
+        Tail->Next = NewData;
     }
 
     return TRUE;
@@ -308,25 +345,17 @@ auto Coff::GetValue(
 ) -> PVOID {
     G_KHARON
 
-    USER_DATA* Head = Self->Cf->UserData;
+    if ( ! key || ! Self->Cf->UserData ) return nullptr;
 
-    while ( 1 ) {
-        if ( Str::CompareA( Head->Key, key ) == 0 ) {
-            return Head->Ptr;
+    VALUE_DICT* Current = Self->Cf->UserData;
+    while ( Current ) {
+        if ( Current->Key && Str::CompareA( Current->Key, key ) == 0 ) {
+            return Current->Ptr;
         }
-
-        if ( Head->Next ) {
-            Head = Head->Next
-        } else {
-            break;
-        }
-    }   
-}
-
-auto Coff::RmValue(
-    PCCH key
-) -> BOOL {
-
+        Current = Current->Next;
+    }
+    
+    return nullptr;
 }
 
 // auto Coff::DataStoreGetItem(

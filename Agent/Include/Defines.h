@@ -52,12 +52,12 @@
 #define C_DEF( x )   ( * ( PVOID* )  ( x ) )
 #define C_DEF08( x ) ( * ( UINT8*  ) ( x ) )
 #define C_DEF16( x ) ( * ( UINT16* ) ( x ) )
-#define C_DEF32( x ) ( * ( UINT32* ) ( x ) )
+#define DEF32( x ) ( * ( UINT32* ) ( x ) )
 #define C_DEF64( x ) ( * ( UINT64* ) ( x ) )
 
 /*==============[ Casting ]==============*/
 
-#define C_PTR( x )  reinterpret_cast<PVOID>( x )
+#define PTR( x )  reinterpret_cast<PVOID>( x )
 #define U_PTR( x )  reinterpret_cast<UPTR>( x )
 #define B_PTR( x )  reinterpret_cast<BYTE*>( x )
 #define UC_PTR( x ) reinterpret_cast<PUCHAR>( x )

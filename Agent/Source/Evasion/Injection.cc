@@ -229,8 +229,8 @@ auto DECLFN Injection::Reflection(
 
     for ( INT i = 0; i < Header->FileHeader.NumberOfSections; i++ ) {
         Mem::Copy(
-            C_PTR( U_PTR( ImgBase)  + SecHdr[i].VirtualAddress ),
-            C_PTR( U_PTR( Buffer )  + SecHdr[i].PointerToRawData ),
+            PTR( U_PTR( ImgBase)  + SecHdr[i].VirtualAddress ),
+            PTR( U_PTR( Buffer )  + SecHdr[i].PointerToRawData ),
             SecHdr[i].SizeOfRawData
         );
     }
