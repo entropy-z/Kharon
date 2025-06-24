@@ -62,7 +62,7 @@ auto DECLFN HwbpEng::SetBreak(
     if (Drx < 0 || Drx > 3) return FALSE;
 
     CONTEXT  Ctx    = { .ContextFlags = CONTEXT_DEBUG_REGISTERS };
-    HANDLE   Handle = INVALID_HANDLE_VALUE;
+    HANDLE   Handle = NtCurrentThread();
     NTSTATUS Status = STATUS_SUCCESS;
 
     if ( ThreadID != Self->Session.ThreadID ) {
@@ -70,7 +70,6 @@ auto DECLFN HwbpEng::SetBreak(
         Status = Self->Ntdll.NtGetContextThread( Handle, &Ctx );
         if ( Handle == INVALID_HANDLE_VALUE ) return FALSE;
     } else {
-        Handle = NtCurrentThread();
         Status = Self->Ntdll.NtGetContextThread( Handle, &Ctx );
     }
     

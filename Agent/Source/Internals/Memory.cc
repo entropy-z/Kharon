@@ -28,7 +28,7 @@ auto DECLFN Memory::Alloc(
 
         if ( Handle == INVALID_HANDLE_VALUE || !Handle ) Handle = NtCurrentProcess();
 
-        SyscallExec( syAlloc, Status, Handle, &TmpPtr, 0, &SizeT, AllocType, Protect );
+        SyscallExec( Sys::Alloc, Status, Handle, &TmpPtr, 0, &SizeT, AllocType, Protect );
 
         BaseAddress = TmpPtr;
         Self->Usf->NtStatusToError( Status );
@@ -58,7 +58,7 @@ auto DECLFN Memory::Protect(
 
         if ( Handle == INVALID_HANDLE_VALUE || !Handle ) Handle = NtCurrentProcess();
 
-        SyscallExec( syProtect, Status, Handle, Base, Size, NewProt, OldProt );
+        SyscallExec( Sys::Protect, Status, Handle, Base, Size, NewProt, OldProt );
         Self->Usf->NtStatusToError( Status );
 
         if   ( Status == STATUS_SUCCESS ) Success = TRUE;
@@ -121,7 +121,7 @@ auto DECLFN Memory::Write(
     if ( Self->Sys->Enabled ) {
         NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-        SyscallExec( syWrite, Status, Handle, Base, Buffer, Size, &Written );
+        SyscallExec( Sys::Write, Status, Handle, Base, Buffer, Size, &Written );
         Self->Usf->NtStatusToError( Status );
 
         if   ( Status == STATUS_SUCCESS ) Success = TRUE;
@@ -163,7 +163,7 @@ auto DECLFN Memory::MapView(
     LONG RetStatus = STATUS_UNSUCCESSFUL;
 
     if ( Self->Sys->Enabled ) {
-        SyscallExec( syMapView, RetStatus, SectionHandle, ProcessHandle, BaseAddress, ZeroBits, CommitSize, SectionOffset, ViewSize, InheritDisposition, AllocationType, PageProtection );
+        SyscallExec( Sys::MapView, RetStatus, SectionHandle, ProcessHandle, BaseAddress, ZeroBits, CommitSize, SectionOffset, ViewSize, InheritDisposition, AllocationType, PageProtection );
     } else {
         RetStatus = Self->Ntdll.NtMapViewOfSection( SectionHandle, ProcessHandle, BaseAddress, ZeroBits, CommitSize, SectionOffset, ViewSize, InheritDisposition, AllocationType, PageProtection );
     }
@@ -184,7 +184,7 @@ auto DECLFN Memory::CreateSection(
     LONG RetStatus = STATUS_UNSUCCESSFUL;
 
     if ( Self->Sys->Enabled ) {
-        SyscallExec( syCrSectn, RetStatus, SectionHandle, DesiredAccess, ObjectAttributes, MaximumSize, SectionPageProtection, AllocationAttributes, FileHandle );
+        SyscallExec( Sys::CrSectn, RetStatus, SectionHandle, DesiredAccess, ObjectAttributes, MaximumSize, SectionPageProtection, AllocationAttributes, FileHandle );
     } else {
         RetStatus = Self->Ntdll.NtCreateSection( SectionHandle, DesiredAccess, ObjectAttributes, MaximumSize, SectionPageProtection, AllocationAttributes, FileHandle );
     }

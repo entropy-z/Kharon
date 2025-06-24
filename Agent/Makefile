@@ -80,8 +80,9 @@ x86: nasm86 $(OBJ86)
 
 nasm64:
 	@ $(ASMCC) -f win64 Source/Asm/ProxyCall.x64.asm -o $(BUILD_PATH)/Bin/obj/proxy.x64.obj
-	@ $(ASMCC) -f win64 Source/Asm/Sys.x64.asm -o $(BUILD_PATH)/Bin/obj/sys.x64.obj
+	@ $(ASMCC) -f win64 Source/Asm/Syscall.x64.asm -o $(BUILD_PATH)/Bin/obj/syscall.x64.obj
 	@ $(ASMCC) -f win64 Source/Asm/Entry.x64.asm -o $(BUILD_PATH)/Bin/obj/entry.x64.obj
+	@ $(ASMCC) -f win64 Source/Asm/Spoof.x64.asm -o $(BUILD_PATH)/Bin/obj/spoof.x64.obj
 
 nasm86:
 	@ $(ASMCC) -f win32 Source/Asm/Entry.x64.asm -o $(BUILD_PATH)/Bin/obj/entry.x86.obj

