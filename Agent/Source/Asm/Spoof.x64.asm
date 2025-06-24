@@ -2,7 +2,7 @@
 
 global SpoofCall
 
-[SECTION .text]
+[SECTION .text$B]
     SpoofCall:
         ; ---------------------------------------------------------------------
         ; Initial Setup

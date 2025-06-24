@@ -138,17 +138,11 @@ auto DECLFN Useful::FindGadget(
     SearchBase = B_PTR( ModuleBase + 0x1000 );
     SearchSize = this->SecSize( ModuleBase, Hsh::Str<CHAR>(".text") );
 
-    KhDbg( "search %p [%d]", SearchBase, SearchSize );
-
     for ( INT i = 0; i < SearchSize - 1; i++ ) {
         if ( SearchBase[i] == JmpValue && SearchBase[i+1] == RegValue ) {
             GadgetList[GadgetCounter] = U_PTR( SearchBase + i ); GadgetCounter++;
             if ( GadgetCounter == 10 ) break;
         }
-    }
-
-    for ( INT i = 0; i < 10; i++ ) {
-        KhDbg( "gadget #i %p", GadgetList[i] );
     }
 
     RndIndex = Rnd32() % GadgetCounter;

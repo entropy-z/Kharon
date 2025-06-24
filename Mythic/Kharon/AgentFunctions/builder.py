@@ -334,6 +334,8 @@ class KharonAgent(PayloadType):
             "security_defs": [
                 f"KH_SLEEP_MASK={self.get_mask_value()}",
                 f"KH_HEAP_MASK={1 if self.get_parameter('Heap Mask') else 0}",
+                f"KH_CALL_STACK_SPOOF={1 if self.get_parameter('Call Stack Spoofing') else 0}",
+                f"KH_BOF_HOOK_ENALED={1 if self.get_parameter('BOF Hook') else 0}",
                 f"KH_INDIRECT_SYSCALL_ENABLED={1 if self.get_parameter('Indirect Syscall') else 0}",
                 f"KH_HARDWARE_BREAKPOINT_BYPASS_DOTNET={self.get_hardware_breakpoint_value()}",
                 f"KH_INJECTION_SC={self.get_injection_value()}",

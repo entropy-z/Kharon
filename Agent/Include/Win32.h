@@ -2684,4 +2684,6 @@ NTSYSAPI VOID NTAPI TpSetTimer(_Inout_ PTP_TIMER Timer, _In_opt_ PLARGE_INTEGER 
 VOID  WINAPI BaseThreadInitThunk( IN DWORD LdrReserved,  IN LPTHREAD_START_ROUTINE lpStartAddress,  IN LPVOID lpParameter );
 ULONG StringCchPrintfW( LPWSTR pszDest, size_t cchDest, LPWSTR pszFormat, ... );
 NTSYSAPI NTSTATUS NTAPI NtReadVirtualMemory( IN HANDLE ProcessHandle, IN PVOID BaseAddress, OUT PVOID Buffer, IN ULONG NumberOfBytesToRead, OUT PULONG NumberOfBytesReaded OPTIONAL );
+NTSYSCALLAPI NTSTATUS NtOpenThreadTokenEx( HANDLE ThreadHandle, ACCESS_MASK DesiredAccess, BOOLEAN OpenAsSelf, ULONG HandleAttributes, PHANDLE TokenHandle );
+NTSYSCALLAPI NTSTATUS NtOpenProcessTokenEx( HANDLE ProcessHandle, ACCESS_MASK DesiredAccess, ULONG HandleAttributes, PHANDLE TokenHandle );
 #endif // WIN32_H             

@@ -32,7 +32,7 @@ auto DECLFN Transport::Checkin(
     // some evasion features enable informations
     Self->Pkg->Int32( CheckinPkg, Self->Sys->Enabled );
     Self->Pkg->Int32( CheckinPkg, Self->Spf->Enabled );
-    Self->Pkg->Int32( CheckinPkg, Self->Cf->Hook );
+    Self->Pkg->Int32( CheckinPkg, Self->Cf->HookEnabled );
     Self->Pkg->Int32( CheckinPkg, Self->Hw->DotnetBypass  );
 
     // killdate informations

