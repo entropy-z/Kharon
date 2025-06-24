@@ -40,8 +40,7 @@ global SpoofCall
         add r14, [rdi + 0x28]       ; add Gadget frame
         sub r14, 0x20               ; space for return address
         
-        mov r10, rsp
-        add r10, 0x30
+        lea r10, [rsp + 0x28]
 
         ; ---------------------------------------------------------------------
         ; Stack Argument Processing Loop
@@ -81,7 +80,7 @@ global SpoofCall
         finish:
         sub rsp, 0x200
         push 0                      ; Terminate call stack with NULL return
-        
+
         ; Build RtlUserThreadStart frame
         sub rsp, [rdi + 0x08]       ; Allocate frame space
         mov r11, [rdi + 0x00]       ; Get frame return address
@@ -122,14 +121,10 @@ global SpoofCall
             mov rcx, rbx            ; Struct address to rcx
             
             ; Calculate total stack space to clean up
-            mov rax, [rbx + 0x80]   ; arg count
-            add rax, 0x200           ; add working space
-            add rax, [rbx + 0x08]    ; add RtlUserThreadStart frame
-            add rax, [rbx + 0x18]    ; add BaseThreadInitThunk frame
-            add rax, [rbx + 0x28]    ; add Gadget frame
-            
-            ; Clean up all space at once
-            add rsp, rax
+            add rsp, 0x200           ; add working space
+            add rsp, [rbx + 0x08]    ; add RtlUserThreadStart frame
+            add rsp, [rbx + 0x18]    ; add BaseThreadInitThunk frame
+            add rsp, [rbx + 0x28]    ; add Gadget frame
 
             ; Restore all preserved registers
             mov rbx, [rcx + 0x48]   ; Restore original rbx

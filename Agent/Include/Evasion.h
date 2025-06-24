@@ -89,12 +89,18 @@ typedef enum Sys {
     Alloc,
     Protect,
     Write,
+    Read,
+    Free,
     CrThread,
     QueueApc,
     OpenThrd,
     OpenProc,
     MapView,
     CrSectn,
+    OpenPrToken,
+    OpenThToken,
+    SetCtxThrd,
+    GetCtxThrd,
     Last
 };
 

@@ -40,7 +40,7 @@ auto DECLFN Spoof::Call(
 
     Setup.ArgCount = 8;
 
-    return SpoofCall( Arg1, Arg2, Arg3, Arg4, Fnc, (PVOID)&this->Setup, Arg5, Arg6, Arg7, Arg8 );
+    return SpoofCall( Arg1, Arg2, Arg3, Arg4, Fnc, (PVOID)&this->Setup, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12 );
 }
 
 auto DECLFN Spoof::StackSizeWrapper(

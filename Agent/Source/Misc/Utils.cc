@@ -331,7 +331,7 @@ auto DECLFN Useful::FixRel(
         while ( B_PTR( RelocInf ) != B_PTR( BaseReloc ) + BaseReloc->SizeOfBlock ) {
             switch ( RelocInf->Type ) {
             case IMAGE_REL_TYPE:
-                C_DEF64( RelocPtr + RelocInf->Offset ) += (ULONG_PTR)( Delta ); break;
+                DEF64( RelocPtr + RelocInf->Offset ) += (ULONG_PTR)( Delta ); break;
             case IMAGE_REL_BASED_HIGHLOW:
                 DEF32( RelocPtr + RelocInf->Offset ) += (DWORD)( Delta ); break;
             case IMAGE_REL_BASED_HIGH:

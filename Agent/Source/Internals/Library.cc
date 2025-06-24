@@ -3,8 +3,6 @@
 auto DECLFN Library::Load(
     _In_ PCHAR LibName
 ) -> UPTR {
-    G_KHARON
-
     if ( Self->Spf->Enabled ) {
         return (UPTR)Self->Spf->Call( (UPTR)Self->Krnl32.LoadLibraryA, (UPTR)LibName );
     }

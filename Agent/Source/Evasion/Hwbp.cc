@@ -162,7 +162,7 @@ auto DECLFN HwbpEng::GetArg(
         }
     }
 
-    return C_DEF64( Ctx->Rsp + ( Idx * sizeof( PVOID ) ) );
+    return DEF64( Ctx->Rsp + ( Idx * sizeof( PVOID ) ) );
 #else
     return DEF32( Ctx->Esp + ( Idx * sizeof( PVOID ) ) );
 #endif
@@ -188,7 +188,7 @@ switch ( Idx ) {
         Ctx->R9 = Val; return;
     }
 }
-    C_DEF64( Ctx->Rsp + ( Idx * sizeof( PVOID ) ) ) = Val;
+    DEF64( Ctx->Rsp + ( Idx * sizeof( PVOID ) ) ) = Val;
 #else
     DEF32( Ctx->Esp + ( Idx * sizeof( PVOID ) ) ) = Val;
 #endif

