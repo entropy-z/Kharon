@@ -320,7 +320,13 @@ class KharonAgent(PayloadType):
         """Prepare all build configurations and compiler definitions"""
         arch = self.get_parameter("Architecture")
         debug = "on" if self.get_parameter("Debug") else "off"
+        syscall_flags = 0
+        if self.get_parameter('Indirect Syscall'):
+            syscall_flags += 0x100
         
+        if self.get_parameter('Call Stack Spoofing'):
+            syscall_flags += 0x250
+
         build_config = {
             "arch": arch,
             "debug": debug,
@@ -334,6 +340,7 @@ class KharonAgent(PayloadType):
             "security_defs": [
                 f"KH_SLEEP_MASK={self.get_mask_value()}",
                 f"KH_HEAP_MASK={1 if self.get_parameter('Heap Mask') else 0}",
+                f"SYSCALL_FLAGS={syscall_flags}",
                 f"KH_CALL_STACK_SPOOF={1 if self.get_parameter('Call Stack Spoofing') else 0}",
                 f"KH_BOF_HOOK_ENALED={1 if self.get_parameter('BOF Hook') else 0}",
                 f"KH_INDIRECT_SYSCALL_ENABLED={1 if self.get_parameter('Indirect Syscall') else 0}",

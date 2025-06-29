@@ -7,46 +7,46 @@ auto DECLFN Syscall::Fetch(
 
     // not hooked
     if ( 
-         C_DEFB( FuncPtr + 0 ) == 0x4C &&
-         C_DEFB( FuncPtr + 1 ) == 0x8B &&
-         C_DEFB( FuncPtr + 2 ) == 0xD1 &&
-         C_DEFB( FuncPtr + 3 ) == 0xB8 &&
-         C_DEFB( FuncPtr + 6 ) == 0x00 &&
-         C_DEFB( FuncPtr + 7 ) == 0x00 
+         DEFB( FuncPtr + 0 ) == 0x4C &&
+         DEFB( FuncPtr + 1 ) == 0x8B &&
+         DEFB( FuncPtr + 2 ) == 0xD1 &&
+         DEFB( FuncPtr + 3 ) == 0xB8 &&
+         DEFB( FuncPtr + 6 ) == 0x00 &&
+         DEFB( FuncPtr + 7 ) == 0x00 
     ) {
-        BYTE High = C_DEFB( FuncPtr + 5 );
-        BYTE Low  = C_DEFB( FuncPtr + 4 );
+        BYTE High = DEFB( FuncPtr + 5 );
+        BYTE Low  = DEFB( FuncPtr + 4 );
         this->Ext[SysIdx].ssn = ( High << 8 ) | Low;
         goto _KH_END;
     }
 
     // if hooked - case 1
-    if ( C_DEFB( FuncPtr ) == 0xE9 ) {
+    if ( DEFB( FuncPtr ) == 0xE9 ) {
         for ( INT i = 1; i <= SY_RANGE; i++ ) {
             if ( 
-                 C_DEFB( FuncPtr + 0 + i * SY_DOWN ) == 0x4C &&
-                 C_DEFB( FuncPtr + 1 + i * SY_DOWN ) == 0x8B &&
-                 C_DEFB( FuncPtr + 2 + i * SY_DOWN ) == 0xD1 &&
-                 C_DEFB( FuncPtr + 3 + i * SY_DOWN ) == 0xB8 &&
-                 C_DEFB( FuncPtr + 6 + i * SY_DOWN ) == 0x00 &&
-                 C_DEFB( FuncPtr + 7 + i * SY_DOWN ) == 0x00 
+                 DEFB( FuncPtr + 0 + i * SY_DOWN ) == 0x4C &&
+                 DEFB( FuncPtr + 1 + i * SY_DOWN ) == 0x8B &&
+                 DEFB( FuncPtr + 2 + i * SY_DOWN ) == 0xD1 &&
+                 DEFB( FuncPtr + 3 + i * SY_DOWN ) == 0xB8 &&
+                 DEFB( FuncPtr + 6 + i * SY_DOWN ) == 0x00 &&
+                 DEFB( FuncPtr + 7 + i * SY_DOWN ) == 0x00 
            ) {
-               BYTE High = C_DEFB( FuncPtr + 5 + i * SY_DOWN );
-               BYTE Low  = C_DEFB( FuncPtr + 4 + i * SY_DOWN );
+               BYTE High = DEFB( FuncPtr + 5 + i * SY_DOWN );
+               BYTE Low  = DEFB( FuncPtr + 4 + i * SY_DOWN );
                this->Ext[SysIdx].ssn = ( High << 8 ) | Low - i;
                goto _KH_END;
            }
            
             if ( 
-                 C_DEFB( FuncPtr + 0 + i * SY_UP ) == 0x4C &&
-                 C_DEFB( FuncPtr + 1 + i * SY_UP ) == 0x8B &&
-                 C_DEFB( FuncPtr + 2 + i * SY_UP ) == 0xD1 &&
-                 C_DEFB( FuncPtr + 3 + i * SY_UP ) == 0xB8 &&
-                 C_DEFB( FuncPtr + 6 + i * SY_UP ) == 0x00 &&
-                 C_DEFB( FuncPtr + 7 + i * SY_UP ) == 0x00 
+                 DEFB( FuncPtr + 0 + i * SY_UP ) == 0x4C &&
+                 DEFB( FuncPtr + 1 + i * SY_UP ) == 0x8B &&
+                 DEFB( FuncPtr + 2 + i * SY_UP ) == 0xD1 &&
+                 DEFB( FuncPtr + 3 + i * SY_UP ) == 0xB8 &&
+                 DEFB( FuncPtr + 6 + i * SY_UP ) == 0x00 &&
+                 DEFB( FuncPtr + 7 + i * SY_UP ) == 0x00 
             ) {
-                BYTE High = C_DEFB( FuncPtr + 5 + i * SY_UP );
-                BYTE Low  = C_DEFB( FuncPtr + 4 + i * SY_UP );
+                BYTE High = DEFB( FuncPtr + 5 + i * SY_UP );
+                BYTE Low  = DEFB( FuncPtr + 4 + i * SY_UP );
                 this->Ext[SysIdx].ssn = ( High << 8 ) | Low + i;
                 goto _KH_END;
             }
@@ -54,32 +54,32 @@ auto DECLFN Syscall::Fetch(
     }
 
     // if hooked - case 2
-    if ( C_DEFB( FuncPtr + 3 ) == 0xE9 ) {
+    if ( DEFB( FuncPtr + 3 ) == 0xE9 ) {
         for ( INT i = 0; i <= SY_RANGE; i++ ) {
             if ( 
-                 C_DEFB( FuncPtr + 0 + i * SY_DOWN ) == 0x4C &&
-                 C_DEFB( FuncPtr + 1 + i * SY_DOWN ) == 0x8B &&
-                 C_DEFB( FuncPtr + 2 + i * SY_DOWN ) == 0xD1 &&
-                 C_DEFB( FuncPtr + 3 + i * SY_DOWN ) == 0xB8 &&
-                 C_DEFB( FuncPtr + 6 + i * SY_DOWN ) == 0x00 &&
-                 C_DEFB( FuncPtr + 7 + i * SY_DOWN ) == 0x00 
+                 DEFB( FuncPtr + 0 + i * SY_DOWN ) == 0x4C &&
+                 DEFB( FuncPtr + 1 + i * SY_DOWN ) == 0x8B &&
+                 DEFB( FuncPtr + 2 + i * SY_DOWN ) == 0xD1 &&
+                 DEFB( FuncPtr + 3 + i * SY_DOWN ) == 0xB8 &&
+                 DEFB( FuncPtr + 6 + i * SY_DOWN ) == 0x00 &&
+                 DEFB( FuncPtr + 7 + i * SY_DOWN ) == 0x00 
             ) {
-                BYTE High = C_DEFB( FuncPtr + 5 + i * SY_DOWN );
-                BYTE Low  = C_DEFB( FuncPtr + 4 + i * SY_DOWN );
+                BYTE High = DEFB( FuncPtr + 5 + i * SY_DOWN );
+                BYTE Low  = DEFB( FuncPtr + 4 + i * SY_DOWN );
                 this->Ext[SysIdx].ssn = ( High << 8 ) | Low - i;
                 goto _KH_END;
             }
 
             if ( 
-                C_DEFB( FuncPtr + 0 + i * SY_UP ) == 0x4C &&
-                C_DEFB( FuncPtr + 1 + i * SY_UP ) == 0x8B &&
-                C_DEFB( FuncPtr + 2 + i * SY_UP ) == 0xD1 &&
-                C_DEFB( FuncPtr + 3 + i * SY_UP ) == 0xB8 &&
-                C_DEFB( FuncPtr + 6 + i * SY_UP ) == 0x00 &&
-                C_DEFB( FuncPtr + 7 + i * SY_UP ) == 0x00 
+                DEFB( FuncPtr + 0 + i * SY_UP ) == 0x4C &&
+                DEFB( FuncPtr + 1 + i * SY_UP ) == 0x8B &&
+                DEFB( FuncPtr + 2 + i * SY_UP ) == 0xD1 &&
+                DEFB( FuncPtr + 3 + i * SY_UP ) == 0xB8 &&
+                DEFB( FuncPtr + 6 + i * SY_UP ) == 0x00 &&
+                DEFB( FuncPtr + 7 + i * SY_UP ) == 0x00 
             ) {
-                BYTE High = C_DEFB( FuncPtr + 5 + i * SY_UP );
-                BYTE Low  = C_DEFB( FuncPtr + 4 + i * SY_UP );
+                BYTE High = DEFB( FuncPtr + 5 + i * SY_UP );
+                BYTE Low  = DEFB( FuncPtr + 4 + i * SY_UP );
                 this->Ext[SysIdx].ssn = ( High << 8 ) | Low + i;
                 goto _KH_END;
             }
@@ -89,7 +89,7 @@ auto DECLFN Syscall::Fetch(
 _KH_END:
 
     for ( INT x = 0, y = 1; x <= SY_RANGE; x++, y++ ) {
-        if ( C_DEFB( FuncPtr + x ) == 0x0F && C_DEFB( FuncPtr + y ) == 0x05 ) {
+        if ( DEFB( FuncPtr + x ) == 0x0F && DEFB( FuncPtr + y ) == 0x05 ) {
             this->Ext[SysIdx].Instruction = U_PTR( FuncPtr + x ); break;
         }
     }

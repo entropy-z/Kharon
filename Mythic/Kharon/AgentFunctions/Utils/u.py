@@ -3,6 +3,10 @@ from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 from collections import OrderedDict
 
+import logging
+
+logging.basicConfig( level=logging.INFO );
+
 SB_CFG_JITTER   = 14;
 SB_CFG_SLEEP    = 15;
 SB_CFG_MASK     = 16;
@@ -304,11 +308,22 @@ class Parser:
         return remaining
     
 
-def StorageExtract(Data):
+async def StorageExtract( UUID ):
     """Extract and organize all agent storage data efficiently"""
 
-    Psr = Parser(Data, len(Data))
+    search_resp: MythicRPCAgentStorageSearchMessageResponse = await SendMythicRPCAgentStorageSearch(MythicRPCAgentStorageSearchMessage(
+        UUID
+    ))
+
+    AgentStorage = b''
+
+    for i in search_resp.AgentStorageMessages:
+        AgentStorage = base64.b64decode( base64.b64decode( i["data"] ) )
+
+    Psr = Parser(AgentStorage, len(AgentStorage))
     
+    logging.info(f"data agent: {AgentStorage}")
+
     # Architecture detection
     OsArch = Psr.Pad(1)
     OscArc = "unknown"
@@ -325,20 +340,25 @@ def StorageExtract(Data):
     internal_ip = ["0.0.0.0"]  # Default value
     architecture = OscArc
 
+    # Injection
+    alloc_method = Psr.Int32()
+    write_method = Psr.Int32()
+
     # Evasion
     syscall_enabled = bool(Psr.Int32())
     stack_spoof_enabled = bool(Psr.Int32())
     bof_hook_api_enabled = bool(Psr.Int32())
     bypass_dotnet = Psr.Int32()
+    dotnet_patchexit = Psr.Int32()
 
     if bypass_dotnet == 0x100:
-        bypass_dotnet = "amsi and etw"
+        bypass_dotnet = "AMSI and ETW"
     elif bypass_dotnet == 0x400:
-        bypass_dotnet = "amsi"
+        bypass_dotnet = "AMSI"
     elif bypass_dotnet == 0x700:
-        bypass_dotnet = "etw"
+        bypass_dotnet = "ETW"
     else:
-        bypass_dotnet = "none"
+        bypass_dotnet = "None"
 
     # Killdate
     killdate_enabled = bool(Psr.Int32())
@@ -394,11 +414,16 @@ def StorageExtract(Data):
             "internal_ip": internal_ip,
             "architecture": architecture
         },
+        "injection": {
+            "alloc_method": alloc_method,
+            "write_method": write_method
+        },
         "evasion": {
             "syscall_enabled": syscall_enabled,
             "stack_spoof_enabled": stack_spoof_enabled,
             "bof_hook_api_enabled": bof_hook_api_enabled,
-            "bypass_dotnet": bypass_dotnet
+            "bypass_dotnet": bypass_dotnet,
+            "dotnet_bypass_exit": dotnet_patchexit
         },
         "killdate": {
             "enabled": killdate_enabled,
@@ -471,9 +496,15 @@ async def get_content_by_name( name, taskid ) -> bytes:
 
     if file_resp.Error and len(file_resp.Files) < 0:
         return b""
- 
+     
     file_contents = await SendMythicRPCFileGetContent(MythicRPCFileGetContentMessage(
         AgentFileId=file_resp.Files[0].AgentFileId
     ))
 
     return file_contents.Content    
+
+async def write_console( TaskID, Msg ) -> None:
+    await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+        TaskID=TaskID,
+        Response=Msg
+    ))

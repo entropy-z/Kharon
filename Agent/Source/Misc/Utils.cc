@@ -329,9 +329,9 @@ auto DECLFN Useful::FixRel(
             case IMAGE_REL_BASED_HIGHLOW:
                 DEF32( RelocPtr + RelocInf->Offset ) += (DWORD)( Delta ); break;
             case IMAGE_REL_BASED_HIGH:
-                C_DEF16( RelocPtr + RelocInf->Offset ) += HIWORD( Delta ); break;
+                DEF16( RelocPtr + RelocInf->Offset ) += HIWORD( Delta ); break;
             case IMAGE_REL_BASED_LOW:
-                C_DEF16( RelocPtr + RelocInf->Offset ) += LOWORD( Delta ); break;
+                DEF16( RelocPtr + RelocInf->Offset ) += LOWORD( Delta ); break;
             default:
                 break;
             }

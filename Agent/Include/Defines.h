@@ -48,10 +48,10 @@
 
 /*==============[ Dereference ]==============*/
 
-#define C_DEFB( x )  ( * ( BYTE* )  ( x ) )
-#define C_DEF( x )   ( * ( PVOID* )  ( x ) )
-#define C_DEF08( x ) ( * ( UINT8*  ) ( x ) )
-#define C_DEF16( x ) ( * ( UINT16* ) ( x ) )
+#define DEFB( x )  ( * ( BYTE* )  ( x ) )
+#define DEF( x )   ( * ( PVOID* )  ( x ) )
+#define DEF08( x ) ( * ( UINT8*  ) ( x ) )
+#define DEF16( x ) ( * ( UINT16* ) ( x ) )
 #define DEF32( x ) ( * ( UINT32* ) ( x ) )
 #define DEF64( x ) ( * ( UINT64* ) ( x ) )
 

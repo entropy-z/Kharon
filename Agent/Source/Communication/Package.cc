@@ -299,14 +299,16 @@ auto DECLFN Package::Create(
     _In_ ULONG CommandID,
     _In_ PCHAR UUID
 ) -> PPACKAGE {
-    PPACKAGE Package = NULL;
+    PACKAGE* Package = NULL;
 
-    Package         = (PPACKAGE)Self->Hp->Alloc( sizeof( PACKAGE ) );
+    Package         = (PACKAGE*)Self->Hp->Alloc( sizeof( PACKAGE ) );
     Package->Buffer = Self->Hp->Alloc( sizeof( BYTE ) );
     Package->Length = 0;
 
     this->Bytes( Package, UC_PTR( UUID ), 36 );
     this->Int16( Package, CommandID );
+
+    Package->TaskUUID = UUID;
 
     return Package;
 }

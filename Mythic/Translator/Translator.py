@@ -77,7 +77,6 @@ class KharonTranslator( TranslationContainer ):
         if search_resp.Success is True and search_resp.AgentStorageMessages:
             print( search_resp.AgentStorageMessages[0]["data"].encode("utf-8") )
             StorageMsg = base64.b64decode( base64.b64decode( search_resp.AgentStorageMessages[0]["data"].encode("utf-8") ).decode("utf-8") )
-            Dbg7(f"searched: {search_resp.Success}")
             EncryptKey   = StorageMsg[-16:]
             if not EncryptKey or len(EncryptKey) != 16:
                 EncryptKey = InputMsg.Message[-16:] 
@@ -87,8 +86,6 @@ class KharonTranslator( TranslationContainer ):
         AgentMsg  = InputMsg.Message;
         Crypter   = LokyCrypt( EncryptKey )  
         TextPlain = Crypter.decrypt( AgentMsg )
-
-        Dbg7( f"raw enc: {AgentMsg}" )
 
         Action      = TextPlain[0];
         ActionData  = TextPlain[1:];

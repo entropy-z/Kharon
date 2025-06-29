@@ -11,8 +11,9 @@ from struct import pack, calcsize
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 
-KH_CALLBACK_OUTPUT = 0x0
-KH_CALLBACK_ERROR  = 0x0d
+KH_CALLBACK_OUTPUT     = 0x0
+KH_CALLBACK_ERROR      = 0x0d
+KH_CALLBACK_NO_PRE_MSG = 0x4f
 
 JOB_CHECKIN   = 0xf1;
 JOB_GET_TASK  = 0;
@@ -587,3 +588,9 @@ def StorageExtract(Data):
     }
 
     return data
+
+async def write_console( TaskID, Msg ) -> None:
+    await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+        TaskID=TaskID,
+        Response=Msg
+    ))

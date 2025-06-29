@@ -36,11 +36,16 @@ async def CheckinC2(Data, Key) -> dict:
     print(f"    Image Path: {ImagePath}")
     print(f"    Internal IP: {InternIp}")
 
-    # Security features
+    # Injection
+    alloc_method = Psr.Int32()
+    write_method = Psr.Int32()
+
+    # Evasion
     syscall_enabled = Psr.Int32()
     stack_spoof_enabled = Psr.Int32()
     bof_hook_api_enabled = Psr.Int32()
     bypass_enabled = Psr.Int32()
+    patchexit = Psr.Int32()
     
     print(f"\n[*] Security Features:")
     print(f"    Syscall Enabled: {bool(syscall_enabled)}")
@@ -161,8 +166,8 @@ def GetTaskingC2( Data ):
 
     return JsonData
 
-def QuickOut(Data):
-    Psr        = Parser( Data, len(Data) )
+def QuickOut( Data ):
+    Psr       = Parser( Data, len(Data) )
     UUID      = Psr.Pad(36) 
     CommandID = Psr.Int32()
 
@@ -184,6 +189,8 @@ def QuickOut(Data):
 
         prefix, response_key = message_types.get(CallbackType, ("[?] Received Unknown Callback", "user_output"))
         Message = f"{prefix}:\n{CallbackOut}"
+
+        logging.info(f"command id 0 and message {Message}")
 
         Response = {
             "task_id": UUID.decode("utf-8", errors="ignore"),
@@ -222,10 +229,12 @@ def QuickMsg( Data ):
         FinalMsg = f"[x] Received Error:\n{CallbackMsg}"
     elif CallbackType == KH_CALLBACK_OUTPUT:
         FinalMsg = f"[+] Received Output:\n{CallbackMsg}"
+    elif CallbackType == KH_CALLBACK_NO_PRE_MSG:
+        FinalMsg = f"{CallbackMsg}"
     else:
         FinalMsg = f"[?] Callback type not recognized... (just can be used [CALLBACK_OUTPUT|CALLBACK_ERROR])\n"
 
-    logging.info(f"MSG =>  with task uuid: {UUID} and callback type: {CallbackType}")
+    logging.info(f"MSG => {FinalMsg} with task uuid: {UUID} and callback type: {CallbackType}")
 
     JsonData = {
         "action": "post_response",
@@ -237,7 +246,7 @@ def QuickMsg( Data ):
             }
         ],
     }
-
+ 
     logging.info(f":MSG => JSON data: {JsonData}")
 
     return JsonData

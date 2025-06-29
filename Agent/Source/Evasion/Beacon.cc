@@ -295,12 +295,20 @@ auto DECLFN Coff::CLRCreateInstance(
 ) -> HRESULT {
     G_KHARON
 
-    return Self->Spf->Call(
-         (UPTR)Self->Mscoree.CLRCreateInstance, 
-         reinterpret_cast<UPTR>(&clsid),  
-         reinterpret_cast<UPTR>(&riid),
-         (UPTR)ppInterface
+    Self->Mscoree.CLRCreateInstance( 
+        clsid,  
+        riid,
+        ppInterface 
     );
+
+    // if ( Self->Spf->Enabled ) {
+    //     return Self->Spf->Call(
+    //         (UPTR)Self->Mscoree.CLRCreateInstance, 
+    //         reinterpret_cast<UPTR>(clsid),  
+    //         reinterpret_cast<UPTR>(riid),
+    //         (UPTR)ppInterface
+    //     );
+    // }
 }
 
 auto DECLFN Coff::SetThreadContext(

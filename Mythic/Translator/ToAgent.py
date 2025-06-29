@@ -9,15 +9,16 @@ async def CheckinImp( new, old ):
         old
     ))
 
-    print(search_resp.AgentStorageMessages[0]["data"] )
-
-    create: MythicRPCAgentstorageCreateMessageResponse = await SendMythicRPCAgentStorageCreate(MythicRPCAgentstorageCreateMessage(
+    await SendMythicRPCAgentStorageCreate(MythicRPCAgentstorageCreateMessage(
         new, search_resp.AgentStorageMessages[0]["data"].encode("utf-8")
     ))
 
-    # rm_searc: MythicRPCAgentStorageRemoveMessageResponse = await SendMythicRPCAgentStorageRemove(MythicRPCAgentStorageRemoveMessage(
-    #     old
-    # ))
+    await SendMythicRPCAgentStorageRemove(MythicRPCAgentStorageRemoveMessage(
+        old
+    ))
+
+    Dbg1( f"old: {old}" )
+    Dbg1( f"new: {new}" )
 
     Data = new.encode();
 
@@ -148,7 +149,7 @@ def RespTasking(Tasks, Socks) -> bytes:
                             elif arg_type == "int32":
                                 args_buffer.Int32(int(value))
                             elif arg_type == "bytes":
-                                args_buffer.Pad(bytes.fromhex(value))
+                                args_buffer.Bytes(bytes.fromhex(value))
                             elif arg_type == "char":
                                 args_buffer.Bytes(str(value).encode("utf-8"))
                             elif arg_type == "wchar":

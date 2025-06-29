@@ -9,6 +9,7 @@ typedef struct {
     size_t  Length;
     size_t  Size;
     BOOL    Encrypt;
+    CHAR*   TaskUUID;
 } PACKAGE, *PPACKAGE;
 
 typedef struct {

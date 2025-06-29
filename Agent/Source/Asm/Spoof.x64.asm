@@ -29,7 +29,6 @@ global SpoofCall
         ; ---------------------------------------------------------------------
         ; Prepare Stack Argument Handling
         ; ----------------------------------------------------------------- ----
-
         xor r11, r11                ; r11 = counter for processed stack args
         mov r13, [rdi + 0x80]       ; Get argument count from struct (ArgCount at 0x80)
         

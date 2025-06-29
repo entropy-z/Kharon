@@ -4,6 +4,7 @@ GLOBAL ExecSyscall
 
 [SECTION .text$B]
     ExecSyscall
+	int3
 		xor r10, r10                          
 		mov rax, rcx                          
 		mov r10, rax                
