@@ -1,0 +1,11 @@
+compile_flags.txt
+
+.zed
+.idea
+.vscode
+
+*.bin
+*.exe
+*.dll
+
+ldr.*

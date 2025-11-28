@@ -1,0 +1,8 @@
+*.o
+*.exe
+*.dll
+*.bin
+
+.vscode
+.zed
+
