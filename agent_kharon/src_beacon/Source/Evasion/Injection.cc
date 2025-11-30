@@ -176,10 +176,6 @@ auto DECLFN Injection::Standard(
             CurrentTempPos += pipeNameSize;
         }
         
-        // Write ArgSize field (required by postex modules)
-        *(ULONG*)CurrentTempPos = (ULONG)ArgSize;
-        CurrentTempPos += 4;
-        
         if ( ArgSize > 0 ) {
             Mem::Copy( CurrentTempPos, ArgBuff, ArgSize );
             CurrentTempPos += ArgSize;
