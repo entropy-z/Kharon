@@ -1337,6 +1337,15 @@ auto DECLFN Task::Config(
 
                 break;
             }
+            case Enm::Config::Syscall: {
+                INT32 Syscall = Self->Psr->Int32( Parser );
+
+                Self->Config.Syscall = Syscall;
+
+                KhDbg("syscall method changed to: %d", Syscall);
+
+                break;
+            }
         }
     }
 
