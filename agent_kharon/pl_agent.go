@@ -1366,7 +1366,8 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			array = []interface{}{TASK_TOKEN, TOKEN_STEAL, int(pid), use}
 
 		case "impersonate":
-			id, ok := args["id"].(int32)
+			id, ok := getIntFromArgs(args["token_id"])
+			fmt.Printf("token id: %d\n", id)
 			if !ok {
 				err = errors.New("parameter 'id' must be set")
 				goto RET
@@ -1377,7 +1378,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			array = []interface{}{TASK_TOKEN, TOKEN_LIST}
 
 		case "rm":
-			id, ok := args["id"].(float64)
+			id, ok := getIntFromArgs(args["token_id"])
 			if !ok {
 				err = errors.New("parameter 'id' must be set")
 				goto RET

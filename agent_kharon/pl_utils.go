@@ -1375,3 +1375,19 @@ func getMapKeys(m map[string]any) []string {
 	}
 	return keys
 }
+
+func getIntFromArgs(value interface{}) (int, bool) {
+    switch v := value.(type) {
+    case int:
+        return v, true
+    case float64:
+        return int(v), true
+    case int64:
+        return int(v), true
+    case string:
+        if i, err := strconv.Atoi(v); err == nil {
+            return i, true
+        }
+    }
+    return 0, false
+}
