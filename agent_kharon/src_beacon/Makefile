@@ -148,11 +148,13 @@ $(OBJ_PATH)/%.x86.obj: %.cc
 # Config.cc - compiled ONLY in final build (not in prebuild)
 $(CONFIG_OBJ64): Source/Config.cc
 	@ mkdir -p $(dir $@)
+	@ if [ -f "$@" ]; then rm "$@"; echo "[*] Removed existing $@"; fi
 	@ echo "[*] Compiling Config.cc x64..."
 	@ $(CCX64) -o $@ -c $< $(CFLAGS) $(DEFS)
 
 $(CONFIG_OBJ86): Source/Config.cc
 	@ mkdir -p $(dir $@)
+	@ if [ -f "$@" ]; then rm "$@"; echo "[*] Removed existing $@"; fi
 	@ echo "[*] Compiling Config.cc x86..."
 	@ $(CCX86) -o $@ -c $< $(CFLAGS) $(DEFS)
 
