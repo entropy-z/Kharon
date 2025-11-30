@@ -303,6 +303,8 @@ namespace Enm {
         AmsiEtwBypass,
         AllocMtd,
         WriteMtd,
+        Syscall,
+        ForkPipeName,
     };
 
     enum Token {

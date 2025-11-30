@@ -288,9 +288,6 @@ class Socket;
 #define x64_OPCODE_MOV			0xB8
 #define	x64_SYSCALL_STUB_SIZE   0x20
 
-#define SYSCALL_INDIRECT 0x100
-#define SYSCALL_SPOOF    0x250
-
 #define SYSCALL_NONE            0
 #define SYSCALL_SPOOF           1
 #define SYSCALL_SPOOF_INDIRECT  2
@@ -422,6 +419,7 @@ namespace Root {
         struct {
             ULONG SleepTime;
             ULONG Jitter;
+            ULONG Profile;
 
             BOOL  BofHook;
             BOOL  Syscall;
@@ -478,6 +476,29 @@ namespace Root {
                 INT16 Month;
                 INT16 Year;
             } KillDate;
+
+
+            struct {
+                WCHAR** Host;
+                ULONG*  Port;
+                WCHAR** EndPoint;
+                ULONG   HostQtt;
+                ULONG   PortQtt;
+                ULONG   EndpointQtt;
+                WCHAR*  UserAgent;
+                WCHAR*  HttpHeaders;
+                WCHAR*  Method;
+                // WCHAR* Cookies[WEB_HTTP_COOKIES_QTT];
+                WCHAR*  ProxyUrl;
+                WCHAR*  ProxyUsername;
+                WCHAR*  ProxyPassword;
+                BOOL    ProxyEnabled;
+                BOOL    Secure;
+            } Web = {
+                .HostQtt = 0,
+                .PortQtt = 0,
+                .EndpointQtt = 0,
+            };
         } Config {
             .Ps = {
                 .ParentID   = 0,
@@ -1811,7 +1832,7 @@ private:
 public:
     Useful( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    auto ValidGranMem( ULONG GranCount ) -> PVOID;
+    auto ValidGranMem( HANDLE ProcessHandle, ULONG GranCount ) -> PVOID;
 
     auto CfgAddrAdd( 
         _In_ PVOID ImageBase,
@@ -2063,30 +2084,6 @@ private:
     Root::Kharon* Self;
 public:
     Transport( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
-
-#if PROFILE_C2 == PROFILE_WEB
-    struct {
-        WCHAR** Host;
-        ULONG*  Port;
-        WCHAR** EndPoint;
-        ULONG   HostQtt;
-        ULONG   PortQtt;
-        ULONG   EndpointQtt;
-        WCHAR*  UserAgent;
-        WCHAR*  HttpHeaders;
-        WCHAR*  Method;
-        // WCHAR* Cookies[WEB_HTTP_COOKIES_QTT];
-        WCHAR*  ProxyUrl;
-        WCHAR*  ProxyUsername;
-        WCHAR*  ProxyPassword;
-        BOOL    ProxyEnabled;
-        BOOL    Secure;
-    } Web = {
-        .HostQtt = 0,
-        .PortQtt = 0,
-        .EndpointQtt = 0,
-    };
-#endif // PROFILE_WEB
 
     struct {
         CHAR*  FileID;
