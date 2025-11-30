@@ -35,27 +35,27 @@ auto DECLFN Transport::WebSend(
 
     HttpFlags = INTERNET_FLAG_RELOAD;
 
-    INT32 TargetIndex   = (INT32)( Rnd32() % Self->Tsp->Web.HostQtt     );
-    INT32 EndpointIndex = (INT32)( Rnd32() % Self->Tsp->Web.EndpointQtt );
+    INT32 TargetIndex   = (INT32)( Rnd32() % Self->Config.Web.HostQtt     );
+    INT32 EndpointIndex = (INT32)( Rnd32() % Self->Config.Web.EndpointQtt );
 
-    if ( Self->Tsp->Web.ProxyEnabled ) HttpAccessType = INTERNET_OPEN_TYPE_PROXY;
+    if ( Self->Config.Web.ProxyEnabled ) HttpAccessType = INTERNET_OPEN_TYPE_PROXY;
 
-    KhDbg("Sending request to %S:%d%S", Self->Tsp->Web.Host[TargetIndex], Self->Tsp->Web.Port[TargetIndex], Self->Tsp->Web.EndPoint[EndpointIndex] );
+    KhDbg("Sending request to %S:%d%S", Self->Config.Web.Host[TargetIndex], Self->Config.Web.Port[TargetIndex], Self->Config.Web.EndPoint[EndpointIndex] );
 
     hSession = Self->Wininet.InternetOpenW(   
-        Self->Tsp->Web.UserAgent, HttpAccessType,
-        Self->Tsp->Web.ProxyUrl, 0, 0
+        Self->Config.Web.UserAgent, HttpAccessType,
+        Self->Config.Web.ProxyUrl, 0, 0
     );
     if ( ! hSession ) { KhDbg("last error: %d", KhGetError); goto _KH_END; }
 
     hConnect = Self->Wininet.InternetConnectW(
-        hSession, Self->Tsp->Web.Host[TargetIndex], Self->Tsp->Web.Port[TargetIndex],
-        Self->Tsp->Web.ProxyUsername, Self->Tsp->Web.ProxyPassword,
+        hSession, Self->Config.Web.Host[TargetIndex], Self->Config.Web.Port[TargetIndex],
+        Self->Config.Web.ProxyUsername, Self->Config.Web.ProxyPassword,
         INTERNET_SERVICE_HTTP, 0, 0
     );
     if ( ! hConnect ) { KhDbg("last error: %d", KhGetError); goto _KH_END; }
 
-    if ( Self->Tsp->Web.Secure ) {
+    if ( Self->Config.Web.Secure ) {
         HttpFlags |= INTERNET_FLAG_SECURE;
         OptFlags   = SECURITY_FLAG_IGNORE_UNKNOWN_CA |
                    SECURITY_FLAG_IGNORE_CERT_DATE_INVALID |
@@ -65,7 +65,7 @@ auto DECLFN Transport::WebSend(
     }        
 
     hRequest = Self->Wininet.HttpOpenRequestW( 
-        hConnect, Self->Tsp->Web.Method, Self->Tsp->Web.EndPoint[EndpointIndex], NULL, 
+        hConnect, Self->Config.Web.Method, Self->Config.Web.EndPoint[EndpointIndex], NULL, 
         NULL, NULL, HttpFlags, 0 
     );
     if ( ! hRequest ) { KhDbg("last error: %d", KhGetError); goto _KH_END; }
@@ -73,8 +73,8 @@ auto DECLFN Transport::WebSend(
     Self->Wininet.InternetSetOptionW( hRequest, INTERNET_OPTION_SECURITY_FLAGS, &OptFlags, sizeof( OptFlags ) );
 
     Success = Self->Wininet.HttpSendRequestW(
-        hRequest, Self->Tsp->Web.HttpHeaders,
-        Str::LengthW( Self->Tsp->Web.HttpHeaders ),
+        hRequest, Self->Config.Web.HttpHeaders,
+        Str::LengthW( Self->Config.Web.HttpHeaders ),
         Data, Size
     );
     if ( ! Success ) { KhDbg("last error: %d", KhGetError); goto _KH_END; }
