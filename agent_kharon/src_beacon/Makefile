@@ -91,7 +91,7 @@ DEFS := \
 	-D WEB_PROXY_USERNAME='L"$(WEB_PROXY_USERNAME)"' \
 	-D SMB_PIPE_NAME=${SMB_PIPE_NAME} \
 
-.PHONY: all release debug x64 x86 x64-debug x86-debug prebuild-x64 prebuild-x86 clean show-prebuild
+.PHONY: all release debug x64 x86 x64-debug x86-debug prebuild-x64 prebuild-x86 clean show-prebuild force_config
 
 all: release debug
 release: x64 x86 
@@ -121,7 +121,6 @@ prebuild-x86: nasm86 $(PREBUILD_OBJ86_PATHS)
 # ==================== FINAL BUILD TARGETS ====================
 x64: prebuild-x64 $(CONFIG_OBJ64)
 	@ echo "[*] Linking x64..."
-	@
 	@ $(CCX64) $(OBJ64_FINAL) -o $(BUILD_PATH)/Bin/$(NAME).x64.exe $(CFLAGS)
 	@ objcopy --dump-section .text=$(BUILD_PATH)/Bin/$(NAME).x64.bin $(BUILD_PATH)/Bin/$(NAME).x64.exe
 	@ rm $(BUILD_PATH)/Bin/$(NAME).x64.exe
@@ -146,16 +145,21 @@ $(OBJ_PATH)/%.x86.obj: %.cc
 	@ echo "  -> compiling $< (x86)"
 	@ $(CCX86) -o $@ -c $< $(CFLAGS) $(DEFS)
 
-# Config.cc - compiled ONLY in final build (not in prebuild)
-$(CONFIG_OBJ64): Source/Config.cc
+# Config.cc - compiled ONLY in final build (not in prebuild) - FORCE RECOMPILE
+$(CONFIG_OBJ64): Source/Config.cc force_config
 	@ mkdir -p $(dir $@)
 	@ echo "[*] Compiling Config.cc x64..."
 	@ $(CCX64) -o $@ -c $< $(CFLAGS) $(DEFS)
 
-$(CONFIG_OBJ86): Source/Config.cc
+$(CONFIG_OBJ86): Source/Config.cc force_config
 	@ mkdir -p $(dir $@)
 	@ echo "[*] Compiling Config.cc x86..."
 	@ $(CCX86) -o $@ -c $< $(CFLAGS) $(DEFS)
+
+# Force Config.cc to always recompile
+force_config:
+	@ # This forces Config.cc to always recompile when included as dependency
+	@ true
 
 # ==================== ASM TARGETS ====================
 nasm64:
@@ -192,4 +196,3 @@ clean-prebuild:
 
 clean-all: clean clean-prebuild
 	@ echo "[✓] Full cleanup completed"
-
