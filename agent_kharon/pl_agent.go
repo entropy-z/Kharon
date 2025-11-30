@@ -2331,7 +2331,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 					task.Message = "The agent has completed its work"
 					_ = ts.TsAgentTerminate(agentData.Id, task.TaskId)
 
-				case TASK_GETINFO:
+case TASK_GETINFO:
 
 					// session info
 					sleep_time := int(cmd_packer.ParseInt32())
@@ -2384,6 +2384,36 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 					injection_alloc := cmd_packer.ParseInt32()
 					injection_write := cmd_packer.ParseInt32()
 
+					// transport
+					profileC2 := cmd_packer.ParseInt32()
+
+					webHostQtt := cmd_packer.ParseInt32()
+					webPortQtt := cmd_packer.ParseInt32()
+					webEndpQtt := cmd_packer.ParseInt32()
+
+					webMethod := cmd_packer.ParseString()
+					webUseragt := cmd_packer.ParseString()
+					webHeaders := cmd_packer.ParseString()
+					webSecure := cmd_packer.ParseInt32()
+					webProxyEbl := cmd_packer.ParseInt32()
+					webProxyUrl := cmd_packer.ParseString()
+					webProxyUser := cmd_packer.ParseString()
+					webProxyPass := cmd_packer.ParseString()
+					
+					// Corrigindo a declaração dos slices
+					webHostList := make([]string, webHostQtt)
+					webPortList := make([]string, webPortQtt)
+					webEndpList := make([]string, webEndpQtt)
+
+					for webTargetIdx := 0; webTargetIdx < int(webHostQtt); webTargetIdx++ {
+						webHostList[webTargetIdx] = cmd_packer.ParseString()
+						webPortList[webTargetIdx] = cmd_packer.ParseString()
+					}
+
+					for webEndpIdx := 0; webEndpIdx < int(webEndpQtt); webEndpIdx++ {
+						webEndpList[webEndpIdx] = cmd_packer.ParseString()
+					}
+
 					// Helper functions to format specific values
 					maskTechStr := func(id int) string {
 						switch id {
@@ -2398,6 +2428,24 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 						}
 					}
 
+					injectAllocStr := func(id int) string {
+						switch id {
+						case 0x00:
+							return "standard"
+						case 0x01:
+							return "Drip"
+						}
+					}
+
+					injectWriteStr := func(id int) string {
+						switch id {
+						case 0x00: 
+							return "standard"
+						case 0x01:
+							return "APC"
+						}
+					}
+
 					amsietwbpStr := func(id int) string {
 						switch id {
 						case 0x100: 
@@ -2408,6 +2456,8 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 							return "ETW"
 						case 0x000:
 							return "None"
+						default:
+							return fmt.Sprintf("0x%03X", id)
 						}
 					}
 
@@ -2424,11 +2474,24 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 						}
 					}
 
-					boolStr := func(b uint) string {
+					boolStr := func(b uint32) string {
 						if b != 0 {
 							return "True"
 						}
 						return "False"
+					}
+
+					profileTypeStr := func(profile int32) string {
+						switch profile {
+						case 0:
+							return "HTTP/HTTPS"
+						case 1:
+							return "DNS"
+						case 2:
+							return "SMB"
+						default:
+							return fmt.Sprintf("%d", profile)
+						}
 					}
 
 					// Formatting dates and versions
@@ -2452,7 +2515,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 
 					// TIMING
 					b.WriteString(row("TIMING", "Sleep Time", fmt.Sprintf("%dms", sleep_time)))
-					b.WriteString(row("", "Jitter Time", fmt.Sprintf("%d", jitter_time)))
+					b.WriteString(row("", "Jitter Time", fmt.Sprintf("%d%%", jitter_time)))
 					b.WriteString(border)
 
 					// EVASION
@@ -2467,10 +2530,11 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 					b.WriteString(border)
 
 					// INJECTION
-					b.WriteString(row("INJECTION", "Allocation Method", fmt.Sprintf("%d", injection_alloc)))
-					b.WriteString(row("", "Write Method", fmt.Sprintf("%d", injection_write)))
+					b.WriteString(row("INJECTION", "Allocation Method", fmt.Sprintf("%s", injectAllocStr(injection_alloc))))
+					b.WriteString(row("", "Write Method", fmt.Sprintf("%s", injectWriteStr(injection_write))))
 					b.WriteString(border)
 
+					// SESSION
 					b.WriteString(row("SESSION", "Agent ID", agent_id))
 					b.WriteString(row("", "Image Name", img_name))
 					b.WriteString(row("", "Image Path", img_path))
@@ -2482,7 +2546,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 					b.WriteString(row("", "Heap Handle", fmt.Sprintf("0x%016X", h_heap)))
 					b.WriteString(row("", "Process Arch", fmt.Sprintf("0x%02X", proc_arch)))
 					b.WriteString(row("", "Kharon Memory Base", fmt.Sprintf("0x%016X", kh_start)))
-					b.WriteString(row("", "Kharon Memory Size", fmt.Sprintf("%d", kh_size)))
+					b.WriteString(row("", "Kharon Memory Size", fmt.Sprintf("%d bytes", kh_size)))
 					b.WriteString(border)
 
 					// FORK & SPAWN
@@ -2505,6 +2569,40 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 					b.WriteString(row("", "Self Delete", boolStr(killdate_sdel)))
 					b.WriteString(row("", "Kill Process", boolStr(killdate_proc)))
 					b.WriteString(row("", "Date", killdateStr))
+					b.WriteString(border)
+
+					// WEB PROFILE
+					b.WriteString(row("WEB PROFILE", "Profile Type", profileTypeStr(profileC2)))
+					b.WriteString(row("", "Method", webMethod))
+					b.WriteString(row("", "User Agent", webUseragt))
+					b.WriteString(row("", "Headers", webHeaders))
+					b.WriteString(row("", "SSL/TLS", boolStr(webSecure)))
+					b.WriteString(row("", "Proxy Enabled", boolStr(webProxyEbl)))
+					b.WriteString(row("", "Proxy URL", webProxyUrl))
+					b.WriteString(row("", "Proxy User", webProxyUser))
+					b.WriteString(row("", "Proxy Pass", webProxyPass ))
+					
+					// Hosts and Ports
+					for i := 0; i < int(webHostQtt); i++ {
+						hostLabel := "Host"
+						portLabel := "Port"
+						if i > 0 {
+							hostLabel = fmt.Sprintf("Host %d", i+1)
+							portLabel = fmt.Sprintf("Port %d", i+1)
+						}
+						b.WriteString(row("", hostLabel, webHostList[i]))
+						b.WriteString(row("", portLabel, webPortList[i]))
+					}
+					
+					// Endpoints
+					for i := 0; i < int(webEndpQtt); i++ {
+						endpointLabel := "Endpoint"
+						if i > 0 {
+							endpointLabel = fmt.Sprintf("Endpoint %d", i+1)
+						}
+						b.WriteString(row("", endpointLabel, webEndpList[i]))
+					}
+					
 					b.WriteString(border)
 
 					task.Message = "Received Information about Kharon"
