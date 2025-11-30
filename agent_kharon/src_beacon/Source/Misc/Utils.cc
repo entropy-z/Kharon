@@ -2,7 +2,7 @@
 
 using namespace Root;
 
-auto Useful::ValidGranMem( ULONG GranCount ) -> PVOID {
+auto Useful::ValidGranMem( HANDLE ProcessHandle, ULONG GranCount ) -> PVOID {
     MEMORY_BASIC_INFORMATION* MemInfo = (MEMORY_BASIC_INFORMATION*)hAlloc( sizeof( MEMORY_BASIC_INFORMATION ) );
 
     PVOID PrefBases[] = {
@@ -19,12 +19,22 @@ auto Useful::ValidGranMem( ULONG GranCount ) -> PVOID {
     };
 
     for ( auto Base : PrefBases ) {
-        Self->Krnl32.VirtualQuery( Base, MemInfo, sizeof( MEMORY_BASIC_INFORMATION ) );
+        if ( ProcessHandle == INVALID_HANDLE_VALUE || ! ProcessHandle ) {
+            Self->Krnl32.VirtualQuery( Base, MemInfo, sizeof( MEMORY_BASIC_INFORMATION ) );
+        } else {
+            Self->Krnl32.VirtualQueryEx( ProcessHandle, Base, MemInfo, sizeof( MEMORY_BASIC_INFORMATION ) );
+        }
 
         if ( MEM_FREE == MemInfo->State ) {
             INT32 i;
             for ( i = 0; i < GranCount; i++ ) {
                 PVOID CurBase = (PVOID)( (UINT_PTR)( Base ) + ( i * Self->Mm->PageGran ) );
+
+                if ( ProcessHandle == INVALID_HANDLE_VALUE || ! ProcessHandle ) {
+                    Self->Krnl32.VirtualQuery( Base, MemInfo, sizeof( MEMORY_BASIC_INFORMATION ) );
+                } else {
+                    Self->Krnl32.VirtualQueryEx( ProcessHandle, Base, MemInfo, sizeof( MEMORY_BASIC_INFORMATION ) );
+                }
 
                 Self->Krnl32.VirtualQuery( CurBase, MemInfo, sizeof( MEMORY_BASIC_INFORMATION ) );
                 if ( MEM_FREE != MemInfo->State ) break;

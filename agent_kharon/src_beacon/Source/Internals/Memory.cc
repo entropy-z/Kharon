@@ -87,7 +87,7 @@ auto DECLFN Memory::DripAlloc(
     ULONG GranCount = ( PAGE_ALIGN( Size ) / this->PageGran ) + 1;
     ULONG PageCount = ( this->PageGran / this->PageSize );
 
-    PVOID  BaseAddress = Self->Usf->ValidGranMem( GranCount );
+    PVOID  BaseAddress = Self->Usf->ValidGranMem( Handle, GranCount );
     PVOID  CurrentBase = BaseAddress;
     PVOID* AddressList = (PVOID*)hAlloc( GranCount );
 
