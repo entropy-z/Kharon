@@ -305,6 +305,9 @@ namespace Enm {
         WriteMtd,
         Syscall,
         ForkPipeName,
+        CallbackHost,
+        CallbackUserAgt,
+        CallbackProxy
     };
 
     enum Token {

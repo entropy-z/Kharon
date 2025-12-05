@@ -41,7 +41,7 @@ auto DECLFN Heap::Alloc(
     if ( ! this->Node ) {
         this->Node = NewNode;
     } else {
-        HEAP_NODE* Current = Node;
+        HEAP_NODE* Current = this->Node;
         while ( Current->Next ) {
             Current = Current->Next;
         }
@@ -58,7 +58,7 @@ auto DECLFN Heap::ReAlloc(
 ) -> PVOID {
     PVOID ReBlock = Self->Ntdll.RtlReAllocateHeap( PTR( Self->Session.HeapHandle ), HEAP_ZERO_MEMORY, Block, Size );
 
-    HEAP_NODE* Current = Node;
+    HEAP_NODE* Current = this->Node;
 
     while ( Current ) {
         if ( Current->Block == Block ) {
@@ -71,6 +71,20 @@ auto DECLFN Heap::ReAlloc(
     }
 
     return ReBlock;
+}
+
+auto DECLFN Heap::CheckPtr( PVOID Ptr ) -> BOOL {
+    HEAP_NODE* Current = this->Node;
+
+    while ( Current ) {
+        if ( Current->Block == Ptr ) {
+            return TRUE;
+        }
+
+        Current = Current->Next;
+    }
+
+    return FALSE;
 }
 
 auto DECLFN Heap::Free(
