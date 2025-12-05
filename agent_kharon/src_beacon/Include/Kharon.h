@@ -2576,6 +2576,10 @@ public:
 
     auto Crypt( VOID ) -> VOID;
 
+    auto CheckPtr( 
+        _In_ PVOID Ptr 
+    ) -> BOOL;
+
     auto Alloc(
         _In_ ULONG Size
     ) -> PVOID;

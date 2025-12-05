@@ -63,6 +63,9 @@
 #define BEG_BUFFER_LENGTH  0x1000
 #define PIPE_BUFFER_LENGTH 0x10000
 
+#define CFG_HOST_ACTID_ADD 0x10
+#define CFG_HOST_ACTID_RM  0x20
+
 #ifdef DEBUG
 #define SendDbgMsg( x, ... )  Self->Pkg->FmtMsg( CALLBACK_NO_PRE_MSG, x, ##__VA_ARGS__ )
 #define SendDbgErr( x, ... )  Self->Pkg->FmtMsg( CALLBACK_NO_PRE_MSG, x, ##__VA_ARGS__ )
