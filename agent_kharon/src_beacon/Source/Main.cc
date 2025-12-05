@@ -421,6 +421,7 @@ auto DECLFN Kharon::Init(
     KhDbgz( "======== Machine Informations ========" );
     KhDbgz( "User Name: %s", this->Machine.UserName );
     KhDbgz( "Computer Name: %s", this->Machine.CompName );
+    KhDbgz( "Domain Name: %s", this->Machine.DomName );
     KhDbgz( "NETBIOS: %s", this->Machine.NetBios );
     KhDbgz( "Processor Name: %s", this->Machine.ProcessorName );
     KhDbgz( "Total RAM: %d", this->Machine.TotalRAM );
