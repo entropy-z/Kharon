@@ -1035,7 +1035,16 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				goto RET
 			}
 			array = []interface{}{TASK_PROC, PROC_KILL, int(pid)}
+		case "pwsh":
+			command, ok := args["cmd"].(string)
+			if !ok {
+				err = errors.New("parameter 'cmd' must be set")
+				goto RET
+			}
 
+			script := args["script"].(string)
+
+			array = []interface{}{TASK_PROC, PROC_PWSH, ConvertUTF8toCp(command, agent.ACP), ConvertUTF8toCp(script, agent.ACP}}
 		default:
 			err = errors.New("subcommand for 'ps': 'list', 'run', 'kill'")
 			goto RET
@@ -2809,7 +2818,6 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 				case TASK_UPLOAD:
 					// testjar := cmd_packer.ParseString()
 					task.Message = "Initiated File Upload\n"
-					task.ClearText = "This is Task.ClearText"
 
 				case TASK_DOWNLOAD:
 					file_id := cmd_packer.ParseString()
@@ -2837,7 +2845,6 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 
 					task.Message = "Initiated File Download\n"
 					task.Message += fmt.Sprintf("File ID: %s, File Path: '%s' download initiated, size: %d bytes", file_id, file_path, file_size)
-					task.ClearText = "This is Task.ClearText"
 
 				case TASK_PROCESS_DOWNLOAD:
 

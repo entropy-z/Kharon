@@ -75,7 +75,11 @@ function RegisterCommands(listenerType)
     
     let cmd_ps_run = ax.create_command("run", "Execute a new process with specified command line", "ps run \"cmd.exe /c whoami /all\"", "Task: create and execute new process");
     cmd_ps_run.addArgString("cmd", true, "Full command line with arguments");
-    
+
+    let cmd_ps_pwsh = ax.create_command("pwsh", "Execute powershell command", "ps pwsh -c Get-Domain -s /opt/PowerView.ps1", "Task: create and execute powershell command")
+    cmd_ps_list.addArgFlagString("-c", "cmd", true)
+    cmd_ps_list.addArgFlagString("-s", "script", false)
+
     let cmd_ps = ax.create_command("ps", "Process management - list, create, and terminate processes");
     cmd_ps.addSubCommands([cmd_ps_list, cmd_ps_run, _cmd_ps_kill]);
 
