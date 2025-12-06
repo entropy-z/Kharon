@@ -307,7 +307,8 @@ namespace Enm {
         ForkPipeName,
         CallbackHost,
         CallbackUserAgt,
-        CallbackProxy
+        CallbackProxy,
+        Injection
     };
 
     enum Token {

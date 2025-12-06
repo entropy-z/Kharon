@@ -33,8 +33,10 @@ auto DECLFN Transport::Checkin(
     Self->Pkg->Int32( CheckinPkg, Self->Krnl32.GetOEMCP() );
 
     // injection behavior
-    Self->Pkg->Int32( CheckinPkg, Self->Config.Injection.Alloc );
-    Self->Pkg->Int32( CheckinPkg, Self->Config.Injection.Write );
+    Self->Pkg->Int32( CheckinPkg, Self->Config.Injection.TechniqueId );
+    Self->Pkg->Wstr( CheckinPkg, Self->Config.Injection.StompModule );
+    Self->Pkg->Int32( CheckinPkg, Self->Config.Injection.Allocation );
+    Self->Pkg->Int32( CheckinPkg, Self->Config.Injection.Writing );
 
     // some evasion features enable informations
     Self->Pkg->Int32( CheckinPkg, Self->Config.Syscall );

