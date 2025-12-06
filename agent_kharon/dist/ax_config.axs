@@ -160,6 +160,9 @@ function RegisterCommands(listenerType)
     let cmd_config_inject_write = ax.create_command("inject.write", "Change write method to shellcode injection routines", "config inject.write apc", "Task: configure write method");
     cmd_config_inject_write.addArgString("write", true, "Options 'apc' or 'standard'");
 
+    let cmd_config_inject_type = ax.create_command("inject.technique", "Change the technique to use for shellcode injection and postex", "config inject.technique stomping", "Task: configure injection technique")
+    cmd_config_inject_type.addArgString("technique", true, "Options 'stomping' or 'standard'")
+
     let cmd_config_wkrtime = ax.create_command("worktime", "Set operational hours for beacon activity", "config worktime 09:00 18:00", "Task: configure working hours");
     cmd_config_wkrtime.addArgString("start", true);
     cmd_config_wkrtime.addArgString("end", true);
@@ -335,18 +338,24 @@ function GenerateUI(listenerType)
     killdate_group.setChecked(false);
 
     // Workingtime
-    let checkWorkingTime = form.create_check("Set 'workingtime'");
-    let timeStart        = form.create_timeline("HH:mm");
-    let timeFinish       = form.create_timeline("HH:mm");
-
+    let workingtime_group = form.create_groupbox("Working Time Settings", true);
+    
+    let labelTimeStart = form.create_label("Start Time:");
+    let timeStart = form.create_timeline("HH:mm");
+    
+    let labelTimeFinish = form.create_label("End Time:");
+    let timeFinish = form.create_timeline("HH:mm");
+    
     let layout_workingtime = form.create_gridlayout();
-    layout_workingtime.addWidget(checkWorkingTime, 0, 0, 1, 1);
-    layout_workingtime.addWidget(timeStart,        0, 1, 1, 1);
-    layout_workingtime.addWidget(timeFinish,       0, 2, 1, 1);
+    layout_workingtime.addWidget(labelTimeStart,  0, 0, 1, 1);
+    layout_workingtime.addWidget(timeStart,       0, 1, 1, 2);
+    layout_workingtime.addWidget(labelTimeFinish, 1, 0, 1, 1);
+    layout_workingtime.addWidget(timeFinish,      1, 1, 1, 2);
+    
     let panel_workingtime = form.create_panel();
     panel_workingtime.setLayout(layout_workingtime);
-    let workingtime_group = form.create_groupbox("Working Time Settings", false);
     workingtime_group.setPanel(panel_workingtime);
+    workingtime_group.setChecked(false);
 
     // PostEx Settings
     let labelPipename = form.create_label("Fork pipename:");
@@ -372,6 +381,16 @@ function GenerateUI(listenerType)
     bypass_combo.addItem("AMSI + ETW");
     bypass_combo.setCurrentIndex(0);
 
+    let labelInject = form.create_label("Shellcode Injection:");
+    let inject_shellcode = form.create_combo();
+    inject_shellcode.addItem("Standard");
+    inject_shellcode.addItem("Stomping");
+    inject_shellcode.setCurrentIndex(0);
+    
+    // Adicionando o placeholder "Stomp Module"
+    let textStompModule = form.create_textline("");
+    textStompModule.setPlaceholder("Stomp Module");
+
     let bof_api_check = form.create_check("BOF API Proxy");
     bof_api_check.setChecked(false);
 
@@ -386,9 +405,12 @@ function GenerateUI(listenerType)
     let layout_evasion = form.create_gridlayout();
     layout_evasion.addWidget(labelBypass, 0, 0, 1, 1);
     layout_evasion.addWidget(bypass_combo, 0, 1, 1, 1);
-    layout_evasion.addWidget(labelSyscall, 1, 0, 1, 1);
-    layout_evasion.addWidget(syscall_combo, 1, 1, 1, 1);
-    layout_evasion.addWidget(bof_api_check, 2, 0, 1, 1);
+    layout_evasion.addWidget(labelInject, 1, 0, 1, 1);
+    layout_evasion.addWidget(inject_shellcode, 1, 1, 1, 1);
+    layout_evasion.addWidget(textStompModule, 1, 2, 1, 1); 
+    layout_evasion.addWidget(labelSyscall, 2, 0, 1, 1);
+    layout_evasion.addWidget(syscall_combo, 2, 1, 1, 1);
+    layout_evasion.addWidget(bof_api_check, 2, 2, 1, 1);
     let panel_evasion = form.create_panel();
     panel_evasion.setLayout(layout_evasion);
     let evasion_group = form.create_groupbox("Evasion settings", false)
@@ -454,7 +476,7 @@ function GenerateUI(listenerType)
     container.put("killdate_selfdel", checkKilldateSelfDel)
     
     // Workingtime
-    container.put("workingtime_check", checkWorkingTime)
+    container.put("workingtime_check", workingtime_group)
     container.put("workingtime_start", timeStart)
     container.put("workingtime_end", timeFinish)
     
@@ -464,6 +486,8 @@ function GenerateUI(listenerType)
     
     // Evasion
     container.put("bypass", bypass_combo)
+    container.put("inject_id", inject_shellcode)
+    container.put("stomp_module", textStompModule) 
     container.put("bof_api_proxy", bof_api_check)
     container.put("syscall", syscall_combo)
     
