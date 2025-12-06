@@ -10,26 +10,26 @@ auto DECLFN Library::Load(
     return (UPTR)Self->Krnl32.LoadLibraryA( LibName );
 }
 
-auto DECLFN Library::GetRnd( VOID ) -> PCHAR {
-    PCHAR  SystemFolder = "C:\\Windows\\System32\\*.dll";
+auto DECLFN Library::GetRnd( WCHAR*& ModulePath ) -> BOOL {
+    WCHAR* SystemFolder = L"C:\\Windows\\System32\\*.dll";
     HANDLE FindHandle   = INVALID_HANDLE_VALUE;
     UINT8  Index        = Rnd32() % 3000;
 
     CHAR ModulePath[MAX_PATH] = { 0 };
 
-    WIN32_FIND_DATAA FindData = { 0 };
+    WIN32_FIND_DATAW FindData = { 0 };
     
-    FindHandle = Self->Krnl32.FindFirstFileA( SystemFolder, &FindData );
+    FindHandle = Self->Krnl32.FindFirstFileW( SystemFolder, &FindData );
 
     for ( INT Count = 0; Count < Index; Count++ ) {
-        Self->Krnl32.FindNextFileA( FindHandle, &FindData );
+        Self->Krnl32.FindNextFileW( FindHandle, &FindData );
     }
 
-    Str::ConcatA( ModulePath, "C:\\Windows\\System32\\" );
-    Str::ConcatA( ModulePath, FindData.cFileName );
+    Str::ConcatW( ModulePath, L"C:\\Windows\\System32\\" );
+    Str::ConcatW( ModulePath, FindData.cFileName );
 
     Self->Krnl32.FindClose( FindHandle );
 
-    return ModulePath;
+    return TRUE;
 }
 

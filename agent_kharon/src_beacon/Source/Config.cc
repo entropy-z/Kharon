@@ -17,6 +17,9 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
         Cfg->EncryptKey[i] = ENCRYPT_KEY_ARRAY[i];
     }
 
+    Cfg->Injection.StompModule = KH_STOMP_MODULE;
+    Cfg->Injection.TechniqueId = KH_INJECTION_ID;
+
     // mask
     Cfg->Mask.Beacon = KH_SLEEP_MASK;
     Cfg->Mask.Heap   = KH_HEAP_MASK;

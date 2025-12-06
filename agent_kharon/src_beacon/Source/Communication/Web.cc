@@ -38,6 +38,21 @@ auto DECLFN Transport::WebSend(
     INT32 TargetIndex   = (INT32)( Rnd32() % Self->Config.Web.HostQtt     );
     INT32 EndpointIndex = (INT32)( Rnd32() % Self->Config.Web.EndpointQtt );
 
+    auto CleanTsp = [&]( VOID ) -> BOOL {
+        if ( TmpBuffer ) hFree( TmpBuffer );
+        if ( hRequest  ) Self->Wininet.InternetCloseHandle( hRequest );
+        if ( hConnect  ) Self->Wininet.InternetCloseHandle( hConnect );
+        if ( hSession  ) Self->Wininet.InternetCloseHandle( hSession );
+
+        if ( ! Success && RespBuffer ) {
+            hFree( RespBuffer );
+            if ( RecvData ) *RecvData = nullptr;
+            if ( RecvSize ) *RecvSize = 0;
+        }
+
+        return Success;
+    };
+
     if ( Self->Config.Web.ProxyEnabled ) HttpAccessType = INTERNET_OPEN_TYPE_PROXY;
 
     KhDbg("Sending request to %S:%d%S", Self->Config.Web.Host[TargetIndex], Self->Config.Web.Port[TargetIndex], Self->Config.Web.EndPoint[EndpointIndex] );
@@ -46,14 +61,14 @@ auto DECLFN Transport::WebSend(
         Self->Config.Web.UserAgent, HttpAccessType,
         Self->Config.Web.ProxyUrl, 0, 0
     );
-    if ( ! hSession ) { KhDbg("last error: %d", KhGetError); goto _KH_END; }
+    if ( ! hSession ) { KhDbg("last error: %d", KhGetError); return CleanTsp(); }
 
     hConnect = Self->Wininet.InternetConnectW(
         hSession, Self->Config.Web.Host[TargetIndex], Self->Config.Web.Port[TargetIndex],
         Self->Config.Web.ProxyUsername, Self->Config.Web.ProxyPassword,
         INTERNET_SERVICE_HTTP, 0, 0
     );
-    if ( ! hConnect ) { KhDbg("last error: %d", KhGetError); goto _KH_END; }
+    if ( ! hConnect ) { KhDbg("last error: %d", KhGetError); return CleanTsp(); }
 
     if ( Self->Config.Web.Secure ) {
         HttpFlags |= INTERNET_FLAG_SECURE;
@@ -68,7 +83,7 @@ auto DECLFN Transport::WebSend(
         hConnect, Self->Config.Web.Method, Self->Config.Web.EndPoint[EndpointIndex], NULL, 
         NULL, NULL, HttpFlags, 0 
     );
-    if ( ! hRequest ) { KhDbg("last error: %d", KhGetError); goto _KH_END; }
+    if ( ! hRequest ) { KhDbg("last error: %d", KhGetError); return CleanTsp(); }
 
     Self->Wininet.InternetSetOptionW( hRequest, INTERNET_OPTION_SECURITY_FLAGS, &OptFlags, sizeof( OptFlags ) );
 
@@ -77,7 +92,7 @@ auto DECLFN Transport::WebSend(
         Str::LengthW( Self->Config.Web.HttpHeaders ),
         Data, Size
     );
-    if ( ! Success ) { KhDbg("last error: %d", KhGetError); goto _KH_END; }
+    if ( ! Success ) { KhDbg("last error: %d", KhGetError); return CleanTsp(); }
 
     Self->Wininet.HttpQueryInfoW(
         hRequest, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER,
@@ -96,13 +111,13 @@ auto DECLFN Transport::WebSend(
             if ( RespSize > 0 ) {
                 RespBuffer = PTR( hAlloc( RespSize + 1 ) );
                 if ( ! RespBuffer ) { 
-                    KhDbg("Failed to allocate response buffer"); goto _KH_END;
+                    KhDbg("Failed to allocate response buffer"); return CleanTsp();
                 }
 
                 Self->Wininet.InternetReadFile( hRequest, RespBuffer, RespSize, &BytesRead );
                 if ( BytesRead != RespSize ) {
                     KhDbg("Read %d bytes, expected %zu", BytesRead, RespSize );
-                    hFree( RespBuffer ); RespBuffer = nullptr; goto _KH_END;
+                    hFree( RespBuffer ); RespBuffer = nullptr; return CleanTsp();
                 }
             }
         } else {
@@ -114,7 +129,7 @@ auto DECLFN Transport::WebSend(
 
             TmpBuffer = PTR( hAlloc( BEG_BUFFER_LENGTH ) );
             if ( ! TmpBuffer ) {
-                KhDbg("Failed to allocate temporary buffer"); goto _KH_END;
+                KhDbg("Failed to allocate temporary buffer"); return CleanTsp();
             }
 
             const SIZE_T MAX_RESPONSE_SIZE = 10 * 1024 * 1024; // 10MB limit
@@ -122,7 +137,7 @@ auto DECLFN Transport::WebSend(
             RespCapacity = BEG_BUFFER_LENGTH;
             RespBuffer   = PTR( hAlloc( RespCapacity ) );
             if ( ! RespBuffer ) {
-                KhDbg("Failed to allocate initial response buffer"); goto _KH_END;
+                KhDbg("Failed to allocate initial response buffer"); return CleanTsp();
             }
 
             do {
@@ -155,7 +170,7 @@ auto DECLFN Transport::WebSend(
                 if ( RespBuffer ) {
                     hFree( RespBuffer ); RespBuffer = nullptr; RespSize = 0;
                 }
-                goto _KH_END;
+                return CleanTsp();
             }
         }
 
@@ -166,18 +181,6 @@ auto DECLFN Transport::WebSend(
         Success = FALSE;
     }
 
-_KH_END:
-    if ( TmpBuffer ) hFree( TmpBuffer );
-    if ( hRequest  ) Self->Wininet.InternetCloseHandle( hRequest );
-    if ( hConnect  ) Self->Wininet.InternetCloseHandle( hConnect );
-    if ( hSession  ) Self->Wininet.InternetCloseHandle( hSession );
-
-    if ( ! Success && RespBuffer ) {
-        hFree( RespBuffer );
-        if ( RecvData ) *RecvData = nullptr;
-        if ( RecvSize ) *RecvSize = 0;
-    }
-
-    return Success;
+    return CleanTsp();
 }
 #endif

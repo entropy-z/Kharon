@@ -8,7 +8,7 @@ CCX64  := clang++ -target x86_64-w64-mingw32
 CCX86  := clang++ -target i686-w64-mingw32
 ASMCC  := nasm
 
-CFLAGS := -Os -nostdlib -fno-asynchronous-unwind-tables -std=c++20 -fPIC
+CFLAGS := -Os -nostdlib -fno-asynchronous-unwind-tables -std=c++20 -fPIC -D DEBUG
 CFLAGS += -fms-extensions -Wno-error=gnu-anonymous-struct -Wno-error=nested-anon-types
 CFLAGS += -fno-ident -fpack-struct=8 -falign-functions=1 -w -mno-sse -s
 CFLAGS += -ffunction-sections -falign-jumps=1 -falign-labels=1 -mrdrnd
@@ -68,6 +68,8 @@ DEFS := \
 	-D KH_KILLDATE_MONTH=${KH_KILLDATE_MONTH} \
 	-D KH_KILLDATE_YEAR=${KH_KILLDATE_YEAR} \
     -D KH_SLEEP_TIME=$(KH_SLEEP_TIME) \
+	-D KH_INJECTION_ID=$(KH_INJECTION_ID) \
+	-D KH_STOMP_MODULE='L"$(KH_STOMP_MODULE)"' \
 	-D KH_JITTER=$(KH_JITTER) \
     -D KH_SPAWNTO_X64='"$(KH_SPAWNTO_X64)"' \
     -D KH_INJECTION_PE=$(KH_INJECTION_PE) \

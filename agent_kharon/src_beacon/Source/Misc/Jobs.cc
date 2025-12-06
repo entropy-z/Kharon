@@ -98,7 +98,7 @@ auto DECLFN Jobs::Send(
             Self->Pkg->Pad( PostJobs, UC_PTR( Current->Pkg->Buffer ), Current->Pkg->Length );
 
             Current->State = KH_JOB_TERMINATE;
-            if( !Current->Clean){
+            if( ! Current->Clean ){
                 Current->State = KH_JOB_RUNNING;
                 Self->Pkg->Destroy( Current->Pkg );
                 Current->Pkg = Self->Pkg->Create( Current->CmdID, Current->UUID );

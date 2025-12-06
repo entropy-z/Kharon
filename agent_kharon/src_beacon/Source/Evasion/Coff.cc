@@ -190,7 +190,6 @@ auto Coff::RslApi(
         Mem::Copy( RawBuff, SymName, Str::LengthA( SymName ) );
         KhDbg("Raw symbol name: %s %d", RawBuff, sizeof(RawBuff) );
 
-        // todo: add hook to specified functions
         for ( INT i = 0; i < sizeof( RawBuff ); i++ ) {
             if ( ( RawBuff[i] == (CHAR)'$' ) ) {
                 OffSet = i; RawBuff[i] = 0;
@@ -307,6 +306,16 @@ auto Coff::Loader(
 
     COFF_DATA CoffData = { 0 };
 
+    auto CleanCoff = [&]( VOID ) -> BOOL {
+        if ( MmBase       ) Self->Mm->Free( MmBase, MmSize, MEM_RELEASE );
+        if ( CoffData.Sec ) hFree( CoffData.Sec );
+        if ( CoffData.Sym ) hFree( CoffData.Sym );
+
+        KhDbg("COFF loading completed");
+        
+        return TRUE;
+    };
+
     //
     // allocate memory to section and symbols list
     //
@@ -384,7 +393,7 @@ auto Coff::Loader(
     KhDbg("total memory required: %d bytes (aligned)", MmSize);
     MmBase = Self->Mm->Alloc( nullptr, MmSize, MEM_COMMIT, PAGE_READWRITE );
     if ( !MmBase ) {
-        KhDbg("failed to allocate memory for COFF"); goto _KH_END;
+        KhDbg("failed to allocate memory for COFF"); return CleanCoff();
     }
 
     KhDbg("allocated memory at 0x%p", MmBase);
@@ -487,12 +496,5 @@ auto Coff::Loader(
         }
     }
 
-_KH_END:
-    if ( MmBase       ) Self->Mm->Free( MmBase, MmSize, MEM_RELEASE );
-    if ( CoffData.Sec ) hFree( CoffData.Sec );
-    if ( CoffData.Sym ) hFree( CoffData.Sym );
-
-    KhDbg("COFF loading completed");
-    
-    return TRUE;
+    return CleanCoff();
 }

