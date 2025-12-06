@@ -637,6 +637,7 @@ auto DECLFN Task::Info(
     Self->Pkg->Str( Package, Self->Machine.UserName );
     Self->Pkg->Str( Package, Self->Machine.CompName );
     Self->Pkg->Str( Package, Self->Machine.DomName );
+    Self->Pkg->Int32( Package, Self->Machine.CfgEnabled );
     Self->Pkg->Byte( Package, Self->Machine.OsArch );
     Self->Pkg->Int32( Package, Self->Machine.OsMjrV );
     Self->Pkg->Int32( Package, Self->Machine.OsMnrV );
