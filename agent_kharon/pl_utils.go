@@ -70,8 +70,9 @@ const (
 	CONFIG_SYSCALL    int = 34
 	CONFIG_FORKPIPE   int = 35
 	CONFIG_CB_HOST    int = 36
-	CONFIG_CB_UA      int = 36
-	CONFIG_CB_PROXY   int = 36
+	CONFIG_CB_UA      int = 37
+	CONFIG_CB_PROXY   int = 38
+	CONFIG_INJ_TECHN  int = 39
 )
 
 const (

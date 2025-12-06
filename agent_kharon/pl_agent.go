@@ -78,6 +78,8 @@ type AgentConfig struct {
 	MaskSleep   string `json:"mask_sleep"`
 	BofApiProxy bool   `json:"bof_api_proxy"`
 	Syscall     string `json:"syscall"`
+	InjectId    string `json:"inject_id"`
+	StompMod    string `json:"stomp_module"`
 
 	GuardIpAddress  string `json:"guardrails_ip"`
 	GuardHostName   string `json:"guardrails_hostname"`
@@ -459,7 +461,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 
 	fmt.Printf("DEBUG: Spawnto (for make): %s\n", spawnto)
 
-	// spawntoPath := strings.ReplaceAll(cfg.Spawnto, `\`, `\\\\`)
+	stompModule := cfg.stompModule
 
 	makeVars := []string{
 		fmt.Sprintf("WEB_HOST=%s", webHostC),
@@ -494,6 +496,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 
 		fmt.Sprintf("KH_FORK_PIPENAME=%s", forkPipeC),
 		fmt.Sprintf("KH_SPAWNTO_X64=%s", spawnto),
+		fmt.Sprintf("KH_STOMP_MODULE=%s", stompModule)
 
 		fmt.Sprintf("KH_BOF_HOOK_ENABLED=%d", boolToInt(cfg.BofApiProxy)),
 
@@ -542,6 +545,16 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		makeVars = append(makeVars, "KH_AMSI_ETW_BYPASS=0x100")
 	default:
 		makeVars = append(makeVars, "KH_AMSI_ETW_BYPASS=0x000")
+	}
+
+	fmt.Printf("DEBUG: Injection method: %s\n", cfg.InjectId)
+	switch cfg.InjectId {
+	case "Standard":
+		makeVars = append(makeVars, "KH_INJECTION_ID=0x10")
+	case "Stomping":
+		makeVars = append(makeVars, "KH_INJECTION_ID=0x20")
+	default:
+		makeVars = append(makeVars, "KH_INJECTION_ID=0x10")
 	}
 
 	// Heap obfuscation
@@ -1036,17 +1049,24 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			}
 			array = []interface{}{TASK_PROC, PROC_KILL, int(pid)}
 		case "pwsh":
+			fullCmd := ""
+
 			command, ok := args["cmd"].(string)
 			if !ok {
 				err = errors.New("parameter 'cmd' must be set")
 				goto RET
 			}
 
-			script := args["script"].(string)
+			script, ok := args["script"].(string)
+			if !ok {
+				fullCmd = fmt.Sprintf("powershell.exe -c %s", command)
+			} else {
+				fullCmd = fmt.Sprintf("powershell.exe -c %s; %s", script, command)
+			}
 
-			array = []interface{}{TASK_PROC, PROC_PWSH, ConvertUTF8toCp(command, agent.ACP), ConvertUTF8toCp(script, agent.ACP}}
+			array = []interface{}{TASK_PROC, PROC_RUN, ConvertUTF8toCp(fullCmd, agent.ACP)}
 		default:
-			err = errors.New("subcommand for 'ps': 'list', 'run', 'kill'")
+			err = errors.New("subcommand for 'ps': 'list', 'run', 'kill' or 'pwsh'")
 			goto RET
 		}
 
@@ -1610,7 +1630,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			} else if status == "false" {
 				enabled = 0
 			} else {
-				err = errors.New("Unknonw status type. Type must be 'true' or 'false'")
+				err = errors.New("unknown status type. Type must be 'true' or 'false'")
 				goto RET
 			}
 
@@ -1628,7 +1648,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			} else if method == "thread" {
 				enabled = 0
 			} else {
-				err = errors.New("Unknonw method type. Type must be 'process' or 'thread'")
+				err = errors.New("unknown method type. Type must be 'process' or 'thread'")
 				goto RET
 			}
 
@@ -1646,7 +1666,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			} else if tp == "none" {
 				num = 3
 			} else {
-				err = errors.New("Unknonw mask type. Type must be 'none' or 'timer'")
+				err = errors.New("unknown mask type. Type must be 'none' or 'timer'")
 				goto RET
 			}
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_MASK, int(num)}
@@ -1664,7 +1684,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			} else if status == "false" {
 				enabled = 0
 			} else {
-				err = errors.New("Unknonw status type. Type must be 'true' or 'false'")
+				err = errors.New("unknown status type. Type must be 'true' or 'false'")
 				goto RET
 			}
 
@@ -1690,7 +1710,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			} else if status == "false" {
 				enabled = 0
 			} else {
-				err = errors.New("Unknonw status type. Type must be 'true' or 'false'")
+				err = errors.New("unknown status type. Type must be 'true' or 'false'")
 				goto RET
 			}
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_BLOCK_DLLS, int(enabled)}
@@ -1713,7 +1733,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				} else if bypass == "none" {
 					bypass_n = 0x000
 				} else {
-					err = errors.New("Unknonw bypass type. Type must be 'amsi', 'etw', 'all' or 'none'")
+					err = errors.New("unknown bypass type. Type must be 'amsi', 'etw', 'all' or 'none'")
 					goto RET
 				}
 
@@ -1734,7 +1754,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				} else if alloc == "standard" {
 					alloc_n = 0
 				} else {
-					err = errors.New("Unknonw alloc type. Type must be 'drip' or 'standard'")
+					err = errors.New("unknown alloc type. Type must be 'drip' or 'standard'")
 					goto RET
 				}
 
@@ -1753,11 +1773,28 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			} else if write == "standard" {
 				write_n = 0
 			} else {
-				err = errors.New("Unknonw write type. Type must be 'apc' or 'standard")
+				err = errors.New("unknown write type. Type must be 'apc' or 'standard")
 				goto RET
 			}
 
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_INJ_WRITE, int(write_n)}
+		case "inject.technique":
+			techniqueInj, ok := args["technique"].(string)
+			if !ok {
+				err = errors.New("parameter 'technique' must be set")
+				goto RET
+			}
+
+			technique_n := 0
+			if ( techniqueInj == "standard" ) {
+				technique_n = 0x10
+			} else if ( techniqueInj == "stomping" ) {
+				technique_n = 0x20
+			} else {
+				err = errors.New("unknown technique. must be 'standard' or 'stomping'")
+			}
+
+			array = []interface{}{TASK_CONFIG, 1, CONFIG_INJ_TECHN, int(technique_n)}
 		case "syscall": 
 			syscall, ok := args["syscall"].(string)
 			if !ok {
@@ -2044,6 +2081,19 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 					if cmd_packer.CheckPacker([]string{"byte"}) {
 						subCommandId := int8(cmd_packer.ParseInt8())
 						switch subCommandId {
+
+						case PROC_PWSH:
+							if cmd_packer.CheckPacker([]string{"int", "int"}) {
+								pid := cmd_packer.ParseInt32()
+								tid := cmd_packer.ParseInt32()
+
+								task.Message = fmt.Sprintf("Process with PID %v (TID %v) started", pid, tid)
+
+								if cmd_packer.CheckPacker([]string{"array"}) {
+									task.clearText = ConvertUTF8toCp(string(cmd_packer.ParseString(), agentData.OemCP))
+								}
+							}
+							break
 
 						case PROC_RUN:
 							if cmd_packer.CheckPacker([]string{"int", "int"}) {
@@ -2884,8 +2934,6 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 							_ = ts.TsDownloadUpdate(file_id, 1, file_bytes)
 							task.Message += fmt.Sprintf("File '%s', Chunk: %d/%d download completed, size: %d bytes\n", file_id, cur_chunk, total_chunks, file_size)
 						}
-
-
 					}
 
 				case TASK_TOKEN:
