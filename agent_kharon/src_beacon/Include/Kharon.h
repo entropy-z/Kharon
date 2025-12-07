@@ -145,7 +145,7 @@ EXTERN_C UPTR EndPtr();
 #endif 
 
 #ifndef KH_STOMP_MODULE
-#define KH_STOMP_MODULE "chakra.dll"
+#define KH_STOMP_MODULE L"chakra.dll"
 #endif 
 
 #ifndef KH_INJECTION_ID
@@ -319,10 +319,10 @@ typedef struct {
     ULONG ChunkSize;
 
     struct {
-        ULONG TechniqueId;
-        CHAR* StompModule;
-        ULONG Allocation;
-        ULONG Writing;
+        ULONG  TechniqueId;
+        WCHAR* StompModule;
+        ULONG  Allocation;
+        ULONG  Writing;
     } Injection;
 
     struct {
@@ -1802,10 +1802,11 @@ public:
     ULONG Count = 0;
     JOBS* List  = nullptr;
 
-    CHAR TunnelUUID[37] = "00000000-0000-0000-0000-000000000001"; // Static UUID for tunnel job
+    CHAR TunnelUUID[37]   = "00000000-0000-0000-0000-000000000001"; 
     CHAR DownloadUUID[37] = "00000000-0000-0000-0000-000000000002";
 
-    CHAR* CurrentUUID = nullptr;
+    CHAR* CurrentUUID  = nullptr;
+    INT32 CurrentCmdId = 0;
 
     auto Create(
         _In_ CHAR*   UUID, 

