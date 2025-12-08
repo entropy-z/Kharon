@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	// "fmt"
+	"fmt"
 	"strings"
 )
 
@@ -187,7 +187,7 @@ func PackArray(array []interface{}) ([]byte, error) {
 	for i := range array {
 		//fmt.printf("[Elem %d]: ", i)
 
-		switch array[i].(type) {
+		switch v := array[i].(type) {
 
 		case []byte:
 			val := array[i].([]byte)
@@ -206,6 +206,37 @@ func PackArray(array []interface{}) ([]byte, error) {
 			packData = append(packData, size...)
 			packData = append(packData, []byte(val)...)
 			//fmt.printf("[4 bytes size][%d bytes data]", len(val))
+
+		case []uint16: 
+			size := make([]byte, 4)
+			
+			needsTerminator := true
+			if len(v) > 0 && v[len(v)-1] == 0 {
+				needsTerminator = false
+			}
+			
+			totalSize := len(v) * 2
+			if needsTerminator {
+				totalSize += 2 
+			}
+			
+			val := make([]byte, totalSize)
+			
+			for i, wchar := range v {
+				val[i*2] = byte(wchar)
+				val[i*2+1] = byte(wchar >> 8)
+			}
+			
+			if needsTerminator && len(v) > 0 {
+				val[len(v)*2] = 0x00
+				val[len(v)*2+1] = 0x00
+			}
+
+			fmt.Printf("out %s\n", val)
+			
+			binary.LittleEndian.PutUint32(size, uint32(len(val)))
+			packData = append(packData, size...)
+			packData = append(packData, val...)
 
 		case int:
 			num := make([]byte, 4)

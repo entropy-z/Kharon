@@ -228,14 +228,23 @@ auto DECLFN Coff::GetSpawn(
 
     if ( ! buffer || length <= 0 || x86 ) return;
 
-    SIZE_T spawnLen = Str::LengthA( Self->Config.Postex.Spawnto );
+    WCHAR* wspawnto = Self->Config.Postex.Spawnto;
+
+    SIZE_T wspawnLen = Str::LengthW( wspawnto );
+    SIZE_T cspawnLen = ( wspawnLen / 2 );
+
+    CHAR* cspawnto = (CHAR*)hAlloc( cspawnLen );
     
-    if ( spawnLen >= (SIZE_T)length ) {
-        spawnLen = length - 1;
+    if ( cspawnLen >= (SIZE_T)length ) {
+        cspawnLen = length - 1;
     }
 
-    Mem::Copy( buffer, Self->Config.Postex.Spawnto, spawnLen );
-    buffer[spawnLen] = '\0';  
+    Str::WCharToChar( cspawnto, wspawnto, cspawnLen + 1 );
+
+    Mem::Copy( buffer, cspawnto, cspawnLen );
+    buffer[cspawnLen] = '\0';  
+
+    hFree( cspawnto );
 }
 
 auto DECLFN Coff::FmtFree(

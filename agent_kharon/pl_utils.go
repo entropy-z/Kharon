@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 
+	"unicode/utf16"
+
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -1111,6 +1113,147 @@ func ConvertUTF8toCp(input string, codePage int) string {
 	}
 
 	return string(encodedText)
+}
+
+func ConvertCpToUTF16(input string, codePage int) []uint16 {
+	enc, exists := codePageMapping[codePage]
+	if !exists {
+		return utf16.Encode([]rune(input))
+	}
+
+	reader := transform.NewReader(strings.NewReader(input), enc.NewDecoder())
+	utf8Text, err := io.ReadAll(reader)
+	if err != nil {
+		return utf16.Encode([]rune(input))
+	}
+
+	runes := []rune(string(utf8Text))
+	return utf16.Encode(runes)
+}
+
+func ConvertUTF16toCp(utf16Data []uint16, codePage int) string {
+	runes := utf16.Decode(utf16Data)
+	utf8Str := string(runes)
+
+	enc, exists := codePageMapping[codePage]
+	if !exists {
+		return utf8Str
+	}
+
+	encodedText, err := io.ReadAll(
+		transform.NewReader(
+			strings.NewReader(utf8Str),
+			enc.NewEncoder(),
+		),
+	)
+	if err != nil {
+		return utf8Str
+	}
+
+	return string(encodedText)
+}
+
+func ConvertCpToUTF16String(input string, codePage int) string {
+	utf16Data := ConvertCpToUTF16(input, codePage)
+
+	runes := utf16.Decode(utf16Data)
+	return string(runes)
+}
+
+func ConvertUTF16StringToCp(input string, codePage int) string {
+	runes := []rune(input)
+	utf16Data := utf16.Encode(runes)
+	
+	return ConvertUTF16toCp(utf16Data, codePage)
+}
+
+func ConvertCpToUTF16LE(input string, codePage int) []byte {
+	fmt.Printf("before: %s\n", input)
+
+	utf16Data := ConvertCpToUTF16(input, codePage)
+
+	fmt.Printf("utf16 data: %s\n", utf16Data)
+	
+	result := make([]byte, len(utf16Data)*2)
+	for i, v := range utf16Data {
+		result[i*2] = byte(v)
+		result[i*2+1] = byte(v >> 8)
+	}
+
+	fmt.Printf("result data: %s\n", result)
+
+	return result
+}
+
+func ConvertUTF16LEToCp(data []byte, codePage int) string {
+	if len(data)%2 != 0 {
+		data = data[:len(data)-1] 
+	}
+	
+	utf16Data := make([]uint16, len(data)/2)
+	for i := 0; i < len(utf16Data); i++ {
+		utf16Data[i] = uint16(data[i*2]) | uint16(data[i*2+1])<<8
+	}
+	
+	return ConvertUTF16toCp(utf16Data, codePage)
+}
+
+func StringToWideChar(s string) []uint16 {
+	return utf16.Encode([]rune(s))
+}
+
+func WideCharToString(wstr []uint16) string {
+	runes := utf16.Decode(wstr)
+	return string(runes)
+}
+
+type CodePageConverter struct {
+	decoder *encoding.Decoder
+	encoder *encoding.Encoder
+}
+
+func NewCodePageConverter(codePage int) *CodePageConverter {
+	enc, exists := codePageMapping[codePage]
+	if !exists {
+		return nil
+	}
+	
+	return &CodePageConverter{
+		decoder: enc.NewDecoder(),
+		encoder: enc.NewEncoder(),
+	}
+}
+
+func (c *CodePageConverter) ToUTF16(input string) []uint16 {
+	if c == nil {
+		return utf16.Encode([]rune(input))
+	}
+	
+	var buf strings.Builder
+	c.decoder.Reset()
+	writer := transform.NewWriter(&buf, c.decoder)
+	writer.Write([]byte(input))
+	writer.Close()
+	
+	return utf16.Encode([]rune(buf.String()))
+}
+
+func (c *CodePageConverter) FromUTF16(utf16Data []uint16) string {
+	if c == nil {
+		runes := utf16.Decode(utf16Data)
+		return string(runes)
+	}
+	
+	runes := utf16.Decode(utf16Data)
+	utf8Str := string(runes)
+	
+	var buf strings.Builder
+	c.encoder.Reset()
+	writer := transform.NewWriter(&buf, c.encoder)
+	writer.Write([]byte(utf8Str))
+	writer.Close()
+	
+	return buf.String()
 }
 
 func SizeBytesToFormat(bytes int64) string {

@@ -15,8 +15,6 @@ auto DECLFN Library::GetRnd( WCHAR*& ModulePath ) -> BOOL {
     HANDLE FindHandle   = INVALID_HANDLE_VALUE;
     UINT8  Index        = Rnd32() % 3000;
 
-    CHAR ModulePath[MAX_PATH] = { 0 };
-
     WIN32_FIND_DATAW FindData = { 0 };
     
     FindHandle = Self->Krnl32.FindFirstFileW( SystemFolder, &FindData );

