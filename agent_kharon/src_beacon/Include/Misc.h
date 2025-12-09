@@ -308,7 +308,9 @@ namespace Enm {
         CallbackHost,
         CallbackUserAgt,
         CallbackProxy,
-        Injection
+        Injection,
+        InjStomp,
+        Argue
     };
 
     enum Token {
