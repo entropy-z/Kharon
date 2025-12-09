@@ -612,6 +612,7 @@ auto DECLFN Task::Info(
 
     // process behavior
     Self->Pkg->Int32( Package, Self->Config.Ps.BlockDlls );
+    Self->Pkg->Wstr( Package, Self->Config.Ps.SpoofArg );
     Self->Pkg->Int32( Package, Self->Config.Ps.ParentID );
     Self->Pkg->Int32( Package, Self->Config.Ps.Pipe );
 
