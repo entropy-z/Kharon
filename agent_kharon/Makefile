@@ -35,7 +35,7 @@ agent: plugin
 
 clean:
 	@echo "[*] Cleaning build artifacts..."
-	@rm -rf $(DIST_DIR)
+	@rm $(PLUGIN_OUT)
 	@$(MAKE) -C $(SRC_BEACON) clean --no-print-directory || true
 	@echo "[✓] Clean complete"
 

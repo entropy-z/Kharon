@@ -20,5 +20,5 @@ all: clean
 
 clean:
 	@ echo "    * Cleaning build artifacts..."
-	@ rm -rf $(DIST_DIR)
+	@ rm $(OUTPUT_FILE)
 	@ echo "      done..."
