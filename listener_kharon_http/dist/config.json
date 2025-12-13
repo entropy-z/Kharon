@@ -1,9 +1,0 @@
-{
-  "extender_type": "listener",
-  "extender_file": "listener_kharon_http.so",
-  "ax_file": "ax_config.axs",
-
-  "listener_name": "KharonHTTP",
-  "listener_type": "external",
-  "protocol": "http"
-}
