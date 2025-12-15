@@ -24,7 +24,7 @@ auto DECLFN Package::Base64(
         return 0;
 
     switch (Action) {
-        case Base64Action::GET_SIZE: {
+        case Base64Action::Get_Size: {
             SIZE_T padding = (inlen % 3) ? (3 - (inlen % 3)) : 0;
             
             if (inlen > (SIZE_MAX - padding) / 4 * 3)
@@ -33,7 +33,7 @@ auto DECLFN Package::Base64(
             return ((inlen + padding) / 3) * 4;
         }
 
-        case Base64Action::ENCODE: {
+        case Base64Action::Encode: {
             if (out == NULL || outlen == 0)
                 return 0;
 
@@ -62,7 +62,7 @@ auto DECLFN Package::Base64(
             return elen;
         }
 
-        case Base64Action::DECODE: {
+        case Base64Action::Decode: {
             if (out == NULL)
                 return 0;
 
@@ -339,19 +339,19 @@ auto DECLFN Package::Transmit(
     }
 
     //
-    SIZE_T FinalPacketLen = this->Base64( EncBuffer, TotalPacketLen, nullptr, 0, Base64Action::GET_SIZE );
+    SIZE_T FinalPacketLen = this->Base64( EncBuffer, TotalPacketLen, nullptr, 0, Base64Action::Get_Size );
     if ( FinalPacketLen == 0 ) {
         Self->Mm->Free( EncBuffer, 0, MEM_RELEASE );
         return FALSE;
     }
 
-    PCHAR FinalPacket = (PCHAR)hAlloc( FinalPacketLen + 1);
+    PCHAR FinalPacket = (PCHAR)hAlloc( FinalPacketLen + 1 );
     if ( ! FinalPacket ) {
         Self->Mm->Free( EncBuffer, 0, MEM_RELEASE );
         return FALSE;
     }
 
-    SIZE_T EncodeResult = this->Base64( EncBuffer, TotalPacketLen, FinalPacket, FinalPacketLen + 1, Base64Action::ENCODE );
+    SIZE_T EncodeResult = this->Base64( EncBuffer, TotalPacketLen, FinalPacket, FinalPacketLen + 1, Base64Action::Encode );
     if ( EncodeResult == 0 ) {
         hFree( FinalPacket );
         Self->Mm->Free( EncBuffer, 0, MEM_RELEASE );
@@ -366,16 +366,16 @@ auto DECLFN Package::Transmit(
     Self->Mm->Free( EncBuffer, 0, MEM_RELEASE );
 
     if ( Success && Base64Buff && Base64Size ) {
-        Retsize = this->Base64( Base64Buff, Base64Size, nullptr, 0, Base64Action::GET_SIZE );
+        Retsize = this->Base64( Base64Buff, Base64Size, nullptr, 0, Base64Action::Get_Size );
         
-        if (Retsize == 0) {
-            if (Base64Buff) hFree(Base64Buff);
+        if ( Retsize == 0 ) {
+            if ( Base64Buff ) hFree( Base64Buff );
             return FALSE;
         }
 
-        RetBuffer = hAlloc(Retsize);
-        if (RetBuffer) {
-            SIZE_T DecodeResult = this->Base64( Base64Buff, Base64Size, RetBuffer, Retsize, Base64Action::DECODE );
+        RetBuffer = hAlloc( Retsize );
+        if ( RetBuffer ) {
+            SIZE_T DecodeResult = this->Base64( Base64Buff, Base64Size, RetBuffer, Retsize, Base64Action::Decode );
             
             if (DecodeResult > 0 && Response && Size) {
                 UCHAR* DecBuff = (UCHAR*)((UPTR)(RetBuffer) + EncryptOffset);

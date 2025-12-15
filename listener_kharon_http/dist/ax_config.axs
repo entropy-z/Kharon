@@ -142,10 +142,17 @@ function ListenerUI(mode_create)
     let panelMain = form.create_panel();
     panelMain.setLayout(layoutMain);
 
+    // Malleable 
+    let layoutMalleable = form.create_gridlayout();
+
+    let panelMalleable = form.create_panel();
+    panelMalleable.setLayout(layoutMalleable);
+
     // === TABS ===
     let tabs = form.create_tabs();
     tabs.addTab(panelMain, "Main settings");
     tabs.addTab(headers_panel, "HTTP Headers");
+    tabs.addTab(panelMalleable, "Malleable Profile");
 
     let layout = form.create_hlayout();
     layout.addWidget(tabs);
