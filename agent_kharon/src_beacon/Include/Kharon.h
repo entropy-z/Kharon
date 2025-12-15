@@ -46,6 +46,10 @@ EXTERN_C UPTR EndPtr();
 #define PROFILE_SMB 0x15
 #define PROFILE_WEB 0x25
 
+#ifndef CALLBACK_COUNT
+#define CALLBACK_COUNT 1
+#endif
+
 #define INJECTION_STANDARD 0x10
 #define INJECTION_STOMPING 0x20
 
@@ -363,10 +367,6 @@ typedef struct {
     } KillDate;
 
     struct {
-        struct {
-            // PBYTE 
-        } Malleable;
-
         WCHAR** Host;
         ULONG*  Port;
         WCHAR** EndPoint;
@@ -384,6 +384,65 @@ typedef struct {
         BOOL    Secure;
     } Web;
 } KHARON_CONFIG;
+
+typedef struct {
+    CHAR* AgentId;
+    ULONG SleepTime;
+    ULONG Jitter;
+    BYTE  EncryptKey[16];
+    ULONG BofProxy;
+    BOOL  Syscall;
+    ULONG AmsiEtwBypass;
+    ULONG ChunkSize;
+
+    struct {
+        ULONG  TechniqueId;
+        WCHAR* StompModule;
+        ULONG  Allocation;
+        ULONG  Writing;
+    } Injection;
+
+    struct {
+        WCHAR* Spawnto;
+        CHAR*  ForkPipe;
+    } Postex;
+
+    struct {
+        CHAR* UserName;
+        CHAR* DomainName;
+        CHAR* IpAddress;
+        CHAR* HostName;
+    } Guardrails;
+
+    struct {
+        UINT8 Beacon;
+        BOOL  Heap;
+    } Mask;
+
+    struct {
+        BOOL Enabled;
+
+        INT16 StartHour;
+        INT16 StartMin;
+
+        INT16 EndHour;
+        INT16 EndMin;
+    } Worktime;
+
+    struct {
+        BOOL Enabled;
+        BOOL SelfDelete; // if true, self delete the process binary of the disk (care should be taken within a grafted process to exclude an accidentally unintended binary.)
+        BOOL ExitProc;   // if true, exit the process, else exit the thread
+
+        INT16 Day;
+        INT16 Month;
+        INT16 Year;
+    } KillDate;
+
+    struct {
+        HTTP_CALLBACKS Callbacks[CALLBACK_COUNT];
+    } Web;
+} KHARON_CONFIG_1;
 
 auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID;
 
