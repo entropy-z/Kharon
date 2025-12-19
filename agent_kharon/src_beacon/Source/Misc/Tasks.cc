@@ -111,7 +111,6 @@ auto DECLFN Task::Dispatcher( VOID ) -> VOID {
     return FinalRoutine();
 }
 
-
 auto DECLFN Task::ExecBof(
     _In_ JOBS* Job
 ) -> ERROR_CODE {
