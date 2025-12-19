@@ -1,8 +1,8 @@
 #include <Win32.h>
 
-#define KH_SOCKET_CLOSE 10
-#define KH_SOCKET_NEW   20
-#define KH_SOCKET_DATA  30
+#define KH_SOCKET_NEW   0
+#define KH_SOCKET_DATA  1
+#define KH_SOCKET_CLOSE 2
 
 typedef struct {
     PVOID   Buffer;
@@ -30,6 +30,7 @@ struct _SMB_PROFILE_DATA {
 
     _SMB_PROFILE_DATA* Next;
 };
+typedef _SMB_PROFILE_DATA SMB_PROFILE_DATA;
 
 enum class Base64Action {
     Get_Size,
@@ -57,7 +58,6 @@ typedef struct _OUTPUT_FORMAT {
     union {
         struct {
             WCHAR* ParamName; 
-            BOOL   Encode;    
         } Parameter;
         
         struct {
@@ -65,52 +65,45 @@ typedef struct _OUTPUT_FORMAT {
         } Header;
         
         struct {
-            WCHAR* ContentType;
-            DWORD  Flags;
+            WCHAR* Content;
         } Body;
     } Config;
-    
-    WCHAR* FormatTemplate;
-    DWORD  FormatFlags;
+
+    PBYTE FalseBody;
+    ULONG Flags;
 } OUTPUT_FORMAT, *POUTPUT_FORMAT;
 
 typedef struct _HTTP_ENDPOINT {
     WCHAR*         Path;
-    OUTPUT_FORMAT  Output;
+    OUTPUT_FORMAT  ServerOutput;
+    OUTPUT_FORMAT  ClientOutput;
     
     PBYTE          AppendData;
     SIZE_T         AppendSize;
     PBYTE          PrependData;
     SIZE_T         PrependSize;
-    PBYTE          DoNothingBuff;
     
     WCHAR**        Parameters;
     ULONG          ParamCount;
-    
-    WCHAR**        Headers;
-    ULONG          HeaderCount;
 } HTTP_ENDPOINT, *PHTTP_ENDPOINT;
 
 typedef struct _HTTP_METHOD_ENDPOINTS {
     HTTP_ENDPOINT* Endpoints;      
     ULONG          EndpointCount;  
+
+    WCHAR*         Headers;
     
-    OUTPUT_FORMAT  DefaultOutput;  
-    PBYTE          DefaultAppend;
-    PBYTE          DefaultPrepend;
-} HTTP_METHOD_ENDPOINTS, *PHTTP_METHOD_ENDPOINTS;
+    WCHAR**        Cookies;
+    ULONG          CookiesCount;
+
+    PBYTE          DoNothingBuff;
+} HTTP_METHOD, *PHTTP_METHOD_ENDPOINTS;
 
 typedef struct _HTTP_CALLBACKS {
-    WCHAR*                 Host;
-    ULONG                  Port;
-    WCHAR*                 BaseUrl;
+    WCHAR*       Host;
+    ULONG        Port;
+    WCHAR*       UserAgent;
     
-    WCHAR*                 Headers;       // Global Headers 
-    WCHAR**                Cookies;       // Global Cookies
-    ULONG                  CookieCount;
-    
-    HTTP_METHOD_ENDPOINTS  Get;           // Endpoints GET
-    HTTP_METHOD_ENDPOINTS  Post;          // Endpoints POST
+    HTTP_METHOD  Get;           // Endpoints GET
+    HTTP_METHOD  Post;          // Endpoints POST
 } HTTP_CALLBACKS, *PHTTP_CALLBACKS;
-
-typedef _SMB_PROFILE_DATA SMB_PROFILE_DATA;

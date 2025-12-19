@@ -2185,23 +2185,21 @@ public:
     } Down[30];
 
     struct {
-        ULONG ChannelID;
-        CHAR* Host;
-        ULONG Port;
-        CHAR* Username;
-        CHAR* Password;
+        ULONG  ChannelID;
+        CHAR*  Host;
+        ULONG  Port;
+        CHAR*  Username;
+        CHAR*  Password;
         SOCKET Socket;
-        BYTE   state;
-	    BYTE   mode;
-        ULONG  startTick;
-        ULONG  waitTime;
-        ULONG  closeTimer;
-
+        BYTE   State;
+	    BYTE   Mode;
+        ULONG  StartTick;
+        ULONG  WaitTime;
+        ULONG  CloseTimer;
     } Tunnels[30];
 
-    ULONG numDownloadTasks = 0;
-    ULONG numTunnelTasks = 0;
-    ULONG ChunckSize;
+    ULONG DownloadTasksCount = 0;
+    ULONG TunnelTasksCount   = 0;
 
     struct {
         PVOID  Node;
