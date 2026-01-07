@@ -2517,7 +2517,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 							task.MessageType = MESSAGE_ERROR
 							fmt.Printf("Deleting fileID: %d\n", file_id)
 
-							_ = ts.TsDownloadDelete(file_id)
+							_ = ts.TsDownloadDelete([]string{file_id})
 							continue
 						}
 
