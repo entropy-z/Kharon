@@ -141,3 +141,17 @@ func (lc *LokyCrypt) Xor(data []byte) {
 		j++
 	}
 }
+
+func xor( data []byte, key []byte ) {
+	for i, j := 0, 0; i < len( data ); i++ {
+		if j == len( key ) {
+			j = 0
+		}
+		if i%2 == 0 {
+			data[i] ^= key[j]
+		} else {
+			data[i] ^= key[j] ^ byte(j)
+		}
+		j++
+	}
+}

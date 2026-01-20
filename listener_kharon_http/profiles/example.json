@@ -1,10 +1,17 @@
 {
-    "callback": [
+    "callbacks": [
         {
-            "host": ["server2.com:443"],
+            "hosts": ["172.25.31.176:5123", "172.25.31.176:5123"],
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "server_error": {
+                "http_status": 403,
+                "response": "{\"status\": 403, \"error\": \"Forbidden\", \"message\": \"Access denied\"}",
+                "headers": {
+                    "Content-Type": "application/json; charset=utf-8"
+                }
+            },
             "get": {
-                "server.headers": {
+                "server_headers": {
                     "Content-Type": "text/html; charset=utf-8",
                     "Server": "Apache/2.4.41",
                     "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -14,31 +21,27 @@
                     "X-RateLimit-Reset": "1704110400",
                     "X-Request-ID": "req_abc123def456"
                 },
-                "empty_response": "",
-                "server.error": {
-                    "http_status": 404,
-                    "response": "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Error</title><style>body{margin:0;padding:0;display:flex;justify-content:center;align-items:center;height:100vh;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);font-family:Arial,sans-serif;color:#fff}div{text-align:center}h1{font-size:120px;margin:0;text-shadow:2px 2px 4px rgba(0,0,0,0.3)}p{font-size:24px;margin:10px 0;text-shadow:1px 1px 2px rgba(0,0,0,0.3)}a{color:#ffd700;text-decoration:none;font-size:18px;margin-top:20px;display:inline-block;padding:10px 20px;border:2px solid #ffd700;border-radius:5px;transition:all 0.3s}a:hover{background:#ffd700;color:#333}</style></head><body><div><h1>404</h1><p>Page not found</p><a href=\"/\">Back to home</a></div></body></html>"
-                },
-                "client.headers": {
+                "client_headers": {
                     "Content-Type": "application/json",
                     "Accept": "application/json",
                     "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                     "Cache-Control": "no-cache"
                 },
+                "empty_response": "\\x90\\x90\\x90\\x90\\x90",
                 "uri": {
                     "/route1 /route2 /route3": {
-                        "server.output": {"mask": false, "format": "base64"},
-                        "client.output": {"mask": true, "format": "base64url", "parameter": "info"},
-                        "client.parameters": [{"beacon_status": "ok", "beacon_name": "kharon"}]
+                        "server_output": {"mask": false, "format": "base64"},
+                        "client_output": {"mask": true, "format": "base64url", "parameter": "info"},
+                        "client_parameters": [{"beacon_status": "ok", "beacon_name": "kharon"}]
                     },
                     "/route4": {
-                        "server.output": {"mask": true, "format": "base64url", "parameter": "info"},
-                        "client.output": {"mask": true, "format": "base64", "header": "cookie", "prepend": "PHPSESSID="}
+                        "server_output": {"mask": true, "format": "base64url", "cookie": "CK_SRV"},
+                        "client_output": {"mask": true, "format": "base64", "cookie": "PHPSESSID", "body": "{\"beacon\": \"kharon\", \"body\": \"false\"}"}
                     }
                 }
             },
             "post": {
-                "server.headers": {
+                "server_headers": {
                     "Content-Type": "application/json; charset=utf-8",
                     "Server": "Apache/2.4.41",
                     "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -49,22 +52,17 @@
                     "X-Request-ID": "req_abc123def456",
                     "Location": "https://api.example.com/resource/123"
                 },
-                "empty_response": "",
-                "server.error": {
-                    "http_status": 403,
-                    "response": "{\"status\": 403, \"error\": \"Forbidden\", \"message\": \"Access denied\"}"
-                },
-                "client.headers": {
+                "client_headers": {
                     "Content-Type": "application/json",
                     "Accept": "application/json",
                     "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                    "Cache-Control": "no-cache",
-                    "X-Requested-With": "XMLHttpRequest"
+                    "Cache-Control": "no-cache"                
                 },
+                "empty_response": "\\x90\\x90\\x90\\x90\\x90",
                 "uri": {
                     "/route1 /route2": {
-                        "server.output": {"parameter": "info", "body": "{\"status\": 200, \"message\": \"Success\"}", "format": "base64url"},
-                        "client.output": {"mask": true, "format": "base64", "prepend": "{\"heath\": \"alive\", \"message\": \"", "append": "\"}"}
+                        "server_output": {"mask": false, "format": "base64url", "header": "MSG_PP", "body": "{\"status\": 200, \"message\": \"Success\"}"},
+                        "client_output": {"mask": true, "format": "base64", "prepend": "{\"health\": \"alive\", \"message\": \"", "append": "\"}"}
                     }
                 }
             }

@@ -76,7 +76,7 @@ func (m *ModuleExtender) HandlerCreateListenerDataAndStart(name string, configDa
 	listenerData = adaptix.ListenerData{
 		BindHost:  listener.Config.HostBind,
 		BindPort:  strconv.Itoa(listener.Config.PortBind),
-		AgentAddr: conf.Callback_addresses,
+		AgentAddr: conf.Addresses,
 		Status:    "Listen",
 	}
 
@@ -125,7 +125,7 @@ func (m *ModuleExtender) HandlerEditListenerData(name string, listenerObject any
 		listenerData = adaptix.ListenerData{
 			BindHost:  listener.Config.HostBind,
 			BindPort:  strconv.Itoa(listener.Config.PortBind),
-			AgentAddr: listener.Config.Callback_addresses,
+			AgentAddr: listener.Config.Addresses,
 			Status:    "Listen",
 		}
 		if !listener.Active {

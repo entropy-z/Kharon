@@ -13,6 +13,11 @@ typedef struct _TASK_RESULT {
     BOOL       ShouldClean;
 } TASK_RESULT;
 
+typedef struct _MM_INFO {
+    PBYTE  Ptr;
+    SIZE_T Size;
+} MM_INFO;
+
 #define KhGetError       NtCurrentTeb()->LastErrorValue
 #define KhSetError( x )  NtCurrentTeb()->LastErrorValue = x
 #define KhRetError( x )  KhSetError( x ); return KhGetError
@@ -2750,5 +2755,9 @@ NTSYSCALLAPI NTSTATUS NtOpenThreadTokenEx( HANDLE ThreadHandle, ACCESS_MASK Desi
 NTSYSCALLAPI NTSTATUS NtOpenProcessTokenEx( HANDLE ProcessHandle, ACCESS_MASK DesiredAccess, ULONG HandleAttributes, PHANDLE TokenHandle );
 NTSYSAPI BOOLEAN STDAPIVCALLTYPE RtlAddFunctionTable( _In_reads_(EntryCount) PRUNTIME_FUNCTION FunctionTable,  _In_ ULONG EntryCount, _In_ ULONG64 BaseAddress );
 NTSYSAPI PRUNTIME_FUNCTION RtlLookupFunctionEntry( DWORD64 ControlPc, PDWORD64 ImageBase, PUNWIND_HISTORY_TABLE HistoryTable );
+int k_vswprintf( wchar_t* buffer, const wchar_t* format, va_list argptr );
+// errno_t vswprintf_s( wchar_t* buffer,  size_t sizeOfBuffer, const wchar_t* format, va_list argptr );
+int k_swprintf(wchar_t* buffer, const wchar_t* format, ...);
+// errno_t swprintf_s( wchar_t* buffer, size_t sizeOfBuffer, const wchar_t* format, ... );
 
 #endif // WIN32_H             

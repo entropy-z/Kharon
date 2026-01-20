@@ -137,7 +137,6 @@ auto DECLFN Token::Rm(
     _In_ ULONG TokenID
 ) -> BOOL {
     if ( ! this->Node ) {
-        KhDbg("[Token::Rm] Lista de tokens vazia");
         return FALSE;
     }
 

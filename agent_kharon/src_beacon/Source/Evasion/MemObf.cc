@@ -24,7 +24,7 @@ auto DECLFN Mask::Main(
 
     KhDbg( "sleep during: %d ms", RndTime );
 
-    switch( Self->Config.Mask.TechniqueID ) {
+    switch( Self->Config.Mask.Beacon ) {
     case eMask::Timer:
         Success = this->Timer( RndTime ); break;
     case eMask::None:

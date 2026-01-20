@@ -48,15 +48,17 @@
 #define KhDbg( x, ... ) {  \
     Self->Ntdll.DbgPrint(  \
         ( "[DEBUG::%s::%s::%d] => " x "\n" ), __FILE__ ,__FUNCTION__, __LINE__, ##__VA_ARGS__ );  \
-    Self->Msvcrt.printf(  \
-        ( "[DEBUG::%s::%s::%d] => " x "\n" ), __FILE__ ,__FUNCTION__, __LINE__, ##__VA_ARGS__ );  \
-}
+    }
+    // Self->Msvcrt.printf(  \
+        // ( "[DEBUG::%s::%s::%d] => " x "\n" ), __FILE__ ,__FUNCTION__, __LINE__, ##__VA_ARGS__ );  \
+
 #define KhDbgz( x, ... ) {  \
     Ntdll.DbgPrint(  \
         ( "[DEBUG::%s::%s::%d] => " x "\n" ), __FILE__ ,__FUNCTION__, __LINE__, ##__VA_ARGS__ );  \
-    Msvcrt.printf(   \
-        ( "[DEBUG::%s::%s::%d] => " x "\n" ), __FILE__ ,__FUNCTION__, __LINE__, ##__VA_ARGS__ );  \
-}
+    }
+    // Msvcrt.printf(   \
+        // ( "[DEBUG::%s::%s::%d] => " x "\n" ), __FILE__ ,__FUNCTION__, __LINE__, ##__VA_ARGS__ );  \
+
 #define KH_DBG_MSG KhDbg( "dbg" );
 #else
 #define KhDbgz( x, ... );
@@ -92,7 +94,7 @@
 #define hReAlloc( x, y )  Self->Hp->ReAlloc( x, y )
 #define hFree( x )        Self->Hp->Free( x )
 
-/*==============[ Dereference ]==============*/
+/*============== [ Dereference ] ==============*/
 
 #define DEF( x )   ( * ( PVOID*  ) ( x ) )
 #define DEFB( x )  ( * ( BYTE*   ) ( x ) )
@@ -101,9 +103,9 @@
 #define DEF32( x ) ( * ( UINT32* ) ( x ) )
 #define DEF64( x ) ( * ( UINT64* ) ( x ) )
 
-/*==============[ Casting ]==============*/
+/*============== [ Casting ] ==============*/
 
-#define PTR( x )  reinterpret_cast<PVOID>( x )
+#define PTR( x )    reinterpret_cast<PVOID>( x )
 #define U_PTR( x )  reinterpret_cast<UPTR>( x )
 #define B_PTR( x )  reinterpret_cast<BYTE*>( x )
 #define UC_PTR( x ) reinterpret_cast<PUCHAR>( x )
@@ -115,5 +117,23 @@
 #define U_32( x ) reinterpret_cast<UINT32>( x )
 #define U_16( x ) reinterpret_cast<UINT16>( x )
 #define U_8( x )  reinterpret_cast<UINT8>( x )
+
+/*============== [ Tunnel ] ==============*/
+
+#define COMMAND_TUNNEL_START_TCP 62
+#define COMMAND_TUNNEL_START_UDP 63
+#define COMMAND_TUNNEL_WRITE_TCP 64
+#define COMMAND_TUNNEL_WRITE_UDP 65
+#define COMMAND_TUNNEL_CLOSE     66
+#define COMMAND_TUNNEL_REVERSE   67
+#define COMMAND_TUNNEL_ACCEPT    68
+
+#define TUNNEL_STATE_CLOSE   1
+#define TUNNEL_STATE_READY   2
+#define TUNNEL_STATE_CONNECT 3
+
+#define TUNNEL_MODE_SEND_TCP 0
+#define TUNNEL_MODE_SEND_UDP 1
+#define TUNNEL_MODE_REVERSE_TCP 2
 
 #endif // DEFINES_H

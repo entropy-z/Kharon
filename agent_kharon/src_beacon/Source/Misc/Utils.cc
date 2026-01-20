@@ -760,6 +760,24 @@ auto DECLFN Mem::Copy(
 	return Dst;
 }
 
+auto DECLFN Mem::Cmp(
+    _In_ PBYTE  Addr1,
+    _In_ PBYTE  Addr2,
+    _In_ SIZE_T Size
+) -> BOOL {
+    if ( Addr1 == nullptr || Addr2 == nullptr ) {
+        return FALSE;
+    }
+
+    for (SIZE_T i = 0; i < Size; i++) {
+        if (Addr1[i] != Addr2[i]) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
 auto DECLFN Mem::Set(
     _In_ UPTR Addr,
     _In_ UPTR Val,
@@ -813,9 +831,10 @@ auto DECLFN Str::CharToWChar(
     SIZE_T Length = MaxAllowed;
     while ( --Length > 0 ) {
         if ( !( *Dest++ = static_cast<WCHAR>( *Src++ ) ) ) {
-            return MaxAllowed - Length - 1;
+            return MaxAllowed - Length;
         }
     }
+    *Dest = L'\0';
     return MaxAllowed - Length;
 }
 
@@ -850,7 +869,7 @@ auto DECLFN Str::CompareWCountL(
     if (!str1 || !str2) return (!str1 && !str2) ? 0 : (!str1 ? -1 : 1);
 
     while (count-- > 0) {
-        int diff = Str::ToLowerWchar(*str1) - Str::ToLowerWchar(*str2);
+        int diff = Str::ToLowerWcharc(*str1) - Str::ToLowerWcharc(*str2);
         if (diff != 0) return diff;
         if (*str1 == L'\0') break;
         str1++;
@@ -958,10 +977,23 @@ auto DECLFN Str::ToLowerChar(
     }
 }
 
-auto DECLFN Str::ToLowerWchar( 
+auto DECLFN Str::ToLowerWcharc( 
     WCHAR Ch 
 ) -> WCHAR {
     return (Ch >= L'A' && Ch <= L'Z') ? Ch + (L'a' - L'A') : Ch;
+}
+
+auto DECLFN Str::ToLowerWchar( 
+    WCHAR* str 
+) -> void {
+    if (!str) return;
+    
+    while (*str) {
+        if (*str >= L'A' && *str <= L'Z') {
+            *str = *str + (L'a' - L'A');
+        }
+        str++;
+    }
 }
 
 auto DECLFN Str::CopyA( 
@@ -1007,12 +1039,12 @@ auto DECLFN Str::IsEqual(
     if ( Length1 >= MAX_PATH || Length2 >= MAX_PATH ) return FALSE;
 
     for (SIZE_T i = 0; i < Length1; ++i) {
-        TempStr1[i] = Str::ToLowerWchar( Str1[i] );
+        TempStr1[i] = Str::ToLowerWcharc( Str1[i] );
     }
     TempStr1[Length1] = L'\0';
 
     for (SIZE_T j = 0; j < Length2; ++j) {
-        TempStr2[j] = Str::ToLowerWchar( Str2[j] );
+        TempStr2[j] = Str::ToLowerWcharc( Str2[j] );
     }
     TempStr2[Length2] = L'\0';
 

