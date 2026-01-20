@@ -204,7 +204,7 @@ auto Coff::RslApi(
         //
         // if hook bof enabled apply the spoof/indirect
         //        
-        if ( Self->Config.BofHook ) {
+        if ( Self->Config.BofProxy ) {
             for ( INT i = 0; i < 15; i++ ) {
                 if ( Hsh::Str( FncName ) == this->HookTable[i].Hash ) {
                     return (PVOID)this->HookTable[i].Ptr;

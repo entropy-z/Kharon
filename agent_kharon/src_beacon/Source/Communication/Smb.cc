@@ -62,7 +62,6 @@ auto Transport::SmbAdd(
     SmbData->SmbUUID     = TmpUUID;
     SmbData->AgentUUID   = TmpUUID;
     
-
     if ( ! this->Pipe.Node ) {
         this->Pipe.Node = SmbData;
     } else {

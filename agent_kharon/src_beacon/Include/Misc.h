@@ -91,19 +91,25 @@ namespace Hsh {
 }
 
 namespace Mem {
-    auto DECLFN Copy(
+    auto Copy(
         _In_ PVOID Dst,
         _In_ PVOID Src,
         _In_ ULONG Size
     ) -> PVOID;
 
-    auto DECLFN Set(
+    auto Set(
         _In_ UPTR Addr,
         _In_ UPTR Val,
         _In_ UPTR Size
     ) -> void;
 
-    auto DECLFN Zero(
+    auto Cmp(
+        _In_ PBYTE  Addr1,
+        _In_ PBYTE  Addr2,
+        _In_ SIZE_T Size
+    ) -> BOOL;
+
+    auto Zero(
         _In_ UPTR Addr,
         _In_ UPTR Size
     ) -> void;
@@ -172,6 +178,10 @@ namespace Str {
     ) -> VOID;
 
     auto ToLowerWchar( 
+        WCHAR* str 
+    ) -> void;
+
+    auto ToLowerWcharc( 
         WCHAR Ch 
     ) -> WCHAR;
 

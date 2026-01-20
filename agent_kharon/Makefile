@@ -9,6 +9,7 @@ SRC_BEACON := src_beacon
 
 PLUGIN_FILES := \
 	$(SRC_SERVER)/pl_lokycrypt.go \
+	$(SRC_SERVER)/pl_malleable.go \
 	$(SRC_SERVER)/pl_main.go \
 	$(SRC_SERVER)/pl_agent.go \
 	$(SRC_SERVER)/pl_packer.go \

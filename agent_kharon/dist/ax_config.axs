@@ -155,18 +155,6 @@ function RegisterCommands(listenerType)
     let cmd_config_spawnto = ax.create_command("spawnto", "Set the executable path for spawning new processes", "config spawnto C:\\Windows\\System32\\rundll32.exe", "Task: configure spawn target");
     cmd_config_spawnto.addArgString("path", true);
 
-    let cmd_config_inject_alloc = ax.create_command("inject.alloc", "Change allocation method to shellcode injection routines", "config inject.alloc drip", "Task: configure allocation method");
-    cmd_config_inject_alloc.addArgString("alloc", true, "Options 'drip' or 'standard'");
-
-    let cmd_config_inject_write = ax.create_command("inject.write", "Change write method to shellcode injection routines", "config inject.write apc", "Task: configure write method");
-    cmd_config_inject_write.addArgString("write", true, "Options 'apc' or 'standard'");
-
-    let cmd_config_inject_type = ax.create_command("inject.technique", "Change the technique to use for shellcode injection and postex", "config inject.technique stomping", "Task: configure injection technique")
-    cmd_config_inject_type.addArgString("technique", true, "Options 'stomping' or 'standard'")
-
-    let cmd_config_inject_stomp = ax.create_command("inject.stompmodule", "Change the prefered module for use in stomping", "config inject.stompmodule chakra.dll", "Task: configure injection stomp module")
-    cmd_config_inject_stomp.addArgFlagString("module", true)
-
     let cmd_config_wkrtime = ax.create_command("worktime", "Set operational hours for beacon activity", "config worktime 09:00 18:00", "Task: configure working hours");
     cmd_config_wkrtime.addArgString("start", true);
     cmd_config_wkrtime.addArgString("end", true);
@@ -180,28 +168,8 @@ function RegisterCommands(listenerType)
     let cmd_config_subcommands = [
         cmd_config_sleep, cmd_config_jitter, cmd_config_ppid, cmd_config_blockdll, cmd_config_wkrtime,
         cmd_config_killdate_date, cmd_config_killdate_exit, cmd_config_killdate_selfdel, 
-        cmd_config_heap_obf, cmd_config_mask, cmd_config_amsietwbypass, cmd_config_spawnto,
-        cmd_config_inject_type, cmd_config_inject_stomp, cmd_config_inject_alloc, cmd_config_inject_write, cmd_config_syscall, cmd_config_forkpipe
+        cmd_config_heap_obf, cmd_config_mask, cmd_config_amsietwbypass, cmd_config_spawnto, cmd_config_syscall
     ];
-
-    if (listenerType == "KharonHTTP") {
-        let cmd_config_callbackhost = ax.create_command("callback.http.host", "Change the callback host list for http profile (use 'info' command to show callback settings)", "config callback.http.host add server1337.com:443");
-        cmd_config_callbackhost.addArgString("action", true);
-        cmd_config_callbackhost.addArgString("callback_host", true);
-
-        let cmd_config_callbackuseragent = ax.create_command("callback.http.useragent", "Change the callback user agent settings for http profile (use 'info' command to show callback settings)", "config callback.http.useragent Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36");
-        cmd_config_callbackuseragent.addArgString("useragent", true);
-
-        let cmd_config_callbackproxy = ax.create_command("callback.http.proxy", "Change the callback proxy settings for http profile (use 'info' command to show callback settings)", "config callback.http.proxy enabled http://serverproxy:8080 username password");
-        cmd_config_callbackproxy.addArgBool("enabled", true);
-        cmd_config_callbackproxy.addArgString("url", false);
-        cmd_config_callbackproxy.addArgString("username", false);
-        cmd_config_callbackproxy.addArgString("password", false);
-
-        cmd_config_subcommands.push(cmd_config_callbackhost);
-        cmd_config_subcommands.push(cmd_config_callbackuseragent);
-        cmd_config_subcommands.push(cmd_config_callbackproxy);
-    }
 
     let cmd_config = ax.create_command("config", "Configuration management - adjust beacon behavior and settings", "config sleep 50s");
     cmd_config.addSubCommands(cmd_config_subcommands);
@@ -284,7 +252,7 @@ function RegisterCommands(listenerType)
 
 function GenerateUI(listenerType)
 {
-    // Format combo (topo)
+    // Format combo 
     let labelFormat = form.create_label("Compilation Format:");
     let comboFormat = form.create_combo();
     comboFormat.addItem("Exe");

