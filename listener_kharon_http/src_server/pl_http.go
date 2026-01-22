@@ -21,107 +21,6 @@ import (
 	"golang.org/x/net/context"
 )
 
-// ==================== STRUCTS ====================
-
-type OutputConfig struct {
-	Mask      bool   
-	Header    string 
-	Format    string 
-	Parameter string 
-	Cookie    string
-	Body      string 
-
-	Append  string
-	Prepend string
-}
-
-type URIConfig struct {
-	ServerOutput *OutputConfig
-	ClientOutput *OutputConfig
-	ClientParams []map[string]interface{}
-}
-
-type ServerError struct {
-	Status   int   
-	Response string
-	Headers  map[string]string    
-}
-
-type HTTPMethod struct {
-	ServerHeaders map[string]string    
-	EmptyResponse []byte               
-	ClientHeaders map[string]string    
-	URI           map[string]URIConfig 
-}
-
-type Callback struct {
-	Hosts      	  []string 		
-	Host      	  string 	
-	UserAgent 	  string      	
-	SrvError      *ServerError 
-	Get       	  *HTTPMethod 
-	Post          *HTTPMethod 
-}
-
-type HTTPConfig struct {
-	HostBind   string `json:"host_bind"`
-	PortBind   int    `json:"port_bind"`
-
-	BlockUserAgent string `json:"block_user_agents"`
-	ProfileContent string `json:"uploaded_file"`
-
-	DomainRotation string `json:"domain_rotation_strategy"`
-
-	Ssl         bool   `json:"ssl"`
-	SslCert     []byte `json:"ssl_cert"`
-	SslKey      []byte `json:"ssl_key"`
-	SslCertPath string `json:"ssl_cert_path"`
-	SslKeyPath  string `json:"ssl_key_path"`
-
-	// CryptKey []byte `json:"encrypt_key"`
-
-	Protocol   string `json:"protocol"`
-	EncryptKey []byte `json:"encrypt_key"`
-
-	ProxyUrl      string `json:"proxy_url"`
-	ProxyUserName string `json:"proxy_user"`
-	ProxyPassword string `json:"proxy_pass"`
-
-	Addresses 	string
-	MaskKey     []byte
-	Callbacks   []Callback
-}
-
-type HTTP struct {
-	GinEngine *gin.Engine
-	Server    *http.Server
-	Config    HTTPConfig
-	Name      string
-	Active    bool
-}
-
-type ServerRequest struct {
-	Headers		string
-	Body    	[]byte
-	EmptyResp	[]byte
-	Payload     []byte
-}
-
-type ClientRequest struct {
-	Uri  		string
-	HttpMethod	string
-	Address     string
-	Params      map[string][]string
-	UserAgent   string
-	Body 		[]byte
-	Payload     []byte
-
-	Config      Callback
-
-	UriConfig       *URIConfig
-	HttpMethodCfg	*HTTPMethod
-}
-
 // convert_hex_escapes converts \xHH sequences to real bytes
 func convert_hex_escapes(input string) []byte {
 	var result []byte
@@ -248,7 +147,6 @@ func (handler *HTTP) parse_json_callback(profileContent string) []Callback {
 
 	return callbacks
 }
-
 
 func parse_http_method(methodData map[string]interface{}) *HTTPMethod {
 	// Parse server headers
@@ -587,7 +485,7 @@ func (handler *HTTP) Start(ts Teamserver) error {
 		fmt.Printf("   Started listener: http://%s:%d\n", handler.Config.HostBind, handler.Config.PortBind)
 
 		go func() {
-			err = handler.Server.ListenAndServe()
+			err := handler.Server.ListenAndServe()
 			if err != nil && !errors.Is(err, http.ErrServerClosed) {
 				fmt.Printf("Error starting HTTP server: %v\n", err)
 				return
@@ -794,7 +692,7 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 
 		fmt.Printf("[INFO] Processing data for existing agent id: %s\n", oldAgentID)
 
-		_ = ModuleObject.ts.TsAgentSetTick(oldAgentID)
+		_ = ModuleObject.ts.TsAgentSetTick(oldAgentID, handler.Name)
 
 		if len(agentData) > 0 {
 			taskAction := agentData[0]
@@ -929,19 +827,15 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 		if headerValue == "" {
 			return "", nil, false, errors.New("header not found")
 		}
-		full_data = strings.NewReader(headerValue)
+		
+		full_data = bytes.NewBuffer([]byte(headerValue))
 	} else if output.Cookie != "" {
 		cookieValue, err := ctx.Cookie(output.Cookie)
 		if err != nil || cookieValue == "" {
 			return "", nil, false, errors.New("cookie not found")
 		}
 		
-		fmt.Printf("cookie key: %s\n", output.Cookie)
-		fmt.Printf("cookie value: %s\n", cookieValue)
-		fmt.Printf("cookie value length: %d\n", len(cookieValue))
-		fmt.Printf("cookie value hex: %x\n", cookieValue)
-		
-		full_data = strings.NewReader(cookieValue)
+		full_data = bytes.NewBuffer([]byte(cookieValue))
 	} else if output.Parameter != "" {
 		fmt.Printf("param key: %s\n", output.Parameter)
 		paramValue := ctx.Query(output.Parameter)
@@ -953,10 +847,6 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 		if paramValue == "" {
 			return "", nil, false, errors.New("parameter not found")
 		}
-
-		fmt.Printf("using parameter value: %s\n", paramValue)
-		fmt.Printf("param value length: %d\n", len(paramValue))
-		fmt.Printf("param value hex: %x\n", paramValue)
 		
 		full_data = bytes.NewBuffer([]byte(paramValue))
 	} else {
@@ -973,6 +863,8 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
     if err != nil {
         return "", nil, false, fmt.Errorf("failed to read agent data: %v", err)
     }
+
+	fmt.Println(formatHexDump(agent_data, 16))
     
     if len(agent_data) == 0 {
         return "", nil, false, errors.New("missing agent data")
@@ -1046,18 +938,13 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
     agent_exist = ModuleObject.ts.TsAgentIsExists(string(agent_adp_id))
     if !agent_exist {
 		extracted_key := formatted[total_len-16:]
-
-		fmt.Printf("here if\n")
 		
 		handler.Config.EncryptKey = make([]byte, 16)
 		copy(handler.Config.EncryptKey, extracted_key)
-
-		fmt.Printf("here if\n")
 		
 		key = handler.Config.EncryptKey
 		encrypted_data = formatted[36 : total_len-16]
 	} else {
-		fmt.Printf("here else\n")
 		key = handler.Config.EncryptKey
 		encrypted_data = formatted[36:]
 	}

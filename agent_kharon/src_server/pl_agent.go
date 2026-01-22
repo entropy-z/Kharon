@@ -784,7 +784,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 	return finalBin, outFileName, nil
 }
 
-func CreateAgent(initialData []byte) (adaptix.AgentData, error) {
+func CreateAgent(initialData []byte) (adaptix.AgentData, adaptix.ExtenderAgent, error) {
 	var agent adaptix.AgentData
 
 	fmt.Println("=== DEBUG RAW DATA ===")
@@ -807,7 +807,7 @@ func CreateAgent(initialData []byte) (adaptix.AgentData, error) {
 	command := packer.ParseInt8()
 	fmt.Printf("Command: 0x%x\n", command)
 	if command != 0xf1 {
-		return agent, errors.New("error agent checkin data")
+		return agent, ModuleObject.ext, errors.New("error agent checkin data")
 	}
 
 	randomUUID := packer.ParsePad(36)
@@ -983,15 +983,7 @@ func CreateAgent(initialData []byte) (adaptix.AgentData, error) {
 
 	fmt.Printf("Final Agent Struct: %+v\n", agent)
 
-	return agent, nil
-}
-
-func AgentEncryptData(data []byte, key []byte) ([]byte, error) {
-	return data, nil
-}
-
-func AgentDecryptData(data []byte, key []byte) ([]byte, error) {
-	return data, nil
+	return agent, ModuleObject.ext, nil
 }
 
 /// TASKS
@@ -3072,7 +3064,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 							task.MessageType = MESSAGE_ERROR
 							fmt.Printf("Deleting fileID: %d\n", file_id)
 
-							_ = ts.TsDownloadDelete(file_id)
+							ts.TsDownloadDelete([]string{file_id})
 							continue
 						}
 
@@ -3266,7 +3258,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 					if channelID != 0 {
 						if subCmd == COMMAND_TUNNEL_START_TCP {
 							if result == 0 {
-								ts.TsTunnelConnectionClose(int(channelID))
+								ts.TsTunnelConnectionClose(int(channelID), false)
 							} else {
 								ts.TsTunnelConnectionResume(agentData.Id, int(channelID), false)
 							}
@@ -3307,7 +3299,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 							if subCmd == COMMAND_TUNNEL_START_TCP {
 								result := cmd_packer.ParseInt32()
 								if result == 0 {
-									ts.TsTunnelConnectionClose(int(channelID))
+									ts.TsTunnelConnectionClose(int(channelID), false)
 								} else {
 									ts.TsTunnelConnectionResume(agentData.Id, int(channelID), false)
 								}

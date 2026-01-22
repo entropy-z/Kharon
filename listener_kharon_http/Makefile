@@ -11,7 +11,8 @@ SOURCE_FILES := \
 	$(SRC_SERVER)/pl_main.go \
 	$(SRC_SERVER)/pl_http.go \
 	$(SRC_SERVER)/pl_listener.go \
-	$(SRC_SERVER)/pl_utils.go
+	$(SRC_SERVER)/pl_utils.go \
+	$(SRC_SERVER)/pl_structs.go
 
 all: clean
 	@ echo "    * Building listener_kharon_http plugin"

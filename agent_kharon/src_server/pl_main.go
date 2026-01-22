@@ -1,11 +1,12 @@
 package main
 
 import (
+	// "database/sql/driver"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"math/rand"
 	"time"
-	"io"
 
 	ax "github.com/Adaptix-Framework/axc2"
 )
@@ -40,7 +41,7 @@ type Teamserver interface {
 	TsAgentTerminate(agentId string, terminateTaskId string) error
 
 	TsAgentUpdateDataPartial(agentId string, updateData interface{}) error
-	TsAgentSetTick(agentId string) error
+	TsAgentSetTick(agentId string, listenerName string) error
 
 	TsAgentConsoleOutput(agentId string, messageType int, message string, clearText string, store bool)
 
@@ -58,10 +59,12 @@ type Teamserver interface {
 	TsTasksPivotExists(agentId string, first bool) bool
 	TsTaskGetAvailablePivotAll(agentId string, availableSize int) ([]ax.TaskData, error)
 
-	TsClientGuiDisks(taskData ax.TaskData, jsonDrives string)
-	TsClientGuiFiles(taskData ax.TaskData, path string, jsonFiles string)
+	TsClientGuiDisksWindows(taskData ax.TaskData, drives []ax.ListingDrivesDataWin)
 	TsClientGuiFilesStatus(taskData ax.TaskData)
-	TsClientGuiProcess(taskData ax.TaskData, jsonFiles string)
+	TsClientGuiFilesWindows(taskData ax.TaskData, path string, files []ax.ListingFileDataWin)
+	TsClientGuiFilesUnix(taskData ax.TaskData, path string, files []ax.ListingFileDataUnix)
+	TsClientGuiProcessWindows(taskData ax.TaskData, process []ax.ListingProcessDataWin)
+	TsClientGuiProcessUnix(taskData ax.TaskData, process []ax.ListingProcessDataUnix)
 
 	TsCredentilsAdd(creds []map[string]interface{}) error
 	TsCredentilsEdit(credId string, username string, password string, realm string, credType string, tag string, storage string, host string) error
@@ -71,7 +74,7 @@ type Teamserver interface {
 	TsDownloadAdd(agentId string, fileId string, fileName string, fileSize int) error
 	TsDownloadUpdate(fileId string, state int, data []byte) error
 	TsDownloadClose(fileId string, reason int) error
-	TsDownloadDelete(fileid []string)
+	TsDownloadDelete(fileid []string) error
 	TsDownloadSave(agentId string, fileId string, filename string, content []byte) error
 	TsDownloadGetFilepath(fileId string) (string, error)
 	TsUploadGetFilepath(fileId string) (string, error)
@@ -108,7 +111,7 @@ type Teamserver interface {
 	TsTunnelStopLportfwd(AgentId string, Port int)
 	TsTunnelStopRportfwd(AgentId string, Port int)
 
-	TsTunnelConnectionClose(channelId int)
+	TsTunnelConnectionClose(channelId int, writeOnly bool)
 	TsTunnelConnectionHalt(channelId int, errorCode byte)
 	TsTunnelConnectionResume(AgentId string, channelId int, ioDirect bool)
 	TsTunnelConnectionData(channelId int, data []byte)
@@ -123,6 +126,7 @@ type Teamserver interface {
 	TsConvertCpToUTF8(input string, codePage int) string
 	TsConvertUTF8toCp(input string, codePage int) string
 	TsWin32Error(errorCode uint) string
+
 }
 
 type PluginAgent   struct{}
@@ -130,8 +134,8 @@ type ExtenderAgent struct{}
 
 type ModuleExtender struct {
 	ts  Teamserver
-	pa  PluginAgent
-	ext ExtenderAgent
+	pa  *PluginAgent
+	ext *ExtenderAgent
 }
 
 var (
@@ -141,7 +145,7 @@ var (
 )
 
 func (p* PluginAgent) GetExtender() ax.ExtenderAgent {
-	return &ModuleObject.ext
+	return ModuleObject.ext
 }
 
 func InitPlugin(ts any, moduleDir string, watermark string) ax.PluginAgent {
@@ -150,48 +154,74 @@ func InitPlugin(ts any, moduleDir string, watermark string) ax.PluginAgent {
 
 	ModuleObject = &ModuleExtender{
 		ts: ts.(Teamserver),
+		pa: &PluginAgent{},
+		ext: &ExtenderAgent{},
 	}
-	return &ModuleObject.pa
+
+	return ModuleObject.pa
+}
+
+func (pa* PluginAgent) GenerateProfiles(profile ax.BuildProfile) ([][] byte, error) {
+	var (
+		agentProfiles [][]byte
+		listenerMap   map[string]any
+		err           error
+	)
+
+	for _, transportProfile := range profile.ListenerProfiles {
+		err = json.Unmarshal(transportProfile.Profile, &listenerMap)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return agentProfiles, nil
 }
 
 func (pa* PluginAgent) BuildPayload(profile ax.BuildProfile, agentProfiles [][]byte) ([]byte, string, error) {
 	var (
-		listenerMap  map[string]any
-		agentProfile []byte
-		err          error
+		agentProfile  []byte
+		listenerMap   map[string]any
+		err           error
 	)
 
-	// err = json.Unmarshal(profile., &listenerMap)
-	// if err != nil {
-		// return nil, "", err
-	// }
-
-	agentProfile, err = AgentGenerateProfile(profile.AgentConfig, string(agentProfiles), listenerMap)
-	if err != nil {
-		return nil, "", err
+	for _, transportProfile := range profile.ListenerProfiles {
+		err = json.Unmarshal(transportProfile.Profile, &listenerMap)
+		agentProfile = transportProfile.Profile
+		if err != nil {
+			return nil, "", err
+		}
 	}
 
 	return AgentGenerateBuild(profile.AgentConfig, agentProfile, listenerMap)
 }
 
-func (m *ModuleExtender) AgentCreate(beat []byte) (ax.AgentData, error) {
+func (ext* ExtenderAgent) Encrypt(data []byte, key[]byte) ([]byte, error) {
+	return data, nil
+}
+
+func (ext* ExtenderAgent) Decrypt(data []byte, key[]byte) ([]byte, error) {
+	return data, nil
+}
+
+func (pa* PluginAgent) CreateAgent(beat []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 	return CreateAgent(beat)
 }
 
-func (m *ModuleExtender) CreateCommand(agentData ax.AgentData, args map[string]any) (ax.TaskData, ax.ConsoleMessageData, error) {
-	return CreateTask(m.ts, agentData, args)
+func (ext *ExtenderAgent) CreateCommand(agentData ax.AgentData, args map[string]any) (ax.TaskData, ax.ConsoleMessageData, error) {
+	return CreateTask(ModuleObject.ts, agentData, args)
 }
 
-func (m *ModuleExtender) AgentPackData(agentData ax.AgentData, tasks []ax.TaskData) ([]byte, error) {
+func (ext *ExtenderAgent) PackTasks(agentData ax.AgentData, tasks []ax.TaskData) ([]byte, error) {
 	packedData, err := PackTasks(agentData, tasks)
 	if err != nil {
 		return nil, err
 	}
 
-	return AgentEncryptData(packedData, agentData.SessionKey)
+	return ext.Encrypt(packedData, agentData.SessionKey)
 }
 
-func (m *ModuleExtender) AgentPivotPackData(pivotId string, data []byte) (ax.TaskData, error) {
+func (ext* ExtenderAgent) PivotPackData(pivotId string, data []byte) (ax.TaskData, error) {
 	packData, err := PackPivotTasks(pivotId, data)
 	if err != nil {
 		return ax.TaskData{}, err
@@ -211,10 +241,10 @@ func (m *ModuleExtender) AgentPivotPackData(pivotId string, data []byte) (ax.Tas
 	return taskData, nil
 }
 
-func (m *ModuleExtender) ProcessData(agentData ax.AgentData, packedData []byte) ([]byte, error) {
-	decryptData, err := AgentDecryptData(packedData, agentData.SessionKey)
+func (ext *ExtenderAgent) ProcessData(agentData ax.AgentData, packedData []byte) error {
+	decryptData, err := ext.Decrypt(packedData, agentData.SessionKey)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	taskData := ax.TaskData{
@@ -226,33 +256,23 @@ func (m *ModuleExtender) ProcessData(agentData ax.AgentData, packedData []byte) 
 		Sync:        true,
 	}
 
-	resultTasks := ProcessTasksResult(m.ts, agentData, taskData, decryptData)
+	resultTasks := ProcessTasksResult(ModuleObject.ts, agentData, taskData, decryptData)
 
 	for _, task := range resultTasks {
-		m.ts.TsTaskUpdate(agentData.Id, task)
+		ModuleObject.ts.TsTaskUpdate(agentData.Id, task)
 	}
 
-	return nil, nil
+	return nil
 }
 
 /// SYNC
 
 func SyncBrowserDisks(ts Teamserver, taskData ax.TaskData, drivesSlice []ax.ListingDrivesDataWin) {
-	jsonDrives, err := json.Marshal(drivesSlice)
-	if err != nil {
-		return
-	}
-
-	ts.TsClientGuiDisks(taskData, string(jsonDrives))
+	ts.TsClientGuiDisksWindows(taskData, drivesSlice)
 }
 
 func SyncBrowserFiles(ts Teamserver, taskData ax.TaskData, path string, filesSlice []ax.ListingFileDataWin) {
-	jsonDrives, err := json.Marshal(filesSlice)
-	if err != nil {
-		return
-	}
-
-	ts.TsClientGuiFiles(taskData, path, string(jsonDrives))
+	ts.TsClientGuiFilesWindows(taskData, path, filesSlice)
 }
 
 func SyncBrowserFilesStatus(ts Teamserver, taskData ax.TaskData) {
@@ -260,21 +280,23 @@ func SyncBrowserFilesStatus(ts Teamserver, taskData ax.TaskData) {
 }
 
 func SyncBrowserProcess(ts Teamserver, taskData ax.TaskData, processlist []ax.ListingProcessDataWin) {
-	jsonProcess, err := json.Marshal(processlist)
-	if err != nil {
-		return
-	}
-
-	ts.TsClientGuiProcess(taskData, string(jsonProcess))
+	ts.TsClientGuiProcessWindows(taskData, processlist)
 }
 
 /// TUNNEL
 
-func (m *ModuleExtender) AgentTunnelCallbacks() (func(channelId int, address string, port int) ax.TaskData, func(channelId int, address string, port int) ax.TaskData, func(channelId int, data []byte) ax.TaskData, func(channelId int, data []byte) ax.TaskData, func(channelId int) ax.TaskData, func(tunnelId int, port int) ax.TaskData, error) {
-	return TunnelMessageConnectTCP, TunnelMessageConnectUDP, TunnelMessageWriteTCP, TunnelMessageWriteUDP, TunnelMessageClose, TunnelMessageReverse, nil
+func (ext *ExtenderAgent) TunnelCallbacks() ax.TunnelCallbacks {
+	return ax.TunnelCallbacks{
+		ConnectTCP: TunnelMessageConnectTCP,
+		ConnectUDP: TunnelMessageConnectUDP,
+		WriteTCP:   TunnelMessageWriteTCP,
+		WriteUDP:   TunnelMessageWriteUDP,
+		Close:      TunnelMessageClose,
+		Reverse:    TunnelMessageReverse,
+	}
 }
 
-func TunnelMessageConnectTCP(channelId int, address string, port int) ax.TaskData {
+func TunnelMessageConnectTCP(channelId int, tunnelType int, addressType int, address string, port int) ax.TaskData {
 	packData, _ := TunnelCreateTCP(channelId, address, port)
 
 	taskData := ax.TaskData{
@@ -286,7 +308,7 @@ func TunnelMessageConnectTCP(channelId int, address string, port int) ax.TaskDat
 	return taskData
 }
 
-func TunnelMessageConnectUDP(channelId int, address string, port int) ax.TaskData {
+func TunnelMessageConnectUDP(channelId int, tunnelType int, addressType int, address string, port int) ax.TaskData {
 	packData, _ := TunnelCreateUDP(channelId, address, port)
 
 	taskData := ax.TaskData{
@@ -348,14 +370,18 @@ func TunnelMessageReverse(tunnelId int, port int) ax.TaskData {
 
 /// TERMINAL
 
-func (m *ModuleExtender) AgentTerminalCallbacks() (func(int, string, int, int) (ax.TaskData, error), func(int, []byte) (ax.TaskData, error), func(int) (ax.TaskData, error), error) {
-	return TerminalMessageStart, TerminalMessageWrite, TerminalMessageClose, nil
+func (ext *ExtenderAgent) TerminalCallbacks() ax.TerminalCallbacks {
+	return ax.TerminalCallbacks{
+		Start: TerminalMessageStart,
+		Write: TerminalMessageWrite,
+		Close: TerminalMessageClose,
+	}
 }
 
-func TerminalMessageStart(terminalId int, program string, sizeH int, sizeW int) (ax.TaskData, error) {
+func TerminalMessageStart(terminalId int, program string, sizeH, sizeW, oemCP int) ax.TaskData {
 	packData, err := TerminalStart(terminalId, program, sizeH, sizeW)
 	if err != nil {
-		return ax.TaskData{}, err
+		return ax.TaskData{}
 	}
 
 	taskData := ax.TaskData{
@@ -364,13 +390,13 @@ func TerminalMessageStart(terminalId int, program string, sizeH int, sizeW int) 
 		Sync: false,
 	}
 
-	return taskData, nil
+	return taskData
 }
 
-func TerminalMessageWrite(channelId int, data []byte) (ax.TaskData, error) {
-	packData, err := TerminalWrite(channelId, data)
+func TerminalMessageWrite(terminalId int, oemCP int, data []byte) ax.TaskData {
+	packData, err := TerminalWrite(terminalId, data)
 	if err != nil {
-		return ax.TaskData{}, err
+		return ax.TaskData{}
 	}
 	taskData := ax.TaskData{
 		Type: TYPE_PROXY_DATA,
@@ -378,13 +404,13 @@ func TerminalMessageWrite(channelId int, data []byte) (ax.TaskData, error) {
 		Sync: false,
 	}
 
-	return taskData, nil
+	return taskData
 }
 
-func TerminalMessageClose(terminalId int) (ax.TaskData, error) {
+func TerminalMessageClose(terminalId int) ax.TaskData {
 	packData, err := TerminalClose(terminalId)
 	if err != nil {
-		return ax.TaskData{}, err
+		return ax.TaskData{}
 	}
 
 	taskData := ax.TaskData{
@@ -393,5 +419,5 @@ func TerminalMessageClose(terminalId int) (ax.TaskData, error) {
 		Sync: false,
 	}
 
-	return taskData, nil
+	return taskData
 }

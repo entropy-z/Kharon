@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/Adaptix-Framework/axc2"
+	ax "github.com/Adaptix-Framework/axc2"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,15 +29,16 @@ func (m *ModuleExtender) HandlerListenerValid(data string) error {
 	return nil
 }
 
-func (m *ModuleExtender) HandlerCreateListenerDataAndStart(name string, configData string, listenerCustomData []byte) (adaptix.ListenerData, []byte, any, error) {
+func (m *ModuleExtender) HandlerCreateListenerDataAndStart(name string, configData string, listenerCustomData []byte) (ax.ExtenderListener, ax.ListenerData, []byte, any, error) {
 	var (
-		listenerData adaptix.ListenerData
+		listenerData ax.ListenerData
 		customdData  []byte
 	)
 
 	/// START CODE HERE
 
 	var (
+		extender ax.ExtenderListener
 		listener *HTTP
 		conf     HTTPConfig
 		err      error
@@ -46,7 +47,7 @@ func (m *ModuleExtender) HandlerCreateListenerDataAndStart(name string, configDa
 	if listenerCustomData == nil {
 		err = json.Unmarshal([]byte(configData), &conf)
 		if err != nil {
-			return listenerData, customdData, listener, err
+			return extender, listenerData, customdData, listener, err
 		}
 
 		randSlice := make([]byte, 16)
@@ -57,7 +58,7 @@ func (m *ModuleExtender) HandlerCreateListenerDataAndStart(name string, configDa
 	} else {
 		err = json.Unmarshal(listenerCustomData, &conf)
 		if err != nil {
-			return listenerData, customdData, listener, err
+			return extender, listenerData, customdData, listener, err
 		}
 	}
 
@@ -70,10 +71,10 @@ func (m *ModuleExtender) HandlerCreateListenerDataAndStart(name string, configDa
 
 	err = listener.Start(m.ts)
 	if err != nil {
-		return listenerData, customdData, listener, err
+		return extender, listenerData, customdData, listener, err
 	}
 
-	listenerData = adaptix.ListenerData{
+	listenerData = ax.ListenerData{
 		BindHost:  listener.Config.HostBind,
 		BindPort:  strconv.Itoa(listener.Config.PortBind),
 		AgentAddr: conf.Addresses,
@@ -91,18 +92,22 @@ func (m *ModuleExtender) HandlerCreateListenerDataAndStart(name string, configDa
 	var buffer bytes.Buffer
 	err = json.NewEncoder(&buffer).Encode(listener.Config)
 	if err != nil {
-		return listenerData, customdData, listener, nil
+		return extender, listenerData, customdData, listener, nil
 	}
 	customdData = buffer.Bytes()
 
+	extender = &Listener{
+		transport: listener,
+	}
+
 	/// END CODE
 
-	return listenerData, customdData, listener, nil
+	return extender, listenerData, customdData, listener, nil
 }
 
-func (m *ModuleExtender) HandlerEditListenerData(name string, listenerObject any, configData string) (adaptix.ListenerData, []byte, bool) {
+func (m *ModuleExtender) HandlerEditListenerData(name string, listenerObject any, configData string) (ax.ListenerData, []byte, bool) {
 	var (
-		listenerData adaptix.ListenerData
+		listenerData ax.ListenerData
 		customdData  []byte
 		ok           bool = false
 	)
@@ -122,7 +127,7 @@ func (m *ModuleExtender) HandlerEditListenerData(name string, listenerObject any
 			return listenerData, customdData, false
 		}
 
-		listenerData = adaptix.ListenerData{
+		listenerData = ax.ListenerData{
 			BindHost:  listener.Config.HostBind,
 			BindPort:  strconv.Itoa(listener.Config.PortBind),
 			AgentAddr: listener.Config.Addresses,
