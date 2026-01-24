@@ -43,20 +43,28 @@ extern "C" {
     DFR(KERNEL32, HeapReAlloc)
     DFR(KERNEL32, HeapFree)
 
+    DFR(KERNEL32, FileTimeToSystemTime)
     DFR(KERNEL32, CreatePipe)
     DFR(KERNEL32, DuplicateHandle)
     DFR(KERNEL32, CreateFileW)
     DFR(KERNEL32, CreateFileA)
+    DFR(KERNEL32, GetFullPathNameW)
+    DFR(KERNEL32, CreateDirectoryW)
+    DFR(KERNEL32, GetFileAttributesW)
+    DFR(KERNEL32, GetCurrentDirectoryW)
     DFR(KERNEL32, GetFileSize)
     DFR(KERNEL32, ReadFile)
     DFR(KERNEL32, CopyFileW)
     DFR(KERNEL32, MoveFileW)
     DFR(KERNEL32, DeleteFileW)
+    DFR(KERNEL32, FindFirstFileW)
+    DFR(KERNEL32, FindNextFileW)
 
     DFR(KERNEL32, WaitForSingleObject)
 
     DFR(KERNEL32, CloseHandle)
     DFR(KERNEL32, GetLastError)
+    DFR(KERNEL32, FormatMessageW)
 }
 
 #define VirtualAlloc        KERNEL32$VirtualAlloc
@@ -92,16 +100,27 @@ extern "C" {
 #define HeapReAlloc         KERNEL32$HeapReAlloc
 #define HeapFree            KERNEL32$HeapFree
 
+#define FileTimeToSystemTime KERNEL32$FileTimeToSystemTime
 #define CreatePipe          KERNEL32$CreatePipe
 #define DuplicateHandle     KERNEL32$DuplicateHandle
 #define CreateFileW         KERNEL32$CreateFileW   
 #define CreateFileA         KERNEL32$CreateFileA
+#define GetFileAttributesW  KERNEL32$GetFileAttributesW
+#define GetCurrentDirectoryW KERNEL32$GetCurrentDirectoryW
 #define GetFileSize         KERNEL32$GetFileSize
+#define CopyFileW          KERNEL32$CopyFileW
 #define ReadFile            KERNEL32$ReadFile
+#define MoveFileW           KERNEL32$MoveFileW
+#define DeleteFileW         KERNEL32$DeleteFileW
+#define CreateDirectoryW    KERNEL32$CreateDirectoryW
+#define GetFullPathNameW    KERNEL32$GetFullPathNameW
+#define FindFirstFileW     KERNEL32$FindFirstFileW
+#define FindNextFileW      KERNEL32$FindNextFileW
 
 #define WaitForSingleObject KERNEL32$WaitForSingleObject
 
 #define CloseHandle         KERNEL32$CloseHandle
 #define GetLastError        KERNEL32$GetLastError
+#define FormatMessageW      KERNEL32$FormatMessageW
  
 #endif // EXTERNS_H

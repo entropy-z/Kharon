@@ -726,37 +726,37 @@ typedef struct _ASSEMBLY_STORAGE_MAP
     PASSEMBLY_STORAGE_MAP_ENTRY *AssemblyArray;
 } ASSEMBLY_STORAGE_MAP, *PASSEMBLY_STORAGE_MAP;
 
-typedef struct _APPCOMPAT_EXE_DATA
-{
-    ULONG_PTR Reserved[65];
-    ULONG Size;
-    ULONG Magic;
-    BOOL LoadShimEngine;
-    USHORT ExeType;
-    SDBQUERYRESULT SdbQueryResult;
-    ULONG_PTR DbgLogChannels[128];
-    SWITCH_CONTEXT SwitchContext;
-    ULONG ParentProcessId;
-    WCHAR ParentImageName[260];
-    WCHAR ParentCompatLayers[256];
-    WCHAR ActiveCompatLayers[256];
-    ULONG ImageFileSize;
-    ULONG ImageCheckSum;
-    BOOL LatestOs;
-    BOOL PackageId;
-    BOOL SwitchBackManifest;
-    BOOL UacManifest;
-    BOOL LegacyInstaller;
-    ULONG RunLevel;
-    ULONG_PTR WinRTFlags;
-    PVOID HookCOM;
-    PVOID ComponentOnDemandEvent;
-    PVOID Quirks;
-    ULONG QuirksSize;
-    SDB_CSTRUCT_COBALT_PROCFLAG CobaltProcFlags;
-    ULONG FullMatchDbSizeCb;
-    ULONG FullMatchDbOffset;
-} APPCOMPAT_EXE_DATA;
+// typedef struct _APPCOMPAT_EXE_DATA
+// {
+//     ULONG_PTR Reserved[65];
+//     ULONG Size;
+//     ULONG Magic;
+//     BOOL LoadShimEngine;
+//     USHORT ExeType;
+//     SDBQUERYRESULT SdbQueryResult;
+//     ULONG_PTR DbgLogChannels[128];
+//     SWITCH_CONTEXT SwitchContext;
+//     ULONG ParentProcessId;
+//     WCHAR ParentImageName[260];
+//     WCHAR ParentCompatLayers[256];
+//     WCHAR ActiveCompatLayers[256];
+//     ULONG ImageFileSize;
+//     ULONG ImageCheckSum;
+//     BOOL LatestOs;
+//     BOOL PackageId;
+//     BOOL SwitchBackManifest;
+//     BOOL UacManifest;
+//     BOOL LegacyInstaller;
+//     ULONG RunLevel;
+//     ULONG_PTR WinRTFlags;
+//     PVOID HookCOM;
+//     PVOID ComponentOnDemandEvent;
+//     PVOID Quirks;
+//     ULONG QuirksSize;
+//     SDB_CSTRUCT_COBALT_PROCFLAG CobaltProcFlags;
+//     ULONG FullMatchDbSizeCb;
+//     ULONG FullMatchDbOffset;
+// } APPCOMPAT_EXE_DATA;
 
 typedef struct _TELEMETRY_COVERAGE_HEADER
 {

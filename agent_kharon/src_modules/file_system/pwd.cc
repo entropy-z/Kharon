@@ -17,7 +17,7 @@ extern "C" auto go( char* args, int argc ) -> void {
         return;
     }
 
-    BeaconPrintf( CALLBACK_OUTPUT, "Current directory is %s\n", current_dir );
+    BeaconPrintf( CALLBACK_OUTPUT, "Current directory is %ls\n", current_dir );
 
     HeapFree( GetProcessHeap(), 0, current_dir );
 
