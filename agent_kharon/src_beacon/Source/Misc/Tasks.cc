@@ -772,6 +772,15 @@ auto DECLFN Task::Config(
 
                 break;
             }
+            case Enm::Config::BofApiProxy: {
+                BOOL BofApiProxy = Self->Psr->Int32( Parser );
+
+                Self->Config.BofProxy = BofApiProxy;
+
+                KhDbg("BOF API Proxy is %s", BofApiProxy ? "enabled" : "disabled");
+
+                break;
+            }
             case Enm::Config::Argue: {
                 ULONG  ArgLen = 0;
                 WCHAR* Argue  = Self->Psr->Wstr( Parser, &ArgLen );
