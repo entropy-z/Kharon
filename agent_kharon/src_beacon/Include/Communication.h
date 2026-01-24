@@ -176,12 +176,13 @@ struct HTTP_CONTEXT {
     WCHAR*  Path             = nullptr;
     WCHAR*  Headers          = nullptr;
     MM_INFO Body            = { 0 };
+
+    struct {
+        PVOID* Ptr;
+        ULONG  Length;
+    } ObjectFree;
     
-    PVOID ObjFree1          = nullptr;
-    PVOID ObjFree2          = nullptr;
-    PVOID ObjFree3          = nullptr;
-    
-    BOOL Success            = FALSE;
+    BOOL Success = FALSE;
 };
 
 /* ============ [ profile types ] ============ */

