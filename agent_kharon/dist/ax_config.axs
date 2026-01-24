@@ -162,13 +162,16 @@ function RegisterCommands(listenerType)
     let cmd_config_syscall = ax.create_command("syscall", "Change the syscall method", "config syscall spoof_indirect");
     cmd_config_syscall.addArgString("syscall", true, "options: 'spoof', 'spoof_indirect' or 'none'");
 
+    let cmd_config_bofproxy = ax.create_command("bof_api_proxy", "Change BOF API Proxy status")
+    cmd_config_bofproxy.addArgBool("status", true)
+
     let cmd_config_forkpipe = ax.create_command("fork_pipe_name", "Change named pipe to use in fork commands", "config fork_pipe_name \\\\.\\pipe\\new_pipe_name");
     cmd_config_forkpipe.addArgString("name", true);
 
     let cmd_config_subcommands = [
         cmd_config_sleep, cmd_config_jitter, cmd_config_ppid, cmd_config_blockdll, cmd_config_wkrtime,
         cmd_config_killdate_date, cmd_config_killdate_exit, cmd_config_killdate_selfdel, 
-        cmd_config_heap_obf, cmd_config_mask, cmd_config_amsietwbypass, cmd_config_spawnto, cmd_config_syscall
+        cmd_config_heap_obf, cmd_config_mask, cmd_config_amsietwbypass, cmd_config_spawnto, cmd_config_syscall, cmd_config_bofproxy
     ];
 
     let cmd_config = ax.create_command("config", "Configuration management - adjust beacon behavior and settings", "config sleep 50s");
@@ -297,21 +300,9 @@ function GenerateUI(listenerType)
     let labelKilldateDate = form.create_label("Date:");
     let dateKill = form.create_dateline("dd.MM.yyyy");
     
-    let labelKilldateExit = form.create_label("Exit Method:");
-    let comboKilldateExit = form.create_combo();
-    comboKilldateExit.addItem("Process");
-    comboKilldateExit.addItem("Thread");
-    comboKilldateExit.setCurrentIndex(0);
-    
-    let checkKilldateSelfDel = form.create_check("Self Delete");
-    checkKilldateSelfDel.setChecked(false);
-    
     let layout_killdate = form.create_gridlayout();
     layout_killdate.addWidget(labelKilldateDate,     0, 0, 1, 1);
     layout_killdate.addWidget(dateKill,              0, 1, 1, 2);
-    layout_killdate.addWidget(labelKilldateExit,     1, 0, 1, 1);
-    layout_killdate.addWidget(comboKilldateExit,     1, 1, 1, 1);
-    layout_killdate.addWidget(checkKilldateSelfDel,  1, 2, 1, 1);
     let panel_killdate = form.create_panel();
     panel_killdate.setLayout(layout_killdate);
     killdate_group.setPanel(panel_killdate);
@@ -352,7 +343,7 @@ function GenerateUI(listenerType)
     let postex_group = form.create_groupbox("PostEx Settings", false)
     postex_group.setPanel(panel_postex);
 
-    // Evasion Settings
+    // Evasion Settings (Removido Shellcode Injection e Stomping)
     let labelBypass = form.create_label("Bypass:");
     let bypass_combo = form.create_combo();
     bypass_combo.addItem("None");
@@ -360,16 +351,6 @@ function GenerateUI(listenerType)
     bypass_combo.addItem("ETW");
     bypass_combo.addItem("AMSI + ETW");
     bypass_combo.setCurrentIndex(0);
-
-    let labelInject = form.create_label("Shellcode Injection:");
-    let inject_shellcode = form.create_combo();
-    inject_shellcode.addItem("Standard");
-    inject_shellcode.addItem("Stomping");
-    inject_shellcode.setCurrentIndex(0);
-    
-    // Adicionando o placeholder "Stomp Module"
-    let textStompModule = form.create_textline("chakra.dll");
-    textStompModule.setPlaceholder("Stomp Module");
 
     let bof_api_check = form.create_check("BOF API Proxy");
     bof_api_check.setChecked(false);
@@ -383,14 +364,11 @@ function GenerateUI(listenerType)
     syscall_combo.setCurrentIndex(0);
 
     let layout_evasion = form.create_gridlayout();
-    layout_evasion.addWidget(labelBypass, 0, 0, 1, 1);
-    layout_evasion.addWidget(bypass_combo, 0, 1, 1, 1);
-    layout_evasion.addWidget(labelInject, 1, 0, 1, 1);
-    layout_evasion.addWidget(inject_shellcode, 1, 1, 1, 1);
-    layout_evasion.addWidget(textStompModule, 1, 2, 1, 1); 
-    layout_evasion.addWidget(labelSyscall, 2, 0, 1, 1);
-    layout_evasion.addWidget(syscall_combo, 2, 1, 1, 1);
-    layout_evasion.addWidget(bof_api_check, 2, 2, 1, 1);
+    layout_evasion.addWidget(labelBypass,       0, 0, 1, 1);
+    layout_evasion.addWidget(bypass_combo,      0, 1, 1, 1);
+    layout_evasion.addWidget(labelSyscall,      1, 0, 1, 1);
+    layout_evasion.addWidget(syscall_combo,     1, 1, 1, 1);
+    layout_evasion.addWidget(bof_api_check,     1, 2, 1, 1);
     let panel_evasion = form.create_panel();
     panel_evasion.setLayout(layout_evasion);
     let evasion_group = form.create_groupbox("Evasion settings", false)
@@ -452,8 +430,6 @@ function GenerateUI(listenerType)
     // Killdate
     container.put("killdate_check", killdate_group)
     container.put("killdate_date", dateKill)
-    container.put("killdate_exit", comboKilldateExit)
-    container.put("killdate_selfdel", checkKilldateSelfDel)
     
     // Workingtime
     container.put("workingtime_check", workingtime_group)
@@ -464,10 +440,7 @@ function GenerateUI(listenerType)
     container.put("fork_pipename", textPipename)
     container.put("spawnto", textSpawnTo)
     
-    // Evasion
     container.put("bypass", bypass_combo)
-    container.put("inject_id", inject_shellcode)
-    container.put("stomp_module", textStompModule) 
     container.put("bof_api_proxy", bof_api_check)
     container.put("syscall", syscall_combo)
     
@@ -480,6 +453,8 @@ function GenerateUI(listenerType)
 
     return {
         ui_panel: panel,
-        ui_container: container
+        ui_container: container,
+        ui_height: 1000,
+        ui_width: 600  
     }
 }
