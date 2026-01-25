@@ -81,7 +81,7 @@ function RegisterCommands(listenerType)
     cmd_ps_pwsh.addArgFlagFile("-s", "script", false);
     cmd_ps_pwsh.addArgFlagString("-b", "bypass", false, "Options: 'amsi', 'etw', 'all' or 'none'");
 
-    let cmd_ps = ax.create_command("ps", "Process management - list, create, and terminate processes");
+    let cmd_ps = ax.create_command("process", "Process management - list, create, and terminate processes");
     cmd_ps.addSubCommands([cmd_ps_list, cmd_ps_run, cmd_ps_pwsh, _cmd_ps_kill]);
 
     /// JOB
@@ -454,7 +454,7 @@ function GenerateUI(listenerType)
     return {
         ui_panel: panel,
         ui_container: container,
-        ui_height: 1000,
-        ui_width: 600  
+        ui_height: 600,
+        ui_width: 800  
     }
 }

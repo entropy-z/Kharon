@@ -67,30 +67,20 @@ const (
 	CONFIG_JITTER     int = 14
 	CONFIG_SLEEP      int = 15
 	CONFIG_MASK       int = 16
-	CONFIG_SC         int = 17
-	CONFIG_PE         int = 18
-	CONFIG_PPID       int = 19
-	CONFIG_BLOCK_DLLS int = 20
-	CONFIG_ARG        int = 22
-	CONFIG_SPAWN      int = 23
-	CONFIG_KD_DATE    int = 24
-	CONFIG_WORKTIME   int = 25
-	CONFIG_MASK_HEAP  int = 26
-	CONFIG_FORK_TYPE  int = 27
-	CONFIG_FORK_PID   int = 28
-	CONFIG_KD_SELFDEL int = 29
-	CONFIG_KD_EXIT    int = 30
-	CONFIG_AE_BYPASS  int = 31
-	CONFIG_INJ_ALLOC  int = 32
-	CONFIG_INJ_WRITE  int = 33
-	CONFIG_SYSCALL    int = 34
-	CONFIG_FORKPIPE   int = 35
-	CONFIG_CB_HOST    int = 36
-	CONFIG_CB_UA      int = 37
-	CONFIG_CB_PROXY   int = 38
-	CONFIG_INJ_TECHN  int = 39
-	CONFIG_INJ_STOMP  int = 40
-	CONFIG_ARGUE      int = 41
+	CONFIG_PPID       int = 17
+	CONFIG_BLOCK_DLLS int = 18
+	CONFIG_ARG        int = 19
+	CONFIG_SPAWN      int = 20
+	CONFIG_KD_DATE    int = 21
+	CONFIG_WORKTIME   int = 22
+	CONFIG_MASK_HEAP  int = 23
+	CONFIG_KD_SELFDEL int = 24
+	CONFIG_KD_EXIT    int = 25
+	CONFIG_AE_BYPASS  int = 26
+	CONFIG_SYSCALL    int = 27
+	CONFIG_FORKPIPE   int = 28
+	CONFIG_ARGUE      int = 29
+	CONFIG_BOFPROXY   int = 30
 )
 
 const (

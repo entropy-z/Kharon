@@ -5,8 +5,101 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"unicode/utf16"
 )
+
+type BofPacker struct {
+	buffer bytes.Buffer
+}
+
+func LoadExtModule(file_name string, arch string) ([]byte, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get working directory: %v", err)
+	}
+
+	mod_path := filepath.Join(filepath.Dir(wd), "dist", "extenders", "agent_kharon", "src_modules", "dist", fmt.Sprintf("%s.%s.o", file_name, arch))
+	fmt.Printf("DEBUG: Loading BOF module from: %s\n", mod_path)
+
+	mod_content, err := os.ReadFile(mod_path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read BOF module '%s': %v", mod_path, err)
+	}
+
+	fmt.Printf("DEBUG: BOF module loaded (%d bytes)\n", len(mod_content))
+	return mod_content, nil
+}
+
+func NewBofPacker() *BofPacker {
+	return &BofPacker{}
+}
+
+func (bp *BofPacker) AddInt32(val int32) {
+	binary.Write(&bp.buffer, binary.LittleEndian, val)
+}
+
+func (bp *BofPacker) AddInt16(val int16) {
+	binary.Write(&bp.buffer, binary.LittleEndian, val)
+}
+
+func (bp *BofPacker) AddInt8(val int8) {
+	binary.Write(&bp.buffer, binary.LittleEndian, val)
+}
+
+func (bp *BofPacker) AddString(val string) {
+	data := []byte(val)
+	binary.Write(&bp.buffer, binary.LittleEndian, int32(len(data)))
+	bp.buffer.Write(data)
+}
+
+func (bp *BofPacker) AddWString(val string) {
+	utf16Bytes := utf16.Encode([]rune(val))
+	binary.Write(&bp.buffer, binary.LittleEndian, int32(len(utf16Bytes)*2))
+	for _, r := range utf16Bytes {
+		binary.Write(&bp.buffer, binary.LittleEndian, r)
+	}
+}
+
+func (bp *BofPacker) AddBytes(val []byte) {
+	binary.Write(&bp.buffer, binary.LittleEndian, int32(len(val)))
+	bp.buffer.Write(val)
+}
+
+func (bp *BofPacker) Bytes() []byte {
+	return bp.buffer.Bytes()
+}
+
+func (bp *BofPacker) Reset() {
+	bp.buffer.Reset()
+}
+
+func BofPackData(args ...interface{}) ([]byte, error) {
+	bp := NewBofPacker()
+
+	for _, arg := range args {
+		switch v := arg.(type) {
+		case int:
+			bp.AddInt32(int32(v))
+		case int32:
+			bp.AddInt32(v)
+		case int16:
+			bp.AddInt16(v)
+		case int8:
+			bp.AddInt8(v)
+		case string:
+			bp.AddString(v)
+		case []byte:
+			bp.AddBytes(v)
+		default:
+			return nil, fmt.Errorf("unsupported type for BOF packing: %T", v)
+		}
+	}
+
+	return bp.Bytes(), nil
+}
 
 type Packer struct {
 	buffer []byte
@@ -207,33 +300,33 @@ func PackArray(array []interface{}) ([]byte, error) {
 			packData = append(packData, []byte(val)...)
 			//fmt.printf("[4 bytes size][%d bytes data]", len(val))
 
-		case []uint16: 
+		case []uint16:
 			size := make([]byte, 4)
-			
+
 			needsTerminator := true
 			if len(v) > 0 && v[len(v)-1] == 0 {
 				needsTerminator = false
 			}
-			
+
 			totalSize := len(v) * 2
 			if needsTerminator {
-				totalSize += 2 
+				totalSize += 2
 			}
-			
+
 			val := make([]byte, totalSize)
-			
+
 			for i, wchar := range v {
 				val[i*2] = byte(wchar)
 				val[i*2+1] = byte(wchar >> 8)
 			}
-			
+
 			if needsTerminator && len(v) > 0 {
 				val[len(v)*2] = 0x00
 				val[len(v)*2+1] = 0x00
 			}
 
 			fmt.Printf("out %s\n", val)
-			
+
 			binary.LittleEndian.PutUint32(size, uint32(len(val)))
 			packData = append(packData, size...)
 			packData = append(packData, val...)

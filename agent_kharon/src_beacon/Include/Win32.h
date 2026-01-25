@@ -2414,6 +2414,15 @@ typedef struct _TPP_QUEUE
     struct _RTL_SRWLOCK Lock;
 } TPP_QUEUE, * PTPP_QUEUE;
 
+typedef struct _SYSTEM_SECUREBOOT_POLICY_INFORMATION
+{
+    GUID PolicyPublisher;
+    ULONG PolicyVersion;
+    ULONG PolicyOptions;
+} SYSTEM_SECUREBOOT_POLICY_INFORMATION, *PSYSTEM_SECUREBOOT_POLICY_INFORMATION;
+
+#define MEM_EXECUTE_OPTION_ENABLE 0x2       // ignore the NX bit: DEP off, enable executing most of ro/rw memory; trumps over the _DISABLE option
+
 typedef struct _FULL_TP_POOL
 {
     struct _TPP_REFCOUNT Refcount;

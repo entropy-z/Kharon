@@ -133,9 +133,9 @@ type PluginAgent   struct{}
 type ExtenderAgent struct{}
 
 type ModuleExtender struct {
-	ts  Teamserver
-	pa  *PluginAgent
-	ext *ExtenderAgent
+	ts  	Teamserver
+	pa 		*PluginAgent
+	ext 	*ExtenderAgent
 }
 
 var (

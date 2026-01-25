@@ -17,9 +17,6 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
         Cfg->EncryptKey[i] = ENCRYPT_KEY_ARRAY[i];
     }
 
-    Cfg->Injection.StompModule = KH_STOMP_MODULE;
-    Cfg->Injection.TechniqueId = KH_INJECTION_ID;
-
     // mask
     Cfg->Mask.Beacon = KH_SLEEP_MASK;
     Cfg->Mask.Heap   = KH_HEAP_MASK;
@@ -36,6 +33,12 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
 
     Cfg->Worktime.Enabled = KH_WORKTIME_ENABLED;
 
+    // guardrails
+    Cfg->Guardrails.UserName   = KH_GUARDRAILS_USER;
+    Cfg->Guardrails.DomainName = KH_GUARDRAILS_DOMAIN;
+    Cfg->Guardrails.IpAddress  = KH_GUARDRAILS_IPADDRESS;
+    Cfg->Guardrails.HostName   = KH_GUARDRAILS_HOST;
+    
     // killdate
     Cfg->KillDate.Day   = KH_KILLDATE_DAY;
     Cfg->KillDate.Month = KH_KILLDATE_MONTH;

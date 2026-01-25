@@ -1,22 +1,21 @@
 package main
 
 import (
-	"fmt"
 	"bytes"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"crypto/rand"
-	"math/big"
 	"encoding/pem"
-	"time"
-	"os"
-	"strings"
-	"strconv"
+	"fmt"
+	"math/big"
 	"net/url"
+	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
-
 
 const (
 	PROFILE_HTTP uint = 0x25
@@ -39,28 +38,28 @@ func copy_method(original *HTTPMethod) *HTTPMethod {
 	if original == nil {
 		return nil
 	}
-	
+
 	copied := &HTTPMethod{
 		EmptyResponse: make([]byte, len(original.EmptyResponse)),
 	}
 	copy(copied.EmptyResponse, original.EmptyResponse)
-	
+
 	copied.ServerHeaders = make(map[string]string)
 	for k, v := range original.ServerHeaders {
 		copied.ServerHeaders[k] = v
 	}
-	
+
 	copied.ClientHeaders = make(map[string]string)
 	for k, v := range original.ClientHeaders {
 		copied.ClientHeaders[k] = v
 	}
-	
+
 	copied.URI = make(map[string]URIConfig)
 	for k, v := range original.URI {
 		uriConfig := URIConfig{
 			ClientParams: make([]map[string]interface{}, len(v.ClientParams)),
 		}
-		
+
 		if v.ServerOutput != nil {
 			uriConfig.ServerOutput = &OutputConfig{
 				Mask:      v.ServerOutput.Mask,
@@ -72,7 +71,7 @@ func copy_method(original *HTTPMethod) *HTTPMethod {
 				Append:    v.ServerOutput.Append,
 			}
 		}
-		
+
 		if v.ClientOutput != nil {
 			uriConfig.ClientOutput = &OutputConfig{
 				Mask:      v.ClientOutput.Mask,
@@ -84,17 +83,17 @@ func copy_method(original *HTTPMethod) *HTTPMethod {
 				Append:    v.ClientOutput.Append,
 			}
 		}
-		
+
 		for i, param := range v.ClientParams {
 			uriConfig.ClientParams[i] = make(map[string]interface{})
 			for key, value := range param {
 				uriConfig.ClientParams[i][key] = value
 			}
 		}
-		
+
 		copied.URI[k] = uriConfig
 	}
-	
+
 	return copied
 }
 
@@ -107,7 +106,7 @@ func (handler *HTTP) get_uri_config(path string, http_method *HTTPMethod) *URICo
 
 	for each_uri, each_config := range http_method.URI {
 		fmt.Printf("[DEBUG] Looped uri: %s\n", each_uri)
-		
+
 		if each_uri == path {
 			return &each_config
 		}
@@ -135,30 +134,30 @@ func (handler *HTTP) get_all_uris(method *HTTPMethod) []string {
 }
 
 func (handler *HTTP) get_callback_by_host(host string) *Callback {
-    if host == "" {
-        return nil
-    }
+	if host == "" {
+		return nil
+	}
 
-    fmt.Printf("[DEBUG] Looking for callback with address: %s\n", host)
-    fmt.Printf("[DEBUG] Total callbacks available: %d\n", len(handler.Config.Callbacks))
+	fmt.Printf("[DEBUG] Looking for callback with address: %s\n", host)
+	fmt.Printf("[DEBUG] Total callbacks available: %d\n", len(handler.Config.Callbacks))
 
-    for i := range handler.Config.Callbacks {
-        callback := handler.Config.Callbacks[i]
-        fmt.Printf("[DEBUG] Checking callback %d with %d hosts\n", i, len(callback.Hosts))
-        
-        for j, callbackHost := range callback.Hosts {
-            fmt.Printf("[DEBUG][%d][%d] Comparing: '%s' == '%s'? %v\n", 
-                i, j, callbackHost, host, strings.EqualFold(callbackHost, host))
-            
-            if strings.EqualFold(callbackHost, host) {
-                fmt.Printf("[SUCCESS] Found callback at index %d for host: %s\n", i, host)
-                return &callback
-            }
-        }
-    }
+	for i := range handler.Config.Callbacks {
+		callback := handler.Config.Callbacks[i]
+		fmt.Printf("[DEBUG] Checking callback %d with %d hosts\n", i, len(callback.Hosts))
 
-    fmt.Printf("[WARNING] No callback found for address: %s\n", host)
-    return nil
+		for j, callbackHost := range callback.Hosts {
+			fmt.Printf("[DEBUG][%d][%d] Comparing: '%s' == '%s'? %v\n",
+				i, j, callbackHost, host, strings.EqualFold(callbackHost, host))
+
+			if strings.EqualFold(callbackHost, host) {
+				fmt.Printf("[SUCCESS] Found callback at index %d for host: %s\n", i, host)
+				return &callback
+			}
+		}
+	}
+
+	fmt.Printf("[WARNING] No callback found for address: %s\n", host)
+	return nil
 }
 
 func (handler *HTTP) gen_self_signed_cert(certFile, keyFile string) error {
@@ -274,57 +273,55 @@ func (handler *HTTP) apply_server_headers(ctx *gin.Context, method *HTTPMethod) 
 }
 
 func formatHexDump(data []byte, bytesPerLine int) string {
-    var result strings.Builder
-    var ascii strings.Builder
-    
-    for i := 0; i < len(data); i += bytesPerLine {
-        // Endereço hexadecimal
-        result.WriteString(fmt.Sprintf("%08x  ", i))
-        
-        // Bytes hexadecimais
-        for j := 0; j < bytesPerLine; j++ {
-            if i+j < len(data) {
-                result.WriteString(fmt.Sprintf("%02x ", data[i+j]))
-            } else {
-                result.WriteString("   ")
-            }
-            
-            // Adicionar espaço extra no meio da linha
-            if j == bytesPerLine/2-1 {
-                result.WriteString(" ")
-            }
-        }
-        
-        result.WriteString(" ")
-        
-        // Caracteres ASCII
-        ascii.Reset()
-        for j := 0; j < bytesPerLine; j++ {
-            if i+j < len(data) {
-                b := data[i+j]
-                if b >= 32 && b <= 126 {
-                    ascii.WriteByte(b)
-                } else {
-                    ascii.WriteByte('.')
-                }
-            }
-        }
-        
-        result.WriteString("|")
-        result.WriteString(ascii.String())
-        result.WriteString("|\n")
-    }
-    
-    return result.String()
-}
+	var result strings.Builder
+	var ascii strings.Builder
 
+	for i := 0; i < len(data); i += bytesPerLine {
+		// Endereço hexadecimal
+		result.WriteString(fmt.Sprintf("%08x  ", i))
+
+		// Bytes hexadecimais
+		for j := 0; j < bytesPerLine; j++ {
+			if i+j < len(data) {
+				result.WriteString(fmt.Sprintf("%02x ", data[i+j]))
+			} else {
+				result.WriteString("   ")
+			}
+
+			// Adicionar espaço extra no meio da linha
+			if j == bytesPerLine/2-1 {
+				result.WriteString(" ")
+			}
+		}
+
+		result.WriteString(" ")
+
+		// Caracteres ASCII
+		ascii.Reset()
+		for j := 0; j < bytesPerLine; j++ {
+			if i+j < len(data) {
+				b := data[i+j]
+				if b >= 32 && b <= 126 {
+					ascii.WriteByte(b)
+				} else {
+					ascii.WriteByte('.')
+				}
+			}
+		}
+
+		result.WriteString("|")
+		result.WriteString(ascii.String())
+		result.WriteString("|\n")
+	}
+
+	return result.String()
+}
 
 func (handler *HTTP) get_callback_by_uri(uri string, method string) (*Callback, *URIConfig, *HTTPMethod) {
 	fmt.Printf("[DEBUG] Searching for callback with URI: %s, Method: %s\n", uri, method)
-	
+
 	for _, callback := range handler.Config.Callbacks {
 		var http_method *HTTPMethod
-		
 
 		switch method {
 		case "GET":
@@ -352,23 +349,23 @@ func (handler *HTTP) get_callback_by_uri(uri string, method string) (*Callback, 
 
 func (handler *HTTP) get_all_endpoints() map[string][]string {
 	endpoints := make(map[string][]string)
-	
+
 	for i, callback := range handler.Config.Callbacks {
 		callback_key := fmt.Sprintf("Callback[%d](%s)", i, callback.Hosts[0])
-		
+
 		if callback.Get != nil {
 			for uri := range callback.Get.URI {
 				endpoints[callback_key] = append(endpoints[callback_key], fmt.Sprintf("GET %s", uri))
 			}
 		}
-		
+
 		if callback.Post != nil {
 			for uri := range callback.Post.URI {
 				endpoints[callback_key] = append(endpoints[callback_key], fmt.Sprintf("POST %s", uri))
 			}
 		}
 	}
-	
+
 	return endpoints
 }
 

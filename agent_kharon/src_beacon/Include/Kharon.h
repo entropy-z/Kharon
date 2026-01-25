@@ -339,9 +339,9 @@ namespace Root {
             ULONG OsMnrV;
             ULONG ProductType;
             ULONG OsBuild;
-        } Machine = {
-            .DomName= "-"
-        };
+            BOOL  HhvciEnabled;
+            BOOL  DseEnabled;
+        } Machine;
 
         struct {
             PCHAR AgentID;

