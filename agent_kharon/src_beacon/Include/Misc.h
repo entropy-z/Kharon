@@ -16,20 +16,11 @@ auto Rnd32( VOID ) -> ULONG;
 auto Guardrails( VOID ) -> BOOL;
 
 namespace LdrLoad {
-    auto Module(
-        _In_ const ULONG LibHash
-    ) -> UPTR;
-
-    auto _Api(
-        _In_ const UPTR ModBase,
-        _In_ const UPTR SymbBase
-    ) -> UPTR;
+    auto Module( _In_ const ULONG LibHash ) -> UPTR;
+    auto _Api( _In_ const UPTR ModBase, _In_ const UPTR SymbBase ) -> UPTR;
 
     template <typename T>
-    inline auto Api(
-        _In_ const UPTR ModBase,
-        _In_ const UPTR SymbHash
-    ) -> T* {
+    inline auto Api( _In_ const UPTR ModBase, _In_ const UPTR SymbHash ) -> T* {
         return reinterpret_cast<T*>( _Api( ModBase, SymbHash ) );
     }
 }
@@ -91,146 +82,55 @@ namespace Hsh {
 }
 
 namespace Mem {
-    auto Copy(
-        _In_ PVOID Dst,
-        _In_ PVOID Src,
-        _In_ ULONG Size
-    ) -> PVOID;
-
-    auto Set(
-        _In_ UPTR Addr,
-        _In_ UPTR Val,
-        _In_ UPTR Size
-    ) -> void;
-
-    auto Cmp(
-        _In_ PBYTE  Addr1,
-        _In_ PBYTE  Addr2,
-        _In_ SIZE_T Size
-    ) -> BOOL;
-
-    auto Zero(
-        _In_ UPTR Addr,
-        _In_ UPTR Size
-    ) -> void;
+    auto Copy( _In_ PVOID Dst, _In_ PVOID Src, _In_ ULONG Size ) -> PVOID;
+    auto Set( _In_ UPTR Addr, _In_ UPTR Val, _In_ UPTR Size ) -> void;
+    auto Cmp( _In_ PBYTE Addr1, _In_ PBYTE Addr2, _In_ SIZE_T Size ) -> BOOL;
+    auto Zero( _In_ UPTR Addr, _In_ UPTR Size ) -> void;
 }
 
 namespace Str {
-    auto CompareWCountL(
-        const wchar_t* str1,
-        const wchar_t* str2,
-        size_t count
-    ) -> int;
-    
-    auto CompareCountW( 
-        PCWSTR Str1, 
-        PCWSTR Str2, 
-        INT16  Count 
-    ) -> INT;
+    auto CompareWCountL( const wchar_t* str1, const wchar_t* str2, size_t count ) -> int;
+    auto CompareCountW( PCWSTR Str1, PCWSTR Str2, INT16 Count ) -> INT;
 
-    auto WCharToChar( 
-        PCHAR  Dest, 
-        PWCHAR Src, 
-        SIZE_T MaxAllowed 
-    ) -> SIZE_T;
+    auto CharToWChar( PWCHAR Dest, PCHAR Src, SIZE_T MaxAllowed ) -> SIZE_T;
+    auto WCharToChar( PCHAR Dest, PWCHAR Src, SIZE_T MaxAllowed ) -> SIZE_T;
+    auto StartsWith( BYTE* Str, BYTE* Prefix ) -> BOOL;
 
-    auto StartsWith(
-        BYTE* Str, 
-        BYTE* Prefix
-    ) -> BOOL;
+    auto LengthA( LPCSTR String ) -> SIZE_T;
+    auto LengthW( LPCWSTR String ) -> SIZE_T;
 
-    auto CharToWChar( 
-        PWCHAR Dest, 
-        PCHAR  Src, 
-        SIZE_T MaxAllowed 
-    ) -> SIZE_T;
+    auto CompareCountA( PCSTR Str1, PCSTR Str2, INT16 Count ) -> INT;
 
-    auto LengthA( 
-        LPCSTR String 
-    ) -> SIZE_T;
+    auto CompareA( LPCSTR Str1, LPCSTR Str2 ) -> INT;
+    auto CompareW( LPCWSTR Str1, LPCWSTR Str2 ) -> INT;
 
-    auto LengthW( 
-        LPCWSTR String 
-    ) -> SIZE_T;
+    auto ToUpperChar( char* str ) -> VOID;
+    auto ToLowerChar( PCHAR Str ) -> VOID;
+    auto ToLowerWchar( WCHAR* str ) -> void;
+    auto ToLowerWcharc( WCHAR Ch ) -> WCHAR;
 
-    auto CompareCountA( 
-        PCSTR Str1, 
-        PCSTR Str2, 
-        INT16 Count 
-    ) -> INT;
+    auto CopyA( PCHAR Dest, LPCSTR Src ) -> PCHAR;
+    auto CopyW( PWCHAR Dest, LPCWSTR Src ) -> PWCHAR;
 
-    auto CompareA( 
-        LPCSTR Str1, 
-        LPCSTR Str2 
-    ) -> INT;
+    auto ConcatA( PCHAR Dest, LPCSTR Src ) -> PCHAR;
+    auto ConcatW( PWCHAR Dest, LPCWSTR Src ) -> PWCHAR;
 
-    auto CompareW( 
-        LPCWSTR Str1, 
-        LPCWSTR Str2 
-    ) -> INT;
-
-    auto ToUpperChar(
-        char* str
-    ) -> VOID;
-
-    auto ToLowerChar( 
-        PCHAR Str
-    ) -> VOID;
-
-    auto ToLowerWchar( 
-        WCHAR* str 
-    ) -> void;
-
-    auto ToLowerWcharc( 
-        WCHAR Ch 
-    ) -> WCHAR;
-
-    auto CopyA( 
-        PCHAR  Dest, 
-        LPCSTR Src 
-    ) -> PCHAR;
-
-    auto CopyW( 
-        PWCHAR  Dest, 
-        LPCWSTR Src 
-    ) -> PWCHAR;
-
-    auto ConcatA( 
-        PCHAR  Dest, 
-        LPCSTR Src 
-    ) -> PCHAR;
-
-    auto ConcatW( 
-        PWCHAR  Dest, 
-        LPCWSTR Src 
-    ) -> PWCHAR;
-
-    auto IsEqual( 
-        LPCWSTR Str1, 
-        LPCWSTR Str2 
-    ) -> BOOL;
-
-    auto InitUnicode( 
-        PUNICODE_STRING UnicodeString, 
-        PWSTR           Buffer 
-    ) -> VOID;
-
-    auto GenRnd( 
-        ULONG StringSize
-    ) -> PCHAR;
+    auto IsEqual( LPCWSTR Str1, LPCWSTR Str2 ) -> BOOL;
+    auto InitUnicode( PUNICODE_STRING UnicodeString, PWSTR Buffer ) -> VOID;
+    auto GenRnd( ULONG StringSize ) -> PCHAR;
 }
 
-#define TSK_LENGTH ( Enm::Task::TaskLast - 10 ) 
+#define TSK_LENGTH ( Action::Task::TaskLast - 10 ) 
 
-namespace Enm {
+namespace Action {
     enum Job {
-        List_j,
+        List,
         Remove
     };
 
     enum Task {
         GetTask,
-        PostReq,
+        PostTask,
         
         NoTask = 4,
         QuickMsg,
@@ -260,19 +160,19 @@ namespace Enm {
         TaskLast
     };
 
-    enum PostXpl {
+    enum class PostXpl {
         Inline,
         Fork
     };
 
-    enum Fork {
-        Init_f,
-        GetResp_f
+    enum class Fork {
+        Init,
+        GetResponse
     };
 
     enum Inline {
-        Init_i,
-        GetResp_i
+        Init,
+        GetResponse
     };
 
     enum Thread {
@@ -319,9 +219,9 @@ namespace Enm {
         GetPriv,
         LsPriv,
         Impersonate,
-        Remove_t,
+        Remove,
         Revert,
-        List_t
+        List
     };
 
     enum Exit {
@@ -329,15 +229,15 @@ namespace Enm {
         Proc
     };
 
-    enum Ps {
-        ListPs = 20,
+    enum class Ps {
+        List = 20,
         Create,
         Kill,
         Pwsh
     };
 
-    enum Fs {
-        ListFl = 30,
+    enum class Fs {
+        List = 30,
         Read,
         Cwd,
         Move,
@@ -348,6 +248,10 @@ namespace Enm {
     };
 }
 
-EXTERN_C VOID volatile ___chkstk_ms( VOID );
+enum _LOKY_CRYPT {
+    LokyEnc,
+    LokyDec
+};
+typedef _LOKY_CRYPT LOKY_CRYPT;
 
-#endif
+#endif 

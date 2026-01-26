@@ -2769,4 +2769,6 @@ int k_vswprintf( wchar_t* buffer, const wchar_t* format, va_list argptr );
 int k_swprintf(wchar_t* buffer, const wchar_t* format, ...);
 // errno_t swprintf_s( wchar_t* buffer, size_t sizeOfBuffer, const wchar_t* format, ... );
 
+EXTERN_C VOID volatile ___chkstk_ms( VOID );
+
 #endif // WIN32_H             
