@@ -7,7 +7,7 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
     Cfg->AgentId       = KH_AGENT_UUID;
     Cfg->SleepTime     = KH_SLEEP_TIME * 1000;
     Cfg->Jitter        = KH_JITTER;
-    Cfg->BofProxy      = KH_BOF_HOOK_ENALED;
+    Cfg->BofProxy      = KH_BOF_HOOK_ENABLED;
     Cfg->Syscall       = KH_SYSCALL;
     Cfg->AmsiEtwBypass = KH_AMSI_ETW_BYPASS;
 
