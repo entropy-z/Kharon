@@ -1,43 +1,78 @@
 #!/bin/bash
 
+# Color codes for better visibility
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
 function error_exit {
-    echo "[ERROR] $1"
+    echo -e "${RED}[ERROR]${NC} $1"
     exit 1
 }
 
 function info_msg {
-    echo "[+] $1"
+    echo -e "${GREEN}[+]${NC} $1"
 }
 
 function warning_msg {
-    echo "[!] $1"
+    echo -e "${YELLOW}[!]${NC} $1"
 }
 
+# Default values
 PULL_CHANGES=false
 ADAPTIX_DIR=""
 AGENT="agent_kharon"
 LISTENER="listener_kharon_http"
+ACTION="all"
 
-info_msg "Processing arguments..."
-
-for arg in "$@"; do
-    if [ "$arg" = "--pull" ]; then
-        PULL_CHANGES=true
-        info_msg "Git pull enabled"
-    elif [ -z "$ADAPTIX_DIR" ] && [ "$arg" != "--pull" ]; then
-        ADAPTIX_DIR="$(realpath "$arg" 2>/dev/null || echo "$arg")"
-    fi
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --pull)
+            PULL_CHANGES=true
+            shift
+            ;;
+        --ax)
+            ADAPTIX_DIR="$(realpath "$2" 2>/dev/null || echo "$2")"
+            shift 2
+            ;;
+        --action)
+            ACTION="$2"
+            shift 2
+            ;;
+        *)
+            error_exit "Unknown parameter: $1"
+            ;;
+    esac
 done
 
+# Validate required parameters
 if [ -z "$ADAPTIX_DIR" ]; then
-    echo "Usage: $0 <AdaptixC2-path> [--pull]"
+    echo "Usage: $0 --ax <AdaptixC2_directory> [--action <action>] [--pull]"
+    echo ""
+    echo "Required:"
+    echo "  --ax <dir>          Path to AdaptixC2 directory"
+    echo ""
+    echo "Optional:"
+    echo "  --action <action>   Action to perform (default: all)"
+    echo "  --pull              Execute git pull before installation"
+    echo ""
+    echo "Actions:"
+    echo "  all                 Complete installation (default)"
+    echo "  agent-full          Build agent server, modules and beacon"
+    echo "  agent-modules       Build and copy agent modules only"
+    echo "  agent-code          Build and copy agent code only"
+    echo "  listener            Build and copy listener only"
+    echo ""
     echo "Examples:"
-    echo "  $0 AdaptixC2"
-    echo "  $0 AdaptixC2 --pull"
-    echo "  $0 /full/path/to/AdaptixC2"
-    error_exit "AdaptixC2 directory not specified"
+    echo "  $0 --ax AdaptixC2"
+    echo "  $0 --ax AdaptixC2 --action agent-modules"
+    echo "  $0 --ax /full/path/to/AdaptixC2 --action listener --pull"
+    error_exit "Required parameters missing"
 fi
 
+# Validate Adaptix directory
 if [ ! -d "$ADAPTIX_DIR" ]; then
     error_exit "Directory does not exist: $ADAPTIX_DIR"
 fi
@@ -46,15 +81,13 @@ if [ ! -d "$ADAPTIX_DIR/AdaptixServer" ]; then
     error_exit "Directory structure incomplete. AdaptixServer not found in: $ADAPTIX_DIR"
 fi
 
+# Git pull if requested
 if [ "$PULL_CHANGES" = true ]; then
-    info_msg "Executing git pull to get latest version..."
-    if git pull 2>/dev/null; then
-        info_msg "Git pull successful"
-    else
-        warning_msg "Git pull failed or not a git repository"
-    fi
+    git pull || error_exit "Git pull failed"
+    info_msg "Pulled latest changes"
 fi
 
+# Validate local directories
 if [ ! -d "$AGENT" ]; then
     error_exit "Agent folder ($AGENT) not found in current directory"
 fi
@@ -63,127 +96,174 @@ if [ ! -d "$LISTENER" ]; then
     error_exit "Listener folder ($LISTENER) not found in current directory"
 fi
 
-mkdir -p "$ADAPTIX_DIR/AdaptixServer/extenders" 2>/dev/null
-mkdir -p "$ADAPTIX_DIR/dist/extenders" 2>/dev/null
+# Create necessary directories
+mkdir -p "$ADAPTIX_DIR/AdaptixServer/extenders" || error_exit "Failed to create extenders directory"
+mkdir -p "$ADAPTIX_DIR/dist/extenders" || error_exit "Failed to create dist/extenders directory"
 
-info_msg "Cleaning previous installations..."
-
-if [ -d "$ADAPTIX_DIR/AdaptixServer/extenders/$AGENT" ]; then
-    info_msg "Removing existing agent: $AGENT"
+# Action functions
+function clean_agent {
     rm -rf "$ADAPTIX_DIR/AdaptixServer/extenders/$AGENT"
-fi
+    rm -rf "$ADAPTIX_DIR/dist/extenders/$AGENT"
+    info_msg "Cleaned previous agent installation"
+}
 
-if [ -d "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER" ]; then
-    info_msg "Removing existing listener: $LISTENER"
+function clean_listener {
     rm -rf "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER"
-fi
+    rm -rf "$ADAPTIX_DIR/dist/extenders/$LISTENER"
+    info_msg "Cleaned previous listener installation"
+}
 
-info_msg "Copying new files..."
+function copy_agent {
+    cp -r "$AGENT" "$ADAPTIX_DIR/AdaptixServer/extenders/" || error_exit "Failed to copy agent"
+    info_msg "Copied agent files"
+}
 
-if cp -r "$AGENT" "$ADAPTIX_DIR/AdaptixServer/extenders/"; then
-    info_msg "Agent copied successfully"
-else
-    error_exit "Failed to copy agent"
-fi
+function copy_listener {
+    cp -r "$LISTENER" "$ADAPTIX_DIR/AdaptixServer/extenders/" || error_exit "Failed to copy listener"
+    info_msg "Copied listener files"
+}
 
-if cp -r "$LISTENER" "$ADAPTIX_DIR/AdaptixServer/extenders/"; then
-    info_msg "Listener copied successfully"
-else
-    error_exit "Failed to copy listener"
-fi
-
-info_msg "Setting up Go workspace..."
-
-cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter $ADAPTIX_DIR/AdaptixServer"
-
-if ! command -v go >/dev/null 2>&1; then
-    warning_msg "Go not installed. Workspace setup will be skipped."
-else
-    if go work use "extenders/$AGENT" 2>/dev/null; then
-        info_msg "Agent added to Go workspace"
-    else
-        warning_msg "Could not add agent to Go workspace"
+function setup_go_workspace {
+    cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter $ADAPTIX_DIR/AdaptixServer"
+    
+    if [ -d "extenders/$AGENT" ]; then
+        go work use "extenders/$AGENT" || error_exit "Failed to add agent to Go workspace"
     fi
     
-    if go work use "extenders/$LISTENER" 2>/dev/null; then
-        info_msg "Listener added to Go workspace"
-    else
-        warning_msg "Could not add listener to Go workspace"
+    if [ -d "extenders/$LISTENER" ]; then
+        go work use "extenders/$LISTENER" || error_exit "Failed to add listener to Go workspace"
     fi
     
-    if go work sync 2>/dev/null; then
-        info_msg "Go workspace synchronized"
-    else
-        warning_msg "Failed to synchronize Go workspace"
+    go work sync || error_exit "Failed to synchronize Go workspace"
+    info_msg "Go workspace configured"
+}
+
+function build_agent_code {
+    cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter AdaptixServer directory"
+    
+    if [ ! -f "extenders/$AGENT/Makefile" ]; then
+        error_exit "Makefile not found for $AGENT"
     fi
-fi
+    
+    make -C "extenders/$AGENT" agent || error_exit "Failed to build agent code"
+    info_msg "Built agent code"
+}
 
-info_msg "Building projects..."
-
-if [ -f "extenders/$AGENT/Makefile" ]; then
-    info_msg "Building agent: $AGENT"
-    if make -C "extenders/$AGENT" all; then
-        info_msg "Agent built successfully"
-    else
-        warning_msg "Failed to build agent"
+function build_agent_modules {
+    cd "$ADAPTIX_DIR/AdaptixServer/extenders/$AGENT/src_modules" || error_exit "Could not enter src_modules directory"
+    
+    if [ ! -f "Makefile" ]; then
+        error_exit "Makefile not found in src_modules"
     fi
-else
-    warning_msg "Makefile not found for $AGENT"
-fi
+    
+    make || error_exit "Failed to build agent modules"
+    info_msg "Built agent modules"
+}
 
-if [ -f "extenders/$LISTENER/Makefile" ]; then
-    info_msg "Building listener: $LISTENER"
-    if make -C "extenders/$LISTENER" all; then
-        info_msg "Listener built successfully"
-    else
-        warning_msg "Failed to build listener"
+function build_agent_beacon {
+    cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter AdaptixServer directory"
+    
+    if [ ! -f "extenders/$AGENT/Makefile" ]; then
+        error_exit "Makefile not found for $AGENT"
     fi
-else
-    warning_msg "Makefile not found for $LISTENER"
-fi
+    
+    make -C "extenders/$AGENT" beacon || error_exit "Failed to build agent beacon"
+    info_msg "Built agent beacon"
+}
 
-info_msg "Preparing distribution..."
-
-mkdir -p "$ADAPTIX_DIR/dist/extenders/$AGENT"
-mkdir -p "$ADAPTIX_DIR/dist/extenders/$LISTENER"
-
-if [ -d "extenders/$AGENT/dist" ]; then
-    info_msg "Copying agent binaries"
-    cp -r "extenders/$AGENT/dist" "$ADAPTIX_DIR/dist/extenders/$AGENT/"
-else
-    warning_msg "dist folder not found for $AGENT"
-fi
-
-if [ -d "extenders/$LISTENER/dist" ]; then
-    info_msg "Copying listener binaries"
-    cp -r "extenders/$LISTENER/dist" "$ADAPTIX_DIR/dist/extenders/$LISTENER/"
-else
-    warning_msg "dist folder not found for $LISTENER"
-fi
-
-info_msg "Copying source files..."
-
-SOURCE_DIRS=("src_beacon" "src_loader" "src_modules")
-
-for src_dir in "${SOURCE_DIRS[@]}"; do
-    if [ -d "extenders/$AGENT/$src_dir" ]; then
-        info_msg "Copying $src_dir"
-        cp -r "extenders/$AGENT/$src_dir" "$ADAPTIX_DIR/dist/extenders/$AGENT/"
-    else
-        warning_msg "Directory $src_dir not found"
+function build_listener {
+    cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter AdaptixServer directory"
+    
+    if [ ! -f "extenders/$LISTENER/Makefile" ]; then
+        error_exit "Makefile not found for $LISTENER"
     fi
-done
+    
+    make -C "extenders/$LISTENER" all || error_exit "Failed to build listener"
+    info_msg "Built listener"
+}
 
-info_msg "Process completed successfully!"
+function copy_agent_dist {
+    mkdir -p "$ADAPTIX_DIR/dist/extenders/$AGENT" || error_exit "Failed to create agent dist directory"
+    
+    if [ -d "$ADAPTIX_DIR/AdaptixServer/extenders/$AGENT/dist" ]; then
+        cp -r "$ADAPTIX_DIR/AdaptixServer/extenders/$AGENT/dist"/* "$ADAPTIX_DIR/dist/extenders/$AGENT/" || error_exit "Failed to copy agent dist files"
+    fi
+    
+    # Copy source directories
+    SOURCE_DIRS=("src_beacon" "src_loader" "src_modules")
+    for src_dir in "${SOURCE_DIRS[@]}"; do
+        if [ -d "$ADAPTIX_DIR/AdaptixServer/extenders/$AGENT/$src_dir" ]; then
+            cp -r "$ADAPTIX_DIR/AdaptixServer/extenders/$AGENT/$src_dir" "$ADAPTIX_DIR/dist/extenders/$AGENT/" || warning_msg "Failed to copy $src_dir"
+        fi
+    done
+    
+    info_msg "Copied agent distribution files"
+}
+
+function copy_listener_dist {
+    mkdir -p "$ADAPTIX_DIR/dist/extenders/$LISTENER" || error_exit "Failed to create listener dist directory"
+    
+    if [ -d "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER/dist" ]; then
+        cp -r "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER/dist"/* "$ADAPTIX_DIR/dist/extenders/$LISTENER/" || error_exit "Failed to copy listener dist files"
+    fi
+    
+    info_msg "Copied listener distribution files"
+}
+
+# Execute actions based on ACTION parameter
+case $ACTION in
+    all)
+        clean_agent
+        clean_listener
+        copy_agent
+        copy_listener
+        setup_go_workspace
+        build_agent_code
+        build_agent_modules
+        build_agent_beacon
+        build_listener
+        copy_agent_dist
+        copy_listener_dist
+        ;;
+    
+    agent-full)
+        clean_agent
+        copy_agent
+        setup_go_workspace
+        build_agent_code
+        build_agent_modules
+        build_agent_beacon
+        copy_agent_dist
+        ;;
+    
+    agent-modules)
+        build_agent_modules
+        copy_agent_dist
+        ;;
+    
+    agent-code)
+        build_agent_code
+        copy_agent_dist
+        ;;
+    
+    listener)
+        clean_listener
+        copy_listener
+        setup_go_workspace
+        build_listener
+        copy_listener_dist
+        ;;
+    
+    *)
+        error_exit "Unknown action: $ACTION"
+        ;;
+esac
+
+# Success summary
+info_msg "Installation completed successfully"
 echo "================================================================"
-echo "INSTALLATION SUMMARY:"
-echo "  Agent:       $AGENT"
-echo "  Listener:    $LISTENER"
-echo "  Location:    $ADAPTIX_DIR"
-echo "================================================================"
-echo "Files installed at:"
-echo "  - $ADAPTIX_DIR/AdaptixServer/extenders/$AGENT"
-echo "  - $ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER"
-echo "  - $ADAPTIX_DIR/dist/extenders/$AGENT"
-echo "  - $ADAPTIX_DIR/dist/extenders/$LISTENER"
+echo "Action: $ACTION"
+echo "Agent: $AGENT"
+echo "Listener: $LISTENER"
+echo "Location: $ADAPTIX_DIR"
 echo "================================================================"
