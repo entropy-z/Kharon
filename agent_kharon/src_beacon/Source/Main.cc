@@ -156,6 +156,7 @@ auto DECLFN Kharon::Init(
     this->Krnl32.UpdateProcThreadAttribute         = ( decltype( this->Krnl32.UpdateProcThreadAttribute ) )this->Krnl32.GetProcAddress( (HMODULE)this->Krnl32.Handle, "UpdateProcThreadAttribute" );
     this->Krnl32.DeleteProcThreadAttributeList     = ( decltype( this->Krnl32.DeleteProcThreadAttributeList ) )this->Krnl32.GetProcAddress( (HMODULE)this->Krnl32.Handle, "DeleteProcThreadAttributeList" );
     this->Msvcrt.k_swprintf  = ( decltype( this->Msvcrt.k_swprintf ) )this->Krnl32.GetProcAddress( (HMODULE)this->Msvcrt.Handle, "swprintf" );
+    this->Msvcrt.k_vscwprintf = ( decltype( this->Msvcrt.k_vscwprintf ) )this->Krnl32.GetProcAddress( (HMODULE)this->Msvcrt.Handle, "_vscwprintf" );
     this->Msvcrt.k_vswprintf = ( decltype( this->Msvcrt.k_vswprintf ) )this->Krnl32.GetProcAddress( (HMODULE)this->Msvcrt.Handle, "vswprintf" );
 
     KhDbgz( "Library kernel32.dll  Loaded at %p and Functions Resolveds", this->Krnl32.Handle    );
@@ -242,9 +243,6 @@ auto DECLFN Kharon::Init(
 
     this->Krnl32.GlobalMemoryStatusEx( &MemInfoEx );
     this->Krnl32.GetNativeSystemInfo( &SysInfo );
-
-    this->Mm->PageSize = SysInfo.dwPageSize;
-    this->Mm->PageGran = SysInfo.dwAllocationGranularity;
 
     this->Machine.AllocGran = SysInfo.dwAllocationGranularity;
     this->Machine.PageSize  = SysInfo.dwPageSize;
@@ -400,11 +398,8 @@ auto DECLFN Kharon::Init(
         sizeof(SecureBootInfo), 
         &SecureBootLen ) ) ) {
         
-        // HVCI (Hypervisor-protected Code Integrity / VBS)
         this->Machine.HhvciEnabled = (SecureBootInfo.PolicyOptions & 0x01) != 0;
-        
-        // DSE (Driver Signature Enforcement)
-        this->Machine.DseEnabled = (SecureBootInfo.PolicyOptions & 0x02) != 0;
+        this->Machine.DseEnabled   = (SecureBootInfo.PolicyOptions & 0x02) != 0;
     }
         
     KhDbgz( "HVCI Enabled: %s", this->Machine.HhvciEnabled ? "Yes" : "No" );
