@@ -2,54 +2,6 @@
 
 using namespace Root;
 
-auto Useful::ValidGranMem( HANDLE ProcessHandle, ULONG GranCount ) -> PVOID {
-    MEMORY_BASIC_INFORMATION* MemInfo = (MEMORY_BASIC_INFORMATION*)hAlloc( sizeof( MEMORY_BASIC_INFORMATION ) );
-
-    PVOID PrefBases[] = {
-        (PVOID)0x00000000DDDD0000,
-        (PVOID)0x0000000010000000,
-        (PVOID)0x0000000021000000,
-        (PVOID)0x0000000032000000,
-        (PVOID)0x0000000043000000,
-        (PVOID)0x0000000050000000,
-        (PVOID)0x0000000041000000,
-        (PVOID)0x0000000042000000,
-        (PVOID)0x0000000040000000,
-        (PVOID)0x0000000022000000 
-    };
-
-    for ( auto Base : PrefBases ) {
-        if ( ProcessHandle == INVALID_HANDLE_VALUE || ! ProcessHandle ) {
-            Self->Krnl32.VirtualQuery( Base, MemInfo, sizeof( MEMORY_BASIC_INFORMATION ) );
-        } else {
-            Self->Krnl32.VirtualQueryEx( ProcessHandle, Base, MemInfo, sizeof( MEMORY_BASIC_INFORMATION ) );
-        }
-
-        if ( MEM_FREE == MemInfo->State ) {
-            INT32 i;
-            for ( i = 0; i < GranCount; i++ ) {
-                PVOID CurBase = (PVOID)( (UINT_PTR)( Base ) + ( i * Self->Mm->PageGran ) );
-
-                if ( ProcessHandle == INVALID_HANDLE_VALUE || ! ProcessHandle ) {
-                    Self->Krnl32.VirtualQuery( Base, MemInfo, sizeof( MEMORY_BASIC_INFORMATION ) );
-                } else {
-                    Self->Krnl32.VirtualQueryEx( ProcessHandle, Base, MemInfo, sizeof( MEMORY_BASIC_INFORMATION ) );
-                }
-
-                Self->Krnl32.VirtualQuery( CurBase, MemInfo, sizeof( MEMORY_BASIC_INFORMATION ) );
-                if ( MEM_FREE != MemInfo->State ) break;
-            }
-            if ( i == GranCount ) {
-                hFree( MemInfo );
-                return Base;
-            }
-        }
-    }
-
-    hFree( MemInfo );
-    return nullptr;
-}
-
 auto DECLFN Useful::NtStatusToError(
     _In_ NTSTATUS NtStatus
 ) -> ERROR_CODE {
@@ -82,12 +34,7 @@ auto DECLFN Useful::CfgAddrAdd(
     VmInfo.pMoarZero         = FALSE;
 
     Status = Self->Ntdll.NtSetInformationVirtualMemory( 
-        NtCurrentProcess(),
-        VmCfgCallTargetInformation,
-        1,
-        &MemRange,
-        &VmInfo,
-        sizeof( VmInfo )
+        NtCurrentProcess(), VmCfgCallTargetInformation, 1, &MemRange, &VmInfo, sizeof( VmInfo )
     );
 
     if ( Status != STATUS_SUCCESS ) {
@@ -120,12 +67,7 @@ auto DECLFN Useful::CfgPrivAdd(
     VmInfo.pMoarZero         = FALSE;
 
     Status = Self->Ntdll.NtSetInformationVirtualMemory( 
-        hProcess, 
-        VmCfgCallTargetInformation, 
-        1, 
-        &MemRange, 
-        &VmInfo, 
-        sizeof( VmInfo ) 
+        hProcess, VmCfgCallTargetInformation, 1, &MemRange, &VmInfo, sizeof( VmInfo ) 
     );
 
     if ( Status != STATUS_SUCCESS ) {
@@ -155,22 +97,6 @@ auto DECLFN Useful::CfgCheck( VOID ) -> BOOL {
     return ProcInfoEx.ExtendedProcessInfoBuffer;
 }
 
-auto DECLFN Useful::FixTls(
-    _In_ PVOID Base,
-    _In_ IMAGE_DATA_DIRECTORY* DataDir
-) -> VOID {
-    if ( DataDir->Size ) {
-        PIMAGE_TLS_DIRECTORY TlsDir   = (PIMAGE_TLS_DIRECTORY)( U_PTR( Base ) + DataDir->VirtualAddress );
-        PIMAGE_TLS_CALLBACK* Callback = (PIMAGE_TLS_CALLBACK*)TlsDir->AddressOfCallBacks;
-
-        if ( Callback ) {
-            for ( INT i = 0; Callback[i] != nullptr; ++i ) {
-                Callback[i]( Base, DLL_PROCESS_ATTACH, nullptr );
-            }
-        }
-    }
-}
-
 auto DECLFN Useful::FindGadget(
     _In_ UPTR   ModuleBase,
     _In_ UINT16 RegValue
@@ -197,75 +123,6 @@ auto DECLFN Useful::FindGadget(
     Gadget   = GadgetList[RndIndex];
 
     return Gadget;
-}
-
-auto DECLFN Useful::FixExp(
-    _In_ PVOID Base,
-    _In_ IMAGE_DATA_DIRECTORY* DataDir
-) -> VOID {
-    if ( DataDir->Size ) {
-        PIMAGE_RUNTIME_FUNCTION_ENTRY FncEntry = (PIMAGE_RUNTIME_FUNCTION_ENTRY)( U_PTR( Base ) + DataDir->VirtualAddress );
-
-        Self->Ntdll.RtlAddFunctionTable( (PRUNTIME_FUNCTION)FncEntry, DataDir->Size / sizeof( IMAGE_RUNTIME_FUNCTION_ENTRY ), U_PTR( Base ) );
-    }
-}
-
-auto DECLFN Useful::FixImp(
-    _In_ PVOID Base,
-    _In_ IMAGE_DATA_DIRECTORY* DataDir
-) -> BOOL {
-    PIMAGE_IMPORT_DESCRIPTOR ImpDesc = (PIMAGE_IMPORT_DESCRIPTOR)( U_PTR( Base ) + DataDir->VirtualAddress );
-
-    for ( ; ImpDesc->Name; ImpDesc++ ) {
-
-		PIMAGE_THUNK_DATA FirstThunk  = (PIMAGE_THUNK_DATA)( U_PTR( Base ) + ImpDesc->FirstThunk );
-		PIMAGE_THUNK_DATA OriginThunk = (PIMAGE_THUNK_DATA)( U_PTR( Base ) + ImpDesc->OriginalFirstThunk );
-
-		PCHAR  DllName     = A_PTR( U_PTR( Base ) + ImpDesc->Name );
-        PVOID  DllBase     = PTR( LdrLoad::Module( Hsh::Str<CHAR>( DllName ) ) );
-
-        PVOID  FunctionPtr = 0;
-        STRING AnsiString  = { 0 };
-
-        if ( !DllBase ) {
-            DllBase = (PVOID)Self->Lib->Load( DllName );
-        }
-
-		if ( !DllBase ) {
-            return FALSE;
-		}
-
-		for ( ; OriginThunk->u1.Function; FirstThunk++, OriginThunk++ ) {
-
-			if ( IMAGE_SNAP_BY_ORDINAL( OriginThunk->u1.Ordinal ) ) {
-
-                Self->Ntdll.LdrGetProcedureAddress( 
-                    (HMODULE)DllBase, NULL, IMAGE_ORDINAL( OriginThunk->u1.Ordinal ), &FunctionPtr
-                );
-
-                FirstThunk->u1.Function = U_PTR( FunctionPtr );
-				if ( !FirstThunk->u1.Function ) return FALSE;
-
-			} else {
-				PIMAGE_IMPORT_BY_NAME Hint = (PIMAGE_IMPORT_BY_NAME)( U_PTR( Base ) + OriginThunk->u1.AddressOfData );
-
-                {
-                    AnsiString.Length        = Str::LengthA( Hint->Name );
-                    AnsiString.MaximumLength = AnsiString.Length + sizeof( CHAR );
-                    AnsiString.Buffer        = Hint->Name;
-                }
-                
-				Self->Ntdll.LdrGetProcedureAddress( 
-                    (HMODULE)DllBase, &AnsiString, 0, &FunctionPtr 
-                );
-                FirstThunk->u1.Function = U_PTR( FunctionPtr );
-
-				if ( !FirstThunk->u1.Function ) return FALSE;
-			}
-		}
-	}
-	
-	return TRUE;
 }
 
 auto DECLFN Useful::SecVa(
@@ -649,43 +506,6 @@ auto DECLFN Useful::CheckKillDate( VOID ) -> VOID {
 
         KhDbg("[====== Ending Check ======]\n");
     }
-}
-
-auto DECLFN Useful::FixRel(
-    _In_ PVOID Base,
-    _In_ UPTR  Delta,
-    _In_ IMAGE_DATA_DIRECTORY* DataDir
-) -> VOID {
-    PIMAGE_BASE_RELOCATION BaseReloc = (PIMAGE_BASE_RELOCATION)( U_PTR( Base ) + DataDir->VirtualAddress );
-    PIMAGE_RELOC           RelocInf  = { 0 };
-    ULONG_PTR              RelocPtr  = NULL;
-
-    while ( BaseReloc->VirtualAddress ) {
-        
-        RelocInf = (PIMAGE_RELOC)( BaseReloc + 1 ); 
-        RelocPtr = ( U_PTR( Base ) + BaseReloc->VirtualAddress );
-
-        while ( B_PTR( RelocInf ) != B_PTR( BaseReloc ) + BaseReloc->SizeOfBlock ) {
-            switch ( RelocInf->Type ) {
-            case IMAGE_REL_TYPE:
-                DEF64( RelocPtr + RelocInf->Offset ) += (ULONG_PTR)( Delta ); break;
-            case IMAGE_REL_BASED_HIGHLOW:
-                DEF32( RelocPtr + RelocInf->Offset ) += (DWORD)( Delta ); break;
-            case IMAGE_REL_BASED_HIGH:
-                DEF16( RelocPtr + RelocInf->Offset ) += HIWORD( Delta ); break;
-            case IMAGE_REL_BASED_LOW:
-                DEF16( RelocPtr + RelocInf->Offset ) += LOWORD( Delta ); break;
-            default:
-                break;
-            }
-
-            RelocInf++;
-        }
-
-        BaseReloc = (PIMAGE_BASE_RELOCATION)RelocInf;
-    };
-
-    return;
 }
 
 auto DECLFN LdrLoad::Module(
