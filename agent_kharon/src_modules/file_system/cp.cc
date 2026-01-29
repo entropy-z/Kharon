@@ -12,17 +12,17 @@ extern "C" auto go( char* args, int argc ) -> void {
     ULONG dst_attr =  GetFileAttributesW( dst_file );
 
     if ( src_attr == INVALID_FILE_ATTRIBUTES || dst_attr == INVALID_FILE_ATTRIBUTES ) {
-        BeaconPrintf( CALLBACK_ERROR, "Source or destination file does not exist or is inaccessible: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
+        BeaconPrintfW( CALLBACK_ERROR, L"Source or destination file does not exist or is inaccessible: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
         return;
     }
 
     if ( ( dst_attr & FILE_ATTRIBUTE_DIRECTORY ) || ( src_attr & FILE_ATTRIBUTE_DIRECTORY ) ) {
-        BeaconPrintf( CALLBACK_ERROR, "Source or destination are directories. Recursive copy not implemented.\n" );
+        BeaconPrintfW( CALLBACK_ERROR, L"Source or destination are directories. Recursive copy not implemented.\n" );
         return;
     }
 
     if ( ! CopyFileW( src_file, dst_file, TRUE ) ) {
-        BeaconPrintf( CALLBACK_ERROR, "Failed copy file to destination with error: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
+        BeaconPrintfW( CALLBACK_ERROR, L"Failed copy file to destination with error: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
         return;
     }
 

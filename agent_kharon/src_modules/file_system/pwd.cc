@@ -6,18 +6,18 @@ extern "C" auto go( char* args, int argc ) -> void {
 
     current_dir_sz = GetCurrentDirectoryW( current_dir_sz, current_dir );
     if ( ! current_dir_sz ) {
-        BeaconPrintf( CALLBACK_ERROR, "Failed to get current directory with error: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
+        BeaconPrintfW( CALLBACK_ERROR, L"Failed to get current directory with error: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
         return;
     }
 
     current_dir = (WCHAR*)HeapAlloc( GetProcessHeap(), HEAP_ZERO_MEMORY, current_dir_sz );
 
     if( ! GetCurrentDirectoryW( current_dir_sz, current_dir ) ) {
-        BeaconPrintf( CALLBACK_ERROR, "Failed tp get current directory with error: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
+        BeaconPrintfW( CALLBACK_ERROR, L"Failed tp get current directory with error: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
         return;
     }
 
-    BeaconPrintf( CALLBACK_OUTPUT, "Current directory is %ls\n", current_dir );
+    BeaconPrintfW( CALLBACK_OUTPUT, L"Current directory is %s\n", current_dir );
 
     HeapFree( GetProcessHeap(), 0, current_dir );
 

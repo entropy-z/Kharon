@@ -49,7 +49,7 @@ auto kh_process_creation(
         InitializeProcThreadAttributeList( 0, update_attr_count, 0, &attribute_size );
         attribute_buff = malloc( attribute_size );
         if ( ! InitializeProcThreadAttributeList( (LPPROC_THREAD_ATTRIBUTE_LIST)attribute_buff, update_attr_count, 0, &attribute_size ) ) 
-            return;
+            return cleanup();
     }
 
     if ( create_args->ppid ) {
@@ -69,14 +69,14 @@ auto kh_process_creation(
     if ( create_args->pipe ) {
         success = CreatePipe( &pipe_read, &pipe_write, &security_attr, 0x10000 );
         if ( ! success ) {
-            BeaconPrintf( CALLBACK_ERROR, "Failed to create pipe for read process output with error: (%d) %s", GetLastError(), fmt_error( GetLastError() ) );
+            BeaconPrintf( CALLBACK_ERROR, "Failed to create pipe for read process output with error: (%d) %ls", GetLastError(), fmt_error( GetLastError() ) );
             return cleanup();
         }
 
         if ( create_args->ppid ) {
             success = DuplicateHandle( nt_current_process(), pipe_write, parent_handle, &pipe_duplicate, 0, TRUE, DUPLICATE_SAME_ACCESS );
             if ( ! success ) {
-                BeaconPrintf( CALLBACK_ERROR, "Failed to duplicate handle for read output from parent process spoof with error: (%d) %s", GetLastError(), fmt_error( GetLastError() ) );
+                BeaconPrintf( CALLBACK_ERROR, "Failed to duplicate handle for read output from parent process spoof with error: (%d) %ls", GetLastError(), fmt_error( GetLastError() ) );
                 return cleanup();
             }
 
@@ -113,7 +113,7 @@ auto kh_process_creation(
     }
 
     if ( ! success ) {
-        BeaconPrintf( CALLBACK_ERROR, "Failed to create process with error: (%d) %s", GetLastError(), fmt_error( GetLastError() ) );
+        BeaconPrintf( CALLBACK_ERROR, "Failed to create process with error: (%d) %ls", GetLastError(), fmt_error( GetLastError() ) );
         return cleanup();
     }
 
@@ -129,7 +129,7 @@ auto kh_process_creation(
         pipe_buff = (PBYTE)HeapAlloc( GetProcessHeap(), HEAP_ZERO_MEMORY, PIPE_BUFFER_DEFAULT_LEN );
 
         if ( ReadFile( pipe_read, pipe_buff, PIPE_BUFFER_DEFAULT_LEN, &buffer_read, nullptr ) ) {
-            BeaconOutput( CALLBACK_OUTPUT, (CHAR*)pipe_buff, buffer_read );
+            BeaconPrintfW( CALLBACK_OUTPUT, (WCHAR*)pipe_buff, buffer_read );
         }
 
         HeapFree( GetProcessHeap(), 0, pipe_buff );

@@ -1,8 +1,8 @@
 #include <general.h>
 
 extern "C" auto go( char* args, int argc ) -> void {
-    datap data_parser    = { 0 };
-    fmt   format_package = { 0 };
+    datap    data_parser    = { 0 };
+    PACKAGE  format_package = { 0 };
 
     BeaconDataParse( &data_parser, args, argc );
 
@@ -20,11 +20,14 @@ extern "C" auto go( char* args, int argc ) -> void {
     SYSTEMTIME access_time   = { 0 };
     SYSTEMTIME write_time    = { 0 };
 
-    BeaconFormatAlloc( &format_package, 0x1000 );
+    if ( find_handle == INVALID_HANDLE_VALUE ) {
+        BeaconPrintfW( CALLBACK_ERROR, L"Failed to list directory: '%s' | error: (%d) %s\n", target_dir, GetLastError(), fmt_error( GetLastError() ) );
+        return;
+    }
 
     GetFullPathNameW( find_data.cFileName, MAX_PATH * sizeof(WCHAR), full_path, nullptr );
 
-    BeaconFormatAppend( &format_package, (CHAR*)full_path, wcslen( full_path ) );
+    BeaconPkgBytes( (PBYTE)full_path, wcslen( full_path ) * sizeof(WCHAR) );
 
     do {
         file_handle = CreateFileW( find_data.cFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, 0 );
@@ -32,43 +35,41 @@ extern "C" auto go( char* args, int argc ) -> void {
 
         CloseHandle( file_handle );
 
-        BeaconFormatAppend( &format_package, (CHAR*)find_data.cFileName, wcslen( find_data.cFileName ) );
-        BeaconFormatInt( &format_package, file_size );
-        BeaconFormatInt( &format_package, find_data.dwFileAttributes );
+        BeaconPkgBytes( (PBYTE)find_data.cFileName, wcslen( find_data.cFileName ) * sizeof(WCHAR) );
+        BeaconPkgInt32( file_size );
+        BeaconPkgInt32( find_data.dwFileAttributes );
 
         FileTimeToSystemTime( &find_data.ftCreationTime, &creation_time );
 
-        BeaconFormatInt( &format_package, creation_time.wDay );
-        BeaconFormatInt( &format_package, creation_time.wMonth );
-        BeaconFormatInt( &format_package, creation_time.wYear );
-        BeaconFormatInt( &format_package, creation_time.wHour );
-        BeaconFormatInt( &format_package, creation_time.wMinute );
-        BeaconFormatInt( &format_package, creation_time.wSecond );
+        BeaconPkgInt16( creation_time.wDay );
+        BeaconPkgInt16( creation_time.wMonth );
+        BeaconPkgInt16( creation_time.wYear );
+        BeaconPkgInt16( creation_time.wHour );
+        BeaconPkgInt16( creation_time.wMinute );
+        BeaconPkgInt16( creation_time.wSecond );
 
         FileTimeToSystemTime( &find_data.ftCreationTime, &access_time );
 
-        BeaconFormatInt( &format_package, access_time.wDay );
-        BeaconFormatInt( &format_package, access_time.wMonth );
-        BeaconFormatInt( &format_package, access_time.wYear );
-        BeaconFormatInt( &format_package, access_time.wHour );
-        BeaconFormatInt( &format_package, access_time.wMinute );
-        BeaconFormatInt( &format_package, access_time.wSecond );
+        BeaconPkgInt16( access_time.wDay );
+        BeaconPkgInt16( access_time.wMonth );
+        BeaconPkgInt16( access_time.wYear );
+        BeaconPkgInt16( access_time.wHour );
+        BeaconPkgInt16( access_time.wMinute );
+        BeaconPkgInt16( access_time.wSecond );
 
         FileTimeToSystemTime( &find_data.ftCreationTime, &write_time );
 
-        BeaconFormatInt( &format_package, write_time.wDay );
-        BeaconFormatInt( &format_package, write_time.wMonth );
-        BeaconFormatInt( &format_package, write_time.wYear );
-        BeaconFormatInt( &format_package, write_time.wHour );
-        BeaconFormatInt( &format_package, write_time.wMinute );
-        BeaconFormatInt( &format_package, write_time.wSecond );
+        BeaconPkgInt16( write_time.wDay );
+        BeaconPkgInt16( write_time.wMonth );
+        BeaconPkgInt16( write_time.wYear );
+        BeaconPkgInt16( write_time.wHour );
+        BeaconPkgInt16( write_time.wMinute );
+        BeaconPkgInt16( write_time.wSecond );
     } while ( FindNextFileW( find_handle, &find_data ) );
 
-    CloseHandle( find_handle );
+    DbgPrint("hello from bof\n");
 
-    BeaconOutput( CALLBACK_OUTPUT, format_package.Original, format_package.Length );
-
-    BeaconFormatFree( &format_package );
+    FindClose( find_handle );
     
     return;
 }
