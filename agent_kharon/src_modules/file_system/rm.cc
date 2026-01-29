@@ -10,21 +10,21 @@ extern "C" auto go( char* args, int argc ) -> void {
     ULONG file_attribute = GetFileAttributesW( file_delete );
 
     if ( file_attribute == INVALID_FILE_ATTRIBUTES ) {
-        BeaconPrintf( CALLBACK_ERROR, "File does not exist or is inaccessible: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
+        BeaconPrintfW( CALLBACK_ERROR, L"File does not exist or is inaccessible: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
         return;
     }
 
     if ( file_attribute & FILE_ATTRIBUTE_DIRECTORY ) {
-        BeaconPrintf( CALLBACK_ERROR, "Target is a directory. Recursive delete not implemented.\n" );
+        BeaconPrintfW( CALLBACK_ERROR, L"Target is a directory. Recursive delete not implemented.\n" );
         return;
     }
 
     if ( ! DeleteFileW( file_delete ) ) {
-        BeaconPrintf( CALLBACK_ERROR, "Failed to delete file with error: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
+        BeaconPrintfW( CALLBACK_ERROR, L"Failed to delete file with error: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
         return;
     }
 
-    BeaconPrintf( CALLBACK_OUTPUT, "File delete with success!\n" );
+    BeaconPrintfW( CALLBACK_OUTPUT, L"File delete with success!\n" );
     
     return;
 }

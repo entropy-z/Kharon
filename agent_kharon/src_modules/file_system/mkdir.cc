@@ -8,7 +8,7 @@ extern "C" auto go( char* args, int argc ) -> void {
     WCHAR* path = (WCHAR*)BeaconDataExtract( &data_parser, nullptr );
 
     if ( ! CreateDirectoryW( path, nullptr ) ) {
-        BeaconPrintf( CALLBACK_ERROR, "Failed make directory with error: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
+        BeaconPrintfW( CALLBACK_ERROR, L"Failed make directory with error: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
         return;
     }
 
