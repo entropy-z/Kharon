@@ -13,6 +13,7 @@
 - Change to use Random Encryption Key for each Checkin
 - Upload routine now displays message regarding upload completion
 - Code refact
+- process run with new arguments for use token and user/pass/domain
 - Http Profile improved
 - Ported commands like ``process*``, ``fs*``, ``scinject*`` and ``postex*`` to BOF format
 
