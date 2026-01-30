@@ -1,6 +1,4 @@
-#include <kit/kit_process_creation.cc>
-#include <kit/kit_spawn_inject.cc>
-#include <kit/kit_explicit_inject.cc>
+#include "../kit/kit_explicit_inject.cc"
 
 extern "C" auto go( char* args, int argc ) -> void {
     datap DataPsr = { 0 };

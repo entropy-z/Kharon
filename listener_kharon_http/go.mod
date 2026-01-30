@@ -3,7 +3,7 @@ module adaptix_listener_kharon_http
 go 1.25.4
 
 require (
-	github.com/Adaptix-Framework/axc2 v1.1.1
+	github.com/Adaptix-Framework/axc2 v1.1.2
 	github.com/gin-gonic/gin v1.11.0
 	golang.org/x/net v0.44.0
 )

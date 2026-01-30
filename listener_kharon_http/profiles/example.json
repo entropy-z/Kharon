@@ -1,7 +1,7 @@
 {
     "callbacks": [
         {
-            "hosts": ["172.25.31.176:5124", "172.25.31.176:5124"],
+            "hosts": ["172.23.60.72:5124", "172.23.60.72:5124"],
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "server_error": {
                 "http_status": 403,
@@ -30,8 +30,9 @@
                 "empty_response": "\\x90\\x90\\x90\\x90\\x90",
                 "uri": {
                     "/route4": {
-                        "server_output": {"mask": true, "format": "base64url", "cookie": "CK_SRV"},
-                        "client_output": {"mask": true, "format": "base64", "cookie": "PHPSESSID", "body": "{\"beacon\": \"kharon\", \"body\": \"false\"}"}
+                        "server_output": {"mask": true, "format": "base64", "cookie": "CK_SRV"},
+                        "client_output": {"mask": true, "format": "base64"},
+                        "client_parameters": [{"agent_name": "kharon"}, {"maded_by": "oblivion"}]
                     }
                 }
             },
@@ -56,7 +57,7 @@
                 "empty_response": "\\x90\\x90\\x90\\x90\\x90",
                 "uri": {
                     "/route1 /route2": {
-                        "server_output": {"mask": false, "format": "base64url", "header": "MSG_PP", "body": "{\"status\": 200, \"message\": \"Success\"}"},
+                        "server_output": {"mask": false, "format": "base64", "header": "MSG_PP", "body": "{\"status\": 200, \"message\": \"Success\"}"},
                         "client_output": {"mask": true, "format": "base64", "prepend": "{\"health\": \"alive\", \"message\": \"", "append": "\"}"}
                     }
                 }

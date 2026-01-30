@@ -1,14 +1,15 @@
 package main
 
 import (
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"math/rand"
 	"strconv"
+	"time"
 	"strings"
 	"net"
+	"encoding/binary"
+	"bytes"
 
 	"unicode/utf16"
 
@@ -17,6 +18,689 @@ import (
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )
+
+type KharonData struct {
+	machine struct {
+		username  string
+		computer  string
+		domain    string
+		netbios   string
+		ipaddress string
+
+		os_arch byte
+
+		processor_numbers uint32
+		processor_name    string
+
+		ram_used  uint32
+		ram_total uint32
+		ram_aval  uint32
+		ram_perct uint32
+
+		os_minor uint32
+		os_major uint32
+		os_build uint32
+
+		allocation_gran uint32
+		page_size       uint32
+
+		cfg_enabled bool
+		dse_status  uint32
+		vbs_hvci    uint32
+	}
+
+	session struct {
+		agent_id_str string
+		agent_id_int uint32
+
+		sleep_time uint32
+		jitter     uint32
+
+		heap_handle uint64
+
+		elevated bool
+
+		process_arch uint32
+
+		img_path   string
+		img_name   string
+		cmd_line   string
+		process_id uint32
+		thread_id  uint32
+		parent_id  uint32
+
+		acp   uint32
+		oemcp uint32
+
+		base struct {
+			start string
+			end   string
+
+			size uint32
+		}
+	}
+
+	killdate struct {
+		enabled bool
+		exit    bool // true: exit process | false: exit thread
+		selfdel bool
+
+		date time.Time
+	}
+
+	worktime struct {
+		enabled bool
+		start   string
+		end     string
+	}
+
+	guardrails struct {
+		ipaddress string
+		hostname  string
+		username  string
+		domain    string
+	}
+
+	mask struct {
+		heap   bool
+		beacon uint32
+
+		jmpgadget  string
+		ntcontinue string
+	}
+
+	evasion struct {
+		bof_proxy       bool
+		syscall         uint32
+		amsi_etw_bypass int32
+	}
+
+	ps struct {
+		parent_id  uint32
+		spoofarg   string
+		block_dlls bool
+		spawnto    string
+		fork_pipe  string
+	}
+}
+
+func (k *KharonData) Marshal() ([]byte, error) {
+	var buf bytes.Buffer
+
+	// Machine
+	if err := write_string(&buf, k.machine.username); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.machine.computer); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.machine.domain); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.machine.netbios); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.machine.ipaddress); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_arch); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.processor_numbers); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.machine.processor_name); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_used); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_total); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_aval); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_perct); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_minor); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_major); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_build); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.allocation_gran); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.page_size); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.machine.cfg_enabled); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.dse_status); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.machine.vbs_hvci); err != nil {
+		return nil, err
+	}
+
+	// Session
+	if err := write_string(&buf, k.session.agent_id_str); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.agent_id_int); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.sleep_time); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.jitter); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.heap_handle); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.session.elevated); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.process_arch); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.session.img_path); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.session.img_name); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.session.cmd_line); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.process_id); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.thread_id); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.parent_id); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.acp); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.oemcp); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.session.base.start); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.session.base.end); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.session.base.size); err != nil {
+		return nil, err
+	}
+
+	// Killdate
+	if err := write_bool(&buf, k.killdate.enabled); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.killdate.exit); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.killdate.selfdel); err != nil {
+		return nil, err
+	}
+	if err := write_time(&buf, k.killdate.date); err != nil {
+		return nil, err
+	}
+
+	// Worktime
+	if err := write_bool(&buf, k.worktime.enabled); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.worktime.start); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.worktime.end); err != nil {
+		return nil, err
+	}
+
+	// Guardrails
+	if err := write_string(&buf, k.guardrails.ipaddress); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.guardrails.hostname); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.guardrails.username); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.guardrails.domain); err != nil {
+		return nil, err
+	}
+
+	// Mask
+	if err := write_bool(&buf, k.mask.heap); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.mask.beacon); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.mask.jmpgadget); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.mask.ntcontinue); err != nil {
+		return nil, err
+	}
+
+	// Evasion
+	if err := write_bool(&buf, k.evasion.bof_proxy); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.evasion.syscall); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.evasion.amsi_etw_bypass); err != nil {
+		return nil, err
+	}
+
+	// PS
+	if err := binary.Write(&buf, binary.LittleEndian, k.ps.parent_id); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.ps.block_dlls); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.ps.spawnto); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.ps.fork_pipe); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (k *KharonData) Unmarshal(data []byte) error {
+	buf := bytes.NewReader(data)
+
+	// Machine
+	var err error
+	k.machine.username, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.username: %w", err)
+	}
+
+	k.machine.computer, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.computer: %w", err)
+	}
+
+	k.machine.domain, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.domain: %w", err)
+	}
+
+	k.machine.netbios, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.netbios: %w", err)
+	}
+
+	k.machine.ipaddress, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.ipaddress: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_arch); err != nil {
+		return fmt.Errorf("failed to read machine.os_arch: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.processor_numbers); err != nil {
+		return fmt.Errorf("failed to read machine.processor_numbers: %w", err)
+	}
+
+	k.machine.processor_name, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.processor_name: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_used); err != nil {
+		return fmt.Errorf("failed to read machine.ram_used: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_total); err != nil {
+		return fmt.Errorf("failed to read machine.ram_total: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_aval); err != nil {
+		return fmt.Errorf("failed to read machine.ram_aval: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_perct); err != nil {
+		return fmt.Errorf("failed to read machine.ram_perct: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_minor); err != nil {
+		return fmt.Errorf("failed to read machine.os_minor: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_major); err != nil {
+		return fmt.Errorf("failed to read machine.os_major: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_build); err != nil {
+		return fmt.Errorf("failed to read machine.os_build: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.allocation_gran); err != nil {
+		return fmt.Errorf("failed to read machine.allocation_gran: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.page_size); err != nil {
+		return fmt.Errorf("failed to read machine.page_size: %w", err)
+	}
+
+	k.machine.cfg_enabled, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.cfg_enabled: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.dse_status); err != nil {
+		return fmt.Errorf("failed to read machine.dse_status: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.machine.vbs_hvci); err != nil {
+		return fmt.Errorf("failed to read machine.vbs_hvci: %w", err)
+	}
+
+	// Session
+	k.session.agent_id_str, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.agent_id_str: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.agent_id_int); err != nil {
+		return fmt.Errorf("failed to read session.agent_id_int: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.sleep_time); err != nil {
+		return fmt.Errorf("failed to read session.sleep_time: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.jitter); err != nil {
+		return fmt.Errorf("failed to read session.jitter: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.heap_handle); err != nil {
+		return fmt.Errorf("failed to read session.heap_handle: %w", err)
+	}
+
+	k.session.elevated, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.elevated: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.process_arch); err != nil {
+		return fmt.Errorf("failed to read session.process_arch: %w", err)
+	}
+
+	k.session.img_path, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.img_path: %w", err)
+	}
+
+	k.session.img_name, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.img_name: %w", err)
+	}
+
+	k.session.cmd_line, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.cmd_line: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.process_id); err != nil {
+		return fmt.Errorf("failed to read session.process_id: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.thread_id); err != nil {
+		return fmt.Errorf("failed to read session.thread_id: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.parent_id); err != nil {
+		return fmt.Errorf("failed to read session.parent_id: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.acp); err != nil {
+		return fmt.Errorf("failed to read session.acp: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.oemcp); err != nil {
+		return fmt.Errorf("failed to read session.oemcp: %w", err)
+	}
+
+	k.session.base.start, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.base.start: %w", err)
+	}
+
+	k.session.base.end, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read session.base.end: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.session.base.size); err != nil {
+		return fmt.Errorf("failed to read session.base.size: %w", err)
+	}
+
+	// Killdate
+	k.killdate.enabled, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read killdate.enabled: %w", err)
+	}
+
+	k.killdate.exit, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read killdate.exit: %w", err)
+	}
+
+	k.killdate.selfdel, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read killdate.selfdel: %w", err)
+	}
+
+	k.killdate.date, err = read_time(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read killdate.date: %w", err)
+	}
+
+	// Worktime
+	k.worktime.enabled, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read worktime.enabled: %w", err)
+	}
+
+	k.worktime.start, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read worktime.start: %w", err)
+	}
+
+	k.worktime.end, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read worktime.end: %w", err)
+	}
+
+	// Guardrails
+	k.guardrails.ipaddress, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read guardrails.ipaddress: %w", err)
+	}
+
+	k.guardrails.hostname, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read guardrails.hostname: %w", err)
+	}
+
+	k.guardrails.username, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read guardrails.username: %w", err)
+	}
+
+	k.guardrails.domain, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read guardrails.domain: %w", err)
+	}
+
+	// Mask
+	k.mask.heap, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read mask.heap: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.mask.beacon); err != nil {
+		return fmt.Errorf("failed to read mask.beacon: %w", err)
+	}
+
+	k.mask.jmpgadget, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read mask.jmpgadget: %w", err)
+	}
+
+	k.mask.ntcontinue, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read mask.ntcontinue: %w", err)
+	}
+
+	// Evasion
+	k.evasion.bof_proxy, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read evasion.bof_proxy: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.evasion.syscall); err != nil {
+		return fmt.Errorf("failed to read evasion.syscall: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.evasion.amsi_etw_bypass); err != nil {
+		return fmt.Errorf("failed to read evasion.amsi_etw_bypass: %w", err)
+	}
+
+	// PS
+	if err := binary.Read(buf, binary.LittleEndian, &k.ps.parent_id); err != nil {
+		return fmt.Errorf("failed to read ps.parent_id: %w", err)
+	}
+
+	k.ps.block_dlls, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read ps.block_dlls: %w", err)
+	}
+
+	k.ps.spawnto, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read ps.spawnto: %w", err)
+	}
+
+	k.ps.fork_pipe, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read ps.fork_pipe: %w", err)
+	}
+
+	return nil
+}
+
+type AgentConfig struct {
+	Format string `json:"format"`
+	Debug  bool   `json:"debug_mode"`
+	Sleep  string `json:"sleep"`
+	Jitter int    `json:"jitter"`
+
+	KilldateCheck bool   `json:"killdate_check"`
+	KilldateDate  string `json:"killdate_date"`
+
+	ForkPipe    string `json:"fork_pipename"`
+	Spawnto     string `json:"spawnto"`
+	Bypass      string `json:"bypass"`
+	MaskHeap    bool   `json:"mask_heap"`
+	MaskSleep   string `json:"mask_sleep"`
+	BofApiProxy bool   `json:"bof_api_proxy"`
+	Syscall     string `json:"syscall"`
+
+	GuardIpAddress  string `json:"guardrails_ip"`
+	GuardHostName   string `json:"guardrails_hostname"`
+	GuardUserName   string `json:"guardrails_user"`
+	GuardDomainName string `json:"guardrails_domain"`
+
+	WorkingTimeCheck bool   `json:"workingtime_check"`
+	WorkingTimeEnd   string `json:"workingtime_end"`
+	WorkingTimeStart string `json:"workingtime_start"`
+
+	kharon_data []byte
+}
+
+type OutputConfig struct {
+	Mask      bool
+	Header    string
+	Format    string
+	Parameter string
+	Body      string
+
+	Append  string
+	Prepend string
+}
+
+type URIConfig struct {
+	ServerOutput *OutputConfig
+	ClientOutput *OutputConfig
+	ClientParams []map[string]interface{}
+}
+
+type ServerError struct {
+	Status   int
+	Response string
+}
+
+type HTTPMethod struct {
+	ServerHeaders map[string]string
+	EmptyResponse []byte
+	ClientHeaders map[string]string
+	URI           map[string]URIConfig
+}
+
+type Callback struct {
+	Hosts       []string
+	Host        string
+	UserAgent   string
+	ServerError *ServerError
+	Get         *HTTPMethod
+	Post        *HTTPMethod
+}
+
+type ServerRequest struct {
+	Headers   string
+	Body      []byte
+	EmptyResp []byte
+	Payload   []byte
+}
+
+type ClientRequest struct {
+	Uri        string
+	HttpMethod string
+	Address    string
+	Params     map[string][]string
+	UserAgent  string
+	Body       []byte
+	Payload    []byte
+
+	Config Callback
+
+	UriConfig     *URIConfig
+	HttpMethodCfg *HTTPMethod
+}
 
 const (
 	PROFILE_WEB uint = 0x25
@@ -93,21 +777,22 @@ const (
 )
 
 const (
-	PROC_LIST int8 = 20
-	PROC_RUN  int8 = 21
-	PROC_KILL int8 = 22
-	PROC_PWSH int8 = 23
+	PROC_LIST int = 20
+	PROC_RUN  int = 21
+	PROC_KILL int = 22
+	PROC_PWSH int = 23
+	PROC_GREP int = 24
 )
 
 const (
-	FS_LS    int8 = 30
-	FS_CAT   int8 = 31
-	FS_PWD   int8 = 32
-	FS_MOVE  int8 = 33
-	FS_COPY  int8 = 34
-	FS_MKDIR int8 = 35
-	FS_RM    int8 = 36
-	FS_CD    int8 = 37
+	FS_LIST  int = 30
+	FS_CAT   int = 31
+	FS_PWD   int = 32
+	FS_MOVE  int = 33
+	FS_COPY  int = 34
+	FS_MKDIR int = 35
+	FS_RM    int = 36
+	FS_CD    int = 37
 )
 
 const (
@@ -1091,6 +1776,74 @@ var win32ErrorCodes = map[uint]string{
 	10113: "WSANO_DATA",         // Valid name, no data record of requested type
 }
 
+func SizeBytesToFormat(size int64) string {
+	if size < 1024 {
+		return fmt.Sprintf("%d B", size)
+	}
+	
+	suffixes := []string{"B", "KB", "MB", "GB", "TB", "PB"}
+	base := float64(size)
+	i := 0
+	
+	for base >= 1024 && i < len(suffixes)-1 {
+		base /= 1024
+		i++
+	}
+	
+	return fmt.Sprintf("%.1f %s", base, suffixes[i])
+}
+
+func ConvertStringToWCharNullTerminated(input string) []byte {
+	runes := []rune(input)
+	utf16Data := utf16.Encode(runes)
+	
+	result := make([]byte, (len(utf16Data)+1)*2)
+	
+	for i, wchar := range utf16Data {
+		binary.LittleEndian.PutUint16(result[i*2:], wchar)
+	}
+	
+	return result
+}
+
+func ConvertWCharBytesToString(data []byte) string {
+	if len(data) < 2 {
+		return ""
+	}
+	
+	if len(data)%2 != 0 {
+		data = data[:len(data)-1]
+	}
+	
+	utf16Data := make([]uint16, 0, len(data)/2)
+	for i := 0; i < len(data); i += 2 {
+		wchar := binary.LittleEndian.Uint16(data[i:])
+		
+		if wchar == 0 {
+			break
+		}
+		
+		utf16Data = append(utf16Data, wchar)
+	}
+	
+	runes := utf16.Decode(utf16Data)
+	return string(runes)
+}
+
+func ConvertWCharBytesToCp(data []byte, codePage int) string {
+	utf8Str := ConvertWCharBytesToString(data)
+	
+	if codePage == 65001 { 
+		return utf8Str
+	}
+	
+	return ConvertUTF8toCp(utf8Str, codePage)
+}
+
+func ConvertWCharBytesToUTF8(data []byte) string {
+	return ConvertWCharBytesToString(data)
+}
+
 func ConvertCpToUTF8(input string, codePage int) string {
 	enc, exists := codePageMapping[codePage]
 	if !exists {
@@ -1204,30 +1957,9 @@ func ConvertUTF16LEToCp(data []byte, codePage int) string {
 	return ConvertUTF16toCp(utf16Data, codePage)
 }
 
-func StringToWideChar(s string) []uint16 {
-	return utf16.Encode([]rune(s))
-}
-
-func WideCharToString(wstr []uint16) string {
-	runes := utf16.Decode(wstr)
-	return string(runes)
-}
-
 type CodePageConverter struct {
 	decoder *encoding.Decoder
 	encoder *encoding.Encoder
-}
-
-func NewCodePageConverter(codePage int) *CodePageConverter {
-	enc, exists := codePageMapping[codePage]
-	if !exists {
-		return nil
-	}
-	
-	return &CodePageConverter{
-		decoder: enc.NewDecoder(),
-		encoder: enc.NewEncoder(),
-	}
 }
 
 func (c *CodePageConverter) ToUTF16(input string) []uint16 {
@@ -1244,25 +1976,7 @@ func (c *CodePageConverter) ToUTF16(input string) []uint16 {
 	return utf16.Encode([]rune(buf.String()))
 }
 
-func (c *CodePageConverter) FromUTF16(utf16Data []uint16) string {
-	if c == nil {
-		runes := utf16.Decode(utf16Data)
-		return string(runes)
-	}
-	
-	runes := utf16.Decode(utf16Data)
-	utf8Str := string(runes)
-	
-	var buf strings.Builder
-	c.encoder.Reset()
-	writer := transform.NewWriter(&buf, c.encoder)
-	writer.Write([]byte(utf8Str))
-	writer.Close()
-	
-	return buf.String()
-}
-
-func SizeBytesToFormat(bytes int64) string {
+func size_bytes_fmt(bytes int64) string {
 	const (
 		KB = 1024.0
 		MB = KB * 1024
@@ -1280,16 +1994,7 @@ func SizeBytesToFormat(bytes int64) string {
 	}
 }
 
-func getStringFromMap(m map[string]interface{}, key string) string {
-	if val, ok := m[key]; ok && val != nil {
-		if str, ok := val.(string); ok {
-			return str
-		}
-	}
-	return ""
-}
-
-func generateRandomString(length int) string {
+func gen_rnd_str(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, length)
 	for i := range b {
@@ -1298,209 +2003,11 @@ func generateRandomString(length int) string {
 	return string(b)
 }
 
-func toStringSlice(v any) []string {
-	if v == nil {
-		return nil
-	}
-	switch t := v.(type) {
-	case []string:
-		return t
-	case []any:
-		out := []string{}
-		for _, e := range t {
-			out = append(out, fmt.Sprint(e))
-		}
-		return out
-	case string:
-		sep := ","
-		if strings.Contains(t, ";") && !strings.Contains(t, ",") {
-			sep = ";"
-		}
-		if strings.Contains(t, sep) {
-			parts := strings.Split(t, sep)
-			for i := range parts {
-				parts[i] = strings.TrimSpace(parts[i])
-			}
-			return parts
-		}
-		if strings.TrimSpace(t) == "" {
-			return nil
-		}
-		return []string{t}
-	default:
-		return []string{fmt.Sprint(v)}
-	}
-}
-
-func keyToMakeList(keyStr string, targetLen int) string {
-	if keyStr == "" {
-		zeros := make([]string, targetLen)
-		for i := 0; i < targetLen; i++ {
-			zeros[i] = "0x00"
-		}
-		return strings.Join(zeros, ",")
-	}
-
-	if b, err := base64.StdEncoding.DecodeString(keyStr); err == nil {
-		return bytesToMakeList(b, targetLen)
-	}
-	clean := strings.ReplaceAll(keyStr, "0x", "")
-	clean = strings.ReplaceAll(clean, " ", "")
-	clean = strings.ReplaceAll(clean, "-", "")
-	clean = strings.ReplaceAll(clean, ":", "")
-	if b, err := hex.DecodeString(clean); err == nil {
-		return bytesToMakeList(b, targetLen)
-	}
-
-	zeros := make([]string, targetLen)
-	for i := 0; i < targetLen; i++ {
-		zeros[i] = "0x00"
-	}
-	return strings.Join(zeros, ",")
-}
-
-func bytesToMakeList(b []byte, targetLen int) string {
-	out := make([]string, 0, targetLen)
-	for i := 0; i < targetLen; i++ {
-		if i < len(b) {
-			out = append(out, fmt.Sprintf("0x%02X", b[i]))
-		} else {
-			out = append(out, "0x00")
-		}
-	}
-	return strings.Join(out, ",")
-}
-
-func joinAsWideList(items []string) string {
-	for i := range items {
-		items[i] = strings.ReplaceAll(items[i], `"`, `\"`)
-	}
-	return `L"` + strings.Join(items, ";") + `"`
-}
-
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-func quoteIfNeeded(s string) string {
-	if s == "" {
-		return `""`
-	}
-	escaped := strings.ReplaceAll(s, `"`, `\"`)
-	return fmt.Sprintf("'%s'", escaped)
-}
-
-func parseCallbackAddress(addr string) (host string, port int, endpoint string) {
-	s := strings.TrimSpace(addr)
-	if s == "" {
-		return "", 0, ""
-	}
-
-	s = strings.TrimPrefix(s, "http://")
-	s = strings.TrimPrefix(s, "https://")
-
-	var hostPortPart, rest string
-	if idx := strings.Index(s, "/"); idx >= 0 {
-		hostPortPart = s[:idx]
-		rest = s[idx:]
-	} else {
-		hostPortPart = s
-		rest = ""
-	}
-
-	host = hostPortPart
-	port = 0
-	// se tiver :, extrai porta
-	if hp := strings.Split(hostPortPart, ":"); len(hp) >= 2 {
-		host = hp[0]
-		if p, err := strconv.Atoi(hp[1]); err == nil {
-			port = p
-		}
-	}
-
-	endpoint = strings.TrimSpace(rest)
-	return host, port, endpoint
-}
-
-func makeCWideStringList(items []string) string {
-	if len(items) == 0 {
-		return "{}"
-	}
-	parts := make([]string, 0, len(items))
-	for _, it := range items {
-		it = strings.ReplaceAll(it, `"`, `\"`)
-		parts = append(parts, `L"`+it+`"`)
-	}
-	return "{ " + strings.Join(parts, ", ") + " }"
-}
-
-func makeCWideList(vals []string) string {
-	parts := make([]string, 0, len(vals))
-	for _, v := range vals {
-		v = strings.TrimSpace(v)
-		if v == "" {
-			continue
-		}
-		parts = append(parts, fmt.Sprintf(`'L"%s"'`, v))
-	}
-	return "{" + strings.Join(parts, ",") + "}"
-}
-
-func makeCIntList(vals []int) string {
-	parts := make([]string, 0, len(vals))
-	for _, v := range vals {
-		parts = append(parts, strconv.Itoa(v))
-	}
-	return "{" + strings.Join(parts, ",") + "}"
-}
-
-func bytesToHexList(b []byte, length int) string {
-	out := make([]string, 0, length)
-	for i := 0; i < length; i++ {
-		if i < len(b) {
-			out = append(out, fmt.Sprintf("0x%02X", b[i]))
-		} else {
-			out = append(out, "0x00")
-		}
-	}
-	return "{ " + strings.Join(out, ",") + " }"
-}
-
-func makeCWideListQuoted(list []string) string {
-	if len(list) == 0 {
-		return "{}"
-	}
-	parts := make([]string, len(list))
-	for i, v := range list {
-		parts[i] = fmt.Sprintf(`'L"%s"'`, v) // aspas simples + L""
-	}
-	return "{ " + strings.Join(parts, ", ") + " }"
-}
-
-func makeCWideListNoSpaces(list []string) string {
-	if len(list) == 0 {
-		return "{}"
-	}
-	parts := make([]string, len(list))
-	for i, v := range list {
-		parts[i] = fmt.Sprintf(`L"%s"`, v)
-	}
-	return "{" + strings.Join(parts, ",") + "}"
-}
-
-func escapeMakeValue(val string) string {
-	return fmt.Sprintf(`'%s'`, val)
-}
-
-func generateShellcodeHeader(shellcode []byte) string {
+func gen_shelllcode_header(shellcode []byte) string {
 	var sb strings.Builder
 
 	sb.WriteString("#pragma once\n\n")
 	sb.WriteString("// Autogenerated shellcode\n")
-	sb.WriteString("// DO NOT EDIT MANUALLY\n\n")
 	sb.WriteString("#include <cstdint>\n\n")
 	sb.WriteString("namespace Shellcode {\n\n")
 	sb.WriteString(fmt.Sprintf("    constexpr size_t Size = %d;\n\n", len(shellcode)))
@@ -1524,7 +2031,7 @@ func generateShellcodeHeader(shellcode []byte) string {
 	return sb.String()
 }
 
-func getMapKeys(m map[string]any) []string {
+func get_map_keys(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
@@ -1532,7 +2039,7 @@ func getMapKeys(m map[string]any) []string {
 	return keys
 }
 
-func getIntFromArgs(value interface{}) (int, bool) {
+func get_int_from_args(value interface{}) (int, bool) {
     switch v := value.(type) {
     case int:
         return v, true
@@ -1548,7 +2055,14 @@ func getIntFromArgs(value interface{}) (int, bool) {
     return 0, false
 }
 
-func int32ToIPv4(ip uint) string {
+func bool_to_int(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func int32_to_ipv4(ip uint) string {
 	bytes := []byte{
 		byte(ip),
 		byte(ip >> 8),
@@ -1556,4 +2070,288 @@ func int32ToIPv4(ip uint) string {
 		byte(ip >> 24),
 	}
 	return net.IP(bytes).String()
+}
+
+func bytes_to_hexstr(data []byte) string {
+	if len(data) == 0 {
+		return "{ }"
+	}
+
+	var result string
+	result = "{ "
+	for i, b := range data {
+		result += fmt.Sprintf("0x%02x", b)
+		if i < len(data)-1 {
+			result += ", "
+		}
+	}
+	result += " }"
+	return result
+}
+
+func write_string(buf *bytes.Buffer, s string) error {
+	data := []byte(s)
+	if err := binary.Write(buf, binary.LittleEndian, uint32(len(data))); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.LittleEndian, data); err != nil {
+		return err
+	}
+	return nil
+}
+
+func read_string(buf *bytes.Reader) (string, error) {
+	var len uint32
+	if err := binary.Read(buf, binary.LittleEndian, &len); err != nil {
+		return "", err
+	}
+	data := make([]byte, len)
+	if err := binary.Read(buf, binary.LittleEndian, &data); err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func write_bool(buf *bytes.Buffer, b bool) error {
+	val := uint8(0)
+	if b {
+		val = 1
+	}
+	return binary.Write(buf, binary.LittleEndian, val)
+}
+
+func read_bool(buf *bytes.Reader) (bool, error) {
+	var val uint8
+	err := binary.Read(buf, binary.LittleEndian, &val)
+	return val != 0, err
+}
+
+func write_time(buf *bytes.Buffer, t time.Time) error {
+	return binary.Write(buf, binary.LittleEndian, t.Unix())
+}
+
+func read_time(buf *bytes.Reader) (time.Time, error) {
+	var timestamp int64
+	err := binary.Read(buf, binary.LittleEndian, &timestamp)
+	return time.Unix(timestamp, 0).UTC(), err
+}
+
+func FormatKharonTable(data *KharonData) string {
+	var b strings.Builder
+
+	colLabel := 25
+	colValue := 50
+
+	// ==================== HELPER FUNCTIONS ====================
+	boolStr := func(val bool) string {
+		if val {
+			return "True"
+		}
+		return "False"
+	}
+
+	maskTechStr := func(id uint32) string {
+		switch id {
+		case 1:
+			return "Timer"
+		case 2:
+			return "Pooling"
+		case 3:
+			return "None"
+		default:
+			return fmt.Sprintf("%d", id)
+		}
+	}
+
+	syscallStr := func(sys uint32) string {
+		switch sys {
+		case 0:
+			return "None"
+		case 1:
+			return "Spoof"
+		case 2:
+			return "Spoof + Indirect"
+		default:
+			return fmt.Sprintf("%d", sys)
+		}
+	}
+
+	amsietwbpStr := func(id int32) string {
+		switch id {
+		case 0x100:
+			return "All"
+		case 0x700:
+			return "AMSI"
+		case 0x400:
+			return "ETW"
+		case 0x000:
+			return "None"
+		default:
+			return fmt.Sprintf("0x%03X", id)
+		}
+	}
+
+	dseStatusStr := func(status uint32) string {
+		switch status {
+		case 0:
+			return "Disabled"
+		case 1:
+			return "Enabled"
+		default:
+			return fmt.Sprintf("%d", status)
+		}
+	}
+
+	vbsHvciStr := func(status uint32) string {
+		switch status {
+		case 0:
+			return "Disabled"
+		case 1:
+			return "Enabled"
+		default:
+			return fmt.Sprintf("%d", status)
+		}
+	}
+
+	// ==================== FORMATTING FUNCTIONS ====================
+	row := func(label, value string) string {
+		return fmt.Sprintf("│ %-*s │ %-*s │\n", colLabel, label, colValue, value)
+	}
+
+	border := func(title string) string {
+		borderLine := "├" + strings.Repeat("─", colLabel+2) + "┼" + strings.Repeat("─", colValue+2) + "┤"
+		if title == "top" {
+			return "┌" + strings.Repeat("─", colLabel+2) + "┬" + strings.Repeat("─", colValue+2) + "┐\n"
+		} else if title == "bottom" {
+			return "└" + strings.Repeat("─", colLabel+2) + "┴" + strings.Repeat("─", colValue+2) + "┘\n"
+		}
+		return borderLine + "\n"
+	}
+
+	sectionTitle := func(title string) string {
+		padding := (colLabel + colValue + 6 - len(title)) / 2
+		return fmt.Sprintf("│ %s%s%s │\n",
+			strings.Repeat(" ", padding),
+			title,
+			strings.Repeat(" ", padding))
+	}
+
+	// Top border
+	b.WriteString(border("top"))
+
+	// ==================== SESSION ====================
+	b.WriteString(sectionTitle("SESSION INFORMATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Agent ID", data.session.agent_id_str[:min(8, len(data.session.agent_id_str))]))
+	b.WriteString(row("Image Name", data.session.img_name))
+	b.WriteString(row("Image Path", data.session.img_path))
+	b.WriteString(row("Command Line", data.session.cmd_line))
+	b.WriteString(row("Process ID", fmt.Sprintf("%d", data.session.process_id)))
+	b.WriteString(row("Thread ID", fmt.Sprintf("%d", data.session.thread_id)))
+	b.WriteString(row("Parent ID", fmt.Sprintf("%d", data.session.parent_id)))
+	b.WriteString(row("Elevated", boolStr(data.session.elevated)))
+	b.WriteString(row("Process Arch", fmt.Sprintf("0x%02X", data.session.process_arch)))
+	b.WriteString(row("Heap Handle", fmt.Sprintf("0x%016X", data.session.heap_handle)))
+	b.WriteString(row("Kharon in-memory base", data.session.base.start))
+	b.WriteString(row("Kharon in-memory Size", fmt.Sprintf("%d bytes", data.session.base.size)))
+	b.WriteString(row("Code Page (ACP)", fmt.Sprintf("%d", data.session.acp)))
+	b.WriteString(row("OEM Code Page", fmt.Sprintf("%d", data.session.oemcp)))
+	b.WriteString(border("middle"))
+
+	// ==================== TIMING ====================
+	b.WriteString(sectionTitle("TIMING CONFIGURATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Sleep Time", fmt.Sprintf("%d ms", data.session.sleep_time)))
+	b.WriteString(row("Jitter", fmt.Sprintf("%d%%", data.session.jitter)))
+	b.WriteString(border("middle"))
+
+	// ==================== EVASION ====================
+	b.WriteString(sectionTitle("EVASION TECHNIQUES"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Mask Beacon", maskTechStr(data.mask.beacon)))
+	b.WriteString(row("Heap Mask", boolStr(data.mask.heap)))
+	b.WriteString(row("Jump Gadget", data.mask.jmpgadget))
+	b.WriteString(row("NtContinue Gadget", data.mask.ntcontinue))
+	b.WriteString(row("BOF API Proxy", boolStr(data.evasion.bof_proxy)))
+	b.WriteString(row("Syscall Method", syscallStr(data.evasion.syscall)))
+	b.WriteString(row("AMSI/ETW Bypass", amsietwbpStr(data.evasion.amsi_etw_bypass)))
+	b.WriteString(border("middle"))
+
+	// ==================== PROCESS SPAWNING ====================
+	b.WriteString(sectionTitle("PROCESS SPAWNING"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Parent PID", fmt.Sprintf("%d", data.ps.parent_id)))
+	b.WriteString(row("Block DLLs", boolStr(data.ps.block_dlls)))
+	b.WriteString(row("Spawn To", data.ps.spawnto))
+	b.WriteString(row("Fork Pipe", data.ps.fork_pipe))
+	b.WriteString(border("middle"))
+
+	// ==================== KILLDATE ====================
+	b.WriteString(sectionTitle("KILLDATE CONFIGURATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Use Killdate", boolStr(data.killdate.enabled)))
+	b.WriteString(row("Exit Type", func() string {
+		if data.killdate.exit {
+			return "Exit Process"
+		}
+		return "Exit Thread"
+	}()))
+	b.WriteString(row("Self Delete", boolStr(data.killdate.selfdel)))
+	b.WriteString(row("Killdate", data.killdate.date.Format("02/01/2006")))
+	b.WriteString(border("middle"))
+
+	// ==================== WORKTIME ====================
+	b.WriteString(sectionTitle("WORKTIME CONFIGURATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Enable Worktime", boolStr(data.worktime.enabled)))
+	b.WriteString(row("Start Time", data.worktime.start))
+	b.WriteString(row("End Time", data.worktime.end))
+	b.WriteString(border("middle"))
+
+	// ==================== GUARDRAILS ====================
+	b.WriteString(sectionTitle("GUARDRAILS"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("IP Address", data.guardrails.ipaddress))
+	b.WriteString(row("Hostname", data.guardrails.hostname))
+	b.WriteString(row("Username", data.guardrails.username))
+	b.WriteString(row("Domain", data.guardrails.domain))
+	b.WriteString(border("middle"))
+
+	// ==================== SYSTEM INFORMATION ====================
+	b.WriteString(sectionTitle("SYSTEM INFORMATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Username", data.machine.username))
+	b.WriteString(row("Computer Name", data.machine.computer))
+	b.WriteString(row("NetBIOS Name", data.machine.netbios))
+	b.WriteString(row("Domain", data.machine.domain))
+	b.WriteString(row("IP Address", data.machine.ipaddress))
+	b.WriteString(row("OS Architecture", fmt.Sprintf("0x%02X", data.machine.os_arch)))
+	b.WriteString(row("OS Version", fmt.Sprintf("%d.%d.%d",
+		data.machine.os_major,
+		data.machine.os_minor,
+		data.machine.os_build)))
+	b.WriteString(row("Processor Name", data.machine.processor_name))
+	b.WriteString(row("Processor Count", fmt.Sprintf("%d", data.machine.processor_numbers)))
+	b.WriteString(border("middle"))
+
+	// ==================== MEMORY INFORMATION ====================
+	b.WriteString(sectionTitle("MEMORY INFORMATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Total RAM", fmt.Sprintf("%d MB", data.machine.ram_total)))
+	b.WriteString(row("Available RAM", fmt.Sprintf("%d MB", data.machine.ram_aval)))
+	b.WriteString(row("Used RAM", fmt.Sprintf("%d MB", data.machine.ram_used)))
+	b.WriteString(row("RAM Usage", fmt.Sprintf("%d%%", data.machine.ram_perct)))
+	b.WriteString(row("Page Size", fmt.Sprintf("%d bytes", data.machine.page_size)))
+	b.WriteString(row("Allocation Granularity", fmt.Sprintf("%d bytes", data.machine.allocation_gran)))
+	b.WriteString(border("middle"))
+
+	// ==================== SECURITY FEATURES ====================
+	b.WriteString(sectionTitle("SECURITY FEATURES"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("CFG Enabled", boolStr(data.machine.cfg_enabled)))
+	b.WriteString(row("DSE Status", dseStatusStr(data.machine.dse_status)))
+	b.WriteString(row("VBS/HVCI", vbsHvciStr(data.machine.vbs_hvci)))
+	b.WriteString(border("bottom"))
+
+	return b.String()
 }

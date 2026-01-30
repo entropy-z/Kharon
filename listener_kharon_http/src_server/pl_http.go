@@ -757,11 +757,9 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 				ctx.Writer.Write([]byte(serverOutput.Body))
 			}
 		} else if serverOutput != nil && serverOutput.Parameter != "" {
-			// Parameter output - response in body
 			ctx.Status(http.StatusOK)
 			ctx.Writer.Write([]byte(server.Payload))
 		} else if serverOutput != nil && serverOutput.Cookie != "" {
-			// Cookie output - response in Set-Cookie header
 			ctx.Writer.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s", serverOutput.Cookie, string(server.Payload)))
 			ctx.Status(http.StatusOK)
 
@@ -827,6 +825,8 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 		if headerValue == "" {
 			return "", nil, false, errors.New("header not found")
 		}
+
+		headerValue = strings.ReplaceAll(headerValue, " ", "+")
 		
 		full_data = bytes.NewBuffer([]byte(headerValue))
 	} else if output.Cookie != "" {
@@ -834,6 +834,8 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 		if err != nil || cookieValue == "" {
 			return "", nil, false, errors.New("cookie not found")
 		}
+
+		cookieValue = strings.ReplaceAll(cookieValue, " ", "+")
 		
 		full_data = bytes.NewBuffer([]byte(cookieValue))
 	} else if output.Parameter != "" {

@@ -64,51 +64,6 @@ Provides full token management capabilities using the `token` command:
 Example:  
 ![token_cmd_1](assets/token_cmd_1.png)
 
-## Base Commands
-- info
-- config*
-- exit
-   - process
-   - thread
-- selfdel
-- execute
-   - postex
-   - bof
-- fs
-   - ls
-   - pwd
-   - cat
-   - mkdir
-   - mv
-   - cp
-   - cd
-- ps
-   - run
-   - pwsh
-   - kill
-   - list
-- token
-   - getuid
-   - list
-   - steal
-   - impersonate
-   - rm
-   - revert
-   - make
-   - privget
-   - privlist
-- scinject
-- upload
-- download
-- socks
-   - start
-   - stop
-- rportfwd
-   - start
-   - stop
-
-![base_cmds](assets/base_commands.png)
-
 ### Runtime Configuration Changes
 
 Kharon supports live runtime configuration updates using the `config` command.  
@@ -116,16 +71,11 @@ This allows dynamic changes to beacon behavior, including:
 
 - Kill date (date-based or self-delete)
 - Working hours
-- HTTP callback configuration (host, port, User-Agent)
 - BOF API proxy enable/disable
 - Spoofed + indirect syscall enable/disable
 - Memory obfuscation:
   - Heap masking status
   - Beacon masking technique
-- Injection behavior:
-  - Allocation method
-  - Write technique
-  - Injection strategy
 - Process creation behavior:
   - Parent Process ID (PPID) spoofing
   - Block DLL policy
@@ -140,6 +90,3 @@ Example:
 ### Beacon Configuration Inspection
 
 Retrieve the current beacon configuration using the `info` command:
-
-![info_cmd_1](assets/info_cmd_image_1.png)  
-![info_cmd_2](assets/info_cmd_image_2.png)

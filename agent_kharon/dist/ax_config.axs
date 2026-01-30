@@ -72,17 +72,19 @@ function RegisterCommands(listenerType)
     
     let _cmd_ps_kill = ax.create_command("kill", "Terminate a process by its Process ID (PID)", "ps kill 1234", "Task: terminate process");
     _cmd_ps_kill.addArgInt("pid", true);
+    _cmd_ps_kill.addArgInt("exit_code", false);
     
-    let cmd_ps_run = ax.create_command("run", "Execute a new process with specified command line", "ps run \"cmd.exe /c whoami /all\"", "Task: create and execute new process");
-    cmd_ps_run.addArgString("cmd", true, "Full command line with arguments");
-
-    let cmd_ps_pwsh = ax.create_command("pwsh", "Execute powershell command", "ps pwsh -c Get-Domain -s /opt/PowerView.ps1", "Task: create and execute powershell command");
-    cmd_ps_pwsh.addArgFlagString("-c", "cmd", true);
-    cmd_ps_pwsh.addArgFlagFile("-s", "script", false);
-    cmd_ps_pwsh.addArgFlagString("-b", "bypass", false, "Options: 'amsi', 'etw', 'all' or 'none'");
+    let cmd_ps_run = ax.create_command("run", "Execute a new process with specified command line", "process run --command \"cmd.exe /c whoami /all\"", "Task: create and execute new process");
+    cmd_ps_run.addArgFlagString("--command", "cmd", true, "Full command line with arguments");
+    cmd_ps_run.addArgFlagString("--state", "state", false, "State for process creation (suspended/standard)");
+    cmd_ps_run.addArgFlagString("--pipe", "pipe", false, "Pipe to get output from process creation (true/false)");
+    cmd_ps_run.addArgFlagString("--domain", "domain", false, "Domain for use with CreateProcessWithLogon");
+    cmd_ps_run.addArgFlagString("--username", "username", false, "Username for use with CreateProcessWithLogon");
+    cmd_ps_run.addArgFlagString("--password", "password", false, "Password for use with CreateProcessWithLogon");
+    cmd_ps_run.addArgFlagString("--token", "token", false, "Token for use with CreateProcessWithToken");
 
     let cmd_ps = ax.create_command("process", "Process management - list, create, and terminate processes");
-    cmd_ps.addSubCommands([cmd_ps_list, cmd_ps_run, cmd_ps_pwsh, _cmd_ps_kill]);
+    cmd_ps.addSubCommands([cmd_ps_list, cmd_ps_run, _cmd_ps_kill]);
 
     /// JOB
     /// let cmd_job_list = ax.create_command("list", "Display all currently running background jobs", "job list", "Task: enumerate running jobs");
@@ -179,7 +181,7 @@ function RegisterCommands(listenerType)
 
     /// INFO
 
-    let cmd_info = ax.create_command("info", "Display comprehensive beacon information and system details", "info", "Task: retrieve beacon information");
+    let cmd_info = ax.create_command("info", "Display comprehensive beacon information and system details", "info", "Task: retrieve beacon information (server-side)");
 
     // UPLOAD
     let cmd_upload = ax.create_command("upload", "Upload a file", "upload /tmp/file.txt C:\Temp\file.txt", "Task: upload file");
@@ -217,8 +219,8 @@ function RegisterCommands(listenerType)
     /// SCINJECT
 
     let cmd_scinject = ax.create_command("scinject", "Inject raw shellcode into a target process by PID", "scinject /tmp/payload.bin 1234", "Task: inject shellcode into process");
-    cmd_scinject.addArgFile("shellcode", true);
     cmd_scinject.addArgInt("pid", true);
+    cmd_scinject.addArgFile("shellcode", true);
 
     /// SELF_DELETE
     
@@ -454,7 +456,7 @@ function GenerateUI(listenerType)
     return {
         ui_panel: panel,
         ui_container: container,
-        ui_height: 600,
+        ui_height: 800,
         ui_width: 800  
     }
 }

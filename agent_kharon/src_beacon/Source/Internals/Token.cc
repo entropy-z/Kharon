@@ -373,7 +373,6 @@ _KH_END:
     return nullptr;
 }
 
-
 auto DECLFN Token::SetPriv(
     _In_ HANDLE Handle,
     _In_ CHAR*  PrivName

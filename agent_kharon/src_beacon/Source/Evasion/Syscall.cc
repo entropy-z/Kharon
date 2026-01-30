@@ -57,12 +57,12 @@ auto DECLFN Syscall::Fetch(
     if ( DEFB( FuncPtr + 3 ) == 0xE9 ) {
         for ( INT i = 0; i <= SY_RANGE; i++ ) {
             if ( 
-                 DEFB( FuncPtr + 0 + i * SY_DOWN ) == 0x4C &&
-                 DEFB( FuncPtr + 1 + i * SY_DOWN ) == 0x8B &&
-                 DEFB( FuncPtr + 2 + i * SY_DOWN ) == 0xD1 &&
-                 DEFB( FuncPtr + 3 + i * SY_DOWN ) == 0xB8 &&
-                 DEFB( FuncPtr + 6 + i * SY_DOWN ) == 0x00 &&
-                 DEFB( FuncPtr + 7 + i * SY_DOWN ) == 0x00 
+                DEFB( FuncPtr + 0 + i * SY_DOWN ) == 0x4C &&
+                DEFB( FuncPtr + 1 + i * SY_DOWN ) == 0x8B &&
+                DEFB( FuncPtr + 2 + i * SY_DOWN ) == 0xD1 &&
+                DEFB( FuncPtr + 3 + i * SY_DOWN ) == 0xB8 &&
+                DEFB( FuncPtr + 6 + i * SY_DOWN ) == 0x00 &&
+                DEFB( FuncPtr + 7 + i * SY_DOWN ) == 0x00 
             ) {
                 BYTE High = DEFB( FuncPtr + 5 + i * SY_DOWN );
                 BYTE Low  = DEFB( FuncPtr + 4 + i * SY_DOWN );

