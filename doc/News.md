@@ -29,3 +29,11 @@
 - config syscall capability
 - Config bof api prox via config command
 - Domain Rotation (failover, round robin and random)
+
+# v0.2 -> v0.3
+- LDAP/ADWS command to bloodhound output parser
+- Active Script in memory execution (VBS/JScript/etc)
+- PE in memory execution (Reflection)
+
+# v0.3 -> v0.4
+- SMB Listener
