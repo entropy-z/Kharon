@@ -58,6 +58,8 @@ extern "C" {
     DFR(KERNEL32, DuplicateHandle)
     DFR(KERNEL32, CreateFileW)
     DFR(KERNEL32, CreateFileA)
+    DFR(KERNEL32, PeekNamedPipe)
+    DFR(KERNEL32, SetHandleInformation)
     DFR(KERNEL32, GetFullPathNameW)
     DFR(KERNEL32, CreateDirectoryW)
     DFR(KERNEL32, SetCurrentDirectoryW)
@@ -83,6 +85,7 @@ extern "C" {
     DFR(KERNEL32, FormatMessageW)
 
     DFR(MSVCRT, malloc)
+    DFR(MSVCRT, realloc)
     DFR(MSVCRT, free)
     DFR(MSVCRT, memset)
     DFR(MSVCRT, memcpy)
@@ -155,6 +158,9 @@ extern "C" {
 #define FindNextFileW      KERNEL32$FindNextFileW
 #define FindClose          KERNEL32$FindClose
 
+#define PeekNamedPipe KERNEL32$PeekNamedPipe
+#define SetHandleInformation KERNEL32$SetHandleInformation
+
 #define IsWow64Process      KERNEL32$IsWow64Process
 #define WaitForSingleObject KERNEL32$WaitForSingleObject
 
@@ -164,6 +170,7 @@ extern "C" {
 #define FormatMessageW      KERNEL32$FormatMessageW
 
 #define malloc    MSVCRT$malloc
+#define realloc   MSVCRT$realloc
 #define memset    MSVCRT$memset
 #define memcpy    MSVCRT$memcpy
 #define wcslen    MSVCRT$wcslen

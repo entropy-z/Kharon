@@ -106,6 +106,8 @@ type Teamserver interface {
 	TsTunnelCreateLportfwd(AgentId string, Info string, Lhost string, Lport int, Thost string, Tport int) (string, error)
 	TsTunnelCreateRportfwd(AgentId string, Info string, Lport int, Thost string, Tport int) (string, error)
 	TsTunnelUpdateRportfwd(tunnelId int, result bool) (string, string, error)
+	TsTunnelPause(channelId int)
+	TsTunnelResume(channelId int)
 
 	TsTunnelStopSocks(AgentId string, Port int)
 	TsTunnelStopLportfwd(AgentId string, Port int)
@@ -291,9 +293,33 @@ func (ext *ExtenderAgent) TunnelCallbacks() ax.TunnelCallbacks {
 		ConnectUDP: TunnelMessageConnectUDP,
 		WriteTCP:   TunnelMessageWriteTCP,
 		WriteUDP:   TunnelMessageWriteUDP,
+		Pause:      TunnelMessagePause,
+		Resume:     TunnelMessageResume,
 		Close:      TunnelMessageClose,
 		Reverse:    TunnelMessageReverse,
 	}
+}
+
+func makeProxyTask(packData []byte) ax.TaskData {
+	return ax.TaskData{Type: ax.TASK_TYPE_PROXY_DATA, Data: packData, Sync: false}
+}
+
+func TunnelMessagePause(channelId int) ax.TaskData {
+	var packData []byte
+	
+	array := []interface{}{COMMAND_TUNNEL_PAUSE, channelId}
+	packData, _ = PackArray(array)
+	
+	return makeProxyTask(packData)
+}
+
+func TunnelMessageResume(channelId int) ax.TaskData {
+	var packData []byte
+	
+	array := []interface{}{COMMAND_TUNNEL_RESUME, channelId}
+	packData, _ = PackArray(array)
+	
+	return makeProxyTask(packData)
 }
 
 func TunnelMessageConnectTCP(channelId int, tunnelType int, addressType int, address string, port int) ax.TaskData {

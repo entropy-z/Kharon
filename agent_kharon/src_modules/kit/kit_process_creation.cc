@@ -12,6 +12,8 @@ auto kh_process_creation(
     _In_  PS_CREATE_ARGS*      create_args,
     _Out_ PROCESS_INFORMATION* ps_information
 ) -> NTSTATUS {
+    DbgPrint("a\n");
+
     auto process_cmdline = (*create_args->spoofarg ? create_args->spoofarg : create_args->argument);
     auto process_info    = PROCESS_INFORMATION{ 0 };
     auto startup_info_ex = STARTUPINFOEXW{ 0 };
@@ -36,8 +38,7 @@ auto kh_process_creation(
     BOOL     success = FALSE;
 
     DbgPrint( "[kh_process_creation] Starting - cmdline: %ls\n", process_cmdline );
-    DbgPrint( "[kh_process_creation] method: %d, pipe: %d, ppid: %d, blockdlls: %d\n", 
-        create_args->method, create_args->pipe, create_args->ppid, create_args->blockdlls );
+    DbgPrint( "[kh_process_creation] method: %d, pipe: %d, ppid: %d, blockdlls: %d\n", create_args->method, create_args->pipe, create_args->ppid, create_args->blockdlls );
 
     auto cleanup = [&]( NTSTATUS ret_status ) -> NTSTATUS {
         DbgPrint( "[cleanup] Cleaning up resources - status: 0x%X\n", ret_status );
