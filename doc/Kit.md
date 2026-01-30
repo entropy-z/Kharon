@@ -3,7 +3,7 @@ Kharon utilizes commands such as ``postex`` and ``scinject`` that uses the injec
 You can customize these behavior by editing the ``kit_explicit_inject.cc`` and ``kh_spawn_injecyt.cc`` files located in ``agent_kharon/src_modules/kit/``.
 More details about ``postex`` and ``scinject`` clicking [Here](./Commands.md).
 
-The process creation behavior file ``kit_process_creation.cc`` is located on the ``agent_kharon/src_modules/kit/`` directory. To utilize it, simply call the function ``KhpCreateProcess`` with the process ID as a parameter. While ``KhpSpawnProcess`` utilizes spawnto process in the creation of a new project. 
+The process creation behavior file [kit_process_creation.cc](../agent_kharon/src_modules/kit/kit_process_creation.cc) is located on the ``agent_kharon/src_modules/kit/`` directory. To utilize it, simply call the function ``KhpCreateProcess`` with the process ID as a parameter. While ``KhpSpawnProcess`` utilizes spawnto process in the creation of a new project. 
 
 > KhpCreateProcess
 ```cpp
