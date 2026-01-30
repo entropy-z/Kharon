@@ -121,6 +121,7 @@ auto DECLFN Package::Base64(
     }
 }
 
+// Base32 Encoding/Decoding (RFC 4648)
 auto DECLFN Package::Base32(
     _In_      const PVOID in,
     _In_      SIZE_T inlen,
@@ -184,7 +185,8 @@ auto DECLFN Package::Base32(
         }
 
         case Base32Action::Decode: {
-            if (out == NULL)
+            // FIX: Added outlen validation
+            if (out == NULL || outlen == 0)
                 return 0;
 
             const char* in_buf = (const char*)in;
@@ -307,15 +309,22 @@ auto DECLFN Package::Base64URL(
         }
 
         case Base64URLAction::Decode: {
-            if (out == NULL) {
+            // FIX: Added outlen validation
+            if (out == NULL || outlen == 0) {
                 return 0;
             }
 
             const char* in_buf = (const char*)in;
             unsigned char* out_buf = (unsigned char*)out;
 
-            SIZE_T groups = inlen / 4;
             SIZE_T remainder = inlen % 4;
+            
+            // FIX: remainder of 1 is invalid in Base64URL
+            if (remainder == 1) {
+                return 0;
+            }
+
+            SIZE_T groups = inlen / 4;
             SIZE_T required_size = groups * 3;
             
             if (remainder == 2) required_size += 1;
@@ -325,26 +334,40 @@ auto DECLFN Package::Base64URL(
                 return 0;
             }
 
-            auto CharToVal = [&](unsigned char c) -> UINT32 {
+            // FIX: CharToVal now properly validates characters
+            auto CharToVal = [&](unsigned char c, bool& valid) -> UINT32 {
+                valid = true;
                 if (c >= 'A' && c <= 'Z') return c - 'A';           // A-Z = 0-25
                 if (c >= 'a' && c <= 'z') return c - 'a' + 26;      // a-z = 26-51
                 if (c >= '0' && c <= '9') return c - '0' + 52;      // 0-9 = 52-61
                 if (c == '-') return 62;                            // - = 62 (Base64URL)
                 if (c == '_') return 63;                            // _ = 63 (Base64URL)
-                // Caracteres inválidos para Base64URL
+                valid = false;
                 KhDbg("Base64URL::Decode - Invalid character: %c (0x%02X)", c, c);
                 return 0;
             };
 
             SIZE_T decoded = 0;
             SIZE_T i = 0;
+            bool valid = true;
             
             for (i = 0; i + 4 <= inlen; i += 4) {
                 UINT32 v = 0;
-                v = (CharToVal(in_buf[i]) << 18) |
-                    (CharToVal(in_buf[i + 1]) << 12) |
-                    (CharToVal(in_buf[i + 2]) << 6) |
-                    CharToVal(in_buf[i + 3]);
+                UINT32 v0, v1, v2, v3;
+                
+                v0 = CharToVal(in_buf[i], valid);
+                if (!valid) return 0;
+                
+                v1 = CharToVal(in_buf[i + 1], valid);
+                if (!valid) return 0;
+                
+                v2 = CharToVal(in_buf[i + 2], valid);
+                if (!valid) return 0;
+                
+                v3 = CharToVal(in_buf[i + 3], valid);
+                if (!valid) return 0;
+                
+                v = (v0 << 18) | (v1 << 12) | (v2 << 6) | v3;
 
                 out_buf[decoded++] = (v >> 16) & 0xFF;
                 out_buf[decoded++] = (v >> 8) & 0xFF;
@@ -356,13 +379,22 @@ auto DECLFN Package::Base64URL(
             if (i < inlen) {
                 SIZE_T chars_left = inlen - i;
                 UINT32 v = 0;
+                UINT32 v0, v1, v2;
                 
                 if (chars_left >= 2) {
-                    v = (CharToVal(in_buf[i]) << 18) |
-                        (CharToVal(in_buf[i + 1]) << 12);
+                    v0 = CharToVal(in_buf[i], valid);
+                    if (!valid) return 0;
+                    
+                    v1 = CharToVal(in_buf[i + 1], valid);
+                    if (!valid) return 0;
+                    
+                    v = (v0 << 18) | (v1 << 12);
                     
                     if (chars_left >= 3) {
-                        v |= (CharToVal(in_buf[i + 2]) << 6);
+                        v2 = CharToVal(in_buf[i + 2], valid);
+                        if (!valid) return 0;
+                        
+                        v |= (v2 << 6);
                     }
                     
                     out_buf[decoded++] = (v >> 16) & 0xFF;
@@ -420,7 +452,8 @@ auto DECLFN Package::Hex(
         }
 
         case HexAction::Decode: {
-            if (out == NULL)
+            // FIX: Added outlen validation
+            if (out == NULL || outlen == 0)
                 return 0;
 
             if (inlen % 2 != 0)

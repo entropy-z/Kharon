@@ -907,7 +907,7 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
         }
         formatted = decoded
     case "base64url":
-        decoded, err := base64.URLEncoding.DecodeString(string(processed_data))
+        decoded, err := base64.RawURLEncoding.DecodeString(string(processed_data))
         if err != nil {
             return "", nil, false, fmt.Errorf("base64url decode failed: %v", err)
         }

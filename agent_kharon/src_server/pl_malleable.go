@@ -23,15 +23,14 @@ const (
 )
 
 func BuildMalleableHTTPBytes(profileContent string) ([]byte, int, error) {
-	fmt.Println("[BuildMalleableHTTPBytes] Starting")
 	var json_data map[string]interface{}
 	if err := json.Unmarshal([]byte(profileContent), &json_data); err != nil {
-		fmt.Printf("[BuildMalleableHTTPBytes] Error parsing JSON: %v\n", err)
+		fmt.Printf("[DEBUG] Error parsing JSON: %v\n", err)
 		return nil, 0, fmt.Errorf("failed to parse profile: %v", err)
 	}
 
 	callbacks_raw := json_data["callbacks"].([]interface{})
-	fmt.Printf("[BuildMalleableHTTPBytes] Found %d callbacks\n", len(callbacks_raw))
+	fmt.Printf("[DEBUG] Found %d callbacks\n", len(callbacks_raw))
 
 	buf := new(bytes.Buffer)
 
@@ -46,27 +45,27 @@ func BuildMalleableHTTPBytes(profileContent string) ([]byte, int, error) {
 
 	totalCallbacks := int32(len(all_hosts))
 	binary.Write(buf, binary.LittleEndian, totalCallbacks)
-	fmt.Printf("[BuildMalleableHTTPBytes] Writing %d callbacks\n", totalCallbacks)
-	fmt.Printf("[BuildMalleableHTTPBytes] Hosts: %v\n", all_hosts)
+	fmt.Printf("[DEBUG] Writing %d callbacks\n", totalCallbacks)
+	fmt.Printf("[DEBUG] Hosts: %v\n", all_hosts)
 
 	first_callback := callbacks_raw[0].(map[string]interface{})
 	user_agent := first_callback["user_agent"].(string)
 	get_config, has_get := first_callback["get"].(map[string]interface{})
 	post_config, has_post := first_callback["post"].(map[string]interface{})
 
-	fmt.Printf("[BuildMalleableHTTPBytes] has_get=%v, has_post=%v\n", has_get, has_post)
+	fmt.Printf("[DEBUG] has_get=%v, has_post=%v\n", has_get, has_post)
 
 	for i, host := range all_hosts {
-		fmt.Printf("[BuildMalleableHTTPBytes] Processing callback %d/%d\n", i+1, len(all_hosts))
+		fmt.Printf("[DEBUG] Processing callback %d/%d\n", i+1, len(all_hosts))
 		host_str, port := parseHostPort(host)
 
-		fmt.Printf("[BuildMalleableHTTPBytes] Host: %s, Port: %d\n", host_str, port)
-		fmt.Printf("[BuildMalleableHTTPBytes] UserAgent: %s\n", user_agent)
+		fmt.Printf("[DEBUG] Host: %s, Port: %d\n", host_str, port)
+		fmt.Printf("[DEBUG] UserAgent: %s\n", user_agent)
 
 		writeWideString(buf, host_str)
 
 		binary.Write(buf, binary.LittleEndian, int32(port))
-		fmt.Printf("[BuildMalleableHTTPBytes] Wrote port: %d\n", port)
+		fmt.Printf("[DEBUG] Wrote port: %d\n", port)
 
 		writeWideString(buf, user_agent)
 
@@ -78,56 +77,56 @@ func BuildMalleableHTTPBytes(profileContent string) ([]byte, int, error) {
 		} else if has_get {
 			methodFlag = 0x100
 		}
-		fmt.Printf("[BuildMalleableHTTPBytes] MethodFlag: 0x%x\n", methodFlag)
+		fmt.Printf("[DEBUG] MethodFlag: 0x%x\n", methodFlag)
 		binary.Write(buf, binary.LittleEndian, methodFlag)
 
 		if methodFlag == 0x150 || methodFlag == 0x200 {
-			fmt.Println("[BuildMalleableHTTPBytes] Writing POST config")
+			fmt.Println("[DEBUG] Writing POST config")
 			writeHTTPMethodConfig(buf, post_config)
 		}
 
 		if methodFlag == 0x100 || methodFlag == 0x200 {
-			fmt.Println("[BuildMalleableHTTPBytes] Writing GET config")
+			fmt.Println("[DEBUG] Writing GET config")
 			writeHTTPMethodConfig(buf, get_config)
 		}
 	}
 
-	fmt.Printf("[BuildMalleableHTTPBytes] Total buffer size: %d bytes\n", buf.Len())
+	fmt.Printf("[DEBUG] Total buffer size: %d bytes\n", buf.Len())
 	return buf.Bytes(), len(all_hosts), nil
 }
 
 func writeHTTPMethodConfig(buf *bytes.Buffer, method_config map[string]interface{}) {
-	fmt.Println("[writeHTTPMethodConfig] Starting")
+	fmt.Println("[DEBUG] Starting")
 
 	headers_str := extractHeadersForMalleable(method_config)
-	fmt.Printf("[writeHTTPMethodConfig] Headers: %q\n", headers_str)
+	fmt.Printf("[DEBUG] Headers: %q\n", headers_str)
 	writeWideString(buf, headers_str)
 
 	empty_resp := extractEmptyResponse(method_config)
 	binary.Write(buf, binary.LittleEndian, int32(len(empty_resp)))
 	buf.Write(empty_resp)
-	fmt.Printf("[writeHTTPMethodConfig] Empty response size: %d\n", len(empty_resp))
+	fmt.Printf("[DEBUG] Empty response size: %d\n", len(empty_resp))
 
 	cookies := extractCookies(method_config)
 	binary.Write(buf, binary.LittleEndian, int32(len(cookies)))
-	fmt.Printf("[writeHTTPMethodConfig] Cookies count: %d\n", len(cookies))
+	fmt.Printf("[DEBUG] Cookies count: %d\n", len(cookies))
 
 	for idx, cookie := range cookies {
 		name := cookie["name"]
 		value := cookie["value"]
-		fmt.Printf("[writeHTTPMethodConfig] Cookie %d: %s = %s\n", idx+1, name, value)
+		fmt.Printf("[DEBUG] Cookie %d: %s = %s\n", idx+1, name, value)
 		writeWideString(buf, name)
 		writeWideString(buf, value)
 	}
 
 	endpoints := extractEndpointsUnique(method_config)
 	binary.Write(buf, binary.LittleEndian, int32(len(endpoints)))
-	fmt.Printf("[writeHTTPMethodConfig] Endpoints count: %d\n", len(endpoints))
+	fmt.Printf("[DEBUG] Endpoints count: %d\n", len(endpoints))
 
 	for j, endpoint := range endpoints {
 		path := endpoint["path"].(string)
 		paramsStr := endpoint["parameters_string"].(string)
-		fmt.Printf("[writeHTTPMethodConfig] Endpoint %d: path=%s, params=%s\n", j+1, path, paramsStr)
+		fmt.Printf("[DEBUG] Endpoint %d: path=%s, params=%s\n", j+1, path, paramsStr)
 
 		writeWideString(buf, path)
 		
@@ -135,7 +134,7 @@ func writeHTTPMethodConfig(buf *bytes.Buffer, method_config map[string]interface
 		if clientParams == nil {
 			clientParams = []map[string]interface{}{}
 		}
-		fmt.Printf("[writeHTTPMethodConfig] Client parameters count: %d\n", len(clientParams))
+		fmt.Printf("[DEBUG] Client parameters count: %d\n", len(clientParams))
 		
 		writeWideString(buf, paramsStr)
 		
@@ -146,11 +145,11 @@ func writeHTTPMethodConfig(buf *bytes.Buffer, method_config map[string]interface
 		writeOutputConfig(buf, serverOut, "Server")
 	}
 
-	fmt.Println("[writeHTTPMethodConfig] Done")
+	fmt.Println("[DEBUG] Done")
 }
 
 func parseHostPort(hostPort string) (string, int) {
-	fmt.Printf("[parseHostPort] Parsing: %s\n", hostPort)
+	fmt.Printf("[DEBUG] Parsing: %s\n", hostPort)
 	host := hostPort
 	port := 443
 
@@ -165,7 +164,7 @@ func parseHostPort(hostPort string) (string, int) {
 					port = p
 				}
 			}
-			fmt.Printf("[parseHostPort] IPv6: host=%s, port=%d\n", host, port)
+			fmt.Printf("[DEBUG] IPv6: host=%s, port=%d\n", host, port)
 			return host, port
 		}
 	}
@@ -180,12 +179,12 @@ func parseHostPort(hostPort string) (string, int) {
 		}
 	}
 
-	fmt.Printf("[parseHostPort] Result: host=%s, port=%d\n", host, port)
+	fmt.Printf("[DEBUG] Result: host=%s, port=%d\n", host, port)
 	return host, port
 }
 
 func writeWideString(buf *bytes.Buffer, s string) {
-	fmt.Printf("[writeWideString] String: %q\n", s)
+	fmt.Printf("[DEBUG] String: %q\n", s)
 	utf16Encoded := utf16.Encode([]rune(s))
 
 	dataSize := int32((len(utf16Encoded) + 1) * 2)
@@ -198,43 +197,43 @@ func writeWideString(buf *bytes.Buffer, s string) {
 
 	binary.Write(buf, binary.LittleEndian, uint16(0))
 
-	fmt.Printf("[writeWideString] Size: %d bytes\n", dataSize)
+	fmt.Printf("[DEBUG] Size: %d bytes\n", dataSize)
 }
 
 func extractHeadersForMalleable(config map[string]interface{}) string {
-	fmt.Println("[extractHeadersForMalleable] Starting")
+	fmt.Println("[DEBUG] Starting")
 	if headers, ok := config["client_headers"].(map[string]interface{}); ok {
-		fmt.Printf("[extractHeadersForMalleable] Found %d headers\n", len(headers))
+		fmt.Printf("[DEBUG] Found %d headers\n", len(headers))
 		var headerLines []string
 		for key, val := range headers {
 			line := fmt.Sprintf("%s: %v", key, val)
 			headerLines = append(headerLines, line)
-			fmt.Printf("[extractHeadersForMalleable] Header: %s\n", line)
+			fmt.Printf("[DEBUG] Header: %s\n", line)
 		}
 		if len(headerLines) > 0 {
 			result := strings.Join(headerLines, "\r\n")
-			fmt.Printf("[extractHeadersForMalleable] Result length: %d\n", len(result))
+			fmt.Printf("[DEBUG] Result length: %d\n", len(result))
 			return result
 		}
 	}
-	fmt.Println("[extractHeadersForMalleable] No headers found")
+	fmt.Println("[DEBUG] No headers found")
 	return ""
 }
 
 func extractCookies(config map[string]interface{}) []map[string]string {
-	fmt.Println("[extractCookies] Starting")
+	fmt.Println("[DEBUG] Starting")
 	var cookies []map[string]string
 
 	if headers, ok := config["client_headers"].(map[string]interface{}); ok {
-		fmt.Printf("[extractCookies] Found %d client headers\n", len(headers))
+		fmt.Printf("[DEBUG] Found %d client headers\n", len(headers))
 		for key, val := range headers {
-			fmt.Printf("[extractCookies] Checking header: %s\n", key)
+			fmt.Printf("[DEBUG] Checking header: %s\n", key)
 			if strings.ToLower(key) == "cookie" {
-				fmt.Printf("[extractCookies] Found Cookie header\n")
+				fmt.Printf("[DEBUG] Found Cookie header\n")
 				if cookieStr, ok := val.(string); ok {
-					fmt.Printf("[extractCookies] Cookie value: %q\n", cookieStr)
+					fmt.Printf("[DEBUG] Cookie value: %q\n", cookieStr)
 					cookiePairs := strings.Split(cookieStr, ";")
-					fmt.Printf("[extractCookies] Split into %d pairs\n", len(cookiePairs))
+					fmt.Printf("[DEBUG] Split into %d pairs\n", len(cookiePairs))
 
 					for pidx, pair := range cookiePairs {
 						pair = strings.TrimSpace(pair)
@@ -261,15 +260,15 @@ func extractCookies(config map[string]interface{}) []map[string]string {
 			}
 		}
 	} else {
-		fmt.Println("[extractCookies] No client_headers found")
+		fmt.Println("[DEBUG] No client_headers found")
 	}
 
-	fmt.Printf("[extractCookies] Total cookies: %d\n", len(cookies))
+	fmt.Printf("[DEBUG] Total cookies: %d\n", len(cookies))
 	return cookies
 }
 
 func decodeEscapeSequences(s string) []byte {
-	fmt.Printf("[decodeEscapeSequences] Input: %q\n", s)
+	fmt.Printf("[DEBUG] Input: %q\n", s)
 	var result []byte
 	i := 0
 	for i < len(s) {
@@ -277,7 +276,7 @@ func decodeEscapeSequences(s string) []byte {
 			var b byte
 			_, err := fmt.Sscanf(s[i+2:i+4], "%02x", &b)
 			if err == nil {
-				fmt.Printf("[decodeEscapeSequences] Converted \\x%s to 0x%02x\n", s[i+2:i+4], b)
+				fmt.Printf("[DEBUG] Converted \\x%s to 0x%02x\n", s[i+2:i+4], b)
 				result = append(result, b)
 				i += 4
 				continue
@@ -286,7 +285,7 @@ func decodeEscapeSequences(s string) []byte {
 		result = append(result, s[i])
 		i++
 	}
-	fmt.Printf("[decodeEscapeSequences] Output: %d bytes\n", len(result))
+	fmt.Printf("[DEBUG] Output: %d bytes\n", len(result))
 	// for idx, b := range result {
 		// fmt.Printf("[decodeEscapeSequences] Byte %d: 0x%02x\n", idx, b)
 	// }
@@ -294,13 +293,13 @@ func decodeEscapeSequences(s string) []byte {
 }
 
 func extractEmptyResponse(config map[string]interface{}) []byte {
-	fmt.Println("[extractEmptyResponse] Starting")
+	fmt.Println("[DEBUG] Starting")
 	if er, ok := config["empty_response"].(string); ok {
-		fmt.Printf("[extractEmptyResponse] Value: %q\n", er)
+		fmt.Printf("[DEBUG] Value: %q\n", er)
 		result := decodeEscapeSequences(er)
-		fmt.Printf("[extractEmptyResponse] Size: %d bytes\n", len(result))
+		fmt.Printf("[DEBUG] Size: %d bytes\n", len(result))
 
-		fmt.Print("[extractEmptyResponse] Hex: ")
+		fmt.Print("[DEBUG] Hex: ")
 		for _, b := range result {
 			fmt.Printf("%02x ", b)
 		}
@@ -308,39 +307,39 @@ func extractEmptyResponse(config map[string]interface{}) []byte {
 
 		return result
 	}
-	fmt.Println("[extractEmptyResponse] No empty_response found")
+	fmt.Println("[DEBUG] No empty_response found")
 	return []byte{}
 }
 
 func buildQueryString(params []map[string]interface{}) string {
-	fmt.Printf("[buildQueryString] Processing %d params\n", len(params))
+	fmt.Printf("[DEBUG] Processing %d params\n", len(params))
 	if params == nil || len(params) == 0 {
-		fmt.Println("[buildQueryString] Empty or nil params")
+		fmt.Println("[DEBUG] Empty or nil params")
 		return ""
 	}
 
 	var parts []string
 
 	for pidx, paramMap := range params {
-		fmt.Printf("[buildQueryString] Param %d has %d items\n", pidx+1, len(paramMap))
+		fmt.Printf("[DEBUG] Param %d has %d items\n", pidx+1, len(paramMap))
 		for key, val := range paramMap {
 			part := fmt.Sprintf("%s=%v", key, val)
 			parts = append(parts, part)
-			fmt.Printf("[buildQueryString] Added: %s\n", part)
+			fmt.Printf("[DEBUG] Added: %s\n", part)
 		}
 	}
 
 	result := strings.Join(parts, "&")
-	fmt.Printf("[buildQueryString] Result: %q\n", result)
+	fmt.Printf("[DEBUG] Result: %q\n", result)
 	return result
 }
 
 func extractEndpointsUnique(config map[string]interface{}) []map[string]interface{} {
-	fmt.Println("[extractEndpointsUnique] Starting")
+	fmt.Println("[DEBUG] Starting")
 	var endpoints []map[string]interface{}
 
 	if uri, ok := config["uri"].(map[string]interface{}); ok {
-		fmt.Printf("[extractEndpointsUnique] Found %d URI groups\n", len(uri))
+		fmt.Printf("[DEBUG] Found %d URI groups\n", len(uri))
 		
 		for uri_key, uriData := range uri {
 			fmt.Printf("[extractEndpointsUnique] Processing URI key: %q\n", uri_key)
@@ -348,14 +347,14 @@ func extractEndpointsUnique(config map[string]interface{}) []map[string]interfac
 
 			var client_params []map[string]interface{}
 			if cp_raw, ok := uriMap["client_parameters"].([]interface{}); ok {
-				fmt.Printf("[extractEndpointsUnique] Found %d client parameters\n", len(cp_raw))
+				fmt.Printf("[DEBUG] Found %d client parameters\n", len(cp_raw))
 				for _, cp := range cp_raw {
 					if paramMap, ok := cp.(map[string]interface{}); ok {
 						client_params = append(client_params, paramMap)
 					}
 				}
 			} else {
-				fmt.Printf("[extractEndpointsUnique] No client parameters found\n")
+				fmt.Printf("[DEBUG] No client parameters found\n")
 				client_params = nil
 			}
 
@@ -364,16 +363,16 @@ func extractEndpointsUnique(config map[string]interface{}) []map[string]interfac
 			paths := strings.FieldsFunc(uri_key, func(r rune) bool {
 				return r == ' '
 			})
-			fmt.Printf("[extractEndpointsUnique] Split %q into %d paths: %v\n", uri_key, len(paths), paths)
+			fmt.Printf("[DEBUG] Split %q into %d paths: %v\n", uri_key, len(paths), paths)
 
 			for idx, path := range paths {
 				path = strings.TrimSpace(path)
 				if path == "" {
-					fmt.Printf("[extractEndpointsUnique] Skipping empty path\n")
+					fmt.Printf("[DEBUG] Skipping empty path\n")
 					continue
 				}
 
-				fmt.Printf("[extractEndpointsUnique] Adding endpoint %d: %q\n", idx+1, path)
+				fmt.Printf("[DEBUG] Adding endpoint %d: %q\n", idx+1, path)
 				endpoint := map[string]interface{}{
 					"path":               path,
 					"client_output":      uriMap["client_output"],
@@ -385,17 +384,16 @@ func extractEndpointsUnique(config map[string]interface{}) []map[string]interfac
 			}
 		}
 	} else {
-		fmt.Println("[extractEndpointsUnique] No URI found")
+		fmt.Println("[DEBUG] No URI found")
 	}
 
-	fmt.Printf("[extractEndpointsUnique] Total endpoints created: %d\n", len(endpoints))
+	fmt.Printf("[DEBUG] Total endpoints created: %d\n", len(endpoints))
 	return endpoints
 }
 
 func decodeEscapeSequencesFalseBody(s string) []byte {
-	fmt.Printf("[decodeEscapeSequences] Input: %q\n", s)
+	fmt.Printf("[DEBUG] Input: %q\n", s)
 	
-	// Verificar se contém sequências \xHH
 	hasEscapeSequences := false
 	for i := 0; i < len(s)-3; i++ {
 		if s[i] == '\\' && s[i+1] == 'x' {
@@ -404,13 +402,11 @@ func decodeEscapeSequencesFalseBody(s string) []byte {
 		}
 	}
 	
-	// Se não tem sequências de escape, retornar como CHAR (ASCII) com null terminator
 	if !hasEscapeSequences {
-		fmt.Println("[decodeEscapeSequences] No escape sequences found, encoding as CHAR (ASCII)")
+		fmt.Println("[DEBUG] No escape sequences found, encoding as CHAR (ASCII)")
 		return encodeStringBytes(s)
 	}
 	
-	// Se tem sequências, decodificar \xHH para bytes
 	var result []byte
 	i := 0
 	for i < len(s) {
@@ -418,7 +414,7 @@ func decodeEscapeSequencesFalseBody(s string) []byte {
 			var b byte
 			_, err := fmt.Sscanf(s[i+2:i+4], "%02x", &b)
 			if err == nil {
-				fmt.Printf("[decodeEscapeSequences] Converted \\x%s to 0x%02x\n", s[i+2:i+4], b)
+				fmt.Printf("[DEBUG] Converted \\x%s to 0x%02x\n", s[i+2:i+4], b)
 				result = append(result, b)
 				i += 4
 				continue
@@ -427,39 +423,36 @@ func decodeEscapeSequencesFalseBody(s string) []byte {
 		result = append(result, s[i])
 		i++
 	}
-	fmt.Printf("[decodeEscapeSequences] Output: %d bytes\n", len(result))
+	fmt.Printf("[DEBUG] Output: %d bytes\n", len(result))
 	return result
 }
 
 func encodeStringBytes(s string) []byte {
-	fmt.Printf("[encodeWideStringBytes] Encoding string as CHAR: %q\n", s)
+	fmt.Printf("[DEBUG] Encoding string as CHAR: %q\n", s)
 	var buf bytes.Buffer
 	
-	// Converter string para bytes (ASCII)
 	byteArray := []byte(s)
 	
-	// Escrever cada byte
 	for _, b := range byteArray {
 		buf.WriteByte(b)
 	}
 	
-	// Escrever null terminator (1 byte de zero)
 	buf.WriteByte(0)
 	
 	result := buf.Bytes()
-	fmt.Printf("[encodeWideStringBytes] Output: %d bytes (string len: %d + 1 null terminator)\n", len(result), len(s))
+	fmt.Printf("[DEBUG] Output: %d bytes (string len: %d + 1 null terminator)\n", len(result), len(s))
 	return result
 }
 
 func writeOutputConfig(buf *bytes.Buffer, output map[string]interface{}, outputType string) {
-	fmt.Printf("[writeOutputConfig] Processing %s\n", outputType)
+	fmt.Printf("[DEBUG] Processing %s\n", outputType)
 
 	mask := int32(0)
 	if m, ok := output["mask"].(bool); ok && m {
 		mask = 1
 	}
 	binary.Write(buf, binary.LittleEndian, mask)
-	fmt.Printf("[writeOutputConfig] Mask: %d\n", mask)
+	fmt.Printf("[DEBUG] Mask: %d\n", mask)
 
 	out_type := OUTPUT_TYPE_BODY
 	header_name := ""
@@ -467,17 +460,17 @@ func writeOutputConfig(buf *bytes.Buffer, output map[string]interface{}, outputT
 	if val, ok := output["parameter"].(string); ok && val != "" {
 		out_type = OUTPUT_TYPE_PARAMETER
 		header_name = val
-		fmt.Printf("[writeOutputConfig] Type: PARAMETER (%s)\n", val)
+		fmt.Printf("[DEBUG] Type: PARAMETER (%s)\n", val)
 	} else if val, ok := output["header"].(string); ok && val != "" {
 		out_type = OUTPUT_TYPE_HEADER
 		header_name = val
-		fmt.Printf("[writeOutputConfig] Type: HEADER (%s)\n", val)
+		fmt.Printf("[DEBUG] Type: HEADER (%s)\n", val)
 	} else if val, ok := output["cookie"].(string); ok && val != "" {
 		out_type = OUTPUT_TYPE_COOKIE
 		header_name = val
-		fmt.Printf("[writeOutputConfig] Type: COOKIE (%s)\n", val)
+		fmt.Printf("[DEBUG] Type: COOKIE (%s)\n", val)
 	} else {
-		fmt.Println("[writeOutputConfig] Type: BODY")
+		fmt.Println("[DEBUG] Type: BODY")
 	}
 
 	binary.Write(buf, binary.LittleEndian, int32(out_type))
@@ -486,7 +479,7 @@ func writeOutputConfig(buf *bytes.Buffer, output map[string]interface{}, outputT
 	out_fmt_name := "raw"
 
 	if f, ok := output["format"].(string); ok {
-		fmt.Printf("[writeOutputConfig] Format string: %s\n", f)
+		fmt.Printf("[DEBUG] Format string: %s\n", f)
 		switch f {
 		case "hex":
 			format = OUTPUT_FMT_HEX
@@ -504,7 +497,7 @@ func writeOutputConfig(buf *bytes.Buffer, output map[string]interface{}, outputT
 	}
 
 	binary.Write(buf, binary.LittleEndian, format)
-	fmt.Printf("[writeOutputConfig] Format: %s (%d)\n", out_fmt_name, format)
+	fmt.Printf("[DEBUG] Format: %s (%d)\n", out_fmt_name, format)
 
 	if out_type != OUTPUT_TYPE_BODY {
 		writeWideString(buf, header_name)
@@ -519,7 +512,7 @@ func writeOutputConfig(buf *bytes.Buffer, output map[string]interface{}, outputT
 	if len(append_bytes) > 0 {
 		buf.Write(append_bytes)
 	}
-	fmt.Printf("[writeOutputConfig] Append: %d bytes (%q)\n", len(append_bytes), append_str)
+	fmt.Printf("[DEBUG] Append: %d bytes (%q)\n", len(append_bytes), append_str)
 
 	prepend_str := ""
 	if p, ok := output["prepend"].(string); ok {
@@ -530,7 +523,7 @@ func writeOutputConfig(buf *bytes.Buffer, output map[string]interface{}, outputT
 	if len(prepend_bytes) > 0 {
 		buf.Write(prepend_bytes)
 	}
-	fmt.Printf("[writeOutputConfig] Prepend: %d bytes (%q)\n", len(prepend_bytes), prepend_str)
+	fmt.Printf("[DEBUG] Prepend: %d bytes (%q)\n", len(prepend_bytes), prepend_str)
 
 	body_str := ""
 
@@ -545,7 +538,7 @@ func writeOutputConfig(buf *bytes.Buffer, output map[string]interface{}, outputT
 	if len(body_bytes) > 0 {
 		buf.Write(body_bytes)
 	}
-	fmt.Printf("[writeOutputConfig] Body: %d bytes (%q)\n", len(body_bytes), body_str)
+	fmt.Printf("[DEBUG] Body: %d bytes (%q)\n", len(body_bytes), body_str)
 
-	fmt.Printf("[writeOutputConfig] Done with %s\n", outputType)
+	fmt.Printf("[DEBUGqq] Done with %s\n", outputType)
 }
