@@ -2,8 +2,7 @@
 
 **Kharon** is a fully **Position-Independent Code (PIC)** agent that operates without a reflective loader. It incorporates multiple evasion mechanisms, including **sleep obfuscation**, **heap obfuscation during sleep**, **stack spoofing with indirect syscalls**, a **BOF API proxy** for spoofed and indirect BOF API execution, and **AMSI/ETW bypass**.
 
-For detailed information about features, setup, and usage, check the official documentation:  
-https://doc.kharon-agent.xyz
+For detailed information about features, setup, and usage, check the official documentation [here](./doc/)
 
 ## PIC Logic
 
@@ -30,7 +29,7 @@ This section covers the main capabilities related to evasion, malleable profiles
 - Custom empty server responses
 - Custom error responses
 
-Documentation here: https://doc.kharon-agent.xyz/getting-started/http-listener
+Documentation here: [http-malleable](./doc/5.%20HttpProfile.md)
 
 ### Post-Exploitation Execution
 
@@ -42,8 +41,6 @@ Post-exploitation routines are based on **Beacon Object Files (BOFs)** and **PIC
 
 1. **Spoofed + Indirect Syscalls**  
    Applies call stack spoofing to selected API executions.  
-   Supported APIs are listed here:  
-   https://doc.kharon-agent.xyz/beacon-object-file-bof
 
 2. **BOF API Proxy**  
    Proxies BOF API calls to enable spoofed call stacks and indirect syscalls.
@@ -51,18 +48,6 @@ Post-exploitation routines are based on **Beacon Object Files (BOFs)** and **PIC
 3. **Memory Evasion**  
    - Sleep obfuscation
    - Heap masking during beacon sleep
-
-
-### Token Manipulation
-
-Provides full token management capabilities using the `token` command:
-- Token stealing and storage
-- Listing stored tokens
-- Token impersonation
-- Additional token-related operations
-
-Example:  
-![token_cmd_1](assets/token_cmd_1.png)
 
 ### Runtime Configuration Changes
 
@@ -82,11 +67,4 @@ This allows dynamic changes to beacon behavior, including:
 - AMSI / ETW bypass
 - Sleep and jitter configuration
 
-Example:  
-![config_cmd_1](assets/config_cmd_1.png)
-
----
-
-### Beacon Configuration Inspection
-
-Retrieve the current beacon configuration using the `info` command:
+> Check commands [documentation](./doc/4.%20Commands.md).
