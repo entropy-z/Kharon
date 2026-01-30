@@ -18,8 +18,8 @@ extern "C" {
 
     DFR(KERNEL32, OpenProcess)
     DFR(KERNEL32, CreateProcessW)
-    DFR(KERNEL32, CreateProcessWithLogonW)
-    DFR(KERNEL32, CreateProcessWithTokenW) 
+    DFR(ADVAPI32, CreateProcessWithLogonW)
+    DFR(ADVAPI32, CreateProcessWithTokenW) 
     DFR(KERNEL32, GetExitCodeProcess)
     DFR(KERNEL32, TerminateProcess)
     DFR(KERNEL32, GetProcessId)
@@ -45,6 +45,10 @@ extern "C" {
     DFR(KERNEL32, HeapAlloc)
     DFR(KERNEL32, HeapReAlloc)
     DFR(KERNEL32, HeapFree)
+
+    DFR(KERNEL32, DeleteCriticalSection)
+    DFR(KERNEL32, EnterCriticalSection)
+    DFR(KERNEL32, LeaveCriticalSection)
 
     DFR(ADVAPI32, OpenProcessToken)
     DFR(ADVAPI32, LookupAccountSidW)
@@ -80,6 +84,8 @@ extern "C" {
 
     DFR(MSVCRT, malloc)
     DFR(MSVCRT, free)
+    DFR(MSVCRT, memset)
+    DFR(MSVCRT, memcpy)
     DFR(MSVCRT, wcslen)
     DFR(MSVCRT, strlen)
     DFR(MSVCRT, sprintf)
@@ -94,8 +100,8 @@ extern "C" {
 
 #define OpenProcess             KERNEL32$OpenProcess
 #define CreateProcessW          KERNEL32$CreateProcessW
-#define CreateProcessWithLogonW KERNEL32$CreateProcessWithLogonW
-#define CreateProcessWithTokenW KERNEL32$CreateProcessWithTokenW
+#define CreateProcessWithLogonW ADVAPI32$CreateProcessWithLogonW
+#define CreateProcessWithTokenW ADVAPI32$CreateProcessWithTokenW
 #define GetExitCodeProcess      KERNEL32$GetExitCodeProcess
 #define TerminateProcess        KERNEL32$TerminateProcess
 #define GetProcessId            KERNEL32$GetProcessId
@@ -110,8 +116,6 @@ extern "C" {
 #define UpdateProcThreadAttribute         KERNEL32$UpdateProcThreadAttribute
 #define DeleteProcThreadAttributeList     KERNEL32$DeleteProcThreadAttributeList
 
-#define RtlStringCchPrintfW NTDLL$RtlStringCchPrintfW
-
 #define NtQuerySystemInformation  NTDLL$NtQuerySystemInformation
 #define NtSetInformationProcess   NTDLL$NtSetInformationProcess
 #define NtQueryInformationToken   NTDLL$NtQueryInformationToken
@@ -125,6 +129,10 @@ extern "C" {
 #define HeapAlloc           KERNEL32$HeapAlloc
 #define HeapReAlloc         KERNEL32$HeapReAlloc
 #define HeapFree            KERNEL32$HeapFree
+
+#define DeleteCriticalSection KERNEL32$DeleteCriticalSection
+#define EnterCriticalSection  KERNEL32$EnterCriticalSection
+#define LeaveCriticalSection  KERNEL32$LeaveCriticalSection
 
 #define FileTimeToSystemTime KERNEL32$FileTimeToSystemTime
 #define CreatePipe          KERNEL32$CreatePipe
@@ -156,6 +164,8 @@ extern "C" {
 #define FormatMessageW      KERNEL32$FormatMessageW
 
 #define malloc    MSVCRT$malloc
+#define memset    MSVCRT$memset
+#define memcpy    MSVCRT$memcpy
 #define wcslen    MSVCRT$wcslen
 #define strlen    MSVCRT$strlen
 #define free      MSVCRT$free

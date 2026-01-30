@@ -12,7 +12,6 @@
 - Error handling in the listener creation feature
 - Change to use Random Encryption Key for each Checkin
 - Upload routine now displays message regarding upload completion
-- Adjust to human view for allocation method and write method
 - Code refact
 - Http Profile improved
 - Ported commands like ``process*``, ``fs*``, ``scinject*`` and ``postex*`` to BOF format
@@ -37,3 +36,4 @@
 
 # v0.3 -> v0.4
 - SMB Listener
+- DOH/DNS Listener (maybe)

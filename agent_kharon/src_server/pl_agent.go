@@ -926,20 +926,84 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 		case "run":
 			programArgs, ok := args["cmd"].(string)
-			if !ok {
-				err = errors.New("parameter 'cmd' must be set")
+			if !ok || programArgs == "" {
+				err = errors.New("parameter 'cmd' is required and must be a non-empty string")
 				goto RET
+			}
+
+			stateNum := 0
+			if state, ok := args["state"].(string); ok {
+				switch state {
+				case "suspended":
+					stateNum = 1
+				case "standard", "":
+					stateNum = 0
+				default:
+					err = fmt.Errorf("invalid process state '%s': must be 'standard' or 'suspended'", state)
+					goto RET
+				}
+			}
+
+			pipeNum := 0
+			if pipe, ok := args["pipe"].(bool); ok && pipe {
+				pipeNum = 1
+			}
+
+			domain, _ := args["domain"].(string)
+			username, _ := args["username"].(string)
+			password, _ := args["password"].(string)
+
+			tokenID, _ := args["token"].(int)
+
+			// Determine method and validate
+			// 0 = CreateProcess (default)
+			// 1 = CreateProcessWithLogon (credentials)
+			// 2 = CreateProcessWithToken (token)
+			method := 0
+			hasCredentials := domain != "" || username != "" || password != ""
+			hasToken := tokenID != 0
+
+			if hasCredentials && hasToken {
+				err = errors.New("cannot use both credentials (domain/username/password) and token simultaneously")
+				goto RET
+			}
+
+			if hasCredentials {
+				if username == "" {
+					err = errors.New("'username' is required when using credentials")
+					goto RET
+				}
+				method = 1
+			} else if hasToken {
+				method = 2
 			}
 
 			bofData, err := LoadExtModule("create", "x64")
 			if err != nil {
+				err = fmt.Errorf("failed to load BOF module: %w", err)
 				goto RET
 			}
 
+			block_dlls := map[bool]int{false: 0, true: 1}[kharon_cfg.ps.block_dlls]
+
 			bofParam, err := PackExtData(
+				int(method),
+				int(block_dlls),
+				int(kharon_cfg.ps.parent_id),
+				PackExtDataWChar(kharon_cfg.ps.spoofarg, agent.ACP),
+
 				PackExtDataWChar(programArgs, agent.ACP),
+				int(stateNum),
+				int(pipeNum),
+
+				PackExtDataWChar(domain, agent.ACP),
+				PackExtDataWChar(username, agent.ACP),
+				PackExtDataWChar(password, agent.ACP),
+
+				int(tokenID),
 			)
 			if err != nil {
+				err = fmt.Errorf("failed to pack BOF parameters: %w", err)
 				goto RET
 			}
 
