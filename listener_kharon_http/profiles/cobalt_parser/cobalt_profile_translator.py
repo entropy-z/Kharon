@@ -31,7 +31,6 @@ except ImportError:
     HAS_MALLEABLE = False
     print("[!] Warning: 'malleable' module not found. Using basic parser.")
 
-
 # Kharon supported encoding formats
 KHARON_SUPPORTED_FORMATS = ['base64', 'base32', 'base64url', 'hex']
 
