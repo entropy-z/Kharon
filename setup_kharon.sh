@@ -115,12 +115,12 @@ function clean_listener {
 
 function copy_agent {
     cp -r "$AGENT" "$ADAPTIX_DIR/AdaptixServer/extenders/" || error_exit "Failed to copy agent"
-    info_msg "Copied agent files"
+    info_msg "Copied agent files to AdaptixServer"
 }
 
 function copy_listener {
     cp -r "$LISTENER" "$ADAPTIX_DIR/AdaptixServer/extenders/" || error_exit "Failed to copy listener"
-    info_msg "Copied listener files"
+    info_msg "Copied listener files to AdaptixServer"
 }
 
 function setup_go_workspace {
@@ -136,6 +136,28 @@ function setup_go_workspace {
     
     go work sync || error_exit "Failed to synchronize Go workspace"
     info_msg "Go workspace configured"
+}
+
+function setup_go_workspace_agent {
+    cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter $ADAPTIX_DIR/AdaptixServer"
+    
+    if [ -d "extenders/$AGENT" ]; then
+        go work use "extenders/$AGENT" || error_exit "Failed to add agent to Go workspace"
+    fi
+    
+    go work sync || error_exit "Failed to synchronize Go workspace"
+    info_msg "Go workspace configured for agent"
+}
+
+function setup_go_workspace_listener {
+    cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter $ADAPTIX_DIR/AdaptixServer"
+    
+    if [ -d "extenders/$LISTENER" ]; then
+        go work use "extenders/$LISTENER" || error_exit "Failed to add listener to Go workspace"
+    fi
+    
+    go work sync || error_exit "Failed to synchronize Go workspace"
+    info_msg "Go workspace configured for listener"
 }
 
 function build_agent_code {
@@ -197,7 +219,7 @@ function copy_agent_dist {
         fi
     done
     
-    info_msg "Copied agent distribution files"
+    info_msg "Copied agent distribution files to dist"
 }
 
 function copy_listener_dist {
@@ -207,12 +229,13 @@ function copy_listener_dist {
         cp -r "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER/dist"/* "$ADAPTIX_DIR/dist/extenders/$LISTENER/" || error_exit "Failed to copy listener dist files"
     fi
     
-    info_msg "Copied listener distribution files"
+    info_msg "Copied listener distribution files to dist"
 }
 
 # Execute actions based on ACTION parameter
 case $ACTION in
     all)
+        info_msg "Action: Full installation (all)"
         clean_agent
         clean_listener
         copy_agent
@@ -227,9 +250,10 @@ case $ACTION in
         ;;
     
     agent-full)
+        info_msg "Action: Full agent build"
         clean_agent
         copy_agent
-        setup_go_workspace
+        setup_go_workspace_agent
         build_agent_code
         build_agent_modules
         build_agent_beacon
@@ -237,19 +261,28 @@ case $ACTION in
         ;;
     
     agent-modules)
+        info_msg "Action: Agent modules only"
+        clean_agent
+        copy_agent
+        setup_go_workspace_agent
         build_agent_modules
         copy_agent_dist
         ;;
     
     agent-code)
+        info_msg "Action: Agent code only"
+        clean_agent
+        copy_agent
+        setup_go_workspace_agent
         build_agent_code
         copy_agent_dist
         ;;
     
     listener)
+        info_msg "Action: Listener only"
         clean_listener
         copy_listener
-        setup_go_workspace
+        setup_go_workspace_listener
         build_listener
         copy_listener_dist
         ;;

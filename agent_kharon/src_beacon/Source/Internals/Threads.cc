@@ -1,7 +1,7 @@
 #include <Kharon.h>
 
 auto DECLFN Thread::Enum(
-    _In_      INT8  Type,
+    _In_      Action::Thread Type,
     _In_opt_  ULONG ProcessID,
     _In_opt_  ULONG Flags,
     _Out_opt_ PSYSTEM_THREAD_INFORMATION ThreadInfo
@@ -16,7 +16,7 @@ auto DECLFN Thread::Enum(
     BOOL                        bkSuccess     = FALSE;
 
     Self->Ntdll.NtQuerySystemInformation( SystemProcessInformation, NULL, NULL, &ReturnLen );
-    if ( !ReturnLen ) goto _KH_END;
+    if ( ! ReturnLen ) goto _KH_END;
 
     SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)hAlloc( ReturnLen );
     ValToFree   = SysProcInfo;
@@ -31,7 +31,7 @@ auto DECLFN Thread::Enum(
             SysThreadInfo = SysProcInfo->Threads;
 
             for ( INT i = 0; i < SysProcInfo->NumberOfThreads; i++ ) {
-                if ( Type == Enm::Thread::Random ) {
+                if ( Type == Action::Thread::Random ) {
                     if ( HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ) != Self->Session.ThreadID ) {
                         ThreadID = HandleToUlong( SysThreadInfo[i].ClientId.UniqueThread ); goto _KH_END;
                     }
@@ -54,7 +54,8 @@ auto DECLFN Thread::Create(
     _In_  PVOID  Parameter,
     _In_  ULONG  StackSize,
     _In_  ULONG  uFlags,
-    _Out_ ULONG* ThreadID
+    _Out_ ULONG* ThreadID,
+    _In_  LPSECURITY_ATTRIBUTES Attributes
 ) -> HANDLE {
     const UINT32 Flags = Self->Config.Syscall;
     HANDLE   Handle = nullptr;
@@ -63,12 +64,12 @@ auto DECLFN Thread::Create(
     if ( ! Flags ) {
         if ( ProcessHandle ) {
             return Self->Krnl32.CreateRemoteThread(
-                ProcessHandle, 0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, Parameter, uFlags, ThreadID
+                ProcessHandle, Attributes, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, Parameter, uFlags, ThreadID
             );
         }
 
         return Self->Krnl32.CreateThread(
-            0, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, Parameter, uFlags, ThreadID
+            Attributes, StackSize, (LPTHREAD_START_ROUTINE)StartAddress, Parameter, uFlags, ThreadID
         );
     }
 

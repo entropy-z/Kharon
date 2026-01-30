@@ -25,3 +25,26 @@ auto DECLFN Process::Open(
 
     return Handle;
 }
+
+auto Process::Create(
+    _In_  WCHAR*                Application,
+    _In_  WCHAR*                Command,
+    _In_  ULONG                 Flags,
+    _In_  LPSECURITY_ATTRIBUTES PsAttributes,
+    _In_  LPSECURITY_ATTRIBUTES ThreadAttributes,
+    _In_  BOOL                  Inherit,
+    _In_  PVOID                 Env,
+    _In_  WCHAR*                CurrentDir,
+    _In_  STARTUPINFOW*         StartupInfo,
+    _Out_ PROCESS_INFORMATION* PsInfo
+) -> BOOL {
+    if ( Self->Config.Syscall ) {
+        return Self->Spf->Call(
+           (UPTR)Self->Krnl32.CreateProcessW, 0, (UPTR)Application,
+           (UPTR)Command, (UPTR)PsAttributes, (UPTR)ThreadAttributes, Inherit, 
+           Flags, (UPTR)Env, (UPTR)CurrentDir, (UPTR)StartupInfo, (UPTR)PsInfo
+        );
+    }
+
+    return Self->Krnl32.CreateProcessW( Application, Command, PsAttributes, ThreadAttributes, Inherit, Flags, Env, CurrentDir, StartupInfo, PsInfo );
+}

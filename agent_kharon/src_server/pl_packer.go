@@ -76,7 +76,7 @@ func (bp *BofPacker) Reset() {
 	bp.buffer.Reset()
 }
 
-func BofPackData(args ...interface{}) ([]byte, error) {
+func PackExtData(args ...interface{}) ([]byte, error) {
 	bp := NewBofPacker()
 
 	for _, arg := range args {
@@ -98,7 +98,23 @@ func BofPackData(args ...interface{}) ([]byte, error) {
 		}
 	}
 
-	return bp.Bytes(), nil
+	data := bp.Bytes()
+	
+	result := make([]byte, 4+len(data))
+	
+	binary.LittleEndian.PutUint32(result[0:4], uint32(len(data)))
+	
+	copy(result[4:], data)
+	
+	return result, nil
+}
+
+func PackExtDataString(str1 string, ACP int) ([]byte) {
+	return []byte(ConvertUTF8toCp(str1, ACP))
+}
+
+func PackExtDataWChar(str1 string, ACP int) ([]byte) {
+	return ConvertStringToWCharNullTerminated(ConvertUTF8toCp(str1, ACP))
 }
 
 type Packer struct {
@@ -332,6 +348,27 @@ func PackArray(array []interface{}) ([]byte, error) {
 			packData = append(packData, val...)
 
 		case int:
+			num := make([]byte, 4)
+			val := array[i].(int)
+			binary.LittleEndian.PutUint32(num, uint32(val))
+			packData = append(packData, num...)
+			//fmt.printf("[4 bytes]: %d", val)
+
+		case uint:
+			num := make([]byte, 4)
+			val := array[i].(int)
+			binary.LittleEndian.PutUint32(num, uint32(val))
+			packData = append(packData, num...)
+			//fmt.printf("[4 bytes]: %d", val)
+
+		case uint32:
+			num := make([]byte, 4)
+			val := array[i].(int)
+			binary.LittleEndian.PutUint32(num, uint32(val))
+			packData = append(packData, num...)
+			//fmt.printf("[4 bytes]: %d", val)
+
+		case int32:
 			num := make([]byte, 4)
 			val := array[i].(int)
 			binary.LittleEndian.PutUint32(num, uint32(val))

@@ -12,8 +12,8 @@ FS_SRCS = file_system/cat.cc file_system/cp.cc file_system/ls.cc \
           file_system/rm.cc file_system/cd.cc
 
 HWBP_SRCS = hwbp_force/disable.cc hwbp_force/enable.cc
-INJ_SRCS  = injection/explicit_classic.cc injection/spawn_classic.cc injection/scinject.cc
-PROC_SRCS = process/creation.cc process/grep.cc process/kill.cc process/list.cc
+INJ_SRCS  = injection/scinject.cc
+PROC_SRCS = process/create.cc process/grep.cc process/kill.cc process/list.cc
 
 # All source files
 ALL_SRCS = $(FS_SRCS) $(HWBP_SRCS) $(INJ_SRCS) $(PROC_SRCS) $(RBOF_SRCS)

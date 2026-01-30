@@ -44,7 +44,7 @@ auto DECLFN Coff::PrintfW(
 
     va_list VaList;
     va_list VaListCopy;
-
+    
     VOID*  MemRange = __builtin_return_address( 0 );
     CHAR*  UUID     = nullptr;
     int    MsgSize  = 0;
@@ -53,38 +53,40 @@ auto DECLFN Coff::PrintfW(
 
     va_start( VaList, fmt );
     va_copy( VaListCopy, VaList );
+    
     MsgSize = Self->Msvcrt.k_vscwprintf( fmt, VaList );
-    va_end( VaList );
     
     if ( MsgSize < 0 ) {
-        va_end( VaListCopy );
         KhDbg( "Printf: vscwprintf size probe failed" ); 
-        goto _KH_END;
+        goto _CLEANUP;
     }
 
     MsgBuff = ( WCHAR* )hAlloc( ( MsgSize + 1 ) * sizeof( WCHAR ) );
     if ( !MsgBuff ) {
-        va_end( VaListCopy );
         KhDbg( "Printf: allocation failed" ); 
-        goto _KH_END;
+        goto _CLEANUP;
     }
 
     written = Self->Msvcrt.k_vswprintf( MsgBuff, fmt, VaListCopy );
-    va_end( VaListCopy );
     
     if ( written < 0 ) {
         KhDbg( "Printf: vswprintf output failed" ); 
-        goto _KH_END;
+        goto _CLEANUP;
     }
     
-    MsgBuff[written] = L'\0'; 
+    MsgBuff[written] = L'\0';
 
     UUID = Self->Cf->GetTask( MemRange );
     KhDbg( "Printf: sending task %s -> \"%ls\" [%d bytes]", UUID, MsgBuff, written * sizeof(WCHAR) );
     Self->Pkg->SendMsgW( type, MsgBuff );
 
-_KH_END:
-    if ( MsgBuff ) hFree( MsgBuff );
+_CLEANUP:
+    va_end( VaList );
+    va_end( VaListCopy );
+    
+    if ( MsgBuff ) {
+        hFree( MsgBuff );
+    }
 }
 
 auto DECLFN Coff::Printf(

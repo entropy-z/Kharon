@@ -1,4 +1,4 @@
-#include <general.h>
+#include "../kit/kit_process_creation.cc"
 
 extern "C" auto go( int argc, char* args ) -> void {
     datap data_parser = { 0 };
@@ -7,13 +7,13 @@ extern "C" auto go( int argc, char* args ) -> void {
 
     // parse bof args
     auto process_method   = (Create)BeaconDataInt( &data_parser );
-    auto process_argument = (WCHAR*)BeaconDataExtract( &data_parser, nullptr );
-    auto process_state    = BeaconDataInt( &data_parser );
-    auto process_pipe     = BeaconDataInt( &data_parser );
-
     auto process_blockdlls = BeaconDataInt( &data_parser );
     auto process_ppid      = BeaconDataInt( &data_parser );
     auto process_spoofarg  = (WCHAR*)BeaconDataExtract( &data_parser, nullptr );
+    
+    auto process_argument = (WCHAR*)BeaconDataExtract( &data_parser, nullptr );
+    auto process_state    = BeaconDataInt( &data_parser );
+    auto process_pipe     = BeaconDataInt( &data_parser );
 
     auto process_domain   = (WCHAR*)BeaconDataExtract( &data_parser, nullptr );
     auto process_username = (WCHAR*)BeaconDataExtract( &data_parser, nullptr );
@@ -37,5 +37,12 @@ extern "C" auto go( int argc, char* args ) -> void {
     create_args.username = process_username;
     create_args.password = process_password;
 
-    kh_process_creation( &create_args, &ps_information );
+    if ( ! kh_process_creation( &create_args, &ps_information ) ) {
+        BeaconPrintfW( CALLBACK_OUTPUT, L"Process creation failed with error: (%d) %s", GetLastError(), fmt_error( GetLastError() ) );
+        return;
+    }
+
+    BeaconPrintfW( CALLBACK_OUTPUT, L"Process created with pid %d and tid: %d", ps_information.dwProcessId, ps_information.dwThreadId );
+
+    return;
 }
