@@ -11,6 +11,7 @@ import (
 	"fmt"
 	// "strconv"
 	// "net/url"
+	"crypto/tls"
 	"net/http"
 	"os"
 	"strings"
@@ -420,10 +421,10 @@ func (handler *HTTP) Start(ts Teamserver) error {
 		return fmt.Errorf("profile content is empty - cannot parse callback configuration")
 	}
 
-	fileContent, err := base64.StdEncoding.DecodeString( cfg.ProfileContent )
+	fileContent, err := base64.StdEncoding.DecodeString(cfg.ProfileContent)
 	fmt.Printf("callback file content %s\nlength: %d bytes\n", fileContent, len(fileContent))
 
-	handler.Config.Callbacks = handler.parse_json_callback( string( fileContent ) )
+	handler.Config.Callbacks = handler.parse_json_callback(string(fileContent))
 	
 	fmt.Printf("[DEBUG] Parsed %d callbacks\n", len(handler.Config.Callbacks))
 
@@ -435,7 +436,7 @@ func (handler *HTTP) Start(ts Teamserver) error {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 
-	router.GET( "/*endpoint", handler.process_request)
+	router.GET("/*endpoint", handler.process_request)
 	router.POST("/*endpoint", handler.process_request)
 
 	handler.Active = true
@@ -446,7 +447,7 @@ func (handler *HTTP) Start(ts Teamserver) error {
 	}
 
 	if handler.Config.Ssl {
-		fmt.Printf("   Started listener: https://%s:%d\n", handler.Config.HostBind, handler.Config.PortBind)
+		fmt.Printf("   Started listener '%s': https://%s:%d\n", handler.Name, handler.Config.HostBind, handler.Config.PortBind)
 
 		listenerPath := ListenerDataDir + "/" + handler.Name
 		_, err = os.Stat(listenerPath)
@@ -478,8 +479,19 @@ func (handler *HTTP) Start(ts Teamserver) error {
 			}
 		}
 
+		// CARREGA CERTIFICADO - IGUAL TransportHTTP
+		cert, err := tls.LoadX509KeyPair(handler.Config.SslCertPath, handler.Config.SslKeyPath)
+		if err != nil {
+			handler.Active = false
+			return fmt.Errorf("failed to load certificate: %v", err)
+		}
+
+		handler.Server.TLSConfig = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}
+
 		go func() {
-			err = handler.Server.ListenAndServeTLS(handler.Config.SslCertPath, handler.Config.SslKeyPath)
+			err = handler.Server.ListenAndServeTLS("", "")
 			if err != nil && !errors.Is(err, http.ErrServerClosed) {
 				fmt.Printf("Error starting HTTPS server: %v\n", err)
 				return
@@ -488,7 +500,7 @@ func (handler *HTTP) Start(ts Teamserver) error {
 		}()
 
 	} else {
-		fmt.Printf("   Started listener: http://%s:%d\n", handler.Config.HostBind, handler.Config.PortBind)
+		fmt.Printf("   Started listener '%s': http://%s:%d\n", handler.Name, handler.Config.HostBind, handler.Config.PortBind)
 
 		go func() {
 			err := handler.Server.ListenAndServe()
