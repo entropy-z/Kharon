@@ -393,11 +393,8 @@ auto DECLFN Kharon::Init(
     CodeIntegrityInfo.Length = sizeof(CodeIntegrityInfo);
 
     if ( NT_SUCCESS( this->Ntdll.NtQuerySystemInformation( 
-        SystemCodeIntegrityInformation, 
-        &CodeIntegrityInfo, 
-        sizeof(CodeIntegrityInfo), 
-        nullptr ) ) ) {
-        
+        SystemCodeIntegrityInformation, &CodeIntegrityInfo, sizeof(CodeIntegrityInfo), nullptr ) ) 
+    ) {
         this->Machine.HvciEnabled = (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_HVCI_KMCI_ENABLED) != 0;
         this->Machine.DseEnabled = (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_ENABLED) != 0 && (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_TESTSIGN) == 0;
         this->Machine.TestSigningEnabled = (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_TESTSIGN) != 0;
@@ -407,11 +404,8 @@ auto DECLFN Kharon::Init(
     SYSTEM_SECUREBOOT_INFORMATION SecureBootInfo = { 0 };
 
     if ( NT_SUCCESS( this->Ntdll.NtQuerySystemInformation( 
-        SystemSecureBootInformation, 
-        &SecureBootInfo, 
-        sizeof(SecureBootInfo), 
-        nullptr ) ) ) {
-        
+        SystemSecureBootInformation, &SecureBootInfo, sizeof(SecureBootInfo), nullptr ) ) 
+    ) {
         this->Machine.SecureBootEnabled = SecureBootInfo.SecureBootEnabled;
     }
         
