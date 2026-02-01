@@ -3,6 +3,7 @@ package main
 import(
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"sync"
 	// "golang.org/x/net/context"
 )
 
@@ -95,6 +96,7 @@ type HTTP struct {
 	Config    HTTPConfig
 	Name      string
 	Active    bool
+	mu        sync.Mutex
 }
 
 type ServerRequest struct {
