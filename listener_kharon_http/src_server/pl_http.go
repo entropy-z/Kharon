@@ -319,6 +319,12 @@ func parse_output_config(outputData interface{}) *OutputConfig {
 		}
 	}
 
+	if maxSize, ok := outputMap["max_chunk"].(int); ok {
+		output.MaxDataSize = maxSize
+	} else {
+		output.MaxDataSize = 0
+	}
+
 	return output
 }
 
@@ -532,12 +538,15 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 		agentData      []byte
 		responseData   []byte
 
-		key       []byte
-		crypt     *LokyCrypt
-		encrypted []byte
+		key     []byte
+		maskkey []byte
+		crypt       *LokyCrypt
+		encrypted    []byte
 
 		server ServerRequest
 		client ClientRequest
+
+		// httpTask *HttpTask
 
 		callbackByHost *Callback
 		callback       *Callback
@@ -661,11 +670,16 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 		fmt.Printf("[DEBUG] New ID: %s\n", newID)
 		fmt.Printf("[DEBUG] Old ID: %s\n", oldID)
 
+		maskkey   = handler.Config.MaskKey
 		key 	  = handler.Config.EncryptKey
 		crypt 	  = NewLokyCrypt(key, key)
 		encrypted = crypt.Encrypt(newID)
 
 		combined := append(oldID, encrypted...)
+
+		if serverOutput.Mask {
+			xor(combined, maskkey)
+		}
 
 		switch serverOutput.Format {
 		case "hex":
@@ -704,10 +718,15 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 					fmt.Printf("[ERROR] Failed to get hosted data: %v\n", err)
 				} else if len(hostedData) > 0 {
 					key = handler.Config.EncryptKey
+					maskkey = handler.Config.MaskKey
 					crypt = NewLokyCrypt(key, key)
 					encrypted = crypt.Encrypt(hostedData)
 
 					combined := append(oldID, encrypted...)
+
+					if serverOutput.Mask {
+						xor(combined, maskkey)
+					}
 
 					switch serverOutput.Format {
 					case "hex":
@@ -810,16 +829,17 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 	var (
 		old_agent_id   []byte
 		agent_adp_id   []byte
-		full_data 	   io.Reader
+		full_data      io.Reader
 		processed_data []byte
 		agent_exist    bool
 
 		key            []byte
+		maskkey        []byte
 		crypt          *LokyCrypt
 		encrypted_data []byte
 		decrypted_data []byte
 	)
-    
+
 	if output.Header != "" {
 		headerValue := ctx.GetHeader(output.Header)
 		if headerValue == "" {
@@ -827,7 +847,7 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 		}
 
 		headerValue = strings.ReplaceAll(headerValue, " ", "+")
-		
+
 		full_data = bytes.NewBuffer([]byte(headerValue))
 	} else if output.Cookie != "" {
 		cookieValue, err := ctx.Cookie(output.Cookie)
@@ -836,20 +856,20 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 		}
 
 		cookieValue = strings.ReplaceAll(cookieValue, " ", "+")
-		
+
 		full_data = bytes.NewBuffer([]byte(cookieValue))
 	} else if output.Parameter != "" {
-		fmt.Printf("param key: %s\n", output.Parameter)
+		fmt.Printf("[DEBUG] param key: %s\n", output.Parameter)
 		paramValue := ctx.Query(output.Parameter)
-		fmt.Printf("param value from Query: %s\n", paramValue)
+		fmt.Printf("[DEBUG] param value from Query: %s\n", paramValue)
 		if paramValue == "" {
 			paramValue = ctx.Param(output.Parameter)
-			fmt.Printf("param value from Param: %s\n", paramValue)
+			fmt.Printf("[DEBUG] param value from Param: %s\n", paramValue)
 		}
 		if paramValue == "" {
 			return "", nil, false, errors.New("parameter not found")
 		}
-		
+
 		full_data = bytes.NewBuffer([]byte(paramValue))
 	} else {
 		body_data, err := io.ReadAll(ctx.Request.Body)
@@ -860,108 +880,181 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 		ctx.Request.Body = io.NopCloser(bytes.NewBuffer(body_data))
 		full_data = bytes.NewBuffer(body_data)
 	}
-    
-    agent_data, err := io.ReadAll(full_data)
-    if err != nil {
-        return "", nil, false, fmt.Errorf("failed to read agent data: %v", err)
-    }
+
+	agent_data, err := io.ReadAll(full_data)
+	if err != nil {
+		return "", nil, false, fmt.Errorf("failed to read agent data: %v", err)
+	}
 
 	fmt.Println(formatHexDump(agent_data, 16))
-    
-    if len(agent_data) == 0 {
-        return "", nil, false, errors.New("missing agent data")
-    }
-    
-    processed_data = agent_data
-    
-    if output.Prepend != "" {
-        prepend_bytes := []byte(output.Prepend)
-        if len(agent_data) >= len(prepend_bytes) && bytes.HasPrefix(agent_data, prepend_bytes) {
-            processed_data = agent_data[len(prepend_bytes):]
-        } else {
-            return "", nil, false, errors.New("prepend not found in data")
-        }
-    }
-    
-    if output.Append != "" {
-        append_data := []byte(output.Append)
-        if len(processed_data) >= len(append_data) && bytes.HasSuffix(processed_data, append_data) {
-            processed_data = processed_data[:len(processed_data) - len(append_data)]
-        } else {
-            return "", nil, false, errors.New("append not found in data")
-        }
-    }
-    
-    var formatted []byte
-    switch output.Format {
-    case "base32":
-        decoded, err := base32.StdEncoding.DecodeString(string(processed_data))
-        if err != nil {
-            return "", nil, false, fmt.Errorf("base32 decode failed: %v", err)
-        }
-        formatted = decoded
-    case "base64":
-        decoded, err := base64.StdEncoding.DecodeString(string(processed_data))
-        if err != nil {
-            return "", nil, false, fmt.Errorf("base64 decode failed: %v", err)
-        }
-        formatted = decoded
-    case "base64url":
-        decoded, err := base64.RawURLEncoding.DecodeString(string(processed_data))
-        if err != nil {
-            return "", nil, false, fmt.Errorf("base64url decode failed: %v", err)
-        }
-        formatted = decoded
-	case "hex": {
+
+	if len(agent_data) == 0 {
+		return "", nil, false, errors.New("missing agent data")
+	}
+
+	processed_data = agent_data
+
+	if output.Prepend != "" {
+		prepend_bytes := []byte(output.Prepend)
+		if len(agent_data) >= len(prepend_bytes) && bytes.HasPrefix(agent_data, prepend_bytes) {
+			processed_data = agent_data[len(prepend_bytes):]
+		} else {
+			return "", nil, false, errors.New("prepend not found in data")
+		}
+	}
+
+	if output.Append != "" {
+		append_data := []byte(output.Append)
+		if len(processed_data) >= len(append_data) && bytes.HasSuffix(processed_data, append_data) {
+			processed_data = processed_data[:len(processed_data)-len(append_data)]
+		} else {
+			return "", nil, false, errors.New("append not found in data")
+		}
+	}
+
+	var formatted []byte
+	switch output.Format {
+	case "base32":
+		decoded, err := base32.StdEncoding.DecodeString(string(processed_data))
+		if err != nil {
+			return "", nil, false, fmt.Errorf("base32 decode failed: %v", err)
+		}
+		formatted = decoded
+	case "base64":
+		decoded, err := base64.StdEncoding.DecodeString(string(processed_data))
+		if err != nil {
+			return "", nil, false, fmt.Errorf("base64 decode failed: %v", err)
+		}
+		formatted = decoded
+	case "base64url":
+		decoded, err := base64.RawURLEncoding.DecodeString(string(processed_data))
+		if err != nil {
+			return "", nil, false, fmt.Errorf("base64url decode failed: %v", err)
+		}
+		formatted = decoded
+	case "hex":
 		decoded, err := hex.DecodeString(string(processed_data))
 		if err != nil {
 			return "", nil, false, fmt.Errorf("hex decode failed: %v", err)
 		}
 		formatted = decoded
+	default:
+		formatted = processed_data
 	}
-    default:
-        formatted = processed_data
-    }
-    
-    if len(formatted) < 36 {
-        return "", nil, false, fmt.Errorf("insufficient data length: got %d bytes, need at least 36", len(formatted))
-    }
-    
-    total_len := len(formatted)
-    if total_len < 36 { 
-        return "", nil, false, errors.New("data too short for decryption")
-    }
 
-	old_agent_id = formatted[:36]
-	agent_adp_id = old_agent_id[:8]
+	total_len := len(formatted)
 
-	fmt.Printf("old agentid: %s\n", old_agent_id)
+	fmt.Printf("[DEBUG] Step 1 - After decode (total length: %d bytes):\n", total_len)
+	fmt.Println(hex.Dump(formatted))
 
-    agent_exist = ModuleObject.ts.TsAgentIsExists(string(agent_adp_id))
-    if !agent_exist {
+	// Check if we have stored keys (existing agent session)
+	hasStoredKeys := len(handler.Config.EncryptKey) == 16 && len(handler.Config.MaskKey) == 16
+
+	// Determine if this is a new agent or existing agent based on data size and stored keys
+	// New agent: needs at least 36 (agent_id) + 16 (key) = 52 bytes minimum
+	// Existing agent: can be smaller, just needs agent_id prefix
+
+	if total_len >= 52 && !hasStoredKeys {
+		// NEW AGENT: data contains agent_id + encrypted_data + key
+		fmt.Println("[DEBUG] Processing as NEW agent (no stored keys, sufficient data length)")
+
+		// Extract key from last 16 bytes (NOT XORed)
 		extracted_key := formatted[total_len-16:]
-		
+
 		handler.Config.EncryptKey = make([]byte, 16)
+		handler.Config.MaskKey = make([]byte, 16)
+
 		copy(handler.Config.EncryptKey, extracted_key)
-		
+
+		for i := range extracted_key {
+			handler.Config.MaskKey[len(extracted_key)-1-i] = extracted_key[i]
+		}
+
 		key = handler.Config.EncryptKey
+		maskkey = handler.Config.MaskKey
+
+		fmt.Printf("[DEBUG] New agent - Extracted EncryptKey: %v\n", key)
+		fmt.Printf("[DEBUG] New agent - Calculated MaskKey: %v\n", maskkey)
+
+		// Apply XOR to everything EXCEPT the last 16 bytes (the key)
+		if output.Mask {
+			data_to_unmask := formatted[:total_len-16]
+			xor(data_to_unmask, maskkey)
+
+			fmt.Println("[DEBUG] Step 2 - After XOR (new agent, excluding last 16 bytes):")
+			fmt.Println(hex.Dump(formatted))
+		}
+
+		// Now extract the correct agent_id (after XOR)
+		old_agent_id = formatted[:36]
+		agent_adp_id = old_agent_id[:8]
+
+		// Encrypted data: between agent_id (36) and key (16)
 		encrypted_data = formatted[36 : total_len-16]
-	} else {
+		agent_exist = false
+
+	} else if hasStoredKeys {
+		// EXISTING AGENT: use stored keys
+		fmt.Println("[DEBUG] Processing as EXISTING agent (has stored keys)")
+
 		key = handler.Config.EncryptKey
-		encrypted_data = formatted[36:]
+		maskkey = handler.Config.MaskKey
+
+		fmt.Printf("[DEBUG] Existing agent - Using stored EncryptKey: %v\n", key)
+		fmt.Printf("[DEBUG] Existing agent - Using stored MaskKey: %v\n", maskkey)
+
+		// Apply XOR to the entire buffer
+		if output.Mask {
+			xor(formatted, maskkey)
+
+			fmt.Println("[DEBUG] Step 2 - After XOR (existing agent):")
+			fmt.Println(hex.Dump(formatted))
+		}
+
+		// For existing agent, extract agent_id only if we have enough data
+		if total_len >= 36 {
+			old_agent_id = formatted[:36]
+			agent_adp_id = old_agent_id[:8]
+			encrypted_data = formatted[36:]
+		} else if total_len >= 8 {
+			// Minimal packet - just agent_id prefix
+			old_agent_id = formatted[:total_len]
+			agent_adp_id = formatted[:8]
+			encrypted_data = nil
+		} else {
+			return "", nil, false, fmt.Errorf("data too short for existing agent: got %d bytes", total_len)
+		}
+
+		agent_exist = true
+
+	} else {
+		// Not enough data for new agent and no stored keys
+		return "", nil, false, fmt.Errorf("insufficient data for new agent (need >= 52 bytes, got %d) and no stored session keys", total_len)
 	}
 
-    fmt.Printf("fmt key: %v\n", key)
-    fmt.Printf("fmt key handler: %v\n", handler.Config.EncryptKey)
-    
-    if len(encrypted_data) == 0 {
-        return "", nil, false, errors.New("no encrypted data available")
-    }
-    
-    crypt = NewLokyCrypt(key, key)
-    decrypted_data = crypt.Decrypt(encrypted_data)
-    
-    client.Payload = decrypted_data
-    
-    return "c17a905a", old_agent_id, agent_exist, nil
+	fmt.Printf("[DEBUG] Old agent_id (hex): %s\n", hex.EncodeToString(old_agent_id))
+	fmt.Printf("[DEBUG] Old agent_id (string): %s\n", string(old_agent_id))
+	fmt.Printf("[DEBUG] Agent adapter id: %s\n", string(agent_adp_id))
+	fmt.Printf("[DEBUG] Agent exists: %v\n", agent_exist)
+	fmt.Printf("[DEBUG] Encrypted data length: %d\n", len(encrypted_data))
+
+	if len(encrypted_data) > 0 {
+		fmt.Println("[DEBUG] Step 3 - Encrypted data before decrypt:")
+		fmt.Println(hex.Dump(encrypted_data))
+
+		fmt.Printf("[DEBUG] Decrypt key: %v\n", key)
+
+		crypt = NewLokyCrypt(key, key)
+		decrypted_data = crypt.Decrypt(encrypted_data)
+
+		fmt.Println("[DEBUG] Step 4 - Decrypted data:")
+		fmt.Println(hex.Dump(decrypted_data))
+
+		client.Payload = decrypted_data
+	} else {
+		fmt.Println("[DEBUG] No encrypted data to decrypt (heartbeat/keepalive packet)")
+		client.Payload = nil
+	}
+
+	return "c17a905a", old_agent_id, agent_exist, nil
 }

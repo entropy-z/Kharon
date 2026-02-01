@@ -31,6 +31,9 @@
 - Domain Rotation (failover, round robin and random)
 
 # v0.2 -> v0.3
+- Http Malleable 
+    - Client Cookie output
+    - Client/Server max chunk size
 - LDAP/ADWS command to bloodhound output parser
 - Active Script in memory execution (VBS/JScript/etc)
 - PE in memory execution (Reflection)

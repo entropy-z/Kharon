@@ -1,7 +1,7 @@
 {
     "callbacks": [
         {
-            "hosts": ["172.23.60.72:5124", "172.23.60.72:5124"],
+            "hosts": ["192.168.139.1:4445"],
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "server_error": {
                 "http_status": 403,
@@ -57,8 +57,19 @@
                 "empty_response": "\\x90\\x90\\x90\\x90\\x90",
                 "uri": {
                     "/route1 /route2": {
-                        "server_output": {"mask": false, "format": "base64", "header": "MSG_PP", "body": "{\"status\": 200, \"message\": \"Success\"}"},
-                        "client_output": {"mask": true, "format": "base64", "prepend": "{\"health\": \"alive\", \"message\": \"", "append": "\"}"}
+                        "server_output": {
+                            "mask": false, 
+                            "format": "base64", 
+                            "max_chunk": 500, 
+                            "header": "MSG_PP", 
+                            "body": "{\"status\": 200, \"message\": \"Success\"}"
+                        },
+                        "client_output": {
+                            "mask": true, 
+                            "format": "base64", 
+                            "max_chunk": 500,
+                            "prepend": "{\"health\": \"alive\", \"message\": \"", "append": "\"}"
+                        }
                     }
                 }
             }

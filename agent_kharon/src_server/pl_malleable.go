@@ -499,6 +499,12 @@ func writeOutputConfig(buf *bytes.Buffer, output map[string]interface{}, outputT
 	binary.Write(buf, binary.LittleEndian, format)
 	fmt.Printf("[DEBUG] Format: %s (%d)\n", out_fmt_name, format)
 
+	if max, ok := output["max_chunk"].(int); ok {
+		binary.Write(buf, binary.LittleEndian, int32(max))
+	} else {
+		binary.Write(buf, binary.LittleEndian, int32(0))
+	}
+
 	if out_type != OUTPUT_TYPE_BODY {
 		writeWideString(buf, header_name)
 	}
