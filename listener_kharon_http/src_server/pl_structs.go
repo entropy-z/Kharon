@@ -16,6 +16,8 @@ type OutputConfig struct {
 
 	Append  string
 	Prepend string
+
+	MaxDataSize int
 }
 
 type URIConfig struct {
@@ -46,6 +48,16 @@ type Callback struct {
 	Post          *HTTPMethod 
 }
 
+type HttpTask struct {
+	RequestId int
+	TaskId    int
+	MaxSize   int
+	MissingChunkCount int
+
+	Buffer 		 []byte
+	CurrentIndex int
+}
+
 type HTTPConfig struct {
 	HostBind   string `json:"host_bind"`
 	PortBind   int    `json:"port_bind"`
@@ -65,13 +77,15 @@ type HTTPConfig struct {
 
 	Protocol   string `json:"protocol"`
 	EncryptKey []byte `json:"encrypt_key"`
+	MaskKey    []byte  
 
 	ProxyUrl      string `json:"proxy_url"`
 	ProxyUserName string `json:"proxy_user"`
 	ProxyPassword string `json:"proxy_pass"`
 
+	ChunkTask []HttpTask
+
 	Addresses 	string
-	MaskKey     []byte
 	Callbacks   []Callback
 }
 

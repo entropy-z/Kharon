@@ -1933,7 +1933,7 @@ func ConvertCpToUTF16LE(input string, codePage int) []byte {
 
 	utf16Data := ConvertCpToUTF16(input, codePage)
 
-	fmt.Printf("utf16 data: %s\n", utf16Data)
+	fmt.Printf("utf16 data: %v\n", utf16Data)
 	
 	result := make([]byte, len(utf16Data)*2)
 	for i, v := range utf16Data {

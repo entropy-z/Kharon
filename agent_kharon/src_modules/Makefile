@@ -1,6 +1,6 @@
 # Compiler and flags
 CC = x86_64-w64-mingw32-g++
-CFLAGS = -c -Wall -O2 -w
+CFLAGS = -c -Os -w -mno-stack-arg-probe
 INCFLAGS = -I Include
 
 # Output directory

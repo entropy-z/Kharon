@@ -39,7 +39,23 @@ extern "C" auto go( char* args, int argc ) -> void {
     create_args.username = process_username;
     create_args.password = process_password;
 
-    kh_process_creation( &create_args, &ps_information );
+    PBYTE output_ptr = nullptr;
+    ULONG output_len = 0;
+
+    DbgPrint("pipe read: %d\n", process_pipe);
+
+    kh_process_creation( &create_args, &ps_information, &output_ptr, &output_len );
+
+    if ( ps_information.dwProcessId && ps_information.dwThreadId ) {
+        BeaconPkgInt32( ps_information.dwProcessId );
+        BeaconPkgInt32( ps_information.dwThreadId );   
+    }
+
+    if ( output_ptr && output_len ) {
+        BeaconPkgBytes( output_ptr, output_len );
+
+        free( output_ptr );
+    }
 
     return;
 }
