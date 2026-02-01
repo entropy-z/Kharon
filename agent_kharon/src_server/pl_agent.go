@@ -759,7 +759,7 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 	khcfg.ps.fork_pipe = string(packer.ParseBytes())
 	fmt.Printf("ForkPipeName: %v\n", khcfg.ps.fork_pipe)
 
-	// Mask informations - CORRIGIDO: mesma ordem do cliente (Jmp, Heap, NtCont, Beacon)
+	// Mask informations 
 	khcfg.mask.jmpgadget = fmt.Sprintf("%#x", uint64(packer.ParseInt64()))
 	fmt.Printf("JmpGadget: %v\n", khcfg.mask.jmpgadget)
 
