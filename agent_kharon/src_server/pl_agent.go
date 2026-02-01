@@ -672,14 +672,12 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 	khcfg.killdate.selfdel = packer.ParseInt32() != 0
 	fmt.Printf("Killdate SelfDelete: %v\n", khcfg.killdate.selfdel)
 
-	// CORRIGIDO: Year, Month, Day (mesma ordem do cliente)
 	year := int(packer.ParseInt16())
 	month := int(packer.ParseInt16())
 	day := int(packer.ParseInt16())
 
 	fmt.Printf("Killdate - Year: %d, Month: %d, Day: %d\n", year, month, day)
 
-	// Validação para evitar panic
 	if year < 1 || year > 9999 {
 		year = 2025
 	}
@@ -693,7 +691,7 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 	khcfg.killdate.date = time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
 	fmt.Printf("Killdate Date: %s\n", khcfg.killdate.date.Format("02/01/2006"))
 
-	// Worktime informations - CORRIGIDO
+	// Worktime informations
 	khcfg.worktime.enabled = packer.ParseInt32() != 0
 	fmt.Printf("Worktime Enabled: %v\n", khcfg.worktime.enabled)
 

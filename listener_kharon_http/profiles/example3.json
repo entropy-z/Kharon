@@ -2,9 +2,7 @@
     "callbacks": [
         {            
             "hosts": [
-                "192.168.1.100:443",
-                "192.168.1.101:443",
-                "c2.example.com:8443"
+                "172.23.60.72:5124"
             ],
             
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -103,7 +101,7 @@
         
         {            
             "hosts": [
-                "backup.example.com:443"
+                "172.23.60.72:5124"
             ],
             
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
