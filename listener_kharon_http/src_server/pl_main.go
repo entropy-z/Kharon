@@ -97,6 +97,12 @@ type Teamserver interface {
 	TsTerminalConnData(terminalId string, data []byte)
 	TsTerminalConnClose(terminalId string, status string) error
 
+	TsExtenderDataLoad(extenderName string, key string) ([]byte, error)
+	TsExtenderDataSave(extenderName string, key string, value []byte) error
+	TsExtenderDataDelete(extenderName string, key string) error
+	TsExtenderDataKeys(extenderName string) ([]string, error)
+	TsExtenderDataDeleteAll(extenderName string) error
+
 	TsConvertCpToUTF8(input string, codePage int) string
 	TsConvertUTF8toCp(input string, codePage int) string
 	TsWin32Error(errorCode uint) string

@@ -77,7 +77,7 @@ func (m *ModuleExtender) HandlerCreateListenerDataAndStart(name string, configDa
 	listenerData = ax.ListenerData{
 		BindHost:  listener.Config.HostBind,
 		BindPort:  strconv.Itoa(listener.Config.PortBind),
-		AgentAddr: conf.Addresses,
+		AgentAddr: listener.Config.Addresses,
 		Status:    "Listen",
 	}
 

