@@ -103,7 +103,7 @@ auto DECLFN Transport::Checkin(
 
     // security informations
     Self->Pkg->Int32( CheckinPkg, Self->Machine.CfgEnabled );
-    Self->Pkg->Int32( CheckinPkg, Self->Machine.HhvciEnabled );
+    Self->Pkg->Int32( CheckinPkg, Self->Machine.HvciEnabled );
     Self->Pkg->Int32( CheckinPkg, Self->Machine.DseEnabled );
 
     // encryption key

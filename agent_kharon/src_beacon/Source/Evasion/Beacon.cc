@@ -362,10 +362,10 @@ auto DECLFN Coff::WriteProcessMemory(
 auto DECLFN Coff::CreateProcessW(
     _In_  WCHAR*                Application,
     _In_  WCHAR*                Command,
-    _In_  ULONG                 Flags,
     _In_  LPSECURITY_ATTRIBUTES PsAttributes,
     _In_  LPSECURITY_ATTRIBUTES ThreadAttributes,
     _In_  BOOL                  Inherit,
+    _In_  ULONG                 Flags,
     _In_  PVOID                 Env,
     _In_  WCHAR*                CurrentDir,
     _In_  STARTUPINFOW*         StartupInfo,

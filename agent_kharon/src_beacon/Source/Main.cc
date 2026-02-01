@@ -389,17 +389,34 @@ auto DECLFN Kharon::Init(
     KhDbgz( "Used RAM: %d", this->Machine.UsedRAM );
     KhDbgz( "Win Version: %d.%d.%d", this->Machine.OsMjrV, this->Machine.OsMnrV, this->Machine.OsBuild);
     
-    SYSTEM_SECUREBOOT_POLICY_INFORMATION SecureBootInfo = { 0 };
-    ULONG SecureBootLen = 0;
+    SYSTEM_CODEINTEGRITY_INFORMATION CodeIntegrityInfo = { 0 };
+    CodeIntegrityInfo.Length = sizeof(CodeIntegrityInfo);
 
     if ( NT_SUCCESS( this->Ntdll.NtQuerySystemInformation( 
-        SystemSecureBootPolicyInformation, 
+        SystemCodeIntegrityInformation, 
+        &CodeIntegrityInfo, 
+        sizeof(CodeIntegrityInfo), 
+        nullptr ) ) ) {
+        
+        this->Machine.HvciEnabled = (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_HVCI_KMCI_ENABLED) != 0;
+        
+        this->Machine.DseEnabled = (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_ENABLED) != 0 &&
+                                (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_TESTSIGN) == 0;
+        
+        this->Machine.TestSigningEnabled = (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_TESTSIGN) != 0;
+        
+        this->Machine.DebugModeEnabled = (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_DEBUGMODE_ENABLED) != 0;
+    }
+
+    SYSTEM_SECUREBOOT_INFORMATION SecureBootInfo = { 0 };
+
+    if ( NT_SUCCESS( this->Ntdll.NtQuerySystemInformation( 
+        SystemSecureBootInformation, 
         &SecureBootInfo, 
         sizeof(SecureBootInfo), 
-        &SecureBootLen ) ) ) {
+        nullptr ) ) ) {
         
-        this->Machine.HhvciEnabled = (SecureBootInfo.PolicyOptions & 0x01) != 0;
-        this->Machine.DseEnabled   = (SecureBootInfo.PolicyOptions & 0x02) != 0;
+        this->Machine.SecureBootEnabled = SecureBootInfo.SecureBootEnabled;
     }
         
     KhDbgz( "HVCI Enabled: %s", this->Machine.HhvciEnabled ? "Yes" : "No" );

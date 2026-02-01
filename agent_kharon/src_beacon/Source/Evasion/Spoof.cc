@@ -24,14 +24,8 @@ auto DECLFN Spoof::Call(
     Self->Spf->Setup.First.Ptr  = (UPTR)Self->Ntdll.RtlUserThreadStart+0x21;
     Self->Spf->Setup.Second.Ptr = (UPTR)Self->Krnl32.BaseThreadInitThunk+0x14;
 
-    KhDbg("%p", Self->Spf->Setup.First.Ptr);
-    KhDbg("%p", Self->Spf->Setup.Second.Ptr);
-
     Self->Spf->Setup.First.Size  = Self->Spf->StackSizeWrapper( Self->Spf->Setup.First.Ptr );
     Self->Spf->Setup.Second.Size = Self->Spf->StackSizeWrapper( Self->Spf->Setup.Second.Ptr );
-
-    KhDbg("%d %x %p", Self->Spf->Setup.First.Size, Self->Spf->Setup.First.Size, &Self->Spf->Setup.First.Size);
-    KhDbg("%d %x %p", Self->Spf->Setup.Second.Size, Self->Spf->Setup.Second.Size, &Self->Spf->Setup.Second.Size);
 
     do {
         this->Setup.Gadget.Ptr  = Self->Usf->FindGadget( Self->KrnlBase.Handle, 0x23 );

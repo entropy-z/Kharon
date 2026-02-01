@@ -143,11 +143,10 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
 
                 // client output
                 
-                KhDbg("%p", HttpParser->Buffer);
-
-                ClientOutput->Mask   = Self->Psr->Int32( HttpParser );
-                ClientOutput->Type   = (OUTPUT_TYPE)Self->Psr->Int32( HttpParser );
-                ClientOutput->Format = (OutputFmt)Self->Psr->Int32( HttpParser );
+                ClientOutput->Mask        = Self->Psr->Int32( HttpParser );
+                ClientOutput->Type        = (OUTPUT_TYPE)Self->Psr->Int32( HttpParser );
+                ClientOutput->Format      = (OutputFmt)Self->Psr->Int32( HttpParser );
+                ClientOutput->MaxDataSize = Self->Psr->Int32( HttpParser );
 
                 KhDbg( "[*] HTTP Malleable: POST ClientOutput Mask = %d, Type = %d, Format = %d", ClientOutput->Mask, ClientOutput->Type, ClientOutput->Format );
 
@@ -163,9 +162,10 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
 
                 // server output
 
-                ServerOutput->Mask   = Self->Psr->Int32( HttpParser );
-                ServerOutput->Type   = (OUTPUT_TYPE)Self->Psr->Int32( HttpParser );
-                ServerOutput->Format = (OutputFmt)Self->Psr->Int32( HttpParser );
+                ServerOutput->Mask        = Self->Psr->Int32( HttpParser );
+                ServerOutput->Type        = (OUTPUT_TYPE)Self->Psr->Int32( HttpParser );
+                ServerOutput->Format      = (OutputFmt)Self->Psr->Int32( HttpParser );
+                ServerOutput->MaxDataSize = Self->Psr->Int32( HttpParser );
 
                 KhDbg( "[*] HTTP Malleable: POST ServerOutput Mask = %d, Type = %d, Format = %d", ServerOutput->Mask, ServerOutput->Type, ServerOutput->Format );
 
@@ -226,9 +226,10 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
 
                 // client output
                 
-                ClientOutput->Mask   = Self->Psr->Int32( HttpParser );
-                ClientOutput->Type   = (OUTPUT_TYPE)Self->Psr->Int32( HttpParser );
-                ClientOutput->Format = (OutputFmt)Self->Psr->Int32( HttpParser );
+                ClientOutput->Mask        = Self->Psr->Int32( HttpParser );
+                ClientOutput->Type        = (OUTPUT_TYPE)Self->Psr->Int32( HttpParser );
+                ClientOutput->Format      = (OutputFmt)Self->Psr->Int32( HttpParser );
+                ClientOutput->MaxDataSize = Self->Psr->Int32( HttpParser );
 
                 KhDbg( "[*] HTTP Malleable: GET ClientOutput Mask = %d, Type = %d, Format = %d", ClientOutput->Mask, ClientOutput->Type, ClientOutput->Format );
 
@@ -246,9 +247,10 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
 
                 // server output
 
-                ServerOutput->Mask   = Self->Psr->Int32( HttpParser );
-                ServerOutput->Type   = (OUTPUT_TYPE)Self->Psr->Int32( HttpParser );
-                ServerOutput->Format = (OutputFmt)Self->Psr->Int32( HttpParser );
+                ServerOutput->Mask        = Self->Psr->Int32( HttpParser );
+                ServerOutput->Type        = (OUTPUT_TYPE)Self->Psr->Int32( HttpParser );
+                ServerOutput->Format      = (OutputFmt)Self->Psr->Int32( HttpParser );
+                ServerOutput->MaxDataSize = Self->Psr->Int32( HttpParser );
 
                 KhDbg( "[*] HTTP Malleable: GET ServerOutput Mask = %d, Type = %d, Format = %d", ServerOutput->Mask, ServerOutput->Type, ServerOutput->Format );
 

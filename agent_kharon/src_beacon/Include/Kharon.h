@@ -212,8 +212,11 @@ namespace Root {
             ULONG OsMnrV;
             ULONG ProductType;
             ULONG OsBuild;
-            BOOL  HhvciEnabled;
+            BOOL  HvciEnabled;
             BOOL  DseEnabled;
+            BOOL  SecureBootEnabled;
+            BOOL  TestSigningEnabled;
+            BOOL  DebugModeEnabled;
         } Machine;
 
         struct {
@@ -1099,9 +1102,9 @@ public:
     ) -> HANDLE;
 
     static auto CreateProcessW( 
-        _In_  WCHAR* Application, _In_  WCHAR* Command, _In_  ULONG Flags,
-        _In_  LPSECURITY_ATTRIBUTES PsAttributes, _In_ LPSECURITY_ATTRIBUTES ThreadAttributes,
-        _In_  BOOL Inherit, _In_ PVOID Env, _In_ WCHAR* CurrentDir, _In_ STARTUPINFOW* StartupInfo, _Out_ PROCESS_INFORMATION* PsInfo
+        _In_  WCHAR* Application, _In_  WCHAR* Command, _In_  LPSECURITY_ATTRIBUTES PsAttributes,
+        _In_  LPSECURITY_ATTRIBUTES ThreadAttributes, _In_ BOOL Inherit, _In_ ULONG Flags, _In_ PVOID Env, 
+        _In_  WCHAR* CurrentDir, _In_ STARTUPINFOW* StartupInfo, _Out_ PROCESS_INFORMATION* PsInfo
     ) -> BOOL;
 
     static auto CreateRemoteThread(
@@ -1281,6 +1284,10 @@ public:
     auto Bytes( _In_  PPARSER parser, _Out_ ULONG*  size ) -> BYTE*;
     auto Str( _In_ PPARSER parser, _In_ ULONG* size ) -> PCHAR;
     auto Wstr( _In_ PPARSER parser, _In_ ULONG* size ) -> PWCHAR;
+};
+
+struct _HTTP_DATA {
+
 };
 
 class Transport {    

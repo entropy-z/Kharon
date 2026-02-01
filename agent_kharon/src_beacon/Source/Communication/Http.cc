@@ -41,6 +41,7 @@ auto DECLFN Transport::StrategyRot( VOID ) -> HTTP_CALLBACKS* {
                     this->FailoverIdx++;
                 }
             }
+
             TargetCallback = Self->Config.Http.Callbacks[this->FailoverIdx];
             break;
         }
@@ -1270,15 +1271,31 @@ auto DECLFN Transport::HttpSend(
     PROXY_SETTINGS Proxy         = Self->Config.Http.Proxy;
     BOOL           Secure        = Self->Config.Http.Secure;
 
+    ULONG TotalRequestSize = 0;
+
     Ctx.Path = Endpoint->Path;
+
+    KhDbg("mask key");
+    
+    for ( int i=0;i<sizeof(Self->Crp->XorKey);i++ ){
+        KhDbg("%d", Self->Crp->XorKey[i]);
+    }
     
     if ( ! this->PrepareUrl( &Ctx, Callback, Secure ) ) {
         return CleanupHttpContext( &Ctx );
     }
 
+    if ( ClientOut.Mask && ! Self->Session.Connected ) {
+        Self->Crp->Xor( SendData->Ptr, SendData->Size - 16 );
+    } else if ( ClientOut.Mask && Self->Session.Connected ) {
+        Self->Crp->Xor( SendData->Ptr, SendData->Size );
+    }
+
     if ( ! this->EncodeClientData( &Ctx, SendData, &EncodedData, &ClientOut ) ) {
         return CleanupHttpContext( &Ctx );
     }
+
+    TotalRequestSize = ( EncodedData.Size + ClientOut.Append.Size + ClientOut.Prepend.Size );
     
     if ( ! this->ProcessClientOutput( &Ctx, &EncodedData, ClientOutType, Endpoint, &Method, &ClientOut ) ) {
         return CleanupHttpContext( &Ctx );
@@ -1340,6 +1357,10 @@ auto DECLFN Transport::HttpSend(
     if ( ! this->DecodeServerData( &Ctx, &RespData, &DecodedData, &ServerOut ) ) {
         hFree( RespData.Ptr );
         return CleanupHttpContext( &Ctx );
+    }
+
+    if ( ServerOut.Mask ) {
+        Self->Crp->Xor( DecodedData.Ptr, DecodedData.Size );
     }
     
     hFree( RespData.Ptr );

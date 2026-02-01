@@ -725,14 +725,9 @@ auto DECLFN Package::Transmit(
         Success = TRUE;
     }
 
-    KH_DBG_MSG
-
     Self->Mm->Free( EncBuffer, TotalPacketLen, MEM_RELEASE );
-
-    KH_DBG_MSG
     
     if ( Success && RecvData.Ptr && RecvData.Size ) {
-        KH_DBG_MSG
         UCHAR* DecryptBuff   = RecvData.Ptr + EncryptOffset;
         ULONG  DecryptLength = (ULONG)RecvData.Size - EncryptOffset;
 
@@ -742,26 +737,16 @@ auto DECLFN Package::Transmit(
             return FALSE;
         }
 
-        KH_DBG_MSG
-
         Self->Crp->Decrypt( DecryptBuff, DecryptLength );
-
-        KH_DBG_MSG
          
         *Response = RecvData.Ptr;
         *Size     = RecvData.Size;
         
         Success = TRUE;
-    } else if ( RecvData.Ptr ) {
-        KH_DBG_MSG
-        
+    } else if ( RecvData.Ptr ) {        
         hFree( RecvData.Ptr );
-        
         Success = FALSE;
-        KH_DBG_MSG
     }
-
-    KH_DBG_MSG
 
     return Success;
 }

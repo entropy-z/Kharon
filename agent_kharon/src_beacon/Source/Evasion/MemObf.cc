@@ -14,9 +14,10 @@ auto DECLFN Mask::Main(
     
     if ( Self->Config.Jitter ) {
         ULONG JitterMnt = ( Self->Config.Jitter * Self->Config.SleepTime ) / 100;
-        ULONG SleepMin = ( Self->Config.SleepTime > JitterMnt ? Self->Config.SleepTime - JitterMnt : 0 );
-        ULONG SleepMax = ( Self->Config.SleepTime + JitterMnt );
-        ULONG Range = ( SleepMax - SleepMin + 1 );
+        ULONG SleepMin  = ( Self->Config.SleepTime > JitterMnt ? Self->Config.SleepTime - JitterMnt : 0 );
+        ULONG SleepMax  = ( Self->Config.SleepTime + JitterMnt );
+        ULONG Range     = ( SleepMax - SleepMin + 1 );
+        
         RndTime = SleepMin + ( Rnd32() % Range );  
     } else {
         RndTime = Self->Config.SleepTime;

@@ -122,6 +122,8 @@ typedef struct _OUTPUT_FORMAT {
         } OutputBuff;
     };
 
+    ULONG MaxDataSize;
+
     MM_INFO Append;
     MM_INFO Prepend;
     MM_INFO FalseBody;

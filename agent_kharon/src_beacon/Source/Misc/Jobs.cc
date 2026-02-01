@@ -42,7 +42,6 @@ auto DECLFN Jobs::Create(
     NewJob->Clean    = TRUE;
     NewJob->PersistTriggered = FALSE;
 
-
     if ( ! NewJob->Pkg ) {
         hFree( NewJob );
         hFree( JobPsr );
@@ -51,10 +50,10 @@ auto DECLFN Jobs::Create(
 
     KhDbg( "adding job with uuid: %s and command id: %d", NewJob->UUID, NewJob->CmdID );
 
-    if ( !List ) {
-        List = NewJob;
+    if ( !this->List ) {
+        this->List = NewJob;
     } else {
-        JOBS* Current = List;
+        JOBS* Current = this->List;
         while ( Current->Next ) {
             Current = Current->Next;
         }

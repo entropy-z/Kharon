@@ -36,7 +36,7 @@ auto Process::Create(
     _In_  PVOID                 Env,
     _In_  WCHAR*                CurrentDir,
     _In_  STARTUPINFOW*         StartupInfo,
-    _Out_ PROCESS_INFORMATION* PsInfo
+    _Out_ PROCESS_INFORMATION*  PsInfo
 ) -> BOOL {
     if ( Self->Config.Syscall ) {
         return Self->Spf->Call(
