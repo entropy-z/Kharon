@@ -623,14 +623,7 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 
 	khcfg.session.agent_id_str = agentId
 
-	// if false == packer.CheckPacker([]string{"byte", "array", "array", "array", "int", "array", "int", "int", "int", "int", "int", "int",
-	// 	"int", "int", "int", "int", "word", "word", "word", "array", "int", "int", "int", "int", "int", "int", "long",
-	// 	"int", "int", "long", "long", "int", "int", "int", "array", "int", "array", "int", "int", "int", "int", "int", "array",
-	// }) {
-	// 	fmt.Printf("error agent data\n")
-	// 	return agent, errors.New("error agent data")
-	// }
-
+	// Machine info
 	khcfg.machine.os_arch = packer.ParseInt8()
 	fmt.Printf("OS Arch: %v\n", khcfg.machine.os_arch)
 
@@ -652,30 +645,68 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 	khcfg.session.img_path = packer.ParseString()
 	fmt.Printf("Image Path: %s\n", khcfg.session.img_path)
 
+	// Custom agent storage for kharon config
 	khcfg.session.acp = uint32(packer.ParseInt32())
 	fmt.Printf("ACP: %v\n", khcfg.session.acp)
 
 	khcfg.session.oemcp = uint32(packer.ParseInt32())
 	fmt.Printf("OEMCP: %v\n", khcfg.session.oemcp)
 
+	// Evasion features
 	khcfg.evasion.syscall = uint32(packer.ParseInt32())
+	fmt.Printf("Syscall: %v\n", khcfg.evasion.syscall)
+
 	khcfg.evasion.bof_proxy = packer.ParseInt32() != 0
+	fmt.Printf("BOF Proxy: %v\n", khcfg.evasion.bof_proxy)
+
 	khcfg.evasion.amsi_etw_bypass = int32(packer.ParseInt32())
+	fmt.Printf("AMSI/ETW Bypass: %v\n", khcfg.evasion.amsi_etw_bypass)
 
+	// Killdate informations
 	khcfg.killdate.enabled = packer.ParseInt32() != 0
+	fmt.Printf("Killdate Enabled: %v\n", khcfg.killdate.enabled)
+
 	khcfg.killdate.exit = packer.ParseInt32() != 0
+	fmt.Printf("Killdate Exit: %v\n", khcfg.killdate.exit)
+
 	khcfg.killdate.selfdel = packer.ParseInt32() != 0
+	fmt.Printf("Killdate SelfDelete: %v\n", khcfg.killdate.selfdel)
 
-	day := int(packer.ParseInt16())
-	month := int(packer.ParseInt16())
+	// CORRIGIDO: Year, Month, Day (mesma ordem do cliente)
 	year := int(packer.ParseInt16())
+	month := int(packer.ParseInt16())
+	day := int(packer.ParseInt16())
 
-	khcfg.killdate.date = time.Date(int(year), time.Month(int(month)), int(day), 0, 0, 0, 0, time.UTC)
+	fmt.Printf("Killdate - Year: %d, Month: %d, Day: %d\n", year, month, day)
 
+	// Validação para evitar panic
+	if year < 1 || year > 9999 {
+		year = 2025
+	}
+	if month < 1 || month > 12 {
+		month = 1
+	}
+	if day < 1 || day > 31 {
+		day = 1
+	}
+
+	khcfg.killdate.date = time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+	fmt.Printf("Killdate Date: %s\n", khcfg.killdate.date.Format("02/01/2006"))
+
+	// Worktime informations - CORRIGIDO
 	khcfg.worktime.enabled = packer.ParseInt32() != 0
-	khcfg.worktime.start = fmt.Sprintf("%02d:%02d", packer.ParseInt16(), packer.ParseInt16())
-	khcfg.worktime.end = fmt.Sprintf("%02d:%02d", packer.ParseInt16(), packer.ParseInt16())
+	fmt.Printf("Worktime Enabled: %v\n", khcfg.worktime.enabled)
 
+	startHour := packer.ParseInt16()
+	startMin := packer.ParseInt16()
+	endHour := packer.ParseInt16()
+	endMin := packer.ParseInt16()
+
+	khcfg.worktime.start = fmt.Sprintf("%02d:%02d", startHour, startMin)
+	khcfg.worktime.end = fmt.Sprintf("%02d:%02d", endHour, endMin)
+	fmt.Printf("Worktime: %s - %s\n", khcfg.worktime.start, khcfg.worktime.end)
+
+	// Guardrail informations
 	khcfg.guardrails.ipaddress = packer.ParseString()
 	fmt.Printf("Guard IP: %s\n", khcfg.guardrails.ipaddress)
 
@@ -688,14 +719,15 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 	khcfg.guardrails.domain = packer.ParseString()
 	fmt.Printf("Guard Domain: %s\n", khcfg.guardrails.domain)
 
+	// Additional session informations
 	khcfg.session.cmd_line = packer.ParseString()
 	fmt.Printf("CommandLine: %v\n", khcfg.session.cmd_line)
 
 	khcfg.session.heap_handle = uint64(packer.ParseInt64())
-	fmt.Printf("Heap Handle: %v\n", khcfg.session.heap_handle)
+	fmt.Printf("Heap Handle: 0x%X\n", khcfg.session.heap_handle)
 
 	khcfg.session.elevated = packer.ParseInt32() != 0
-	fmt.Printf("ElevatedValue: %v\n", khcfg.session.elevated)
+	fmt.Printf("Elevated: %v\n", khcfg.session.elevated)
 
 	khcfg.session.jitter = uint32(packer.ParseInt32())
 	fmt.Printf("Jitter: %v\n", khcfg.session.jitter)
@@ -715,52 +747,56 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 	khcfg.session.base.size = uint32(packer.ParseInt32())
 	fmt.Printf("Kharon Memory Length: %v\n", khcfg.session.base.size)
 
-	startAddr, _ := strconv.ParseUint(khcfg.session.base.start, 10, 64)
-	khcfg.session.base.end = fmt.Sprintf("%v", startAddr+uint64(khcfg.session.base.size))
-	fmt.Printf("Kharon Memory End: %#x\n", khcfg.session.base.end)
+	startAddr, _ := strconv.ParseUint(strings.TrimPrefix(khcfg.session.base.start, "0x"), 16, 64)
+	khcfg.session.base.end = fmt.Sprintf("%#x", startAddr+uint64(khcfg.session.base.size))
+	fmt.Printf("Kharon Memory End: %s\n", khcfg.session.base.end)
 
 	khcfg.session.thread_id = uint32(packer.ParseInt32())
 	fmt.Printf("TID: %v\n", khcfg.session.thread_id)
 
+	// Fork informations
 	khcfg.ps.spawnto = string(packer.ParseBytes())
 	fmt.Printf("Spawnto: %v\n", khcfg.ps.spawnto)
 
 	khcfg.ps.fork_pipe = string(packer.ParseBytes())
 	fmt.Printf("ForkPipeName: %v\n", khcfg.ps.fork_pipe)
 
+	// Mask informations - CORRIGIDO: mesma ordem do cliente (Jmp, Heap, NtCont, Beacon)
 	khcfg.mask.jmpgadget = fmt.Sprintf("%#x", uint64(packer.ParseInt64()))
 	fmt.Printf("JmpGadget: %v\n", khcfg.mask.jmpgadget)
-
-	khcfg.mask.ntcontinue = fmt.Sprintf("%#x", uint64(packer.ParseInt64()))
-	fmt.Printf("NtContinue: %v\n", khcfg.mask.ntcontinue)
 
 	khcfg.mask.heap = packer.ParseInt32() != 0
 	fmt.Printf("Mask Heap: %v\n", khcfg.mask.heap)
 
+	khcfg.mask.ntcontinue = fmt.Sprintf("%#x", uint64(packer.ParseInt64()))
+	fmt.Printf("NtContinue: %v\n", khcfg.mask.ntcontinue)
+
 	khcfg.mask.beacon = uint32(packer.ParseInt32())
 	fmt.Printf("Mask Beacon: %v\n", khcfg.mask.beacon)
 
+	// Additional machine informations
 	khcfg.machine.processor_name = string(packer.ParseBytes())
 	fmt.Printf("Processor Name: %v\n", khcfg.machine.processor_name)
 
 	khcfg.machine.ipaddress = int32_to_ipv4(packer.ParseInt32())
-	fmt.Printf("ipaddress: %s\n", khcfg.machine.ipaddress)
+	fmt.Printf("IP Address: %s\n", khcfg.machine.ipaddress)
 
 	khcfg.machine.ram_total = uint32(packer.ParseInt32())
-	fmt.Printf("Total RAM: %v\n", khcfg.machine.ram_total)
+	fmt.Printf("Total RAM: %v MB\n", khcfg.machine.ram_total)
 
 	khcfg.machine.ram_aval = uint32(packer.ParseInt32())
-	fmt.Printf("Available RAM: %v\n", khcfg.machine.ram_aval)
+	fmt.Printf("Available RAM: %v MB\n", khcfg.machine.ram_aval)
 
 	khcfg.machine.ram_used = uint32(packer.ParseInt32())
-	fmt.Printf("Used RAM: %v\n", khcfg.machine.ram_used)
+	fmt.Printf("Used RAM: %v MB\n", khcfg.machine.ram_used)
 
 	khcfg.machine.ram_perct = uint32(packer.ParseInt32())
-	fmt.Printf("Percent RAM: %v\n", khcfg.machine.ram_perct)
+	fmt.Printf("Percent RAM: %v%%\n", khcfg.machine.ram_perct)
 
 	khcfg.machine.processor_numbers = uint32(packer.ParseInt32())
 	fmt.Printf("Processors Nbr: %v\n", khcfg.machine.processor_numbers)
 
+	// Win version
 	khcfg.machine.os_major = uint32(packer.ParseInt32())
 	fmt.Printf("OS Major: %v\n", khcfg.machine.os_major)
 
@@ -770,12 +806,14 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 	khcfg.machine.os_build = uint32(packer.ParseInt32())
 	fmt.Printf("OS Build: %v\n", khcfg.machine.os_build)
 
+	// Memory info
 	khcfg.machine.allocation_gran = uint32(packer.ParseInt32())
 	fmt.Printf("Allocation Granularity: %v\n", khcfg.machine.allocation_gran)
 
 	khcfg.machine.page_size = uint32(packer.ParseInt32())
 	fmt.Printf("Page Size: %v\n", khcfg.machine.page_size)
 
+	// Security informations
 	khcfg.machine.cfg_enabled = packer.ParseInt32() != 0
 	fmt.Printf("CFG Enabled: %v\n", khcfg.machine.cfg_enabled)
 
@@ -785,9 +823,20 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 	khcfg.machine.dse_status = uint32(packer.ParseInt32())
 	fmt.Printf("DSE Status: %v\n", khcfg.machine.dse_status)
 
+	khcfg.machine.testsign_enabled = packer.ParseInt32() != 0
+	fmt.Printf("Test Signing Enabled: %v\n", khcfg.machine.testsign_enabled)
+
+	khcfg.machine.debugmode_enabled = packer.ParseInt32() != 0
+	fmt.Printf("Debug Mode Enabled: %v\n", khcfg.machine.debugmode_enabled)
+
+	khcfg.machine.secureboot_enabled = packer.ParseInt32() != 0
+	fmt.Printf("Secure Boot Enabled: %v\n", khcfg.machine.secureboot_enabled)
+
+	// Encryption key
 	key := packer.ParseBytes()
 	fmt.Printf("Session Key: %v\n", key)
 
+	// Process image name
 	process := ConvertCpToUTF8(khcfg.session.img_path, int(khcfg.session.acp))
 	if strings.Contains(process, "\\") {
 		parts := strings.Split(process, "\\")
@@ -797,7 +846,7 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 	khcfg.session.img_name = process
 
 	versionInfo := GetDetailedWindowsVersion(khcfg.machine.os_major, khcfg.machine.os_minor, khcfg.machine.os_build)
-    osDesc := fmt.Sprintf("%s (%s)", versionInfo["name"], versionInfo["release_name"])
+	osDesc := fmt.Sprintf("%s (%s)", versionInfo["name"], versionInfo["release_name"])
 
 	agent = ax.AgentData{
 		Id:         agentId,

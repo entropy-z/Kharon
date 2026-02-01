@@ -399,12 +399,8 @@ auto DECLFN Kharon::Init(
         nullptr ) ) ) {
         
         this->Machine.HvciEnabled = (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_HVCI_KMCI_ENABLED) != 0;
-        
-        this->Machine.DseEnabled = (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_ENABLED) != 0 &&
-                                (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_TESTSIGN) == 0;
-        
+        this->Machine.DseEnabled = (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_ENABLED) != 0 && (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_TESTSIGN) == 0;
         this->Machine.TestSigningEnabled = (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_TESTSIGN) != 0;
-        
         this->Machine.DebugModeEnabled = (CodeIntegrityInfo.CodeIntegrityOptions & CODEINTEGRITY_OPTION_DEBUGMODE_ENABLED) != 0;
     }
 
@@ -419,7 +415,7 @@ auto DECLFN Kharon::Init(
         this->Machine.SecureBootEnabled = SecureBootInfo.SecureBootEnabled;
     }
         
-    KhDbgz( "HVCI Enabled: %s", this->Machine.HhvciEnabled ? "Yes" : "No" );
+    KhDbgz( "HVCI Enabled: %s", this->Machine.HvciEnabled ? "Yes" : "No" );
     KhDbgz( "DSE Enabled: %s\n", this->Machine.DseEnabled ? "Yes" : "No" );
 
     KhDbgz( "======== Transport Informations ========" );

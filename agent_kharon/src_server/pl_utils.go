@@ -21,32 +21,29 @@ import (
 
 type KharonData struct {
 	machine struct {
-		username  string
-		computer  string
-		domain    string
-		netbios   string
-		ipaddress string
-
-		os_arch byte
-
-		processor_numbers uint32
-		processor_name    string
-
-		ram_used  uint32
-		ram_total uint32
-		ram_aval  uint32
-		ram_perct uint32
-
-		os_minor uint32
-		os_major uint32
-		os_build uint32
-
-		allocation_gran uint32
-		page_size       uint32
-
-		cfg_enabled bool
-		dse_status  uint32
-		vbs_hvci    uint32
+		os_arch            uint8
+		username           string
+		computer           string
+		domain             string
+		netbios            string
+		ipaddress          string
+		processor_name     string
+		processor_numbers  uint32
+		ram_total          uint32
+		ram_aval           uint32
+		ram_used           uint32
+		ram_perct          uint32
+		os_major           uint32
+		os_minor           uint32
+		os_build           uint32
+		allocation_gran    uint32
+		page_size          uint32
+		cfg_enabled        bool
+		vbs_hvci           uint32
+		dse_status         uint32
+		testsign_enabled   bool
+		debugmode_enabled  bool
+		secureboot_enabled bool
 	}
 
 	session struct {
@@ -186,6 +183,15 @@ func (k *KharonData) Marshal() ([]byte, error) {
 		return nil, err
 	}
 	if err := binary.Write(&buf, binary.LittleEndian, k.machine.vbs_hvci); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.machine.testsign_enabled); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.machine.debugmode_enabled); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.machine.secureboot_enabled); err != nil {
 		return nil, err
 	}
 
@@ -416,6 +422,21 @@ func (k *KharonData) Unmarshal(data []byte) error {
 
 	if err := binary.Read(buf, binary.LittleEndian, &k.machine.vbs_hvci); err != nil {
 		return fmt.Errorf("failed to read machine.vbs_hvci: %w", err)
+	}
+
+	k.machine.testsign_enabled, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.testsign_enabled: %w", err)
+	}
+
+	k.machine.debugmode_enabled, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.debugmode_enabled: %w", err)
+	}
+
+	k.machine.secureboot_enabled, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.secureboot_enabled: %w", err)
 	}
 
 	// Session
@@ -2231,11 +2252,11 @@ func FormatKharonTable(data *KharonData) string {
 	}
 
 	sectionTitle := func(title string) string {
-		padding := (colLabel + colValue + 6 - len(title)) / 2
-		return fmt.Sprintf("│ %s%s%s │\n",
-			strings.Repeat(" ", padding),
-			title,
-			strings.Repeat(" ", padding))
+		totalWidth := colLabel + colValue + 5
+		padding := (totalWidth - len(title)) / 2
+		leftPad := strings.Repeat(" ", padding)
+		rightPad := strings.Repeat(" ", totalWidth-len(title)-padding)
+		return fmt.Sprintf("│%s%s%s│\n", leftPad, title, rightPad)
 	}
 
 	// Top border
@@ -2353,6 +2374,9 @@ func FormatKharonTable(data *KharonData) string {
 	b.WriteString(row("CFG Enabled", boolStr(data.machine.cfg_enabled)))
 	b.WriteString(row("DSE Status", dseStatusStr(data.machine.dse_status)))
 	b.WriteString(row("VBS/HVCI", vbsHvciStr(data.machine.vbs_hvci)))
+	b.WriteString(row("Test Signing", boolStr(data.machine.testsign_enabled)))
+	b.WriteString(row("Debug Mode", boolStr(data.machine.debugmode_enabled)))
+	b.WriteString(row("Secure Boot", boolStr(data.machine.secureboot_enabled)))
 	b.WriteString(border("bottom"))
 
 	return b.String()
