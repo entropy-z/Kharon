@@ -20,39 +20,32 @@ extern "C" auto go( char* args, int argc ) -> void
     
     DWORD attribs = GetFileAttributesW( absolute_path );
     
-    if ( attribs == INVALID_FILE_ATTRIBUTES )
-    {
+    if ( attribs == INVALID_FILE_ATTRIBUTES ) {
         wcsncpy( search_path, absolute_path, MAX_PATH - 1 );
     }
-    else if ( attribs & FILE_ATTRIBUTE_DIRECTORY )
-    {
+    else if ( attribs & FILE_ATTRIBUTE_DIRECTORY ) {
         _swprintf( search_path, L"%s\\*", absolute_path );
     }
-    else
-    {
+    else {
         wcsncpy( search_path, absolute_path, MAX_PATH - 1 );
     }
     
     wcsncpy( base_dir, search_path, MAX_PATH - 1 );
     WCHAR* last_slash = wcsrchr( base_dir, L'\\' );
-    if ( last_slash ) 
-    {
+    if ( last_slash ) {
         *( last_slash + 1 ) = L'\0';
     }
     
     HANDLE find_handle = FindFirstFileW( search_path, &find_data );
     
-    if ( find_handle == INVALID_HANDLE_VALUE ) 
-    {
-        BeaconPrintfW( CALLBACK_ERROR, L"Failed to list directory: '%s' | error: (%d) %s\n", 
-                       search_path, GetLastError(), fmt_error( GetLastError() ) );
+    if ( find_handle == INVALID_HANDLE_VALUE ) {
+        BeaconPrintfW( CALLBACK_ERROR, L"Failed to list directory: '%s' | error: (%d) %s\n", search_path, GetLastError(), fmt_error( GetLastError() ) );
         return;
     }
     
     BeaconPkgBytes( (PBYTE)base_dir, ( wcslen( base_dir ) + 1 ) * sizeof( WCHAR ) );
     
-    do 
-    {
+    do {
         if ( wcscmp( find_data.cFileName, L"." ) == 0 || 
              wcscmp( find_data.cFileName, L".." ) == 0 )
         {
