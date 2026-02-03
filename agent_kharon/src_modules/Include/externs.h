@@ -137,8 +137,10 @@ extern "C" {
     DFR(MSVCRT, memset)
     DFR(MSVCRT, memcpy)
     DFR(MSVCRT, wcslen)
+    DFR(MSVCRT, wcsncpy)
     DFR(MSVCRT, strlen)
     DFR(MSVCRT, sprintf)
+    DFR(MSVCRT, wcsrchr)
     DFR(MSVCRT, _swprintf)
     DFR(MSVCRT, wcscpy)
     DFR(MSVCRT, wcscat)
@@ -309,6 +311,8 @@ extern "C" {
 #define memset                            MSVCRT$memset
 #define memcpy                            MSVCRT$memcpy
 #define wcslen                            MSVCRT$wcslen
+#define wcsncpy                           MSVCRT$wcsncpy
+#define wcsrchr                           MSVCRT$wcsrchr
 #define strlen                            MSVCRT$strlen
 #define sprintf                           MSVCRT$sprintf
 #define _swprintf                         MSVCRT$_swprintf

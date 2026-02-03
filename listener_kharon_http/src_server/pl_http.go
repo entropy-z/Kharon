@@ -1023,6 +1023,12 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 			
 			agentID := strings.TrimPrefix(k, "key_")
 			
+			if !ModuleObject.ts.TsAgentIsExists(agentID) {
+				fmt.Printf("[DEBUG] Agent %s no longer exists, removing key\n", agentID)
+				ModuleObject.ts.TsExtenderDataDelete(handler.Name, k)
+				continue
+			}
+			
 			storedKey, err := ModuleObject.ts.TsExtenderDataLoad(handler.Name, k)
 			if err != nil || len(storedKey) != 16 {
 				fmt.Printf("[DEBUG] Failed to load key for %s: %v\n", agentID, err)
@@ -1062,7 +1068,6 @@ func (handler *HTTP) parse_client_data(ctx *gin.Context, client *ClientRequest, 
 			}
 		}
 	}
-
 
 	if total_len >= 52 {
 		fmt.Printf("[DEBUG] Trying as NEW AGENT (length >= 52)\n")
