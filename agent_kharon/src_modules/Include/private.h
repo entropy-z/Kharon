@@ -22,7 +22,7 @@ auto inline KhpCreateProcess(
 
     ULONG status = kh_process_creation( &CreateArgs, PsInfo );
 
-    free ( info );
+    free( info );
 
     return status;
 }
@@ -49,7 +49,7 @@ auto inline KhpSpawntoProcess(
 
     ULONG status = kh_process_creation( &CreateArgs, PsInfo );
 
-    free ( info );
+    free( info );
 
     return status;
 }

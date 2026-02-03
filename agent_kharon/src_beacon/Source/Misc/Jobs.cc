@@ -207,7 +207,7 @@ auto DECLFN Jobs::ExecuteAll( VOID ) -> LONG {
             Current->ExitCode  = Result;
             Current->State     = KH_JOB_READY_SEND;
 
-            KhDbg( "job executed with exit code: %d, shouldClean: %d", Current->ExitCode, Current->Clean );
+            KhDbg( "job executed with exit code: %d, should clean: %d", Current->ExitCode, Current->Clean );
         }
 
         Current = Current->Next;

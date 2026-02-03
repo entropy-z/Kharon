@@ -107,6 +107,7 @@ struct _BOF_OBJ {
     PVOID MmEnd;
     CHAR* UUID;
     ULONG CmdID;
+    PVOID Entry;
 
     struct _BOF_OBJ* Next;
 };
@@ -133,5 +134,41 @@ struct _USER_DATA {
     struct _USER_DATA* Next;
 };
 typedef _USER_DATA VALUE_DICT;
+
+typedef struct {
+    PVOID Base;
+    ULONG Size;
+} SECTION_DATA;
+
+typedef struct {
+    PCHAR Name;
+    ULONG Hash;
+    UINT8 Type; // ( COFF_VAR | COFF_FNC | COFF_IMP )
+    ULONG Rva;
+    PVOID Ptr;
+    INT16 SectionNumber;
+} SYMBOL_DATA;
+
+typedef struct {
+    SYMBOL_DATA*  Sym;
+    SECTION_DATA* Sec;
+} COFF_DATA;
+
+typedef struct _COFF_MAPPED {
+    PVOID       MmBase;
+    ULONG       MmSize;
+    PVOID       EntryPoint;
+    COFF_DATA   CoffData;
+    ULONG       SecNbrs;
+    ULONG       SymNbrs;
+    BOOL        IsObfuscated;      // tracks obfuscation state
+    PVOID*      ExecSections;      // array of executable section bases
+    ULONG*      ExecSizes;         // array of executable section sizes
+    ULONG       ExecCount;         // number of executable sections
+} COFF_MAPPED, *PCOFF_MAPPED;
+
+
+#define POSTEX_LIST_HANDLE      "\x66\x55\x44\x77"
+#define POSTEX_COUNT_HANDLE     "\x77\x44\x55\x66"
 
 #endif // EVASION_H

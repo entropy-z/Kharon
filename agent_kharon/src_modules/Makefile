@@ -11,7 +11,6 @@ FS_SRCS = file_system/cat.cc file_system/cp.cc file_system/ls.cc \
           file_system/mkdir.cc file_system/mv.cc file_system/pwd.cc \
           file_system/rm.cc file_system/cd.cc
 
-HWBP_SRCS = hwbp_force/disable.cc hwbp_force/enable.cc
 INJ_SRCS  = injection/scinject.cc
 PROC_SRCS = process/create.cc process/grep.cc process/kill.cc process/list.cc
 
@@ -30,9 +29,6 @@ $(DIST_DIR):
 
 # Pattern rules for each subdirectory
 $(DIST_DIR)/%.x64.o: file_system/%.cc
-	$(CC) $(CFLAGS) $(INCFLAGS) -o $@ $<
-
-$(DIST_DIR)/%.x64.o: hwbp_force/%.cc
 	$(CC) $(CFLAGS) $(INCFLAGS) -o $@ $<
 
 $(DIST_DIR)/%.x64.o: injection/%.cc

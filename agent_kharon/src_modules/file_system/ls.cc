@@ -25,9 +25,7 @@ extern "C" auto go( char* args, int argc ) -> void {
         return;
     }
 
-    GetFullPathNameW( find_data.cFileName, MAX_PATH * sizeof(WCHAR), full_path, nullptr );
-
-    BeaconPkgBytes( (PBYTE)full_path, wcslen( full_path ) * sizeof(WCHAR) );
+    BeaconPkgBytes( (PBYTE)target_dir, wcslen( full_path ) * sizeof(WCHAR) );
 
     do {
         file_handle = CreateFileW( find_data.cFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, 0 );

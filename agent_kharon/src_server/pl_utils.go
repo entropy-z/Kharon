@@ -119,6 +119,10 @@ type KharonData struct {
 		spawnto    string
 		fork_pipe  string
 	}
+
+	postex_handler struct {
+		PostexLoaded bool
+	}
 }
 
 func (k *KharonData) Marshal() ([]byte, error) {
@@ -738,7 +742,6 @@ const (
 
 const (
 	TASK_ERROR            int16 = 6
-	TASK_CONFIG           int16 = 10
 	TASK_PROC             int16 = 11
 	TASK_FS               int16 = 12
 	TASK_UPLOAD           int16 = 13
@@ -816,6 +819,10 @@ const (
 	FS_MKDIR int = 35
 	FS_RM    int = 36
 	FS_CD    int = 37
+)
+
+const (
+	TASK_CONFIG int = 10
 )
 
 const (

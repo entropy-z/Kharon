@@ -128,6 +128,14 @@ namespace Action {
         Remove
     };
 
+    enum class Postex {
+        Inject = 0x01,
+        Poll,
+        Kill,
+        List,
+        Cleanup
+    };
+
     enum class Task {
         GetTask,
         PostTask,
@@ -192,26 +200,6 @@ namespace Action {
         Chunk
     };
 
-    enum class Config {
-        Jitter = 14,
-        Sleep,
-        Mask,
-        Ppid,
-        BlockDlls,
-        Arg,
-        Spawn,
-        Killdate,
-        Worktime,
-        HeapObf,
-        KilldateSelfdel,
-        KilldateExit,
-        AmsiEtwBypass,
-        Syscall,
-        ForkPipeName,
-        Argue,
-        BofApiProxy
-    };
-
     enum class Token {
         GetUUID = 10,
         Steal,
@@ -227,24 +215,6 @@ namespace Action {
     enum class Exit {
         Thread = 20,
         Proc
-    };
-
-    enum class Ps {
-        List = 20,
-        Create,
-        Kill,
-        Pwsh
-    };
-
-    enum class Fs {
-        List = 30,
-        Read,
-        Cwd,
-        Move,
-        Copy,
-        MakeDir,
-        Delete,
-        ChangeDir
     };
 }
 

@@ -22,7 +22,7 @@ event.on_filebrowser_list(event_files_action, ["kharon"]);
 
 
 var event_process_action = function(id) {
-    ax.execute_browser(id, "ps list");
+    ax.execute_browser(id, "process list");
 }
 event.on_processbrowser_list(event_process_action, ["kharon"]);
 
@@ -232,12 +232,11 @@ function RegisterCommands(listenerType)
     cmd_exec_bof.addArgFile("bof_file", true, "Path to compiled object file (.o)");
     cmd_exec_bof.addArgString("param_data", false);
 
-    let cmd_exec_postex = ax.create_command("postex", "Execute post-exploitation shellcode inline or forked", "execute postex -m inline -t none -p 0 -f /tmp/module.bin -a params", "Task: execute post-exploitation module");
-    cmd_exec_postex.addArgFlagString("-m", "method", "Execution method: 'inline' (current process) or 'fork' (new/existing process)", "inline");
-    cmd_exec_postex.addArgFlagString("-t", "fork_type", "Fork type: 'spawn' (new process) or 'explicit' (existing PID)", "none");
-    cmd_exec_postex.addArgFlagInt("-p", "pid", "Target PID for explicit fork injection", 0);
-    cmd_exec_postex.addArgFlagFile("-f", "sc_file", "Shellcode file", true);
-    cmd_exec_postex.addArgFlagString("-a", "param_data", "Shellcode parameters");
+    let cmd_exec_postex = ax.create_command("postex", "Execute post-exploitation shellcode inline or forked", "execute postex --method spawn --file /tmp/module.bin --args params", "Task: execute post-exploitation module");
+    cmd_exec_postex.addArgFlagString("--method", "method", "Execution method: 'explicit' (current process) or 'spawn' (new/existing process)", "spawn");
+    cmd_exec_postex.addArgFlagInt("--pid", "pid", "Target PID for explicit fork injection", 0);
+    cmd_exec_postex.addArgFlagFile("--file", "sc_file", "Shellcode file", true);
+    cmd_exec_postex.addArgFlagString("--arg", "param_data", "Shellcode parameters");
 
     let cmd_execute = ax.create_command("execute", "Execute Beacon Object Files or post-exploitation shellcode modules");
     cmd_execute.addSubCommands([cmd_exec_bof, cmd_exec_postex]);

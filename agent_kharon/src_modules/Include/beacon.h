@@ -3,6 +3,8 @@
 
 #define CALLBACK_NO_PRE_MSG  0x4f
 #define CALLBACK_OUTPUT      0x0
+#define CALLBACK_SCREENSHOT  0x55
+#define CALLBACK_INFO        0x4e
 #define CALLBACK_OUTPUT_OEM  0x1e
 #define CALLBACK_ERROR       0x0d
 #define CALLBACK_OUTPUT_UTF8 0x20

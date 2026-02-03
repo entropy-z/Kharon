@@ -178,5 +178,7 @@ extern "C" auto go( char* args, int argc ) -> void {
 
     free( info );
 
+    BeaconPkgInt32( EXIT_SUCCESS );
+
     return;
 }
