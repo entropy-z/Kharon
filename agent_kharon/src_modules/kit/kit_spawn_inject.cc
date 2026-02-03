@@ -3,16 +3,10 @@
 // this define is mandatory
 #define PS_INJECT_KIT
 
-//
-// arguments pass to bof:
-//  1. spawnto process - BeaconDataExtract
-//  2. parent id (config ppid) - BeaconDataInt
-//  3. block dll policy (config blockdlls) - BeaconDataInt
-//
 auto SpawnInjection(     
     _In_  PBYTE ShellcodeBuff,
     _In_  ULONG ShellcodeSize,
-    _In_  PBYTE Argument,
+    _In_  PBYTE InjectArg,
     _In_  PS_CREATE_ARGS* CreateArgs
 ) -> NTSTATUS {
     NTSTATUS            status       = STATUS_SUCCESS; 

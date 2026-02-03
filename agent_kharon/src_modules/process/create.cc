@@ -7,9 +7,6 @@ extern "C" auto go( char* args, int argc ) -> void {
 
     // parse bof args
     auto process_method    = (Create)BeaconDataInt( &data_parser );
-    auto process_blockdlls = BeaconDataInt( &data_parser );
-    auto process_ppid      = BeaconDataInt( &data_parser );
-    auto process_spoofarg  = (WCHAR*)BeaconDataExtract( &data_parser, nullptr );
     
     auto process_argument = (WCHAR*)BeaconDataExtract( &data_parser, nullptr );
     auto process_state    = BeaconDataInt( &data_parser );
@@ -30,10 +27,6 @@ extern "C" auto go( char* args, int argc ) -> void {
     create_args.argument = process_argument;
     create_args.state    = process_state;
     create_args.pipe     = process_pipe;
-
-    create_args.blockdlls = process_blockdlls;
-    create_args.ppid      = process_ppid;
-    create_args.spoofarg  = process_spoofarg;
 
     create_args.domain   = process_domain;
     create_args.username = process_username;

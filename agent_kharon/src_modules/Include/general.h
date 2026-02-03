@@ -22,8 +22,6 @@ auto inline fmt_error( _In_ int error_code ) -> WCHAR* {
     return error_msg;
 }
 
-extern datap* data_psr;
-
 typedef union _BASICEX_PARAM {
     ULONG Flags;
 
@@ -63,54 +61,6 @@ typedef _PS_CREATE_ARGS PS_CREATE_ARGS;
 auto kh_process_creation( 
     _In_  PS_CREATE_ARGS*      create_args,
     _Out_ PROCESS_INFORMATION* ps_information
-) -> NTSTATUS;
-
-auto inline KhpCreateProcess( 
-    _In_  datap*               DataParser,
-    _In_  WCHAR*               SpawnProcess,
-    _In_  ULONG                StateFlag,
-    _Out_ PROCESS_INFORMATION* PsInfo
-) -> NTSTATUS {
-#if defined(PS_INJECT_KIT)
-#include <kit/process_creation.cc>
-#endif
-
-    ULONG  ParentId  = BeaconDataInt( DataParser );
-    BOOL   BlockDlls = BeaconDataInt( DataParser );
-    HANDLE PsToken   = (HANDLE)BeaconDataInt( DataParser );
-
-    PS_CREATE_ARGS CreateArgs = {};
-
-    CreateArgs.argument  = SpawnProcess;
-    CreateArgs.state     = StateFlag;
-    CreateArgs.ppid      = ParentId;
-    CreateArgs.blockdlls = BlockDlls;
-
-    return kh_process_creation( &CreateArgs, PsInfo );
-}
-
-auto inline KhpSpawntoProcess(
-    _In_  datap*               DataParser,
-    _In_  ULONG                StateFlag,
-    _Out_ PROCESS_INFORMATION* PsInfo
-) -> NTSTATUS {
-#if defined(PS_INJECT_KIT)
-#include <kit/process_creation.cc>
-#endif
-
-    WCHAR* SpawntoProcess = (WCHAR*)BeaconDataExtract( DataParser, nullptr );
-    ULONG  ParentId       = BeaconDataInt( DataParser );
-    BOOL   BlockDlls      = BeaconDataInt( DataParser );
-    HANDLE PsToken        = (HANDLE)BeaconDataInt( DataParser );
-
-    PS_CREATE_ARGS CreateArgs = {};
-
-    CreateArgs.argument  = SpawntoProcess;
-    CreateArgs.state     = StateFlag;
-    CreateArgs.ppid      = ParentId;
-    CreateArgs.blockdlls = BlockDlls;
-
-    return kh_process_creation( &CreateArgs, PsInfo );
-}
+) -> ULONG;
 
 #endif // GENERAL_H

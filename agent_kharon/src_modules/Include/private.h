@@ -1,12 +1,5 @@
-# Process Injection Kit
-Kharon utilizes commands such as ``postex`` and ``scinject`` which uses the process injection kit for injection behavior control.
-You can customize this behavior by editing the [kit_explicit_inject.cc](../agent_kharon/src_modules/kit/kit_explicit_inject.cc) and [kh_spawn_inject.cc](../agent_kharon/src_modules/kit/kit_spawn_inject.cc) files located in ``agent_kharon/src_modules/kit/``.
-More details about ``postex`` and ``scinject`` can be found by clicking [here](./Commands.md).
+#include <general.h>
 
-The process creation behavior file [kit_process_creation.cc](../agent_kharon/src_modules/kit/kit_process_creation.cc) is located in the ``agent_kharon/src_modules/kit/`` directory. To utilize it, simply call the ``KhpCreateProcess`` function with the process name as a parameter. While ``KhpSpawnProcess`` uses the spawnto process in the creation of a new process. 
-
-> KhpCreateProcess
-```cpp
 auto inline KhpCreateProcess( 
     _In_  WCHAR*               SpawnProcess,
     _In_  ULONG                StateFlag,
@@ -33,10 +26,7 @@ auto inline KhpCreateProcess(
 
     return status;
 }
-```
 
-> KhpSpawnProcess
-```cpp
 auto inline KhpSpawntoProcess(
     _In_  datap*               DataParser,
     _In_  ULONG                StateFlag,
@@ -63,11 +53,3 @@ auto inline KhpSpawntoProcess(
 
     return status;
 }
-```
-
-# Postex Loader
-The kit responsible for loading and handling the post-exploitation shellcode in memory is located [here](agent_kharon/src_modules/kit/kit_postex.cc).
-
----
-
-> BeaconInformation: Gathers several information fields from the beacon like parent_id_spoof, blockdlls, amsi_etw_bypass, and etc. The structure is defined [here](agent_kharon/src_modules/Include/beacon.h).
