@@ -33,6 +33,8 @@ extern "C" auto go( char* args, int argc ) -> void {
 
     BEACON_INFO* info = (BEACON_INFO*)malloc( sizeof( BEACON_INFO ) );
 
+    BeaconInformation( info );
+
     Config config_id = (Config)BeaconDataInt( &data_parser );
 
     switch ( config_id ) {

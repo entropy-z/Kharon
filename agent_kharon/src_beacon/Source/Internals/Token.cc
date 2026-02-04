@@ -207,7 +207,8 @@ auto DECLFN Token::Add(
         TokenID = Rnd32() % 9999;
         attempts++;
         if (attempts > 100) {
-            break;
+            hFree( NewNode );
+            return nullptr;
         }
     } while ( this->GetByID( TokenID ) );
 

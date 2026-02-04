@@ -43,6 +43,7 @@ extern "C" {
     DFR(KERNEL32, LoadLibraryW)
 
     DFR(KERNEL32, OpenProcess)
+    DFR(KERNEL32, GetCurrentProcess)
     DFR(KERNEL32, CreateProcessW)
     DFR(KERNEL32, GetExitCodeProcess)
     DFR(KERNEL32, TerminateProcess)
@@ -122,6 +123,8 @@ extern "C" {
     DFR(ADVAPI32, CreateProcessWithLogonW)
     DFR(ADVAPI32, CreateProcessWithTokenW)
     DFR(ADVAPI32, OpenProcessToken)
+    DFR(ADVAPI32, AdjustTokenPrivileges)
+    DFR(ADVAPI32, LookupPrivilegeValueW)
     DFR(ADVAPI32, LookupAccountSidW)
     DFR(ADVAPI32, OpenSCManagerA)
     DFR(ADVAPI32, CreateServiceA)
@@ -218,6 +221,7 @@ extern "C" {
 #define LoadLibraryW                      KERNEL32$LoadLibraryW
 
 #define OpenProcess                       KERNEL32$OpenProcess
+#define GetCurrentProcess                 KERNEL32$GetCurrentProcess
 #define CreateProcessW                    KERNEL32$CreateProcessW
 #define GetExitCodeProcess                KERNEL32$GetExitCodeProcess
 #define TerminateProcess                  KERNEL32$TerminateProcess
@@ -296,6 +300,8 @@ extern "C" {
 #define CreateProcessWithLogonW           ADVAPI32$CreateProcessWithLogonW
 #define CreateProcessWithTokenW           ADVAPI32$CreateProcessWithTokenW
 #define OpenProcessToken                  ADVAPI32$OpenProcessToken
+#define LookupPrivilegeValueW             ADVAPI32$LookupPrivilegeValueW
+#define AdjustTokenPrivileges             ADVAPI32$AdjustTokenPrivileges
 #define LookupAccountSidW                 ADVAPI32$LookupAccountSidW
 #define OpenSCManagerA                    ADVAPI32$OpenSCManagerA
 #define CreateServiceA                    ADVAPI32$CreateServiceA

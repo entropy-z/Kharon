@@ -94,6 +94,30 @@ auto GetUserByToken(
     return cleanup();
 }
 
+auto EnableDebugPrivilege() -> BOOL {
+    HANDLE token_handle = nullptr;
+    TOKEN_PRIVILEGES token_privs = { 0 };
+    BOOL success = FALSE;
+
+    if ( ! OpenProcessToken( GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token_handle ) ) {
+        return FALSE;
+    }
+
+    if ( ! LookupPrivilegeValueW( nullptr, (LPCWSTR)SE_DEBUG_NAME, &token_privs.Privileges[0].Luid ) ) {
+        CloseHandle( token_handle );
+        return FALSE;
+    }
+
+    token_privs.PrivilegeCount = 1;
+    token_privs.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+    success = AdjustTokenPrivileges( token_handle, FALSE, &token_privs, sizeof(TOKEN_PRIVILEGES), nullptr, nullptr );
+
+    CloseHandle( token_handle );
+
+    return success && GetLastError() == ERROR_SUCCESS;
+}
+
 extern "C" auto go( char* args, int argc ) -> void {
     datap data_parser = { 0 };
 
@@ -106,7 +130,7 @@ extern "C" auto go( char* args, int argc ) -> void {
     HANDLE token_handle   = nullptr;
     HANDLE process_handle = nullptr;
 
-    SYSTEM_PROCESS_INFORMATION* system_proc_info = nullptr; 
+    SYSTEM_PROCESS_INFORMATION* system_proc_info = nullptr;
 
     NtQuerySystemInformation( SystemProcessInformation, nullptr, 0, &return_length );
 
@@ -130,7 +154,10 @@ extern "C" auto go( char* args, int argc ) -> void {
         user_token     = nullptr;
         Isx64          = FALSE;
 
-        process_handle = OpenProcess( PROCESS_QUERY_INFORMATION, FALSE, HandleToUlong( system_proc_info->UniqueProcessId ) );
+        process_handle = OpenProcess( PROCESS_QUERY_LIMITED_INFORMATION, FALSE, HandleToUlong( system_proc_info->UniqueProcessId ) );
+        if ( ! process_handle ) {
+            process_handle = OpenProcess( PROCESS_QUERY_INFORMATION, FALSE, HandleToUlong( system_proc_info->UniqueProcessId ) );
+        }
 
         if ( system_proc_info->ImageName.Buffer ) {
             BeaconPkgBytes( (PBYTE)system_proc_info->ImageName.Buffer, system_proc_info->ImageName.Length );

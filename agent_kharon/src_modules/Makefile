@@ -13,9 +13,10 @@ FS_SRCS = file_system/cat.cc file_system/cp.cc file_system/ls.cc \
 
 INJ_SRCS  = injection/scinject.cc
 PROC_SRCS = process/create.cc process/grep.cc process/kill.cc process/list.cc
+GEN_SRCS = general/config.cc
 
 # All source files
-ALL_SRCS = $(FS_SRCS) $(HWBP_SRCS) $(INJ_SRCS) $(PROC_SRCS) $(RBOF_SRCS)
+ALL_SRCS = $(FS_SRCS) $(HWBP_SRCS) $(INJ_SRCS) $(PROC_SRCS) $(RBOF_SRCS) $(GEN_SRCS)
 
 # Object files (extract basename and add to dist/)
 OBJS = $(addprefix $(DIST_DIR)/,$(notdir $(ALL_SRCS:.cc=.x64.o)))
@@ -31,6 +32,9 @@ $(DIST_DIR):
 $(DIST_DIR)/%.x64.o: file_system/%.cc
 	$(CC) $(CFLAGS) $(INCFLAGS) -o $@ $<
 
+$(DIST_DIR)/%.x64.o: general/%.cc
+	$(CC) $(CFLAGS) $(INCFLAGS) -o $@ $<
+	
 $(DIST_DIR)/%.x64.o: injection/%.cc
 	$(CC) $(CFLAGS) $(INCFLAGS) -o $@ $<
 

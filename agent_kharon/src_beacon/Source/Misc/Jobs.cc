@@ -145,6 +145,7 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
 
     while ( Current ) {
         if ( Current->State == KH_JOB_TERMINATE ) {
+            KhDbg("Cleaning up job: %s", Current->UUID);
             JOBS* ToRemove = Current;
              
             if ( Previous ) {
@@ -156,18 +157,35 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
             }
 
             if ( ToRemove->Pkg ) {
+                KhDbg("Destroying Package for job %s", ToRemove->UUID);
                 Self->Pkg->Destroy( ToRemove->Pkg );
-            }
-            
-            if ( ToRemove->Psr ) {
-                Self->Psr->Destroy( ToRemove->Psr );
+                ToRemove->Pkg = nullptr;
             }
 
+            if ( ToRemove->Psr ) {
+                KhDbg("Destroying Parser for job %s", ToRemove->UUID);
+                Self->Psr->Destroy( ToRemove->Psr );  // Libera apenas o buffer interno (Parser->Original)
+                // Parser::Destroy não libera o struct Parser em si, então precisamos fazer isso manualmente
+                if ( Self->Hp->CheckPtr( ToRemove->Psr ) ) {
+                    KhDbg("Freeing Parser struct for job %s", ToRemove->UUID);
+                    hFree( ToRemove->Psr );
+                }
+                ToRemove->Psr = nullptr;
+            }
+
+            // Destroy contém o Parser original passado para Jobs::Create quando IsResponse=TRUE
             if ( ToRemove->Destroy ) {
-                Self->Psr->Destroy( ToRemove->Psr );
+                KhDbg("Destroying original Parser (Destroy) for job %s", ToRemove->UUID);
+                Self->Psr->Destroy( (PARSER*)ToRemove->Destroy );
+                if ( Self->Hp->CheckPtr( ToRemove->Destroy ) ) {
+                    KhDbg("Freeing original Parser struct (Destroy) for job %s", ToRemove->UUID);
+                    hFree( ToRemove->Destroy );
+                }
+                ToRemove->Destroy = nullptr;
             }
 
             if ( Self->Hp->CheckPtr( ToRemove ) ) {
+                KhDbg("Freeing JOBS struct for job %s", ToRemove->UUID);
                 hFree( ToRemove );
             }
             
