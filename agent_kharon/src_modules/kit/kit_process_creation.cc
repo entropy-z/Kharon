@@ -209,13 +209,13 @@ extern "C" auto kh_process_creation(
 
     if ( use_extended_info && create_args->ppid ) {        
         parent_handle = OpenProcess( PROCESS_CREATE_PROCESS | PROCESS_DUP_HANDLE, FALSE, create_args->ppid );
-        if ( !parent_handle ) {
+        if ( ! parent_handle ) {
             error_code = GetLastError();
             BeaconPrintf( CALLBACK_ERROR, "Failed to open parent process %d: (%d) %ls", create_args->ppid, error_code, fmt_error( error_code ) );
             return cleanup( error_code );
         }
 
-        if ( !UpdateProcThreadAttribute( (LPPROC_THREAD_ATTRIBUTE_LIST)attribute_buff, 0, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, &parent_handle, sizeof(HANDLE), nullptr, nullptr ) ) {
+        if ( ! UpdateProcThreadAttribute( (LPPROC_THREAD_ATTRIBUTE_LIST)attribute_buff, 0, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, &parent_handle, sizeof(HANDLE), nullptr, nullptr ) ) {
             error_code = GetLastError();
             BeaconPrintf( CALLBACK_ERROR, "Failed to update parent process attribute: (%d) %ls", error_code, fmt_error( error_code ) );
             return cleanup( error_code );
@@ -225,7 +225,7 @@ extern "C" auto kh_process_creation(
     if ( use_extended_info && create_args->blockdlls ) {
         process_policy = PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON;
         
-        if ( !UpdateProcThreadAttribute( (LPPROC_THREAD_ATTRIBUTE_LIST)attribute_buff, 0, PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY, &process_policy, sizeof(UINT_PTR), nullptr, nullptr ) ) {
+        if ( ! UpdateProcThreadAttribute( (LPPROC_THREAD_ATTRIBUTE_LIST)attribute_buff, 0, PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY, &process_policy, sizeof(UINT_PTR), nullptr, nullptr ) ) {
             error_code = GetLastError();
             BeaconPrintf( CALLBACK_ERROR, "Failed to update mitigation policy attribute: (%d) %ls", error_code, fmt_error( error_code ) );
             return cleanup( error_code );

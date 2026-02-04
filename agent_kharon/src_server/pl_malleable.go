@@ -546,5 +546,5 @@ func writeOutputConfig(buf *bytes.Buffer, output map[string]interface{}, outputT
 	}
 	fmt.Printf("[DEBUG] Body: %d bytes (%q)\n", len(body_bytes), body_str)
 
-	fmt.Printf("[DEBUGqq] Done with %s\n", outputType)
+	fmt.Printf("[DEBUG] Done with %s\n", outputType)
 }

@@ -44,7 +44,7 @@ auto DECLFN Coff::PrintfW(
 
     va_list VaList;
     va_list VaListCopy;
-    
+
     VOID*  MemRange = __builtin_return_address( 0 );
     CHAR*  UUID     = nullptr;
     int    MsgSize  = 0;
@@ -52,22 +52,27 @@ auto DECLFN Coff::PrintfW(
     WCHAR* MsgBuff  = nullptr;
 
     va_start( VaList, fmt );
+
+    // Primeira cópia para calcular o tamanho
     va_copy( VaListCopy, VaList );
-    
-    MsgSize = Self->Msvcrt.k_vscwprintf( fmt, VaList );
-    
+    MsgSize = Self->Msvcrt.k_vscwprintf( fmt, VaListCopy );
+    va_end( VaListCopy );
+
     if ( MsgSize < 0 ) {
-        KhDbg( "Printf: vscwprintf size probe failed" ); 
+        KhDbg( "Printf: vscwprintf size probe failed" );
         goto _CLEANUP;
     }
 
     MsgBuff = ( WCHAR* )hAlloc( ( MsgSize + 1 ) * sizeof( WCHAR ) );
     if ( !MsgBuff ) {
-        KhDbg( "Printf: allocation failed" ); 
+        KhDbg( "Printf: allocation failed" );
         goto _CLEANUP;
     }
 
-    written = Self->Msvcrt.k_vswprintf( MsgBuff, fmt, VaListCopy );
+    // Segunda cópia para formatar a string
+    va_copy( VaListCopy, VaList );
+    written = Self->Msvcrt.k_vswprintf( MsgBuff, MsgSize + 1, fmt, VaListCopy );
+    va_end( VaListCopy );
     
     if ( written < 0 ) {
         KhDbg( "Printf: vswprintf output failed" ); 
@@ -203,15 +208,15 @@ auto DECLFN Coff::FmtPrintfW(
     va_start( Args, Data );
 
     size_t avail   = Fmt->size - Fmt->length - 1;
-    int    written = Self->Msvcrt.k_vswprintf( (WCHAR*)Fmt->buffer, Data, Args );
+    int    written = Self->Msvcrt.k_vswprintf( (WCHAR*)Fmt->buffer, avail, Data, Args );
 
     va_end( Args );
-    if ( written ) {
+    if ( written < 0 ) {
         KhDbg( "FmtPrintf: vswnprint error" );
         return;
     }
 
-    Fmt->buffer += written;
+    Fmt->buffer += written * sizeof(WCHAR);
     Fmt->length += written;
 }
 

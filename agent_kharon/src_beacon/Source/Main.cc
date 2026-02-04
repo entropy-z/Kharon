@@ -157,7 +157,7 @@ auto DECLFN Kharon::Init(
     this->Krnl32.DeleteProcThreadAttributeList     = ( decltype( this->Krnl32.DeleteProcThreadAttributeList ) )this->Krnl32.GetProcAddress( (HMODULE)this->Krnl32.Handle, "DeleteProcThreadAttributeList" );
     this->Msvcrt.k_swprintf  = ( decltype( this->Msvcrt.k_swprintf ) )this->Krnl32.GetProcAddress( (HMODULE)this->Msvcrt.Handle, "swprintf" );
     this->Msvcrt.k_vscwprintf = ( decltype( this->Msvcrt.k_vscwprintf ) )this->Krnl32.GetProcAddress( (HMODULE)this->Msvcrt.Handle, "_vscwprintf" );
-    this->Msvcrt.k_vswprintf = ( decltype( this->Msvcrt.k_vswprintf ) )this->Krnl32.GetProcAddress( (HMODULE)this->Msvcrt.Handle, "vswprintf" );
+    this->Msvcrt.k_vswprintf = ( decltype( this->Msvcrt.k_vswprintf ) )this->Krnl32.GetProcAddress( (HMODULE)this->Msvcrt.Handle, "_vsnwprintf" );
 
     KhDbgz( "Library kernel32.dll  Loaded at %p and Functions Resolveds", this->Krnl32.Handle    );
     KhDbgz( "Library ntdll.dll     Loaded at %p and Functions Resolveds", this->Ntdll.Handle     );

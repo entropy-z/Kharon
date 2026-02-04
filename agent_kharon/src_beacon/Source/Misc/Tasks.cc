@@ -21,11 +21,16 @@ auto DECLFN Task::Dispatcher( VOID ) -> VOID {
 
         Self->Jbs->Cleanup();
 
-        if ( DataPsr && Self->Hp->CheckPtr( DataPsr ) ) {
-            hFree( DataPsr );
+        if ( DataPsr ) {
+            BOOL IsTracked = Self->Hp->CheckPtr( DataPsr );
+            if ( IsTracked ) {
+                hFree( DataPsr );
+            } else {
+                KhDbg("WARNING: DataPsr not tracked, cannot free!");
+            }
         }
 
-        if ( Parser ) { 
+        if ( Parser ) {
             Self->Psr->Destroy( Parser );
         }
 
