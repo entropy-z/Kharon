@@ -153,11 +153,11 @@ struct _BEACON_INFO {
     ULONG BeaconLength;
 
     struct {
-        CHAR*  AgentId;
-        WCHAR* CommandLine;
-        WCHAR* ImagePath;
-        ULONG  ProcessId;
-        BOOL   Elevated;
+        CHAR* AgentId;
+        PCHAR CommandLine;
+        PCHAR ImagePath;
+        ULONG ProcessId;
+        BOOL  Elevated;
     } Session;
 
     struct {

