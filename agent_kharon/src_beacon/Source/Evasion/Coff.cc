@@ -133,7 +133,7 @@ auto Coff::RslApi(
     //
     // check if is Beacon api and resolve this function
     //
-    if ( Str::StartsWith( (BYTE*)SymName, (BYTE*)"Beacon" ) ) {
+    if ( Str::StartsWith( (BYTE*)SymName, (BYTE*)"Beacon" )  || Str::StartsWith( (BYTE*)SymName, (BYTE*)"Ax" ) ) {
         for ( int i = 0; i < sizeof( ApiTable ) / sizeof( ApiTable[0] ); i++ ) {
             KhDbg("Checking ApiTable[%d] (Hash: 0x%X vs Target: 0x%X)", i, ApiTable[i].Hash, Hsh::Str( SymName ));
             if ( Hsh::Str( SymName ) == ApiTable[i].Hash ) {
@@ -142,7 +142,8 @@ auto Coff::RslApi(
                 break;
             }
         }
-    }
+        
+    } 
 
     KhDbg("symbol not in ApiTable, attempting dynamic resolution");
 

