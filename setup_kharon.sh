@@ -171,15 +171,15 @@ function build_agent_code {
     info_msg "Built agent code"
 }
 
-function build_agent_modules {
-    cd "$ADAPTIX_DIR/AdaptixServer/extenders/$AGENT/src_modules" || error_exit "Could not enter src_modules directory"
+function build_agent_core {
+    cd "$ADAPTIX_DIR/AdaptixServer/extenders/$AGENT/src_core" || error_exit "Could not enter src_core directory"
     
     if [ ! -f "Makefile" ]; then
-        error_exit "Makefile not found in src_modules"
+        error_exit "Makefile not found in src_core"
     fi
     
-    make || error_exit "Failed to build agent modules"
-    info_msg "Built agent modules"
+    make || error_exit "Failed to build agent core modules"
+    info_msg "Built agent core modules"
 }
 
 function build_agent_beacon {
@@ -212,7 +212,7 @@ function copy_agent_dist {
     fi
     
     # Copy source directories
-    SOURCE_DIRS=("src_beacon" "src_loader" "src_modules")
+    SOURCE_DIRS=("src_beacon" "src_loader" "src_core" "src_modules")
     for src_dir in "${SOURCE_DIRS[@]}"; do
         if [ -d "$ADAPTIX_DIR/AdaptixServer/extenders/$AGENT/$src_dir" ]; then
             cp -r "$ADAPTIX_DIR/AdaptixServer/extenders/$AGENT/$src_dir" "$ADAPTIX_DIR/dist/extenders/$AGENT/" || warning_msg "Failed to copy $src_dir"
@@ -242,7 +242,7 @@ case $ACTION in
         copy_listener
         setup_go_workspace
         build_agent_code
-        build_agent_modules
+        build_agent_core
         build_agent_beacon
         build_listener
         copy_agent_dist
@@ -255,7 +255,7 @@ case $ACTION in
         copy_agent
         setup_go_workspace_agent
         build_agent_code
-        build_agent_modules
+        build_agent_core
         build_agent_beacon
         copy_agent_dist
         ;;
@@ -265,7 +265,7 @@ case $ACTION in
         clean_agent
         copy_agent
         setup_go_workspace_agent
-        build_agent_modules
+        build_agent_core
         copy_agent_dist
         ;;
     

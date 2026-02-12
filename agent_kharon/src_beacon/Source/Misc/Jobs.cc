@@ -5,12 +5,12 @@ auto DECLFN Jobs::Create(
     _In_ PARSER* Parser,
     _In_ BOOL    IsResponse
 ) -> JOBS* {
-    JOBS*   NewJob = (JOBS*)hAlloc( sizeof( JOBS ) );
-    PARSER* JobPsr = (PARSER*)hAlloc( sizeof( PARSER ) );
+    JOBS*   NewJob = (JOBS*)KhAlloc( sizeof( JOBS ) );
+    PARSER* JobPsr = (PARSER*)KhAlloc( sizeof( PARSER ) );
 
     if ( ! NewJob || ! JobPsr ) {
-        if ( NewJob ) hFree( NewJob );
-        if ( JobPsr ) hFree( JobPsr );
+        if ( NewJob ) KhFree( NewJob );
+        if ( JobPsr ) KhFree( JobPsr );
         return nullptr;
     }
 
@@ -43,8 +43,8 @@ auto DECLFN Jobs::Create(
     NewJob->PersistTriggered = FALSE;
 
     if ( ! NewJob->Pkg ) {
-        hFree( NewJob );
-        hFree( JobPsr );
+        KhFree( NewJob );
+        KhFree( JobPsr );
         return nullptr;
     }
 
@@ -168,7 +168,7 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
                 // Parser::Destroy não libera o struct Parser em si, então precisamos fazer isso manualmente
                 if ( Self->Hp->CheckPtr( ToRemove->Psr ) ) {
                     KhDbg("Freeing Parser struct for job %s", ToRemove->UUID);
-                    hFree( ToRemove->Psr );
+                    KhFree( ToRemove->Psr );
                 }
                 ToRemove->Psr = nullptr;
             }
@@ -179,14 +179,14 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
                 Self->Psr->Destroy( (PARSER*)ToRemove->Destroy );
                 if ( Self->Hp->CheckPtr( ToRemove->Destroy ) ) {
                     KhDbg("Freeing original Parser struct (Destroy) for job %s", ToRemove->UUID);
-                    hFree( ToRemove->Destroy );
+                    KhFree( ToRemove->Destroy );
                 }
                 ToRemove->Destroy = nullptr;
             }
 
             if ( Self->Hp->CheckPtr( ToRemove ) ) {
                 KhDbg("Freeing JOBS struct for job %s", ToRemove->UUID);
-                hFree( ToRemove );
+                KhFree( ToRemove );
             }
             
             Count--;
@@ -295,7 +295,7 @@ auto DECLFN Jobs::Remove(
         }
     }
     
-    hFree( Job );
+    KhFree( Job );
     this->Count--;
 
     return TRUE;

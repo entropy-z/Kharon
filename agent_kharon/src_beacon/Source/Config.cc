@@ -57,10 +57,10 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
     // http malleable
     Cfg->Http.Secure = HTTP_SECURE_ENABLED;
 
-    PARSER* HttpParser   = (PARSER*)hAlloc( sizeof( PARSER ) );
+    PARSER* HttpParser   = (PARSER*)KhAlloc( sizeof( PARSER ) );
     BYTE    HttpConfig[] = HTTP_MALLEABLE_BYTES;
 
-    HttpParser->Original = (CHAR*)hAlloc( sizeof( HttpConfig ) );
+    HttpParser->Original = (CHAR*)KhAlloc( sizeof( HttpConfig ) );
 
     Mem::Copy( HttpParser->Original, HttpConfig, sizeof( HttpConfig ) );
 
@@ -73,10 +73,10 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
 
     KhDbg( "[*] HTTP Malleable: CallbackCount = %d", CallbackCount );
 
-    Cfg->Http.Callbacks = (HTTP_CALLBACKS**)hAlloc( CallbackCount * sizeof( PVOID ) );
+    Cfg->Http.Callbacks = (HTTP_CALLBACKS**)KhAlloc( CallbackCount * sizeof( PVOID ) );
 
     for ( int i = 0; i < CallbackCount; i++ ) {
-        Cfg->Http.Callbacks[i] = (HTTP_CALLBACKS*)hAlloc( CallbackCount * sizeof( HTTP_CALLBACKS ) );
+        Cfg->Http.Callbacks[i] = (HTTP_CALLBACKS*)KhAlloc( CallbackCount * sizeof( HTTP_CALLBACKS ) );
     }
 
     for ( int i = 0; i < Cfg->Http.CallbacksCount; i++ ) {
@@ -112,11 +112,11 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
             KhDbg( "[*] HTTP Malleable: POST Headers = %ls, CookiesCount = %d, Empty Response = %p [%d]", PostMethod->Headers, PostMethod->CookiesCount, PostMethod->DoNothingBuff.Ptr, PostMethod->DoNothingBuff.Size );
 
             if ( PostMethod->CookiesCount ) {
-                PostMethod->Cookies = (ARRAY_PAIRW**)hAlloc( PostMethod->CookiesCount * sizeof( PVOID ) );
+                PostMethod->Cookies = (ARRAY_PAIRW**)KhAlloc( PostMethod->CookiesCount * sizeof( PVOID ) );
             }
 
             for ( int x = 0; x < PostMethod->CookiesCount; x++ ) {
-                PostMethod->Cookies[x] = (ARRAY_PAIRW*)hAlloc( sizeof( ARRAY_PAIRW ) );
+                PostMethod->Cookies[x] = (ARRAY_PAIRW*)KhAlloc( sizeof( ARRAY_PAIRW ) );
 
                 PostMethod->Cookies[x]->Key   = Self->Psr->Wstr( HttpParser, nullptr );
                 PostMethod->Cookies[x]->Value = Self->Psr->Wstr( HttpParser, nullptr );
@@ -125,12 +125,12 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
             }
 
             PostMethod->EndpointCount = Self->Psr->Int32( HttpParser );
-            PostMethod->Endpoints     = (HTTP_ENDPOINT**)hAlloc( PostMethod->EndpointCount * sizeof( PVOID ) );
+            PostMethod->Endpoints     = (HTTP_ENDPOINT**)KhAlloc( PostMethod->EndpointCount * sizeof( PVOID ) );
 
             KhDbg( "[*] HTTP Malleable: POST EndpointCount = %d", PostMethod->EndpointCount );
 
             for ( int x = 0; x < PostMethod->EndpointCount; x++ ) {
-                PostMethod->Endpoints[x] = (HTTP_ENDPOINT*)hAlloc( sizeof( HTTP_ENDPOINT ) );
+                PostMethod->Endpoints[x] = (HTTP_ENDPOINT*)KhAlloc( sizeof( HTTP_ENDPOINT ) );
 
                 HTTP_ENDPOINT* Endpoint     = PostMethod->Endpoints[x];
                 OUTPUT_FORMAT* ServerOutput = &Endpoint->ServerOutput;
@@ -195,11 +195,11 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
             KhDbg( "[*] HTTP Malleable: GET Headers = %ls, CookiesCount = %d, Empty Response = %p [%d]", GetMethod->Headers, GetMethod->CookiesCount, GetMethod->DoNothingBuff.Ptr, GetMethod->DoNothingBuff.Size );
 
             if ( GetMethod->CookiesCount ) {
-                GetMethod->Cookies = (ARRAY_PAIRW**)hAlloc( GetMethod->CookiesCount * sizeof( PVOID ) );
+                GetMethod->Cookies = (ARRAY_PAIRW**)KhAlloc( GetMethod->CookiesCount * sizeof( PVOID ) );
             }
 
             for ( int x = 0; x < GetMethod->CookiesCount; x++ ) {
-                GetMethod->Cookies[x] = (ARRAY_PAIRW*)hAlloc( sizeof( ARRAY_PAIRW ) );
+                GetMethod->Cookies[x] = (ARRAY_PAIRW*)KhAlloc( sizeof( ARRAY_PAIRW ) );
 
                 GetMethod->Cookies[x]->Key   = Self->Psr->Wstr( HttpParser, nullptr );
                 GetMethod->Cookies[x]->Value = Self->Psr->Wstr( HttpParser, nullptr );
@@ -208,12 +208,12 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
             }
 
             GetMethod->EndpointCount = Self->Psr->Int32( HttpParser );
-            GetMethod->Endpoints     = (HTTP_ENDPOINT**)hAlloc( GetMethod->EndpointCount * sizeof( PVOID ) );
+            GetMethod->Endpoints     = (HTTP_ENDPOINT**)KhAlloc( GetMethod->EndpointCount * sizeof( PVOID ) );
 
             KhDbg( "[*] HTTP Malleable: GET EndpointCount = %d", GetMethod->EndpointCount );
 
             for ( int x = 0; x < GetMethod->EndpointCount; x++ ) {
-                GetMethod->Endpoints[x] = (HTTP_ENDPOINT*)hAlloc( sizeof( HTTP_ENDPOINT ) );
+                GetMethod->Endpoints[x] = (HTTP_ENDPOINT*)KhAlloc( sizeof( HTTP_ENDPOINT ) );
 
                 HTTP_ENDPOINT* Endpoint     = GetMethod->Endpoints[x];
                 OUTPUT_FORMAT* ServerOutput = &Endpoint->ServerOutput;
