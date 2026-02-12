@@ -35,6 +35,7 @@
     - Client Cookie output
     - Client/Server max chunk size
 - LDAP/ADWS command to bloodhound output parser
+- Loader kit (create your own loader to kharon)
 - Active Script in memory execution (VBS/JScript/etc)
 - PE in memory execution (Reflection)
 

@@ -15,13 +15,21 @@ type BofPacker struct {
 	buffer bytes.Buffer
 }
 
-func LoadExtModule(file_name string, arch string) ([]byte, error) {
+func LoadExtModule( src string, file string, arch string) ([]byte, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get working directory: %v", err)
 	}
 
-	mod_path := filepath.Join(filepath.Dir(wd), "dist", "extenders", "agent_kharon", "src_modules", "dist", fmt.Sprintf("%s.%s.o", file_name, arch))
+	var mod_path string
+
+	switch src {
+	case "src_core":
+		mod_path = filepath.Join(filepath.Dir(wd), "dist", "extenders", "agent_kharon", src, "dist", fmt.Sprintf("%s.%s.o", file, arch))
+	case "src_modules":
+		mod_path = ""
+	}
+
 	fmt.Printf("DEBUG: Loading BOF module from: %s\n", mod_path)
 
 	mod_content, err := os.ReadFile(mod_path)

