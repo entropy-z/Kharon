@@ -164,8 +164,7 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
 
             if ( ToRemove->Psr ) {
                 KhDbg("Destroying Parser for job %s", ToRemove->UUID);
-                Self->Psr->Destroy( ToRemove->Psr );  // Libera apenas o buffer interno (Parser->Original)
-                // Parser::Destroy não libera o struct Parser em si, então precisamos fazer isso manualmente
+                Self->Psr->Destroy( ToRemove->Psr ); 
                 if ( Self->Hp->CheckPtr( ToRemove->Psr ) ) {
                     KhDbg("Freeing Parser struct for job %s", ToRemove->UUID);
                     KhFree( ToRemove->Psr );
@@ -173,7 +172,6 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
                 ToRemove->Psr = nullptr;
             }
 
-            // Destroy contém o Parser original passado para Jobs::Create quando IsResponse=TRUE
             if ( ToRemove->Destroy ) {
                 KhDbg("Destroying original Parser (Destroy) for job %s", ToRemove->UUID);
                 Self->Psr->Destroy( (PARSER*)ToRemove->Destroy );
