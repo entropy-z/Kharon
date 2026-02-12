@@ -1,11 +1,37 @@
 #include <general.h>
 
+extern "C" void* declfn memset(void* dest, int val, size_t count) {
+    unsigned char* ptr = (unsigned char*)dest;
+    while (count--) *ptr++ = (unsigned char)val;
+    return dest;
+}
+
+extern "C" void* declfn memcpy(void* dest, const void* src, size_t count) {
+    char* d = (char*)dest;
+    const char* s = (const char*)src;
+    while (count--) *d++ = *s++;
+    return dest;
+}
+
+extern "C" size_t declfn strlen(const char * str) {
+    const char *s = str;
+    while (*s) ++s;
+    return s - str;
+}
+
+extern "C" size_t declfn wcslen(const wchar_t * str) {
+    const wchar_t *s = str;
+    while (*s) ++s;
+    return s - str;
+}
+
+
 auto declfn mm::copy(
     _In_ PVOID dst,
     _In_ PVOID src,
     _In_ UPTR  size
 ) -> PVOID {
-    return __builtin_memcpy( dst, src, size );
+    return memcpy( dst, src, size );
 }
 
 auto declfn mm::set(
@@ -13,40 +39,15 @@ auto declfn mm::set(
     _In_ UCHAR val,
     _In_ UPTR  size
 ) -> void {
-    return __stosb( (UCHAR*)ptr, (UCHAR)val, size );
+    memset( (UCHAR*)ptr, (UCHAR)val, size );
 }
 
 auto declfn mm::zero(
     _In_ PVOID ptr,
     _In_ UPTR  size
 ) -> void {
-    return __stosb( (UCHAR*)( ptr ), 0, (SIZE_T)size );
+    memset( (UCHAR*)( ptr ), 0, (SIZE_T)size );
 }
-
-// extern "C" void* DECLFN memset(void* dest, int val, size_t count) {
-//     unsigned char* ptr = (unsigned char*)dest;
-//     while (count--) *ptr++ = (unsigned char)val;
-//     return dest;
-// }
-
-// extern "C" void* DECLFN memcpy(void* dest, const void* src, size_t count) {
-//     char* d = (char*)dest;
-//     const char* s = (const char*)src;
-//     while (count--) *d++ = *s++;
-//     return dest;
-// }
-
-// extern "C" size_t DECLFN strlen(const char * str) {
-//     const char *s = str;
-//     while (*s) ++s;
-//     return s - str;
-// }
-
-// extern "C" size_t DECLFN wcslen(const wchar_t * str) {
-//     const wchar_t *s = str;
-//     while (*s) ++s;
-//     return s - str;
-// }
 
 auto declfn load_module(
     _In_ const ULONG libhash
@@ -175,13 +176,4 @@ auto declfn find_jmp_gadget(
     gadget_ptr = gadget_array[rnd_index];
 
     return gadget_ptr;
-}
-
-EXTERN_C void* declfn memset(void* ptr, int value, size_t num) {
-    mm::set( ptr, value, num);
-    return ptr;
-}
-
-EXTERN_C void* declfn memcpy(void *__restrict__ _Dst, const void *__restrict__ _Src, size_t _Size) {
-    return mm::copy( _Dst, (void*)_Src, _Size );
 }

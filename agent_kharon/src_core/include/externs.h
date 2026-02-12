@@ -84,6 +84,7 @@ extern "C" {
     DFR(KERNEL32, CreateFileW)
     DFR(KERNEL32, CreateFileA)
     DFR(KERNEL32, PeekNamedPipe)
+    DFR(KERNEL32, WaitNamedPipeA)
     DFR(KERNEL32, WaitNamedPipeW)
     DFR(KERNEL32, SetHandleInformation)
     DFR(KERNEL32, GetFullPathNameW)
@@ -271,6 +272,7 @@ extern "C" {
 #define DuplicateHandle                   KERNEL32$DuplicateHandle
 #define CreateFileW                       KERNEL32$CreateFileW
 #define CreateFileA                       KERNEL32$CreateFileA
+#define WaitNamedPipeA                    KERNEL32$WaitNamedPipeA
 #define WaitNamedPipeW                    KERNEL32$WaitNamedPipeW
 #define PeekNamedPipe                     KERNEL32$PeekNamedPipe
 #define SetHandleInformation              KERNEL32$SetHandleInformation

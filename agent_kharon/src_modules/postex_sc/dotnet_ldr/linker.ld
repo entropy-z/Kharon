@@ -4,8 +4,8 @@ SECTIONS
     {
         *( .text$A );
         *( .text$B );
+        *( .text );
         *( .rdata* );
         *( .text$C );
     }
 }
-

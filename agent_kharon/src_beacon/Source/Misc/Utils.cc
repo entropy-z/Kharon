@@ -606,7 +606,7 @@ auto DECLFN Mem::Set(
 	}
 
 	return;
-}
+}   
 
 EXTERN_C void* DECLFN memset(void* ptr, int value, size_t num) {
     Mem::Set((UPTR)ptr, value, num);

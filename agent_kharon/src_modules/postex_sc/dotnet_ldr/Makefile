@@ -8,7 +8,7 @@ ASMCC  := nasm
 
 CFLAGS := -Os -nostdlib -fno-asynchronous-unwind-tables -std=c++20 -fPIC 
 CFLAGS += -fno-ident -fpack-struct=8 -falign-functions=1 -w -mno-sse -s -Wno-error=nested-anon-types
-CFLAGS += -ffunction-sections -falign-jumps=1 -falign-labels=1 -mrdrnd -fno-builtin -ffreestanding
+CFLAGS += -falign-jumps=1 -falign-labels=1 -mrdrnd -fno-builtin -ffreestanding
 CFLAGS += -Wl,-s,--no-seh,--enable-stdcall-fixup -masm=intel -fno-exceptions
 CFLAGS += -fms-extensions -Iinclude -Wl,-TLinker.ld -Wno-error=anonymous-struct
 

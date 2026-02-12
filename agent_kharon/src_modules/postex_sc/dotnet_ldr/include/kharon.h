@@ -52,7 +52,7 @@ typedef struct _POSTEX_CTX {
     INT8   spoof;
     INT8   bypassflag;
     ULONG  pipename_len;
-    WCHAR* pipename;
+    CHAR*  pipename;
     ULONG  argc;
     PBYTE  args;
 } POSTEX_CTX;

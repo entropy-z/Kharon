@@ -14,6 +14,8 @@ auto declfn parser::header(
     _In_  PVOID       buff,
     _Out_ POSTEX_CTX* postex
 ) -> VOID {
+    g_instance
+
     if ( buff == nullptr ) {
         return;
     }
@@ -21,8 +23,6 @@ auto declfn parser::header(
     INT32 (*mdbg)( PCHAR, ... ) = (decltype(mdbg))load_api( load_module(hashstr("ntdll.dll")), hashstr("DbgPrint") );
 
     mdbg("header at: %p\n", buff);
-
-    asm("int3");
 
     PBYTE bufferptr = (PBYTE)buff;
 
@@ -41,13 +41,20 @@ auto declfn parser::header(
     postex->pipename_len = *(ULONG*)bufferptr;
     bufferptr += sizeof(ULONG);
     
-    postex->pipename = (WCHAR*)bufferptr;
+    postex->pipename = (CHAR*)bufferptr;
     bufferptr += postex->pipename_len;
 
     postex->argc = *(ULONG*)bufferptr;
     bufferptr += sizeof(ULONG);
 
     postex->args = bufferptr;
+
+    mdbg("id %p\n", postex->id);
+    mdbg("method %p\n", postex->execmethod);
+    mdbg("spoof %p\n", postex->spoof);
+    mdbg("bypass %p\n", postex->bypassflag);
+    mdbg("pipename %p %d\n", postex->pipename, postex->pipename_len);
+    mdbg("args [%d] %p\n", postex->argc, postex->args);
 }
 
 auto declfn parser::create(
@@ -55,12 +62,17 @@ auto declfn parser::create(
     _In_ PBYTE   args,
     _In_ ULONG   argc
 ) -> VOID {
+    g_instance
 
-    parser->Original = (PCHAR)args;
+    argc = *(ULONG*)(args);
+    args = (PBYTE)(args + 4);
+
+    parser->Original = (PCHAR)mm::alloc( argc );
+    mm::copy( parser->Original, args, argc );
     
-    parser->Buffer   = parser->Original;
-    parser->Length   = argc;
-    parser->Size     = argc;
+    parser->Buffer = parser->Original;
+    parser->Length = argc;
+    parser->Size   = argc;
 }
 
 auto declfn parser::pad(
@@ -131,20 +143,15 @@ auto declfn parser::destroy(
 ) -> BOOL {
     if ( ! parser ) return FALSE;
 
-    BOOL success = TRUE;
-
     if ( parser->Original ) {
-        mm::zero( parser->Original, parser->Length );
+        mm::zero( parser->Original, parser->Size );
+        mm::free( parser->Original );
         parser->Original = nullptr;
-        parser->Length   = 0;
     }
 
-    if ( parser ) {
-        mm::zero( parser, sizeof( PARSER ) );
-        parser = nullptr;
-    }
+    mm::zero( parser, sizeof( PARSER ) );
 
-    return success;
+    return TRUE;
 }
 
 auto declfn parser::str( 
@@ -174,7 +181,7 @@ auto declfn parser::int16(
     parser->Length -= 2;
 
    
-    return __builtin_bswap16( intbytes ) ;
+    return ( intbytes ) ;
 }
 
 auto declfn parser::int64( 
@@ -194,7 +201,7 @@ auto declfn parser::int64(
     parser->Length -= 8;
 
  
-    return ( INT64 ) __builtin_bswap64( intbytes );
+    return ( INT64 )( intbytes );
 }
 
 auto declfn parser::byte( 

@@ -197,11 +197,15 @@ public:
         declapi( SafeArrayPutElement );
 
         declapi( SysAllocString );
-    } ole32 = {
+        declapi( SysFreeString );
+    } oleaut32 = {
         rsl_hash( SafeArrayDestroy ),
         rsl_hash( SafeArrayCreate ),
         rsl_hash( SafeArrayCreateVector ),
         rsl_hash( SafeArrayPutElement ),
+
+        rsl_hash( SysAllocString ),
+        rsl_hash( SysFreeString ),
     };
 
     struct {
@@ -297,6 +301,7 @@ public:
 
         declapi( CreatePipe );
         declapi( CreateNamedPipeW );
+        declapi( CreateNamedPipeA );
         declapi( ConnectNamedPipe );
         declapi( DisconnectNamedPipe );
         declapi( CreateFileW );
@@ -324,6 +329,7 @@ public:
 
         rsl_hash( CreatePipe ),
         rsl_hash( CreateNamedPipeW ),
+        rsl_hash( CreateNamedPipeA ),
         rsl_hash( ConnectNamedPipe ),
         rsl_hash( DisconnectNamedPipe ),
         rsl_hash( CreateFileW ),
@@ -390,21 +396,19 @@ struct _PARSER {
 typedef _PARSER PARSER;
 
 namespace mm {
-    template <typename T>   
-    __attribute__((always_inline)) auto declfn alloc(
+    inline auto declfn alloc(
         UPTR size
-    ) -> T {
+    ) -> PVOID {
         g_instance
-        return reinterpret_cast<T>( self->ntdll.RtlAllocateHeap( self->ctx.heap, HEAP_ZERO_MEMORY, size ) );
+        return reinterpret_cast<PVOID>( self->ntdll.RtlAllocateHeap( self->ctx.heap, HEAP_ZERO_MEMORY, size ) );
     }
 
-    template <typename T>
     inline auto declfn realloc(
-        T    block,
-        UPTR size
-    ) -> T {
+        PVOID block,
+        UPTR  size
+    ) -> PVOID {
         g_instance
-        return reinterpret_cast<T>( self->ntdll.RtlReAllocateHeap( self->ctx.heap, HEAP_ZERO_MEMORY, block, size ) );
+        return reinterpret_cast<PVOID>( self->ntdll.RtlReAllocateHeap( self->ctx.heap, HEAP_ZERO_MEMORY, block, size ) );
     }
 
     static auto declfn free( PVOID Block ) -> BOOL {

