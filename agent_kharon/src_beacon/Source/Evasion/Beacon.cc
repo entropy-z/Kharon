@@ -63,7 +63,7 @@ auto DECLFN Coff::PrintfW(
         goto _CLEANUP;
     }
 
-    MsgBuff = ( WCHAR* )hAlloc( ( MsgSize + 1 ) * sizeof( WCHAR ) );
+    MsgBuff = ( WCHAR* )KhAlloc( ( MsgSize + 1 ) * sizeof( WCHAR ) );
     if ( !MsgBuff ) {
         KhDbg( "Printf: allocation failed" );
         goto _CLEANUP;
@@ -90,7 +90,7 @@ _CLEANUP:
     va_end( VaListCopy );
     
     if ( MsgBuff ) {
-        hFree( MsgBuff );
+        KhFree( MsgBuff );
     }
 }
 
@@ -116,7 +116,7 @@ auto DECLFN Coff::Printf(
         KhDbg( "Printf: vsnprintf size probe failed" ); goto _KH_END;
     }
 
-    MsgBuff = ( CHAR* )hAlloc( MsgSize + 1 );
+    MsgBuff = ( CHAR* )KhAlloc( MsgSize + 1 );
     if ( !MsgBuff ) {
         KhDbg( "Printf: allocation failed" ); goto _KH_END;
     }
@@ -134,7 +134,7 @@ auto DECLFN Coff::Printf(
     Self->Pkg->SendMsgA( type, MsgBuff );
 
 _KH_END:
-    if ( MsgBuff ) hFree( MsgBuff );
+    if ( MsgBuff ) KhFree( MsgBuff );
 }
 
 auto DECLFN Coff::DataExtract(
@@ -173,7 +173,7 @@ auto DECLFN Coff::FmtAlloc(
 
     if ( !Fmt ) return;
 
-    Fmt->original = (CHAR*)hAlloc( Maxsz );
+    Fmt->original = (CHAR*)KhAlloc( Maxsz );
     Fmt->buffer   = Fmt->original;
     Fmt->length   = 0;
     Fmt->size     = Maxsz;
@@ -273,13 +273,13 @@ auto DECLFN Coff::FmtToString(
 
     if ( (UINT32)fmt->length >= fmt->size ) {
         UINT32 newSize = max( (UINT32)fmt->length + 1, fmt->size * 2 );
-        CHAR*  Newbuf  = ( CHAR* )hAlloc( newSize );
+        CHAR*  Newbuf  = ( CHAR* )KhAlloc( newSize );
         if ( !Newbuf ) {
             if ( size ) *size = 0;
             return nullptr;
         }
         Mem::Copy( Newbuf, fmt->original, fmt->length );
-        hFree( fmt->original );
+        KhFree( fmt->original );
         fmt->original = Newbuf;
         fmt->size     = newSize;
     }
@@ -314,7 +314,7 @@ auto DECLFN Coff::GetSpawn(
     SIZE_T wspawnLen = Str::LengthW( wspawnto );
     SIZE_T cspawnLen = ( wspawnLen / 2 );
 
-    CHAR* cspawnto = (CHAR*)hAlloc( cspawnLen );
+    CHAR* cspawnto = (CHAR*)KhAlloc( cspawnLen );
     
     if ( cspawnLen >= (SIZE_T)length ) {
         cspawnLen = length - 1;
@@ -325,7 +325,7 @@ auto DECLFN Coff::GetSpawn(
     Mem::Copy( buffer, cspawnto, cspawnLen );
     buffer[cspawnLen] = '\0';  
 
-    hFree( cspawnto );
+    KhFree( cspawnto );
 }
 
 auto DECLFN Coff::FmtFree(
@@ -336,7 +336,7 @@ auto DECLFN Coff::FmtFree(
     if ( !Fmt ) return;
 
     if ( Fmt->original ) {
-        hFree( Fmt->original );
+        KhFree( Fmt->original );
         Fmt->original = nullptr;
     }
     
@@ -630,8 +630,8 @@ auto Coff::RmValue(
                 Prev->Next = Current->Next;
             }
 
-            hFree( Current->Key );
-            hFree( Current );
+            KhFree( Current->Key );
+            KhFree( Current );
             
             return TRUE;
         }
@@ -651,13 +651,13 @@ auto Coff::AddValue(
 
     if ( !key || Self->Cf->GetValue( key ) ) return FALSE;
 
-    VALUE_DICT* NewData = (VALUE_DICT*)hAlloc( sizeof( VALUE_DICT ) );
+    VALUE_DICT* NewData = (VALUE_DICT*)KhAlloc( sizeof( VALUE_DICT ) );
     if ( ! NewData ) return FALSE;
     
     size_t keyLen = Str::LengthA( key );
-    NewData->Key  = (CHAR*)hAlloc( keyLen + 1 );
+    NewData->Key  = (CHAR*)KhAlloc( keyLen + 1 );
     if ( ! NewData->Key) {
-        hFree(NewData);
+        KhFree(NewData);
         return FALSE;
     }
 

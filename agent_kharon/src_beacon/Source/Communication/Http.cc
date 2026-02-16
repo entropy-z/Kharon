@@ -12,12 +12,12 @@ using namespace Root;
     do { \
         PVOID* NewPtr = nullptr; \
         if (Ctx->ObjectFree.Ptr == nullptr) { \
-            NewPtr = (PVOID*)hAlloc(sizeof(PVOID)); \
+            NewPtr = (PVOID*)KhAlloc(sizeof(PVOID)); \
         } else { \
-            NewPtr = (PVOID*)hReAlloc(Ctx->ObjectFree.Ptr, sizeof(PVOID) * (Ctx->ObjectFree.Length + 1)); \
+            NewPtr = (PVOID*)KhReAlloc(Ctx->ObjectFree.Ptr, sizeof(PVOID) * (Ctx->ObjectFree.Length + 1)); \
         } \
         if (!NewPtr) { \
-            hFree(Data); \
+            KhFree(Data); \
             break; \
         } \
         Ctx->ObjectFree.Ptr = NewPtr; \
@@ -70,8 +70,8 @@ auto DECLFN Transport::CleanupHttpContext(
 ) -> BOOL {
     if ( !Ctx ) return FALSE;
     
-    if ( Ctx->wTargetUrl ) hFree( Ctx->wTargetUrl );
-    if ( Ctx->cTargetUrl ) hFree( Ctx->cTargetUrl );
+    if ( Ctx->wTargetUrl ) KhFree( Ctx->wTargetUrl );
+    if ( Ctx->cTargetUrl ) KhFree( Ctx->cTargetUrl );
     
     if ( Ctx->RequestHandle ) Self->Wininet.InternetCloseHandle( Ctx->RequestHandle );
     if ( Ctx->ConnectHandle ) Self->Wininet.InternetCloseHandle( Ctx->ConnectHandle );
@@ -82,12 +82,12 @@ auto DECLFN Transport::CleanupHttpContext(
     if ( Ctx->ObjectFree.Ptr ) {
         for ( ULONG i = 0; i < Ctx->ObjectFree.Length; i++ ) {
             if ( Ctx->ObjectFree.Ptr[i] ) {
-                hFree( Ctx->ObjectFree.Ptr[i] );
+                KhFree( Ctx->ObjectFree.Ptr[i] );
                 Ctx->ObjectFree.Ptr[i] = nullptr;
             }
         }
 
-        hFree( Ctx->ObjectFree.Ptr );
+        KhFree( Ctx->ObjectFree.Ptr );
 
         Ctx->ObjectFree.Ptr = nullptr;
         Ctx->ObjectFree.Length = 0;
@@ -141,8 +141,8 @@ auto DECLFN Transport::PrepareUrl(
 ) -> BOOL {
     WCHAR PortStr[6] = { 0 };
     
-    Ctx->wTargetUrl = (WCHAR*)hAlloc( MAX_PATH * 4 );
-    Ctx->cTargetUrl = (CHAR*)hAlloc( MAX_PATH * 2 );
+    Ctx->wTargetUrl = (WCHAR*)KhAlloc( MAX_PATH * 4 );
+    Ctx->cTargetUrl = (CHAR*)KhAlloc( MAX_PATH * 2 );
     
     if ( ! Ctx->wTargetUrl || ! Ctx->cTargetUrl ) {
         KhDbg("Failed to allocate URL buffers");
@@ -185,7 +185,7 @@ auto DECLFN Transport::EncodeClientData(
             }
             
             SIZE_T AllocSize = EncodedData->Size + SAFETY_MARGIN;
-            EncodedData->Ptr = (PBYTE)hAlloc( AllocSize );
+            EncodedData->Ptr = (PBYTE)KhAlloc( AllocSize );
             if ( ! EncodedData->Ptr ) {
                 KhDbg("Failed to allocate base32 buffer");
                 return FALSE;
@@ -193,7 +193,7 @@ auto DECLFN Transport::EncodeClientData(
             
             if ( ! Self->Pkg->Base32( SendData->Ptr, SendData->Size, EncodedData->Ptr, AllocSize, Base32Action::Encode ) ) {
                 KhDbg("Failed to encode base32");
-                hFree( EncodedData->Ptr );
+                KhFree( EncodedData->Ptr );
                 return FALSE;
             }
             
@@ -210,7 +210,7 @@ auto DECLFN Transport::EncodeClientData(
             }
             
             SIZE_T AllocSize = EncodedData->Size + SAFETY_MARGIN;
-            EncodedData->Ptr = (PBYTE)hAlloc( AllocSize );
+            EncodedData->Ptr = (PBYTE)KhAlloc( AllocSize );
             if ( ! EncodedData->Ptr ) {
                 KhDbg("Failed to allocate base64 buffer");
                 return FALSE;
@@ -218,7 +218,7 @@ auto DECLFN Transport::EncodeClientData(
             
             if ( ! Self->Pkg->Base64( SendData->Ptr, SendData->Size, EncodedData->Ptr, AllocSize, Base64Action::Encode ) ) {
                 KhDbg("Failed to encode base64");
-                hFree( EncodedData->Ptr );
+                KhFree( EncodedData->Ptr );
                 return FALSE;
             }
             
@@ -235,7 +235,7 @@ auto DECLFN Transport::EncodeClientData(
             }
             
             SIZE_T AllocSize = EncodedData->Size + SAFETY_MARGIN;
-            EncodedData->Ptr = (PBYTE)hAlloc( AllocSize );
+            EncodedData->Ptr = (PBYTE)KhAlloc( AllocSize );
             if ( ! EncodedData->Ptr ) {
                 KhDbg("Failed to allocate base64url buffer");
                 return FALSE;
@@ -245,7 +245,7 @@ auto DECLFN Transport::EncodeClientData(
             
             if ( ! EncodedSize ) {
                 KhDbg("Failed to encode base64url");
-                hFree( EncodedData->Ptr );
+                KhFree( EncodedData->Ptr );
                 return FALSE;
             }
             
@@ -263,7 +263,7 @@ auto DECLFN Transport::EncodeClientData(
             }
             
             SIZE_T AllocSize = EncodedData->Size + SAFETY_MARGIN;
-            EncodedData->Ptr = (PBYTE)hAlloc( AllocSize );
+            EncodedData->Ptr = (PBYTE)KhAlloc( AllocSize );
             if ( !EncodedData->Ptr ) {
                 KhDbg("Failed to allocate hex buffer");
                 return FALSE;
@@ -271,7 +271,7 @@ auto DECLFN Transport::EncodeClientData(
             
             if ( !Self->Pkg->Hex( SendData->Ptr, SendData->Size, EncodedData->Ptr, AllocSize, HexAction::Encode ) ) {
                 KhDbg("Failed to encode hex");
-                hFree( EncodedData->Ptr );
+                KhFree( EncodedData->Ptr );
                 return FALSE;
             }
             
@@ -321,7 +321,7 @@ auto DECLFN Transport::DecodeServerData(
             SIZE_T DecodedSize = Self->Pkg->Base32( ParsedPtr, ParsedSize, nullptr, 0, Base32Action::Get_Size );
             
             SIZE_T AllocSize = DecodedSize + SAFETY_MARGIN;
-            DecodedData->Ptr = (PBYTE)hAlloc( AllocSize );
+            DecodedData->Ptr = (PBYTE)KhAlloc( AllocSize );
             if ( ! DecodedData->Ptr ) {
                 return FALSE;
             }
@@ -330,7 +330,7 @@ auto DECLFN Transport::DecodeServerData(
             
             if ( DecodedData->Size == 0 ) {
                 KhDbg("Base32 decoding failed");
-                hFree( DecodedData->Ptr );
+                KhFree( DecodedData->Ptr );
                 DecodedData->Ptr = nullptr;
                 return FALSE;
             }
@@ -346,7 +346,7 @@ auto DECLFN Transport::DecodeServerData(
             }
             
             SIZE_T AllocSize = DecodedSize + SAFETY_MARGIN;
-            DecodedData->Ptr = (PBYTE)hAlloc( AllocSize );
+            DecodedData->Ptr = (PBYTE)KhAlloc( AllocSize );
             if ( ! DecodedData->Ptr ) {
                 return FALSE;
             }
@@ -356,7 +356,7 @@ auto DECLFN Transport::DecodeServerData(
             
             if ( ! ActualDecoded ) {
                 KhDbg("Base64 decoding failed");
-                hFree( DecodedData->Ptr );
+                KhFree( DecodedData->Ptr );
                 DecodedData->Ptr = nullptr;
                 return FALSE;
             }
@@ -374,7 +374,7 @@ auto DECLFN Transport::DecodeServerData(
             }
             
             SIZE_T AllocSize = RequiredSize + SAFETY_MARGIN;
-            DecodedData->Ptr = (PBYTE)hAlloc( AllocSize );
+            DecodedData->Ptr = (PBYTE)KhAlloc( AllocSize );
             if ( ! DecodedData->Ptr ) {
                 return FALSE;
             }
@@ -383,7 +383,7 @@ auto DECLFN Transport::DecodeServerData(
             
             if ( DecodedSize == 0 ) {
                 KhDbg("Base64URL decode failed");
-                hFree( DecodedData->Ptr );
+                KhFree( DecodedData->Ptr );
                 DecodedData->Ptr = nullptr;
                 return FALSE;
             }
@@ -396,7 +396,7 @@ auto DECLFN Transport::DecodeServerData(
             SIZE_T DecodedSize = Self->Pkg->Hex( ParsedPtr, ParsedSize, nullptr, 0, HexAction::Get_Size );
             
             SIZE_T AllocSize = DecodedSize + SAFETY_MARGIN;
-            DecodedData->Ptr = (PBYTE)hAlloc( AllocSize );
+            DecodedData->Ptr = (PBYTE)KhAlloc( AllocSize );
             if ( ! DecodedData->Ptr ) {
                 return FALSE;
             }
@@ -405,7 +405,7 @@ auto DECLFN Transport::DecodeServerData(
             
             if ( DecodedData->Size == 0 ) {
                 KhDbg("Hex decoding failed");
-                hFree( DecodedData->Ptr );
+                KhFree( DecodedData->Ptr );
                 DecodedData->Ptr = nullptr;
                 return FALSE;
             }
@@ -415,7 +415,7 @@ auto DECLFN Transport::DecodeServerData(
         }
         case OutputFmt::Raw: {
             SIZE_T AllocSize = ParsedSize + SAFETY_MARGIN;
-            DecodedData->Ptr = (PBYTE)hAlloc( AllocSize );
+            DecodedData->Ptr = (PBYTE)KhAlloc( AllocSize );
             if ( ! DecodedData->Ptr ) {
                 return FALSE;
             }
@@ -442,7 +442,7 @@ auto DECLFN Transport::ProcessClientOutput(
     MM_INFO Output = { 0 };
     
     Output.Size = ClientOut->Append.Size + ClientOut->Prepend.Size + EncodedData->Size;
-    Output.Ptr  = (PBYTE)hAlloc( Output.Size + SAFETY_MARGIN );
+    Output.Ptr  = (PBYTE)KhAlloc( Output.Size + SAFETY_MARGIN );
     
     if ( ! Output.Ptr ) {
         KhDbg("Failed to allocate output buffer");
@@ -469,9 +469,9 @@ auto DECLFN Transport::ProcessClientOutput(
         case Output_Parameter: {
             KhDbg("Output type: Parameter");
             
-            WCHAR* OutputWidePtr = (WCHAR*)hAlloc( (Output.Size + SAFETY_MARGIN) * sizeof(WCHAR) );
+            WCHAR* OutputWidePtr = (WCHAR*)KhAlloc( (Output.Size + SAFETY_MARGIN) * sizeof(WCHAR) );
             if ( ! OutputWidePtr ) {
-                hFree( Output.Ptr );
+                KhFree( Output.Ptr );
                 return FALSE;
             }
             
@@ -488,10 +488,10 @@ auto DECLFN Transport::ProcessClientOutput(
                 ULONG EndpointPathLen  = Str::LengthW( Endpoint->Path );
                 ULONG PathLen          = EndpointPathLen + 1 + EndpointParamLen + 1 + ClientParamLen + 1 + Output.Size + 1;
                 
-                PathFullBuff = (WCHAR*)hAlloc( (PathLen + SAFETY_MARGIN) * sizeof(WCHAR) );
+                PathFullBuff = (WCHAR*)KhAlloc( (PathLen + SAFETY_MARGIN) * sizeof(WCHAR) );
                 if ( ! PathFullBuff ) {
-                    hFree( OutputWidePtr );
-                    hFree( Output.Ptr );
+                    KhFree( OutputWidePtr );
+                    KhFree( Output.Ptr );
                     return FALSE;
                 }
                 
@@ -507,10 +507,10 @@ auto DECLFN Transport::ProcessClientOutput(
                 ULONG EndpointPathLen = Str::LengthW( Endpoint->Path );
                 ULONG PathLen         = EndpointPathLen + 1 + ClientParamLen + 1 + Output.Size + 1;
                 
-                PathFullBuff = (WCHAR*)hAlloc( (PathLen + SAFETY_MARGIN) * sizeof(WCHAR) );
+                PathFullBuff = (WCHAR*)KhAlloc( (PathLen + SAFETY_MARGIN) * sizeof(WCHAR) );
                 if ( ! PathFullBuff ) {
-                    hFree( OutputWidePtr );
-                    hFree( Output.Ptr );
+                    KhFree( OutputWidePtr );
+                    KhFree( Output.Ptr );
                     return FALSE;
                 }
                 
@@ -565,9 +565,9 @@ auto DECLFN Transport::ProcessClientOutput(
                 ULONG PathLen      = Str::LengthW( Endpoint->Path );
                 ULONG PathFullSize = PathLen + 1 + ParamLen + 1;
                 
-                WCHAR* PathFullBuff = (WCHAR*)hAlloc( (PathFullSize + SAFETY_MARGIN) * sizeof(WCHAR) );
+                WCHAR* PathFullBuff = (WCHAR*)KhAlloc( (PathFullSize + SAFETY_MARGIN) * sizeof(WCHAR) );
                 if ( ! PathFullBuff ) {
-                    hFree( Output.Ptr );
+                    KhFree( Output.Ptr );
                     return FALSE;
                 }
                 
@@ -584,9 +584,9 @@ auto DECLFN Transport::ProcessClientOutput(
             ULONG CustomHdrLen = (WCHAR*)Endpoint->ClientOutput.Header.Ptr ? Str::LengthW( (WCHAR*)Endpoint->ClientOutput.Header.Ptr ) : 0;
             ULONG FinalLen     = MethodHdrLen + CustomHdrLen + Output.Size + 32;
             
-            Ctx->Headers = (WCHAR*)hAlloc( (FinalLen + SAFETY_MARGIN) * sizeof(WCHAR) );
+            Ctx->Headers = (WCHAR*)KhAlloc( (FinalLen + SAFETY_MARGIN) * sizeof(WCHAR) );
             if ( ! Ctx->Headers ) {
-                hFree( Output.Ptr );
+                KhFree( Output.Ptr );
                 return FALSE;
             }
             
@@ -625,9 +625,9 @@ auto DECLFN Transport::ProcessClientOutput(
                 ULONG PathLen      = Str::LengthW( Endpoint->Path );
                 ULONG PathFullSize = PathLen + 1 + ParamLen + 1;
                 
-                WCHAR* PathFullBuff = (WCHAR*)hAlloc( (PathFullSize + SAFETY_MARGIN) * sizeof(WCHAR) );
+                WCHAR* PathFullBuff = (WCHAR*)KhAlloc( (PathFullSize + SAFETY_MARGIN) * sizeof(WCHAR) );
                 if ( ! PathFullBuff ) {
-                    hFree( Output.Ptr );
+                    KhFree( Output.Ptr );
                     return FALSE;
                 }
                 
@@ -645,7 +645,7 @@ auto DECLFN Transport::ProcessClientOutput(
             break;
         }
         default:
-            hFree( Output.Ptr );
+            KhFree( Output.Ptr );
             return FALSE;
     }
     
@@ -702,7 +702,7 @@ auto DECLFN Transport::ProcessServerOutput(
                     return FALSE;
                 }
                 
-                WCHAR* AllHeaders = (WCHAR*)hAlloc( BufferSize + SAFETY_MARGIN );
+                WCHAR* AllHeaders = (WCHAR*)KhAlloc( BufferSize + SAFETY_MARGIN );
                 if ( !AllHeaders ) {
                     return FALSE;
                 }
@@ -715,7 +715,7 @@ auto DECLFN Transport::ProcessServerOutput(
                     &BufferSize, 
                     &HeaderIndex
                 )) {
-                    hFree( AllHeaders );
+                    KhFree( AllHeaders );
                     KhDbg("Failed to get raw headers");
                     return FALSE;
                 }
@@ -806,10 +806,10 @@ auto DECLFN Transport::ProcessServerOutput(
                                 
                                 SIZE_T ValueLen = ValueEnd - ValueStart;
                                 
-                                CHAR* CookieData = (CHAR*)hAlloc( ValueLen + SAFETY_MARGIN );
+                                CHAR* CookieData = (CHAR*)KhAlloc( ValueLen + SAFETY_MARGIN );
                                 if ( !CookieData ) {
                                     if ( LineEnd ) *LineEnd = SavedChar;
-                                    hFree( AllHeaders );
+                                    KhFree( AllHeaders );
                                     return FALSE;
                                 }
                                 
@@ -838,7 +838,7 @@ auto DECLFN Transport::ProcessServerOutput(
                     }
                 }
                 
-                hFree( AllHeaders );
+                KhFree( AllHeaders );
                 
                 if ( !Found ) {
                     KhDbg("Cookie '%ls' not found in Set-Cookie headers", CookieName);
@@ -848,7 +848,7 @@ auto DECLFN Transport::ProcessServerOutput(
                 return TRUE;
             }
             
-            WCHAR* SetCookieValue = (WCHAR*)hAlloc( BufferSize + SAFETY_MARGIN );
+            WCHAR* SetCookieValue = (WCHAR*)KhAlloc( BufferSize + SAFETY_MARGIN );
             if ( !SetCookieValue ) {
                 return FALSE;
             }
@@ -861,7 +861,7 @@ auto DECLFN Transport::ProcessServerOutput(
                 &BufferSize, 
                 &HeaderIndex
             )) {
-                hFree( SetCookieValue );
+                KhFree( SetCookieValue );
                 KhDbg("Failed to query Set-Cookie header");
                 return FALSE;
             }
@@ -884,9 +884,9 @@ auto DECLFN Transport::ProcessServerOutput(
                 
                 SIZE_T ValueLen = ValueEnd - ValueStart;
                 
-                CHAR* CookieData = (CHAR*)hAlloc( ValueLen + SAFETY_MARGIN );
+                CHAR* CookieData = (CHAR*)KhAlloc( ValueLen + SAFETY_MARGIN );
                 if ( !CookieData ) {
-                    hFree( SetCookieValue );
+                    KhFree( SetCookieValue );
                     return FALSE;
                 }
                 
@@ -898,11 +898,11 @@ auto DECLFN Transport::ProcessServerOutput(
                 RespData->Ptr = (PBYTE)CookieData;
                 RespData->Size = ValueLen;
                 
-                hFree( SetCookieValue );
+                KhFree( SetCookieValue );
                 
                 KhDbg("Cookie extracted - Size: %zu", ValueLen);
             } else {
-                hFree( SetCookieValue );
+                KhFree( SetCookieValue );
                 return FALSE;
             }
             
@@ -923,7 +923,7 @@ auto DECLFN Transport::ProcessServerOutput(
                 return FALSE;
             }
             
-            WCHAR* AllHeaders = (WCHAR*)hAlloc( BufferSize + SAFETY_MARGIN );
+            WCHAR* AllHeaders = (WCHAR*)KhAlloc( BufferSize + SAFETY_MARGIN );
             if ( !AllHeaders ) {
                 return FALSE;
             }
@@ -932,7 +932,7 @@ auto DECLFN Transport::ProcessServerOutput(
             if ( !Self->Wininet.HttpQueryInfoW(
                 RequestHandle, HTTP_QUERY_RAW_HEADERS_CRLF, AllHeaders, &BufferSize, &HeaderIndex
             )) {
-                hFree( AllHeaders );
+                KhFree( AllHeaders );
                 KhDbg("Failed to query raw headers");
                 return FALSE;
             }
@@ -1005,11 +1005,11 @@ auto DECLFN Transport::ProcessServerOutput(
                         SIZE_T WideLen = Str::LengthW( CurrentHeaderValue );
                         
                         SIZE_T AllocSize = (WideLen * 3) + SAFETY_MARGIN;
-                        CHAR* HeaderValue = (CHAR*)hAlloc( AllocSize );
+                        CHAR* HeaderValue = (CHAR*)KhAlloc( AllocSize );
                         if ( !HeaderValue ) {
                             *ColonPos = L':';
                             if ( LineEnd ) *LineEnd = SavedChar;
-                            hFree( AllHeaders );
+                            KhFree( AllHeaders );
                             return FALSE;
                         }
                         
@@ -1036,7 +1036,7 @@ auto DECLFN Transport::ProcessServerOutput(
                 }
             }
             
-            hFree( AllHeaders );
+            KhFree( AllHeaders );
                         
             if ( !Found ) {
                 KhDbg("Header not found");
@@ -1057,7 +1057,7 @@ auto DECLFN Transport::ProcessServerOutput(
             );
             
             if ( Success && ContentLength > 0 ) {
-                RespData->Ptr = B_PTR( hAlloc( ContentLength + SAFETY_MARGIN ) );
+                RespData->Ptr = B_PTR( KhAlloc( ContentLength + SAFETY_MARGIN ) );
                 if ( !RespData->Ptr ) {
                     return FALSE;
                 }
@@ -1065,7 +1065,7 @@ auto DECLFN Transport::ProcessServerOutput(
                 Self->Wininet.InternetReadFile( RequestHandle, RespData->Ptr, ContentLength, &BytesRead );
                 if ( BytesRead != ContentLength ) {
                     KhDbg("Incomplete read");
-                    hFree( RespData->Ptr );
+                    KhFree( RespData->Ptr );
                     RespData->Ptr = nullptr;
                     return FALSE;
                 }
@@ -1075,7 +1075,7 @@ auto DECLFN Transport::ProcessServerOutput(
                 return TRUE;
             }
             
-            PVOID TmpBuffer = PTR( hAlloc( BEG_BUFFER_LENGTH ) );
+            PVOID TmpBuffer = PTR( KhAlloc( BEG_BUFFER_LENGTH ) );
             if ( !TmpBuffer ) {
                 return FALSE;
             }
@@ -1083,9 +1083,9 @@ auto DECLFN Transport::ProcessServerOutput(
             const SIZE_T MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
             SIZE_T RespCapacity = BEG_BUFFER_LENGTH;
             
-            RespData->Ptr = B_PTR( hAlloc( RespCapacity ) );
+            RespData->Ptr = B_PTR( KhAlloc( RespCapacity ) );
             if ( !RespData->Ptr ) {
-                hFree( TmpBuffer );
+                KhFree( TmpBuffer );
                 return FALSE;
             }
             
@@ -1099,17 +1099,17 @@ auto DECLFN Transport::ProcessServerOutput(
                     SIZE_T newCapacity = max( RespCapacity * 2, RespData->Size + BytesRead + SAFETY_MARGIN );
                     if ( newCapacity > MAX_RESPONSE_SIZE ) {
                         KhDbg("Response too large");
-                        hFree( RespData->Ptr );
-                        hFree( TmpBuffer );
+                        KhFree( RespData->Ptr );
+                        KhFree( TmpBuffer );
                         RespData->Ptr = nullptr;
                         return FALSE;
                     }
                     
-                    PVOID newBuffer = PTR( hReAlloc( RespData->Ptr, newCapacity ) );
+                    PVOID newBuffer = PTR( KhReAlloc( RespData->Ptr, newCapacity ) );
                     if ( !newBuffer ) {
                         KhDbg("Failed to reallocate response buffer");
-                        hFree( RespData->Ptr );
-                        hFree( TmpBuffer );
+                        KhFree( RespData->Ptr );
+                        KhFree( TmpBuffer );
                         RespData->Ptr = nullptr;
                         return FALSE;
                     }
@@ -1122,10 +1122,10 @@ auto DECLFN Transport::ProcessServerOutput(
                 RespData->Size += BytesRead;
             } while ( BytesRead > 0 );
             
-            hFree( TmpBuffer );
+            KhFree( TmpBuffer );
             
             if ( !Success ) {
-                hFree( RespData->Ptr );
+                KhFree( RespData->Ptr );
                 RespData->Ptr = nullptr;
                 return FALSE;
             }
@@ -1341,7 +1341,7 @@ auto DECLFN Transport::HttpSend(
         if ( RespData.Size == 0 || Mem::Cmp( RespData.Ptr, Method.DoNothingBuff.Ptr, Method.DoNothingBuff.Size ) ) {
             KhDbg("Response matches do-nothing buffer");
             
-            hFree( RespData.Ptr );
+            KhFree( RespData.Ptr );
             RespData.Ptr = nullptr;
             
             Ctx.Success = TRUE;
@@ -1350,7 +1350,7 @@ auto DECLFN Transport::HttpSend(
     }
     
     if ( ! this->DecodeServerData( &Ctx, &RespData, &DecodedData, &ServerOut ) ) {
-        hFree( RespData.Ptr );
+        KhFree( RespData.Ptr );
         return CleanupHttpContext( &Ctx );
     }
 
@@ -1358,7 +1358,7 @@ auto DECLFN Transport::HttpSend(
         Self->Crp->Xor( DecodedData.Ptr, DecodedData.Size );
     }
     
-    hFree( RespData.Ptr );
+    KhFree( RespData.Ptr );
     RespData.Ptr = nullptr;
         
     if ( RecvData ) {
@@ -1367,7 +1367,7 @@ auto DECLFN Transport::HttpSend(
         KhDbg("Response returned - Size: %zu", DecodedData.Size);
     } else {
         if ( DecodedData.Ptr ) {
-            hFree( DecodedData.Ptr );
+            KhFree( DecodedData.Ptr );
         }
     }
     

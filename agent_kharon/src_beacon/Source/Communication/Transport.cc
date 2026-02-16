@@ -4,7 +4,7 @@ auto DECLFN Transport::Checkin(
     VOID
 ) -> BOOL {
     PPACKAGE CheckinPkg = Self->Pkg->Checkin();
-    PPARSER  CheckinPsr = (PPARSER)hAlloc( sizeof( PARSER ) );
+    PPARSER  CheckinPsr = (PPARSER)KhAlloc( sizeof( PARSER ) );
     
     KhDbg( "start checkin routine" );
 
@@ -135,7 +135,7 @@ auto DECLFN Transport::Checkin(
     KhDbg( "old uuid: %s", OldUUID );
     KhDbg( "new uuid: %s", NewUUID );
 
-    Self->Session.AgentID = A_PTR( hAlloc( UUIDsz ) );
+    Self->Session.AgentID = A_PTR( KhAlloc( UUIDsz ) );
     Mem::Copy( Self->Session.AgentID, NewUUID, UUIDsz );
 
     //

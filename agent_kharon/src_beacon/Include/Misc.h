@@ -129,11 +129,11 @@ namespace Action {
     };
 
     enum class Postex {
-        Inject = 0x01,
-        Poll,
-        Kill,
-        List,
-        Cleanup
+        Inject = 0x11,
+        Poll = 0x12,
+        Kill = 0x16,
+        List = 0x13,
+        Cleanup = 0x10
     };
 
     enum class Task {

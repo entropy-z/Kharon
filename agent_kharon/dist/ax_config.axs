@@ -74,7 +74,7 @@ function RegisterCommands(listenerType)
     _cmd_ps_kill.addArgInt("pid", true);
     _cmd_ps_kill.addArgInt("exit_code", false);
     
-    let cmd_ps_run = ax.create_command("run", "Execute a new process with specified command line", "process run --command \"cmd.exe /c whoami /all\"", "Task: create and execute new process");
+    let cmd_ps_run = ax.create_command("create", "Execute a new process with specified command line", "process create --command \"cmd.exe /c whoami /all\"", "Task: create and execute new process");
     cmd_ps_run.addArgFlagString("--command", "cmd", true, "Full command line with arguments");
     cmd_ps_run.addArgFlagString("--state", "state", false, "State for process creation (suspended/standard)");
     cmd_ps_run.addArgBool("--pipe", "Pipe to get output from process creation", true);
@@ -233,10 +233,10 @@ function RegisterCommands(listenerType)
     cmd_exec_bof.addArgString("param_data", false);
 
     let cmd_exec_postex = ax.create_command("postex", "Execute post-exploitation shellcode inline or forked", "execute postex --method spawn --file /tmp/module.bin --args params", "Task: execute post-exploitation module");
-    cmd_exec_postex.addArgFlagString("--method", "method", "Execution method: 'explicit' (current process) or 'spawn' (new/existing process)", "spawn");
+    cmd_exec_postex.addArgFlagString("--method", "method", "Execution method: 'explicit' (current process) or 'spawn' (new/existing process)", "none");
     cmd_exec_postex.addArgFlagInt("--pid", "pid", "Target PID for explicit fork injection", 0);
     cmd_exec_postex.addArgFlagFile("--file", "sc_file", "Shellcode file", true);
-    cmd_exec_postex.addArgFlagString("--arg", "param_data", "Shellcode parameters");
+    cmd_exec_postex.addArgFlagString("--args", "param_data", "Shellcode parameters");
 
     let cmd_execute = ax.create_command("execute", "Execute Beacon Object Files or post-exploitation shellcode modules");
     cmd_execute.addSubCommands([cmd_exec_bof, cmd_exec_postex]);

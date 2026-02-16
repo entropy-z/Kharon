@@ -78,7 +78,7 @@ auto DECLFN Memory::Protect(
     const UINT32 Flags  = Self->Config.Syscall;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
-    if ( Flags == SYSCALL_NONE ) {
+    if ( ! Flags ) {
         if ( Handle == NtCurrentProcess() ) {
             return Self->Krnl32.VirtualProtect( Base, Size, NewProt, OldProt );
         } else {
@@ -137,12 +137,10 @@ auto DECLFN Memory::Free(
     const UINT32 Flags  = Self->Config.Syscall;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
-    if ( ! Handle ) {
-        if ( ! Flags ) {
-            return NT_SUCCESS( Self->Ntdll.NtFreeVirtualMemory(
-                Handle, &Base, &Size, FreeType
-            ));
-        }
+    if ( ! Flags ) {
+        return NT_SUCCESS( Self->Ntdll.NtFreeVirtualMemory(
+            Handle, &Base, &Size, FreeType
+        ));
     }
 
     UPTR Address = SYS_ADDR( Sys::Free );

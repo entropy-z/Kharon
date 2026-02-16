@@ -18,7 +18,7 @@ auto DECLFN Thread::Enum(
     Self->Ntdll.NtQuerySystemInformation( SystemProcessInformation, NULL, NULL, &ReturnLen );
     if ( ! ReturnLen ) goto _KH_END;
 
-    SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)hAlloc( ReturnLen );
+    SysProcInfo = (PSYSTEM_PROCESS_INFORMATION)KhAlloc( ReturnLen );
     ValToFree   = SysProcInfo;
 
     bkErrorCode = Self->Ntdll.NtQuerySystemInformation( SystemProcessInformation, SysProcInfo, ReturnLen, &ReturnLen );
@@ -43,7 +43,7 @@ auto DECLFN Thread::Enum(
     }
 
 _KH_END:
-    if ( SysProcInfo ) hFree( ValToFree );
+    if ( SysProcInfo ) KhFree( ValToFree );
 
     return ThreadID;
 }

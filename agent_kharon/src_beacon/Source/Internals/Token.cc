@@ -41,7 +41,7 @@ auto DECLFN Token::GetUser(
         goto _KH_END;
     }
 
-    TokenUserPtr = ( PTOKEN_USER )hAlloc( ReturnLen );
+    TokenUserPtr = ( PTOKEN_USER )KhAlloc( ReturnLen );
     if ( ! TokenUserPtr ) {
         goto _KH_END;
     }
@@ -59,13 +59,13 @@ auto DECLFN Token::GetUser(
     if ( !Success && KhGetError == ERROR_INSUFFICIENT_BUFFER ) {
         TotalLen = UserLen + DomainLen + 2;
 
-        UserDom = (CHAR*)hAlloc( TotalLen );
+        UserDom = (CHAR*)KhAlloc( TotalLen );
         if ( !UserDom ) { 
             goto _KH_END; 
         }
 
-        Domain = (CHAR*)hAlloc( DomainLen );
-        User   = (CHAR*)hAlloc( UserLen );
+        Domain = (CHAR*)KhAlloc( DomainLen );
+        User   = (CHAR*)KhAlloc( UserLen );
 
         if ( !Domain || !User ) {
             goto _KH_END;
@@ -86,20 +86,20 @@ auto DECLFN Token::GetUser(
 
 _KH_END:
     if ( TokenUserPtr ) {
-        hFree( TokenUserPtr );
+        KhFree( TokenUserPtr );
     }
 
     if ( Domain ) {
-        hFree( Domain );
+        KhFree( Domain );
     }
 
     if ( User ) {
-        hFree( User );
+        KhFree( User );
     }
 
     if ( ! Success ) {
         if ( UserDom ) {
-            hFree( UserDom );
+            KhFree( UserDom );
         }
         UserDom = nullptr;
     }
@@ -151,10 +151,10 @@ auto DECLFN Token::Rm(
         }
         
         if ( Current->User ) {
-            hFree( Current->User );
+            KhFree( Current->User );
         }
         
-        hFree( Current );
+        KhFree( Current );
         return TRUE;
     }
 
@@ -174,10 +174,10 @@ auto DECLFN Token::Rm(
     }
     
     if ( Current->User ) {
-        hFree( Current->User );
+        KhFree( Current->User );
     }
     
-    hFree( Current );
+    KhFree( Current );
     return TRUE;
 }
 
@@ -196,7 +196,7 @@ auto DECLFN Token::Add(
         return nullptr;
     }
 
-    TOKEN_NODE* NewNode = (TOKEN_NODE*)hAlloc( sizeof(TOKEN_NODE) );
+    TOKEN_NODE* NewNode = (TOKEN_NODE*)KhAlloc( sizeof(TOKEN_NODE) );
     if ( ! NewNode ) {
         return nullptr;
     }
@@ -207,7 +207,7 @@ auto DECLFN Token::Add(
         TokenID = Rnd32() % 9999;
         attempts++;
         if (attempts > 100) {
-            hFree( NewNode );
+            KhFree( NewNode );
             return nullptr;
         }
     } while ( this->GetByID( TokenID ) );
@@ -245,20 +245,20 @@ auto DECLFN Token::ListPrivs(
 
     Self->Advapi32.GetTokenInformation( TokenHandle, TokenPrivileges, nullptr, 0, &TokenInfoLen );
 
-    TokenPrivs = (TOKEN_PRIVILEGES*)hAlloc( TokenInfoLen );
+    TokenPrivs = (TOKEN_PRIVILEGES*)KhAlloc( TokenInfoLen );
     if ( ! TokenPrivs ) {
         return nullptr;
     }
 
     if ( ! Self->Advapi32.GetTokenInformation( TokenHandle, TokenPrivileges, TokenPrivs, TokenInfoLen, &TokenInfoLen ) ) {
-        hFree( TokenPrivs );
+        KhFree( TokenPrivs );
         return nullptr;
     }
 
     ListCount = TokenPrivs->PrivilegeCount;    
-    PrivList  = (PRIV_LIST**)hAlloc( sizeof(PRIV_LIST*) * ListCount );
+    PrivList  = (PRIV_LIST**)KhAlloc( sizeof(PRIV_LIST*) * ListCount );
     if ( ! PrivList ) {
-        hFree( TokenPrivs );
+        KhFree( TokenPrivs );
         return nullptr;
     }
 
@@ -267,20 +267,20 @@ auto DECLFN Token::ListPrivs(
         
         LUID  luid     = TokenPrivs->Privileges[i].Luid;
         ULONG PrivLen  = MAX_PATH;
-        CHAR* PrivName = (CHAR*)hAlloc( PrivLen );
+        CHAR* PrivName = (CHAR*)KhAlloc( PrivLen );
 
         if ( ! PrivName ) {
             continue; 
         }
 
         if ( !Self->Advapi32.LookupPrivilegeNameA( nullptr, &luid, PrivName, &PrivLen ) ) {
-            hFree( PrivName );
+            KhFree( PrivName );
             continue;
         }
 
-        PrivList[i] = (PRIV_LIST*)hAlloc( sizeof( PRIV_LIST ) );
+        PrivList[i] = (PRIV_LIST*)KhAlloc( sizeof( PRIV_LIST ) );
         if ( ! PrivList[i] ) {
-            hFree( PrivName );
+            KhFree( PrivName );
             continue;
         }
 
@@ -288,7 +288,7 @@ auto DECLFN Token::ListPrivs(
         PrivList[i]->Attributes = TokenPrivs->Privileges[i].Attributes;
     }
 
-    hFree( TokenPrivs );
+    KhFree( TokenPrivs );
     
     return PrivList;
 }
@@ -310,13 +310,13 @@ auto DECLFN Token::GetPrivs(
         this->SetPriv( TokenHandle, PrivList[i]->PrivName );
 
         if ( PrivList[i]->PrivName ) {
-            hFree( PrivList[i]->PrivName );
+            KhFree( PrivList[i]->PrivName );
         }
 
-        hFree( PrivList[i] );
+        KhFree( PrivList[i] );
     }
 
-    hFree( PrivList );
+    KhFree( PrivList );
 
     return TRUE;
 }

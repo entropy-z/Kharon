@@ -107,8 +107,6 @@ enum Reg {
 struct _BOF_OBJ {
     PVOID MmBegin;
     PVOID MmEnd;
-    CHAR* UUID;
-    ULONG CmdID;
     PVOID Entry;
 
     struct _BOF_OBJ* Next;

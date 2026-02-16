@@ -80,9 +80,9 @@
 #define QuickErr( x, ... )     Self->Pkg->FmtMsg( CALLBACK_ERROR,      x, ##__VA_ARGS__ )
 #define QuickOut( x, y, z )    Self->Pkg->SendOut( CALLBACK_NO_PRE_MSG, x, y, z )
 
-#define hAlloc( x )       Self->Hp->Alloc( x )
-#define hReAlloc( x, y )  Self->Hp->ReAlloc( x, y )
-#define hFree( x )        Self->Hp->Free( x )
+#define KhAlloc( x )       Self->Hp->Alloc( x )
+#define KhReAlloc( x, y )  Self->Hp->ReAlloc( x, y )
+#define KhFree( x )        Self->Hp->Free( x )
 
 /*============== [ Dereference ] ==============*/
 

