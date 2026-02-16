@@ -1,15 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"math/rand"
-	"strconv"
-	"time"
-	"strings"
 	"net"
-	"encoding/binary"
-	"bytes"
+	"strconv"
+	"strings"
+	"time"
 
 	"unicode/utf16"
 
@@ -852,6 +852,8 @@ const (
 	CALLBACK_SCREENSHOT  = 0x55
 	CALLBACK_CUSTOM      = 0x1000
 	CALLBACK_CUSTOM_LAST = 0x13ff
+	CALLBACK_AX_SCREENSHOT   = 0x81
+	CALLBACK_AX_DOWNLOAD_MEM = 0x82
 )
 
 const (

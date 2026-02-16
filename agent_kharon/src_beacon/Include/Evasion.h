@@ -101,6 +101,8 @@ enum Reg {
 #define CALLBACK_NO_PRE_MSG  0x4f
 #define CALLBACK_CUSTOM      0x1000
 #define CALLBACK_CUSTOM_LAST 0x13ff
+#define CALLBACK_AX_SCREENSHOT   0x81
+#define CALLBACK_AX_DOWNLOAD_MEM 0x82
 
 struct _BOF_OBJ {
     PVOID MmBegin;
