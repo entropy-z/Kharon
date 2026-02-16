@@ -2354,10 +2354,47 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 
 				task.ClearText = ConvertCpToUTF8(output, agentData.ACP)
 
-			case CALLBACK_INFO:
-				task.MessageType = MESSAGE_INFO
-				task.Message = packer.ParseString()
-			
+			case CALLBACK_AX_SCREENSHOT:
+				if false == packer.CheckPacker([]string{"array"}) {
+					return outTasks
+				}
+				payload := packer.ParseBytes()
+				inner := CreatePacker(payload)
+				if false == inner.CheckPacker([]string{"array", "array"}) {
+					return outTasks
+				}
+				note := ConvertCpToUTF8(inner.ParseString(), agentData.ACP)
+				screenBuff := inner.ParseBytes()
+				_ = ts.TsScreenshotAdd(agentData.Id, note, screenBuff)
+				task.MessageType = MESSAGE_SUCCESS
+				if note == "" {
+					task.Message = "Screenshot saved"
+				} else {
+					task.Message = fmt.Sprintf("Screenshot saved: %s", note)
+				}
+			case CALLBACK_AX_DOWNLOAD_MEM:
+				if false == packer.CheckPacker([]string{"array"}) {
+					return outTasks
+				}
+				payload := packer.ParseBytes()
+				inner := CreatePacker(payload)
+				if false == inner.CheckPacker([]string{"array", "array"}) {
+					return outTasks
+				}
+				filename := ConvertCpToUTF8(inner.ParseString(), agentData.ACP)
+				data := inner.ParseBytes()
+				fileId := fmt.Sprintf("%08x", rand.Uint32())
+				addErr := ts.TsDownloadAdd(agentData.Id, fileId, filename, len(data))
+				updErr := ts.TsDownloadUpdate(fileId, 1, data)
+				clsErr := ts.TsDownloadClose(fileId, 3)
+				if addErr != nil || updErr != nil || clsErr != nil {
+					fmt.Printf("DownloadAdd/Update/Close failed: add=%v update=%v close=%v\n", addErr, updErr, clsErr)
+					_ = ts.TsDownloadSave(agentData.Id, fileId, filename, data)
+				}
+
+				task.MessageType = MESSAGE_SUCCESS
+				task.Message = "BOF download"
+				task.ClearText = fmt.Sprintf("Saved %s (%d bytes)", filename, len(data))
 			default:
 				output := packer.ParseString()
 

