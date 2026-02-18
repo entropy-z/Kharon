@@ -24,7 +24,6 @@
 - IpAddress Checkin
 - Added a script to simplify agent setup (consult setup_kharon.sh)
 - Show cfg, VBS/HVCI, and DSE status for info command
-- Profile Listener show in the info command
 - info command show the amsi/etw bypass
 - config syscall capability
 - Config bof api prox via config command
