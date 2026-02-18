@@ -1,0 +1,2426 @@
+package main
+
+import (
+	"bytes"
+	"encoding/binary"
+	"encoding/json"
+	"fmt"
+	"io"
+	"math/rand"
+	"net"
+	"strconv"
+	"strings"
+	"time"
+
+	"unicode/utf16"
+
+	ax "github.com/Adaptix-Framework/axc2"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
+)
+
+type KharonData struct {
+	Machine struct {
+		OsArch           uint8  `json:"os_arch"`
+		Username         string `json:"username"`
+		Computer         string `json:"computer"`
+		Domain           string `json:"domain"`
+		Netbios          string `json:"netbios"`
+		Ipaddress        string `json:"ipaddress"`
+		ProcessorName    string `json:"processor_name"`
+		ProcessorNumbers uint32 `json:"processor_numbers"`
+		RamTotal         uint32 `json:"ram_total"`
+		RamAval          uint32 `json:"ram_aval"`
+		RamUsed          uint32 `json:"ram_used"`
+		RamPerct         uint32 `json:"ram_perct"`
+		OsMajor          uint32 `json:"os_major"`
+		OsMinor          uint32 `json:"os_minor"`
+		OsBuild          uint32 `json:"os_build"`
+		AllocationGran   uint32 `json:"allocation_gran"`
+		PageSize         uint32 `json:"page_size"`
+		CfgEnabled       bool   `json:"cfg_enabled"`
+		VbsHvci          uint32 `json:"vbs_hvci"`
+		DseStatus        uint32 `json:"dse_status"`
+		TestsignEnabled  bool   `json:"testsign_enabled"`
+		DebugmodeEnabled bool   `json:"debugmode_enabled"`
+		SecurebootEnabled bool  `json:"secureboot_enabled"`
+	} `json:"machine"`
+
+	Session struct {
+		AgentIdStr string `json:"agent_id_str"`
+		AgentIdInt uint32 `json:"agent_id_int"`
+		SleepTime  uint32 `json:"sleep_time"`
+		Jitter     uint32 `json:"jitter"`
+		HeapHandle uint64 `json:"heap_handle"`
+		Elevated   bool   `json:"elevated"`
+		ProcessArch uint32 `json:"process_arch"`
+		ImgPath    string `json:"img_path"`
+		ImgName    string `json:"img_name"`
+		CmdLine    string `json:"cmd_line"`
+		ProcessId  uint32 `json:"process_id"`
+		ThreadId   uint32 `json:"thread_id"`
+		ParentId   uint32 `json:"parent_id"`
+		Acp        uint32 `json:"acp"`
+		Oemcp      uint32 `json:"oemcp"`
+		Base struct {
+			Start string `json:"start"`
+			End   string `json:"end"`
+			Size  uint32 `json:"size"`
+		} `json:"base"`
+	} `json:"session"`
+
+	Killdate struct {
+		Enabled bool      `json:"enabled"`
+		Exit    bool      `json:"exit"`
+		Selfdel bool      `json:"selfdel"`
+		Date    time.Time `json:"date"`
+	} `json:"killdate"`
+
+	Worktime struct {
+		Enabled bool   `json:"enabled"`
+		Start   string `json:"start"`
+		End     string `json:"end"`
+	} `json:"worktime"`
+
+	Guardrails struct {
+		Ipaddress string `json:"ipaddress"`
+		Hostname  string `json:"hostname"`
+		Username  string `json:"username"`
+		Domain    string `json:"domain"`
+	} `json:"guardrails"`
+
+	Mask struct {
+		Heap       bool   `json:"heap"`
+		Beacon     uint32 `json:"beacon"`
+		Jmpgadget  string `json:"jmpgadget"`
+		Ntcontinue string `json:"ntcontinue"`
+	} `json:"mask"`
+
+	Evasion struct {
+		BofProxy      bool   `json:"bof_proxy"`
+		Syscall       uint32 `json:"syscall"`
+		AmsiEtwBypass int32  `json:"amsi_etw_bypass"`
+	} `json:"evasion"`
+
+	Ps struct {
+		ParentId  uint32 `json:"parent_id"`
+		Spoofarg  string `json:"spoofarg"`
+		BlockDlls bool   `json:"block_dlls"`
+		Spawnto   string `json:"spawnto"`
+		ForkPipe  string `json:"fork_pipe"`
+	} `json:"ps"`
+
+	PostexHandler struct {
+		PostexLoaded bool `json:"postex_loaded"`
+	} `json:"postex_handler"`
+}
+
+func (k *KharonData) JsonMarshal(agent *ax.AgentData, update bool) {
+	var newbuff bytes.Buffer
+	json.NewEncoder(&newbuff).Encode(k)
+	agent.CustomData = newbuff.Bytes()
+	if update {
+		ModuleObject.ts.TsAgentUpdateDataPartial(
+			agent.Id, map[string]interface{}{
+				"custom_data": newbuff.String(),
+			},
+		)
+	}
+}
+
+func (k *KharonData) JsonUnmarshal(agent *ax.AgentData) error {
+	if len(agent.CustomData) == 0 {
+		return fmt.Errorf("custom_data is empty")
+	}
+	return json.Unmarshal(agent.CustomData, k)
+}
+
+
+func (k *KharonData) Marshal() ([]byte, error) {
+	var buf bytes.Buffer
+
+	// Machine
+	if err := write_string(&buf, k.Machine.Username); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Machine.Computer); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Machine.Domain); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Machine.Netbios); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Machine.Ipaddress); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.OsArch); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.ProcessorNumbers); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Machine.ProcessorName); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.RamUsed); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.RamTotal); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.RamAval); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.RamPerct); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.OsMinor); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.OsMajor); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.OsBuild); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.AllocationGran); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.PageSize); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.Machine.CfgEnabled); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.DseStatus); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.VbsHvci); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.Machine.TestsignEnabled); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.Machine.DebugmodeEnabled); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.Machine.SecurebootEnabled); err != nil {
+		return nil, err
+	}
+
+	// Session
+	if err := write_string(&buf, k.Session.AgentIdStr); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.AgentIdInt); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.SleepTime); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.Jitter); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.HeapHandle); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.Session.Elevated); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.ProcessArch); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Session.ImgPath); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Session.ImgName); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Session.CmdLine); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.ProcessId); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.ThreadId); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.ParentId); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.Acp); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.Oemcp); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Session.Base.Start); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Session.Base.End); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.Base.Size); err != nil {
+		return nil, err
+	}
+
+	// Killdate
+	if err := write_bool(&buf, k.Killdate.Enabled); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.Killdate.Exit); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.Killdate.Selfdel); err != nil {
+		return nil, err
+	}
+	if err := write_time(&buf, k.Killdate.Date); err != nil {
+		return nil, err
+	}
+
+	// Worktime
+	if err := write_bool(&buf, k.Worktime.Enabled); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Worktime.Start); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Worktime.End); err != nil {
+		return nil, err
+	}
+
+	// Guardrails
+	if err := write_string(&buf, k.Guardrails.Ipaddress); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Guardrails.Hostname); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Guardrails.Username); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Guardrails.Domain); err != nil {
+		return nil, err
+	}
+
+	// Mask
+	if err := write_bool(&buf, k.Mask.Heap); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Mask.Beacon); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Mask.Jmpgadget); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Mask.Ntcontinue); err != nil {
+		return nil, err
+	}
+
+	// Evasion
+	if err := write_bool(&buf, k.Evasion.BofProxy); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Evasion.Syscall); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, k.Evasion.AmsiEtwBypass); err != nil {
+		return nil, err
+	}
+
+	// PS
+	if err := binary.Write(&buf, binary.LittleEndian, k.Ps.ParentId); err != nil {
+		return nil, err
+	}
+	if err := write_bool(&buf, k.Ps.BlockDlls); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Ps.Spawnto); err != nil {
+		return nil, err
+	}
+	if err := write_string(&buf, k.Ps.ForkPipe); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (k *KharonData) Unmarshal(data []byte) error {
+	buf := bytes.NewReader(data)
+
+	// Machine
+	var err error
+	k.Machine.Username, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.Username: %w", err)
+	}
+
+	k.Machine.Computer, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.Computer: %w", err)
+	}
+
+	k.Machine.Domain, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.Domain: %w", err)
+	}
+
+	k.Machine.Netbios, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.Netbios: %w", err)
+	}
+
+	k.Machine.Ipaddress, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.Ipaddress: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.OsArch); err != nil {
+		return fmt.Errorf("failed to read machine.OsArch: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.ProcessorNumbers); err != nil {
+		return fmt.Errorf("failed to read machine.ProcessorNumbers: %w", err)
+	}
+
+	k.Machine.ProcessorName, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.ProcessorName: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.RamUsed); err != nil {
+		return fmt.Errorf("failed to read machine.RamUsed: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.RamTotal); err != nil {
+		return fmt.Errorf("failed to read machine.RamTotal: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.RamAval); err != nil {
+		return fmt.Errorf("failed to read machine.RamAval: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.RamPerct); err != nil {
+		return fmt.Errorf("failed to read machine.RamPerct: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.OsMinor); err != nil {
+		return fmt.Errorf("failed to read machine.OsMinor: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.OsMajor); err != nil {
+		return fmt.Errorf("failed to read machine.OsMajor: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.OsBuild); err != nil {
+		return fmt.Errorf("failed to read machine.OsBuild: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.AllocationGran); err != nil {
+		return fmt.Errorf("failed to read machine.AllocationGran: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.PageSize); err != nil {
+		return fmt.Errorf("failed to read machine.PageSize: %w", err)
+	}
+
+	k.Machine.CfgEnabled, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.CfgEnabled: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.DseStatus); err != nil {
+		return fmt.Errorf("failed to read machine.DseStatus: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.VbsHvci); err != nil {
+		return fmt.Errorf("failed to read machine.VbsHvci: %w", err)
+	}
+
+	k.Machine.TestsignEnabled, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.TestsignEnabled: %w", err)
+	}
+
+	k.Machine.DebugmodeEnabled, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.DebugmodeEnabled: %w", err)
+	}
+
+	k.Machine.SecurebootEnabled, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read machine.SecurebootEnabled: %w", err)
+	}
+
+	// Session
+	k.Session.AgentIdStr, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Session.AgentIdStr: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.AgentIdInt); err != nil {
+		return fmt.Errorf("failed to read Session.AgentIdInt: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.SleepTime); err != nil {
+		return fmt.Errorf("failed to read Session.SleepTime: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.Jitter); err != nil {
+		return fmt.Errorf("failed to read Session.Jitter: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.HeapHandle); err != nil {
+		return fmt.Errorf("failed to read Session.HeapHandle: %w", err)
+	}
+
+	k.Session.Elevated, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Session.Elevated: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.ProcessArch); err != nil {
+		return fmt.Errorf("failed to read Session.ProcessArch: %w", err)
+	}
+
+	k.Session.ImgPath, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Session.ImgPath: %w", err)
+	}
+
+	k.Session.ImgName, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Session.ImgName: %w", err)
+	}
+
+	k.Session.CmdLine, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Session.CmdLine: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.ProcessId); err != nil {
+		return fmt.Errorf("failed to read Session.ProcessId: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.ThreadId); err != nil {
+		return fmt.Errorf("failed to read Session.ThreadId: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.ParentId); err != nil {
+		return fmt.Errorf("failed to read Session.ParentId: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.Acp); err != nil {
+		return fmt.Errorf("failed to read Session.Acp: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.Oemcp); err != nil {
+		return fmt.Errorf("failed to read Session.Oemcp: %w", err)
+	}
+
+	k.Session.Base.Start, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Session.Base.Start: %w", err)
+	}
+
+	k.Session.Base.End, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Session.Base.End: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.Base.Size); err != nil {
+		return fmt.Errorf("failed to read Session.Base.Size: %w", err)
+	}
+
+	// Killdate
+	k.Killdate.Enabled, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Killdate.Enabled: %w", err)
+	}
+
+	k.Killdate.Exit, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Killdate.Exit: %w", err)
+	}
+
+	k.Killdate.Selfdel, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Killdate.Selfdel: %w", err)
+	}
+
+	k.Killdate.Date, err = read_time(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Killdate.Date: %w", err)
+	}
+
+	// Worktime
+	k.Worktime.Enabled, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Worktime.Enabled: %w", err)
+	}
+
+	k.Worktime.Start, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Worktime.Start: %w", err)
+	}
+
+	k.Worktime.End, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Worktime.End: %w", err)
+	}
+
+	// Guardrails
+	k.Guardrails.Ipaddress, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Guardrails.Ipaddress: %w", err)
+	}
+
+	k.Guardrails.Hostname, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Guardrails.Hostname: %w", err)
+	}
+
+	k.Guardrails.Username, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Guardrails.Username: %w", err)
+	}
+
+	k.Guardrails.Domain, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Guardrails.Domain: %w", err)
+	}
+
+	// Mask
+	k.Mask.Heap, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read Mask.Heap: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Mask.Beacon); err != nil {
+		return fmt.Errorf("failed to read Mask.Beacon: %w", err)
+	}
+
+	k.Mask.Jmpgadget, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read mask.Jmpgadget: %w", err)
+	}
+
+	k.Mask.Ntcontinue, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read mask.Ntcontinue: %w", err)
+	}
+
+	// Evasion
+	k.Evasion.BofProxy, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read evasion.BofProxy: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Evasion.Syscall); err != nil {
+		return fmt.Errorf("failed to read evasion.Syscall: %w", err)
+	}
+
+	if err := binary.Read(buf, binary.LittleEndian, &k.Evasion.AmsiEtwBypass); err != nil {
+		return fmt.Errorf("failed to read evasion.AmsiEtwBypass: %w", err)
+	}
+
+	// PS
+	if err := binary.Read(buf, binary.LittleEndian, &k.Ps.ParentId); err != nil {
+		return fmt.Errorf("failed to read ps.ParentId: %w", err)
+	}
+
+	k.Ps.BlockDlls, err = read_bool(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read ps.BlockDlls: %w", err)
+	}
+
+	k.Ps.Spawnto, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read ps.Spawnto: %w", err)
+	}
+
+	k.Ps.ForkPipe, err = read_string(buf)
+	if err != nil {
+		return fmt.Errorf("failed to read ps.ForkPipe: %w", err)
+	}
+
+	return nil
+}
+
+type AgentConfig struct {
+	Format string `json:"format"`
+	Debug  bool   `json:"debug_mode"`
+	Sleep  string `json:"sleep"`
+	Jitter int    `json:"jitter"`
+
+	KilldateCheck bool   `json:"killdate_check"`
+	KilldateDate  string `json:"killdate_date"`
+
+	ForkPipe    string `json:"fork_pipename"`
+	Spawnto     string `json:"spawnto"`
+	Bypass      string `json:"bypass"`
+	MaskHeap    bool   `json:"mask_heap"`
+	MaskSleep   string `json:"mask_sleep"`
+	BofApiProxy bool   `json:"bof_api_proxy"`
+	Syscall     string `json:"syscall"`
+
+	GuardIpAddress  string `json:"guardrails_ip"`
+	GuardHostName   string `json:"guardrails_hostname"`
+	GuardUserName   string `json:"guardrails_user"`
+	GuardDomainName string `json:"guardrails_domain"`
+
+	WorkingTimeCheck bool   `json:"workingtime_check"`
+	WorkingTimeEnd   string `json:"workingtime_end"`
+	WorkingTimeStart string `json:"workingtime_start"`
+
+	kharon_data []byte
+}
+
+type OutputConfig struct {
+	Mask      bool
+	Header    string
+	Format    string
+	Parameter string
+	Body      string
+
+	Append  string
+	Prepend string
+}
+
+type URIConfig struct {
+	ServerOutput *OutputConfig
+	ClientOutput *OutputConfig
+	ClientParams []map[string]interface{}
+}
+
+type ServerError struct {
+	Status   int
+	Response string
+}
+
+type HTTPMethod struct {
+	ServerHeaders map[string]string
+	EmptyResponse []byte
+	ClientHeaders map[string]string
+	URI           map[string]URIConfig
+}
+
+type Callback struct {
+	Hosts       []string
+	Host        string
+	UserAgent   string
+	ServerError *ServerError
+	Get         *HTTPMethod
+	Post        *HTTPMethod
+}
+
+type ServerRequest struct {
+	Headers   string
+	Body      []byte
+	EmptyResp []byte
+	Payload   []byte
+}
+
+type ClientRequest struct {
+	Uri        string
+	HttpMethod string
+	Address    string
+	Params     map[string][]string
+	UserAgent  string
+	Body       []byte
+	Payload    []byte
+
+	Config Callback
+
+	UriConfig     *URIConfig
+	HttpMethodCfg *HTTPMethod
+}
+
+const (
+	PROFILE_WEB uint = 0x25
+	PROFILE_SMB uint = 0x15
+	PROFILE_DOH uint = 0x40
+	PROFILE_DNS uint = 0x30
+	PROFILE_TCP uint = 0x10
+)
+
+const (
+	MSG_QUICK int32 = 0x5
+	MSG_OUT   int32 = 0x7
+)
+
+const (
+	TASK_ERROR            int16 = 6
+	TASK_PROC             int16 = 11
+	TASK_FS               int16 = 12
+	TASK_UPLOAD           int16 = 13
+	TASK_DOWNLOAD         int16 = 14
+	TASK_GETINFO          int16 = 15
+	TASK_SELFDEL          int16 = 16
+	TASK_EXIT             int16 = 17
+	TASK_SOCKS            int16 = 18
+	TASK_EXEC_BOF         int16 = 19
+	TASK_TOKEN            int16 = 20
+	TASK_PIVOT            int16 = 21
+	TASK_POSTEX           int16 = 22
+	TASK_SCINJECT         int16 = 23
+	TASK_JOB              int16 = 24
+	TASK_PROCESS_TUNNEL   int16 = 25
+	TASK_PROCESS_DOWNLOAD int16 = 26
+	TASK_RPORTFWD         int16 = 27
+)
+
+const (
+	COMMAND_TUNNEL_START_TCP = 62
+	COMMAND_TUNNEL_START_UDP = 63
+	COMMAND_TUNNEL_WRITE_TCP = 64
+	COMMAND_TUNNEL_WRITE_UDP = 65
+	COMMAND_TUNNEL_CLOSE     = 66
+	COMMAND_TUNNEL_REVERSE   = 67
+	COMMAND_TUNNEL_ACCEPT    = 68
+	COMMAND_TUNNEL_PAUSE     = 69
+	COMMAND_TUNNEL_RESUME    = 70
+)
+
+const (
+	CONFIG_JITTER     int = 14
+	CONFIG_SLEEP      int = 15
+	CONFIG_MASK       int = 16
+	CONFIG_PPID       int = 17
+	CONFIG_BLOCK_DLLS int = 18
+	CONFIG_ARG        int = 19
+	CONFIG_SPAWN      int = 20
+	CONFIG_KD_DATE    int = 21
+	CONFIG_WORKTIME   int = 22
+	CONFIG_MASK_HEAP  int = 23
+	CONFIG_KD_SELFDEL int = 24
+	CONFIG_KD_EXIT    int = 25
+	CONFIG_AE_BYPASS  int = 26
+	CONFIG_SYSCALL    int = 27
+	CONFIG_FORKPIPE   int = 28
+	CONFIG_ARGUE      int = 29
+	CONFIG_BOFPROXY   int = 30
+)
+
+const (
+	JOB_STATE_TERMINATE  = 0x010
+	JOB_STATE_READY_SEND = 0x050
+	JOB_STATE_SUSPENDED  = 0x100
+	JOB_STATE_HIBERN     = 0x150
+	JOB_STATE_RUNNING    = 0x200
+	JOB_STATE_PRE_START  = 0x300
+)
+
+const (
+	PROC_LIST int = 20
+	PROC_RUN  int = 21
+	PROC_KILL int = 22
+	PROC_PWSH int = 23
+	PROC_GREP int = 24
+)
+
+const (
+	FS_LIST  int = 30
+	FS_CAT   int = 31
+	FS_PWD   int = 32
+	FS_MOVE  int = 33
+	FS_COPY  int = 34
+	FS_MKDIR int = 35
+	FS_RM    int = 36
+	FS_CD    int = 37
+)
+
+const (
+	TASK_CONFIG int = 10
+)
+
+const (
+	EXIT_THREAD  int8 = 20
+	EXIT_PROCESS int8 = 21
+)
+
+const (
+	TOKEN_GET_UUID  int = 10
+	TOKEN_STEAL     int = 11
+	TOKEN_MAKE      int = 12
+	TOKEN_PRIV_GET  int = 13
+	TOKEN_PRIV_LIST int = 14
+	TOKEN_USE       int = 15
+	TOKEN_RM        int = 16
+	TOKEN_REVERT    int = 17
+	TOKEN_LIST      int = 18
+)
+
+const (
+	CALLBACK_OUTPUT      = 0x0
+	CALLBACK_OUTPUT_OEM  = 0x1e
+	CALLBACK_OUTPUT_UTF8 = 0x20
+	CALLBACK_ERROR       = 0x0d
+	CALLBACK_NO_PRE_MSG  = 0x4f
+	CALLBACK_INFO        = 0x4e
+	CALLBACK_SCREENSHOT  = 0x55
+	CALLBACK_CUSTOM      = 0x1000
+	CALLBACK_CUSTOM_LAST = 0x13ff
+	CALLBACK_AX_SCREENSHOT   = 0x81
+	CALLBACK_AX_DOWNLOAD_MEM = 0x82
+)
+
+const (
+	POSTEX_ACTION_CLEANUP = 0x10
+	POSTEX_ACTION_INJECT  = 0x11
+	POSTEX_ACTION_POLL    = 0x12
+	POSTEX_ACTION_LIST    = 0x13
+	POSTEX_ACTION_SUSPEND = 0x14
+	POSTEX_ACTION_RESUME  = 0x15
+	POSTEX_ACTION_KILL    = 0x16
+)
+
+const (
+	POSTEX_MSG_READY  = 0x10
+	POSTEX_MSG_OUTPUT = 0x11
+	POSTEX_MSG_STATE  = 0x12
+	POSTEX_MSG_END    = 0x13
+	POSTEX_MSG_RAW    = 0x14
+)
+
+var codePageMapping = map[int]encoding.Encoding{
+	037:   charmap.CodePage037,   // IBM EBCDIC US-Canada
+	437:   charmap.CodePage437,   // OEM United States
+	850:   charmap.CodePage850,   // Western European (DOS)
+	852:   charmap.CodePage852,   // Central European (DOS)
+	855:   charmap.CodePage855,   // OEM Cyrillic (primarily Russian)
+	858:   charmap.CodePage858,   // OEM Multilingual Latin 1 + Euro
+	860:   charmap.CodePage860,   // Portuguese (DOS)
+	862:   charmap.CodePage862,   // Hebrew (DOS)
+	863:   charmap.CodePage863,   // French Canadian (DOS)
+	865:   charmap.CodePage865,   // Nordic (DOS)
+	866:   charmap.CodePage866,   // Russian (DOS)
+	936:   simplifiedchinese.GBK, // Chinese (GBK)
+	1047:  charmap.CodePage1047,  // IBM EBCDIC Latin 1/Open System
+	1140:  charmap.CodePage1140,  // IBM EBCDIC US-Canada with Euro
+	1250:  charmap.Windows1250,   // Central European (Windows)
+	1251:  charmap.Windows1251,   // Cyrillic (Windows)
+	1252:  charmap.Windows1252,   // Western European (Windows)
+	1253:  charmap.Windows1253,   // Greek (Windows)
+	1254:  charmap.Windows1254,   // Turkish (Windows)
+	1255:  charmap.Windows1255,   // Hebrew (Windows)
+	1256:  charmap.Windows1256,   // Arabic (Windows)
+	1257:  charmap.Windows1257,   // Baltic (Windows)
+	1258:  charmap.Windows1258,   // Vietnamese (Windows)
+	20866: charmap.KOI8R,         // Russian (KOI8-R)
+	21866: charmap.KOI8U,         // Ukrainian (KOI8-U)
+	28591: charmap.ISO8859_1,     // Western European (ISO 8859-1)
+	28592: charmap.ISO8859_2,     // Central European (ISO 8859-2)
+	28593: charmap.ISO8859_3,     // Latin 3 (ISO 8859-3)
+	28594: charmap.ISO8859_4,     // Baltic (ISO 8859-4)
+	28595: charmap.ISO8859_5,     // Cyrillic (ISO 8859-5)
+	28596: charmap.ISO8859_6,     // Arabic (ISO 8859-6)
+	28597: charmap.ISO8859_7,     // Greek (ISO 8859-7)
+	28598: charmap.ISO8859_8,     // Hebrew (ISO 8859-8)
+	28599: charmap.ISO8859_9,     // Turkish (ISO 8859-9)
+	28605: charmap.ISO8859_15,    // Latin 9 (ISO 8859-15)
+	65001: encoding.Nop,          // Unicode (UTF-8)
+}
+
+var win32ErrorCodes = map[uint]string{
+	1:     "INVALID_FUNCTION",
+	2:     "FILE_NOT_FOUND",
+	3:     "PATH_NOT_FOUND",
+	4:     "TOO_MANY_OPEN_FILES",
+	5:     "ACCESS_DENIED",
+	6:     "INVALID_HANDLE",
+	7:     "ARENA_TRASHED",
+	8:     "NOT_ENOUGH_MEMORY",
+	9:     "INVALID_BLOCK",
+	10:    "BAD_ENVIRONMENT",
+	11:    "BAD_FORMAT",
+	12:    "INVALID_ACCESS",
+	13:    "INVALID_DATA",
+	14:    "OUTOFMEMORY",
+	15:    "INVALID_DRIVE",
+	16:    "CURRENT_DIRECTORY",
+	17:    "NOT_SAME_DEVICE",
+	18:    "NO_MORE_FILES",
+	19:    "WRITE_PROTECT",
+	20:    "BAD_UNIT",
+	21:    "NOT_READY",
+	22:    "BAD_COMMAND",
+	23:    "CRC",
+	24:    "BAD_LENGTH",
+	25:    "SEEK",
+	26:    "NOT_DOS_DISK",
+	27:    "SECTOR_NOT_FOUND",
+	28:    "OUT_OF_PAPER",
+	29:    "WRITE_FAULT",
+	30:    "READ_FAULT",
+	31:    "GEN_FAILURE",
+	32:    "SHARING_VIOLATION",
+	33:    "LOCK_VIOLATION",
+	34:    "WRONG_DISK",
+	36:    "SHARING_BUFFER_EXCEEDED",
+	38:    "HANDLE_EOF",
+	39:    "HANDLE_DISK_FULL",
+	50:    "NOT_SUPPORTED",
+	51:    "REM_NOT_LIST",
+	52:    "DUP_NAME",
+	53:    "BAD_NETPATH",
+	54:    "NETWORK_BUSY",
+	55:    "DEV_NOT_EXIST",
+	56:    "TOO_MANY_CMDS",
+	57:    "ADAP_HDW_ERR",
+	58:    "BAD_NET_RESP",
+	59:    "UNEXP_NET_ERR",
+	60:    "BAD_REM_ADAP",
+	61:    "PRINTQ_FULL",
+	62:    "NO_SPOOL_SPACE",
+	63:    "PRINT_CANCELLED",
+	64:    "NETNAME_DELETED",
+	65:    "NETWORK_ACCESS_DENIED",
+	66:    "BAD_DEV_TYPE",
+	67:    "BAD_NET_NAME",
+	68:    "TOO_MANY_NAMES",
+	69:    "TOO_MANY_SESS",
+	70:    "SHARING_PAUSED",
+	71:    "REQ_NOT_ACCEP",
+	72:    "REDIR_PAUSED",
+	80:    "FILE_EXISTS",
+	82:    "CANNOT_MAKE",
+	83:    "FAIL_I24",
+	84:    "OUT_OF_STRUCTURES",
+	85:    "ALREADY_ASSIGNED",
+	86:    "INVALID_PASSWORD",
+	87:    "INVALID_PARAMETER",
+	88:    "NET_WRITE_FAULT",
+	89:    "NO_PROC_SLOTS",
+	100:   "TOO_MANY_SEMAPHORES",
+	101:   "EXCL_SEM_ALREADY_OWNED",
+	102:   "SEM_IS_SET",
+	103:   "TOO_MANY_SEM_REQUESTS",
+	104:   "INVALID_AT_INTERRUPT_TIME",
+	105:   "SEM_OWNER_DIED",
+	106:   "SEM_USER_LIMIT",
+	107:   "DISK_CHANGE",
+	108:   "DRIVE_LOCKED",
+	109:   "BROKEN_PIPE",
+	110:   "OPEN_FAILED",
+	111:   "BUFFER_OVERFLOW",
+	112:   "DISK_FULL",
+	113:   "NO_MORE_SEARCH_HANDLES",
+	114:   "INVALID_TARGET_HANDLE",
+	117:   "INVALID_CATEGORY",
+	118:   "INVALID_VERIFY_SWITCH",
+	119:   "BAD_DRIVER_LEVEL",
+	120:   "CALL_NOT_IMPLEMENTED",
+	121:   "SEM_TIMEOUT",
+	122:   "INSUFFICIENT_BUFFER",
+	123:   "INVALID_NAME",
+	124:   "INVALID_LEVEL",
+	125:   "NO_VOLUME_LABEL",
+	126:   "MOD_NOT_FOUND",
+	127:   "PROC_NOT_FOUND",
+	128:   "WAIT_NO_CHILDREN",
+	129:   "CHILD_NOT_COMPLETE",
+	130:   "DIRECT_ACCESS_HANDLE",
+	131:   "NEGATIVE_SEEK",
+	132:   "SEEK_ON_DEVICE",
+	133:   "IS_JOIN_TARGET",
+	134:   "IS_JOINED",
+	135:   "IS_SUBSTED",
+	136:   "NOT_JOINED",
+	137:   "NOT_SUBSTED",
+	138:   "JOIN_TO_JOIN",
+	139:   "SUBST_TO_SUBST",
+	140:   "JOIN_TO_SUBST",
+	141:   "SUBST_TO_JOIN",
+	142:   "BUSY_DRIVE",
+	143:   "SAME_DRIVE",
+	144:   "DIR_NOT_ROOT",
+	145:   "DIR_NOT_EMPTY",
+	146:   "IS_SUBST_PATH",
+	147:   "IS_JOIN_PATH",
+	148:   "PATH_BUSY",
+	149:   "IS_SUBST_TARGET",
+	150:   "SYSTEM_TRACE",
+	151:   "INVALID_EVENT_COUNT",
+	152:   "TOO_MANY_MUXWAITERS",
+	153:   "INVALID_LIST_FORMAT",
+	154:   "LABEL_TOO_LONG",
+	155:   "TOO_MANY_TCBS",
+	156:   "SIGNAL_REFUSED",
+	157:   "DISCARDED",
+	158:   "NOT_LOCKED",
+	159:   "BAD_THREADID_ADDR",
+	160:   "BAD_ARGUMENTS",
+	161:   "BAD_PATHNAME",
+	162:   "SIGNAL_PENDING",
+	164:   "MAX_THRDS_REACHED",
+	167:   "LOCK_FAILED",
+	170:   "BUSY",
+	173:   "CANCEL_VIOLATION",
+	174:   "ATOMIC_LOCKS_NOT_SUPPORTED",
+	180:   "INVALID_SEGMENT_NUMBER",
+	182:   "INVALID_ORDINAL",
+	183:   "ALREADY_EXISTS",
+	186:   "INVALID_FLAG_NUMBER",
+	187:   "SEM_NOT_FOUND",
+	188:   "INVALID_STARTING_CODESEG",
+	189:   "INVALID_STACKSEG",
+	190:   "INVALID_MODULETYPE",
+	191:   "INVALID_EXE_SIGNATURE",
+	192:   "EXE_MARKED_INVALID",
+	193:   "BAD_EXE_FORMAT",
+	194:   "ITERATED_DATA_EXCEEDS_64k",
+	195:   "INVALID_MINALLOCSIZE",
+	196:   "DYNLINK_FROM_INVALID_RING",
+	197:   "IOPL_NOT_ENABLED",
+	198:   "INVALID_SEGDPL",
+	199:   "AUTODATASEG_EXCEEDS_64k",
+	200:   "RING2SEG_MUST_BE_MOVABLE",
+	201:   "RELOC_CHAIN_XEEDS_SEGLIM",
+	202:   "INFLOOP_IN_RELOC_CHAIN",
+	203:   "ENVVAR_NOT_FOUND",
+	205:   "NO_SIGNAL_SENT",
+	206:   "FILENAME_EXCED_RANGE",
+	207:   "RING2_STACK_IN_USE",
+	208:   "META_EXPANSION_TOO_LONG",
+	209:   "INVALID_SIGNAL_NUMBER",
+	210:   "THREAD_1_INACTIVE",
+	212:   "LOCKED",
+	214:   "TOO_MANY_MODULES",
+	215:   "NESTING_NOT_ALLOWED",
+	216:   "EXE_MACHINE_TYPE_MISMATCH",
+	217:   "EXE_CANNOT_MODIFY_SIGNED_BINARY",
+	218:   "EXE_CANNOT_MODIFY_STRONG_SIGNED_BINARY",
+	220:   "FILE_CHECKED_OUT",
+	221:   "CHECKOUT_REQUIRED",
+	222:   "BAD_FILE_TYPE",
+	223:   "FILE_TOO_LARGE",
+	224:   "FORMS_AUTH_REQUIRED",
+	225:   "VIRUS_INFECTED",
+	226:   "VIRUS_DELETED",
+	229:   "PIPE_LOCAL",
+	230:   "BAD_PIPE",
+	231:   "PIPE_BUSY",
+	232:   "NO_DATA",
+	233:   "PIPE_NOT_CONNECTED",
+	234:   "MORE_DATA",
+	240:   "VC_DISCONNECTED",
+	254:   "INVALID_EA_NAME",
+	255:   "EA_LIST_INCONSISTENT",
+	258:   "WAIT_TIMEOUT",
+	259:   "NO_MORE_ITEMS",
+	266:   "CANNOT_COPY",
+	267:   "DIRECTORY",
+	275:   "EAS_DIDNT_FIT",
+	276:   "EA_FILE_CORRUPT",
+	277:   "EA_TABLE_FULL",
+	278:   "INVALID_EA_HANDLE",
+	282:   "EAS_NOT_SUPPORTED",
+	288:   "NOT_OWNER",
+	298:   "TOO_MANY_POSTS",
+	299:   "PARTIAL_COPY",
+	300:   "OPLOCK_NOT_GRANTED",
+	301:   "INVALID_OPLOCK_PROTOCOL",
+	302:   "DISK_TOO_FRAGMENTED",
+	303:   "DELETE_PENDING",
+	317:   "MR_MID_NOT_FOUND",
+	318:   "SCOPE_NOT_FOUND",
+	350:   "FAIL_NOACTION_REBOOT",
+	351:   "FAIL_SHUTDOWN",
+	352:   "FAIL_RESTART",
+	353:   "MAX_SESSIONS_REACHED",
+	400:   "THREAD_MODE_ALREADY_BACKGROUND",
+	401:   "THREAD_MODE_NOT_BACKGROUND",
+	402:   "PROCESS_MODE_ALREADY_BACKGROUND",
+	403:   "PROCESS_MODE_NOT_BACKGROUND",
+	487:   "INVALID_ADDRESS",
+	500:   "USER_PROFILE_LOAD",
+	534:   "ARITHMETIC_OVERFLOW",
+	535:   "PIPE_CONNECTED",
+	536:   "PIPE_LISTENING",
+	537:   "VERIFIER_STOP",
+	538:   "ABIOS_ERROR",
+	539:   "WX86_WARNING",
+	540:   "WX86_ERROR",
+	541:   "TIMER_NOT_CANCELED",
+	542:   "UNWIND",
+	543:   "BAD_STACK",
+	544:   "INVALID_UNWIND_TARGET",
+	545:   "INVALID_PORT_ATTRIBUTES",
+	546:   "PORT_MESSAGE_TOO_LONG",
+	547:   "INVALID_QUOTA_LOWER",
+	548:   "DEVICE_ALREADY_ATTACHED",
+	549:   "INSTRUCTION_MISALIGNMENT",
+	550:   "PROFILING_NOT_STARTED",
+	551:   "PROFILING_NOT_STOPPED",
+	552:   "COULD_NOT_INTERPRET",
+	553:   "PROFILING_AT_LIMIT",
+	554:   "CANT_WAIT",
+	555:   "CANT_TERMINATE_SELF",
+	556:   "UNEXPECTED_MM_CREATE_ERR",
+	557:   "UNEXPECTED_MM_MAP_ERROR",
+	558:   "UNEXPECTED_MM_EXTEND_ERR",
+	559:   "BAD_FUNCTION_TABLE",
+	560:   "NO_GUID_TRANSLATION",
+	561:   "INVALID_LDT_SIZE",
+	563:   "INVALID_LDT_OFFSET",
+	564:   "INVALID_LDT_DESCRIPTOR",
+	565:   "TOO_MANY_THREADS",
+	566:   "THREAD_NOT_IN_PROCESS",
+	567:   "PAGEFILE_QUOTA_EXCEEDED",
+	568:   "LOGON_SERVER_CONFLICT",
+	569:   "SYNCHRONIZATION_REQUIRED",
+	570:   "NET_OPEN_FAILED",
+	571:   "IO_PRIVILEGE_FAILED",
+	572:   "CONTROL_C_EXIT",
+	573:   "MISSING_SYSTEMFILE",
+	574:   "UNHANDLED_EXCEPTION",
+	575:   "APP_INIT_FAILURE",
+	576:   "PAGEFILE_CREATE_FAILED",
+	577:   "INVALID_IMAGE_HASH",
+	578:   "NO_PAGEFILE",
+	579:   "ILLEGAL_FLOAT_CONTEXT",
+	580:   "NO_EVENT_PAIR",
+	581:   "DOMAIN_CTRLR_CONFIG_ERROR",
+	582:   "ILLEGAL_CHARACTER",
+	583:   "UNDEFINED_CHARACTER",
+	584:   "FLOPPY_VOLUME",
+	585:   "BIOS_FAILED_TO_CONNECT_INTERRUPT",
+	586:   "BACKUP_CONTROLLER",
+	587:   "MUTANT_LIMIT_EXCEEDED",
+	588:   "FS_DRIVER_REQUIRED",
+	589:   "CANNOT_LOAD_REGISTRY_FILE",
+	590:   "DEBUG_ATTACH_FAILED",
+	591:   "SYSTEM_PROCESS_TERMINATED",
+	592:   "DATA_NOT_ACCEPTED",
+	593:   "VDM_HARD_ERROR",
+	594:   "DRIVER_CANCEL_TIMEOUT",
+	595:   "REPLY_MESSAGE_MISMATCH",
+	596:   "LOST_WRITEBEHIND_DATA",
+	597:   "CLIENT_SERVER_PARAMETERS_INVALID",
+	598:   "NOT_TINY_STREAM",
+	599:   "STACK_OVERFLOW_READ",
+	600:   "CONVERT_TO_LARGE",
+	601:   "FOUND_OUT_OF_SCOPE",
+	602:   "ALLOCATE_BUCKET",
+	603:   "MARSHALL_OVERFLOW",
+	604:   "INVALID_VARIANT",
+	605:   "BAD_COMPRESSION_BUFFER",
+	606:   "AUDIT_FAILED",
+	607:   "TIMER_RESOLUTION_NOT_SET",
+	608:   "INSUFFICIENT_LOGON_INFO",
+	609:   "BAD_DLL_ENTRYPOINT",
+	610:   "BAD_SERVICE_ENTRYPOINT",
+	611:   "IP_ADDRESS_CONFLICT1",
+	612:   "IP_ADDRESS_CONFLICT2",
+	613:   "REGISTRY_QUOTA_LIMIT",
+	614:   "NO_CALLBACK_ACTIVE",
+	615:   "PWD_TOO_SHORT",
+	616:   "PWD_TOO_RECENT",
+	617:   "PWD_HISTORY_CONFLICT",
+	618:   "UNSUPPORTED_COMPRESSION",
+	619:   "INVALID_HW_PROFILE",
+	620:   "INVALID_PLUGPLAY_DEVICE_PATH",
+	621:   "QUOTA_LIST_INCONSISTENT",
+	622:   "EVALUATION_EXPIRATION",
+	623:   "ILLEGAL_DLL_RELOCATION",
+	624:   "DLL_INIT_FAILED_LOGOFF",
+	625:   "VALIDATE_CONTINUE",
+	626:   "NO_MORE_MATCHES",
+	627:   "RANGE_LIST_CONFLICT",
+	628:   "SERVER_SID_MISMATCH",
+	629:   "CANT_ENABLE_DENY_ONLY",
+	630:   "FLOAT_MULTIPLE_FAULTS",
+	631:   "FLOAT_MULTIPLE_TRAPS",
+	632:   "NOINTERFACE",
+	633:   "DRIVER_FAILED_SLEEP",
+	634:   "CORRUPT_SYSTEM_FILE",
+	635:   "COMMITMENT_MINIMUM",
+	636:   "PNP_RESTART_ENUMERATION",
+	637:   "SYSTEM_IMAGE_BAD_SIGNATURE",
+	638:   "PNP_REBOOT_REQUIRED",
+	639:   "INSUFFICIENT_POWER",
+	640:   "MULTIPLE_FAULT_VIOLATION",
+	641:   "SYSTEM_SHUTDOWN",
+	642:   "PORT_NOT_SET",
+	643:   "DS_VERSION_CHECK_FAILURE",
+	644:   "RANGE_NOT_FOUND",
+	646:   "NOT_SAFE_MODE_DRIVER",
+	647:   "FAILED_DRIVER_ENTRY",
+	648:   "DEVICE_ENUMERATION_ERROR",
+	649:   "MOUNT_POINT_NOT_RESOLVED",
+	650:   "INVALID_DEVICE_OBJECT_PARAMETER",
+	651:   "MCA_OCCURED",
+	652:   "DRIVER_DATABASE_ERROR",
+	653:   "SYSTEM_HIVE_TOO_LARGE",
+	654:   "DRIVER_FAILED_PRIOR_UNLOAD",
+	655:   "VOLSNAP_PREPARE_HIBERNATE",
+	656:   "HIBERNATION_FAILURE",
+	665:   "FILE_SYSTEM_LIMITATION",
+	668:   "ASSERTION_FAILURE",
+	669:   "ACPI_ERROR",
+	670:   "WOW_ASSERTION",
+	671:   "PNP_BAD_MPS_TABLE",
+	672:   "PNP_TRANSLATION_FAILED",
+	673:   "PNP_IRQ_TRANSLATION_FAILED",
+	674:   "PNP_INVALID_ID",
+	675:   "WAKE_SYSTEM_DEBUGGER",
+	676:   "HANDLES_CLOSED",
+	677:   "EXTRANEOUS_INFORMATION",
+	678:   "RXACT_COMMIT_NECESSARY",
+	679:   "MEDIA_CHECK",
+	680:   "GUID_SUBSTITUTION_MADE",
+	681:   "STOPPED_ON_SYMLINK",
+	682:   "LONGJUMP",
+	683:   "PLUGPLAY_QUERY_VETOED",
+	684:   "UNWIND_CONSOLIDATE",
+	685:   "REGISTRY_HIVE_RECOVERED",
+	686:   "DLL_MIGHT_BE_INSECURE",
+	687:   "DLL_MIGHT_BE_INCOMPATIBLE",
+	688:   "DBG_EXCEPTION_NOT_HANDLED",
+	689:   "DBG_REPLY_LATER",
+	690:   "DBG_UNABLE_TO_PROVIDE_HANDLE",
+	691:   "DBG_TERMINATE_THREAD",
+	692:   "DBG_TERMINATE_PROCESS",
+	693:   "DBG_CONTROL_C",
+	694:   "DBG_PRINTEXCEPTION_C",
+	695:   "DBG_RIPEXCEPTION",
+	696:   "DBG_CONTROL_BREAK",
+	697:   "DBG_COMMAND_EXCEPTION",
+	698:   "OBJECT_NAME_EXISTS",
+	699:   "THREAD_WAS_SUSPENDED",
+	700:   "IMAGE_NOT_AT_BASE",
+	701:   "RXACT_STATE_CREATED",
+	702:   "SEGMENT_NOTIFICATION",
+	703:   "BAD_CURRENT_DIRECTORY",
+	704:   "FT_READ_RECOVERY_FROM_BACKUP",
+	705:   "FT_WRITE_RECOVERY",
+	706:   "IMAGE_MACHINE_TYPE_MISMATCH",
+	707:   "RECEIVE_PARTIAL",
+	708:   "RECEIVE_EXPEDITED",
+	709:   "RECEIVE_PARTIAL_EXPEDITED",
+	710:   "EVENT_DONE",
+	711:   "EVENT_PENDING",
+	712:   "CHECKING_FILE_SYSTEM",
+	713:   "FATAL_APP_EXIT",
+	714:   "PREDEFINED_HANDLE",
+	715:   "WAS_UNLOCKED",
+	716:   "SERVICE_NOTIFICATION",
+	717:   "WAS_LOCKED",
+	718:   "LOG_HARD_ERROR",
+	719:   "ALREADY_WIN32",
+	720:   "IMAGE_MACHINE_TYPE_MISMATCH_EXE",
+	721:   "NO_YIELD_PERFORMED",
+	722:   "TIMER_RESUME_IGNORED",
+	723:   "ARBITRATION_UNHANDLED",
+	724:   "CARDBUS_NOT_SUPPORTED",
+	725:   "MP_PROCESSOR_MISMATCH",
+	726:   "HIBERNATED",
+	727:   "RESUME_HIBERNATION",
+	728:   "FIRMWARE_UPDATED",
+	729:   "DRIVERS_LEAKING_LOCKED_PAGES",
+	730:   "WAKE_SYSTEM",
+	731:   "WAIT_1",
+	732:   "WAIT_2",
+	733:   "WAIT_3",
+	734:   "WAIT_63",
+	735:   "ABANDONED_WAIT_0",
+	736:   "ABANDONED_WAIT_63",
+	737:   "USER_APC",
+	738:   "KERNEL_APC",
+	739:   "ALERTED",
+	740:   "ELEVATION_REQUIRED",
+	741:   "REPARSE",
+	742:   "OPLOCK_BREAK_IN_PROGRESS",
+	743:   "VOLUME_MOUNTED",
+	744:   "RXACT_COMMITTED",
+	745:   "NOTIFY_CLEANUP",
+	746:   "PRIMARY_TRANSPORT_CONNECT_FAILED",
+	747:   "PAGE_FAULT_TRANSITION",
+	748:   "PAGE_FAULT_DEMAND_ZERO",
+	749:   "PAGE_FAULT_COPY_ON_WRITE",
+	750:   "PAGE_FAULT_GUARD_PAGE",
+	751:   "PAGE_FAULT_PAGING_FILE",
+	752:   "CACHE_PAGE_LOCKED",
+	753:   "CRASH_DUMP",
+	754:   "BUFFER_ALL_ZEROS",
+	755:   "REPARSE_OBJECT",
+	756:   "RESOURCE_REQUIREMENTS_CHANGED",
+	757:   "TRANSLATION_COMPLETE",
+	758:   "NOTHING_TO_TERMINATE",
+	759:   "PROCESS_NOT_IN_JOB",
+	760:   "PROCESS_IN_JOB",
+	761:   "VOLSNAP_HIBERNATE_READY",
+	762:   "FSFILTER_OP_COMPLETED_SUCCESSFULLY",
+	763:   "INTERRUPT_VECTOR_ALREADY_CONNECTED",
+	764:   "INTERRUPT_STILL_CONNECTED",
+	765:   "WAIT_FOR_OPLOCK",
+	766:   "DBG_EXCEPTION_HANDLED",
+	767:   "DBG_CONTINUE",
+	768:   "CALLBACK_POP_STACK",
+	769:   "COMPRESSION_DISABLED",
+	770:   "CANTFETCHBACKWARDS",
+	771:   "CANTSCROLLBACKWARDS",
+	772:   "ROWSNOTRELEASED",
+	773:   "BAD_ACCESSOR_FLAGS",
+	774:   "ERRORS_ENCOUNTERED",
+	775:   "NOT_CAPABLE",
+	776:   "REQUEST_OUT_OF_SEQUENCE",
+	777:   "VERSION_PARSE_ERROR",
+	778:   "BADSTARTPOSITION",
+	779:   "MEMORY_HARDWARE",
+	780:   "DISK_REPAIR_DISABLED",
+	781:   "INSUFFICIENT_RESOURCE_FOR_SPECIFIED_SHARED_SECTION_SIZE",
+	782:   "SYSTEM_POWERSTATE_TRANSITION",
+	783:   "SYSTEM_POWERSTATE_COMPLEX_TRANSITION",
+	784:   "MCA_EXCEPTION",
+	785:   "ACCESS_AUDIT_BY_POLICY",
+	786:   "ACCESS_DISABLED_NO_SAFER_UI_BY_POLICY",
+	787:   "ABANDON_HIBERFILE",
+	788:   "LOST_WRITEBEHIND_DATA_NETWORK_DISCONNECTED",
+	789:   "LOST_WRITEBEHIND_DATA_NETWORK_SERVER_ERROR",
+	790:   "LOST_WRITEBEHIND_DATA_LOCAL_DISK_ERROR",
+	791:   "BAD_MCFG_TABLE",
+	994:   "EA_ACCESS_DENIED",
+	995:   "OPERATION_ABORTED",
+	996:   "IO_INCOMPLETE",
+	997:   "IO_PENDING",
+	998:   "NOACCESS",
+	999:   "SWAPERROR",
+	1001:  "STACK_OVERFLOW",
+	1002:  "INVALID_MESSAGE",
+	1003:  "CAN_NOT_COMPLETE",
+	1004:  "INVALID_FLAGS",
+	1005:  "UNRECOGNIZED_VOLUME",
+	1006:  "FILE_INVALID",
+	1007:  "FULLSCREEN_MODE",
+	1008:  "NO_TOKEN",
+	1009:  "BADDB",
+	1010:  "BADKEY",
+	1011:  "CANTOPEN",
+	1012:  "CANTREAD",
+	1013:  "CANTWRITE",
+	1014:  "REGISTRY_RECOVERED",
+	1015:  "REGISTRY_CORRUPT",
+	1016:  "REGISTRY_IO_FAILED",
+	1017:  "NOT_REGISTRY_FILE",
+	1018:  "KEY_DELETED",
+	1019:  "NO_LOG_SPACE",
+	1020:  "KEY_HAS_CHILDREN",
+	1021:  "CHILD_MUST_BE_VOLATILE",
+	1022:  "NOTIFY_ENUM_DIR",
+	1051:  "DEPENDENT_SERVICES_RUNNING",
+	1052:  "INVALID_SERVICE_CONTROL",
+	1053:  "SERVICE_REQUEST_TIMEOUT",
+	1054:  "SERVICE_NO_THREAD",
+	1055:  "SERVICE_DATABASE_LOCKED",
+	1056:  "SERVICE_ALREADY_RUNNING",
+	1057:  "INVALID_SERVICE_ACCOUNT",
+	1058:  "SERVICE_DISABLED",
+	1059:  "CIRCULAR_DEPENDENCY",
+	1060:  "SERVICE_DOES_NOT_EXIST",
+	1061:  "SERVICE_CANNOT_ACCEPT_CTRL",
+	1062:  "SERVICE_NOT_ACTIVE",
+	1063:  "FAILED_SERVICE_CONTROLLER_CONNECT",
+	1064:  "EXCEPTION_IN_SERVICE",
+	1065:  "DATABASE_DOES_NOT_EXIST",
+	1066:  "SERVICE_SPECIFIC_ERROR",
+	1067:  "PROCESS_ABORTED",
+	1068:  "SERVICE_DEPENDENCY_FAIL",
+	1069:  "SERVICE_LOGON_FAILED",
+	1070:  "SERVICE_START_HANG",
+	1071:  "INVALID_SERVICE_LOCK",
+	1072:  "SERVICE_MARKED_FOR_DELETE",
+	1073:  "SERVICE_EXISTS",
+	1074:  "ALREADY_RUNNING_LKG",
+	1075:  "SERVICE_DEPENDENCY_DELETED",
+	1076:  "BOOT_ALREADY_ACCEPTED",
+	1077:  "SERVICE_NEVER_STARTED",
+	1078:  "DUPLICATE_SERVICE_NAME",
+	1079:  "DIFFERENT_SERVICE_ACCOUNT",
+	1080:  "CANNOT_DETECT_DRIVER_FAILURE",
+	1081:  "CANNOT_DETECT_PROCESS_ABORT",
+	1082:  "NO_RECOVERY_PROGRAM",
+	1083:  "SERVICE_NOT_IN_EXE",
+	1084:  "NOT_SAFEBOOT_SERVICE",
+	1100:  "END_OF_MEDIA",
+	1101:  "FILEMARK_DETECTED",
+	1102:  "BEGINNING_OF_MEDIA",
+	1103:  "SETMARK_DETECTED",
+	1104:  "NO_DATA_DETECTED",
+	1105:  "PARTITION_FAILURE",
+	1106:  "INVALID_BLOCK_LENGTH",
+	1107:  "DEVICE_NOT_PARTITIONED",
+	1108:  "UNABLE_TO_LOCK_MEDIA",
+	1109:  "UNABLE_TO_UNLOAD_MEDIA",
+	1110:  "MEDIA_CHANGED",
+	1111:  "BUS_RESET",
+	1112:  "NO_MEDIA_IN_DRIVE",
+	1113:  "NO_UNICODE_TRANSLATION",
+	1114:  "DLL_INIT_FAILED",
+	1115:  "SHUTDOWN_IN_PROGRESS",
+	1116:  "NO_SHUTDOWN_IN_PROGRESS",
+	1117:  "IO_DEVICE",
+	1118:  "SERIAL_NO_DEVICE",
+	1119:  "IRQ_BUSY",
+	1120:  "MORE_WRITES",
+	1121:  "COUNTER_TIMEOUT",
+	1122:  "FLOPPY_ID_MARK_NOT_FOUND",
+	1123:  "FLOPPY_WRONG_CYLINDER",
+	1124:  "FLOPPY_UNKNOWN_ERROR",
+	1125:  "FLOPPY_BAD_REGISTERS",
+	1126:  "DISK_RECALIBRATE_FAILED",
+	1127:  "DISK_OPERATION_FAILED",
+	1128:  "DISK_RESET_FAILED",
+	1129:  "EOM_OVERFLOW",
+	1130:  "NOT_ENOUGH_SERVER_MEMORY",
+	1131:  "POSSIBLE_DEADLOCK",
+	1132:  "MAPPED_ALIGNMENT",
+	1140:  "SET_POWER_STATE_VETOED",
+	1141:  "SET_POWER_STATE_FAILED",
+	1142:  "TOO_MANY_LINKS",
+	1150:  "OLD_WIN_VERSION",
+	1151:  "APP_WRONG_OS",
+	1152:  "SINGLE_INSTANCE_APP",
+	1153:  "RMODE_APP",
+	1154:  "INVALID_DLL",
+	1155:  "NO_ASSOCIATION",
+	1156:  "DDE_FAIL",
+	1157:  "DLL_NOT_FOUND",
+	1158:  "NO_MORE_USER_HANDLES",
+	1159:  "MESSAGE_SYNC_ONLY",
+	1160:  "SOURCE_ELEMENT_EMPTY",
+	1161:  "DESTINATION_ELEMENT_FULL",
+	1162:  "ILLEGAL_ELEMENT_ADDRESS",
+	1163:  "MAGAZINE_NOT_PRESENT",
+	1164:  "DEVICE_REINITIALIZATION_NEEDED",
+	1165:  "DEVICE_REQUIRES_CLEANING",
+	1166:  "DEVICE_DOOR_OPEN",
+	1167:  "DEVICE_NOT_CONNECTED",
+	1168:  "NOT_FOUND",
+	1169:  "NO_MATCH",
+	1170:  "SET_NOT_FOUND",
+	1171:  "POINT_NOT_FOUND",
+	1172:  "NO_TRACKING_SERVICE",
+	1173:  "NO_VOLUME_ID",
+	2108:  "CONNECTED_OTHER_PASSWORD",
+	2202:  "BAD_USERNAME",
+	2250:  "NOT_CONNECTED",
+	2401:  "OPEN_FILES",
+	2402:  "ACTIVE_CONNECTIONS",
+	2404:  "DEVICE_IN_USE",
+	1200:  "BAD_DEVICE",
+	1201:  "CONNECTION_UNAVAIL",
+	1202:  "DEVICE_ALREADY_REMEMBERED",
+	1203:  "NO_NET_OR_BAD_PATH",
+	1204:  "BAD_PROVIDER",
+	1205:  "CANNOT_OPEN_PROFILE",
+	1206:  "BAD_PROFILE",
+	1207:  "NOT_CONTAINER",
+	1208:  "EXTENDED_ERROR",
+	1209:  "INVALID_GROUPNAME",
+	1210:  "INVALID_COMPUTERNAME",
+	1211:  "INVALID_EVENTNAME",
+	1212:  "INVALID_DOMAINNAME",
+	1213:  "INVALID_SERVICENAME",
+	1214:  "INVALID_NETNAME",
+	1215:  "INVALID_SHARENAME",
+	1216:  "INVALID_PASSWORDNAME",
+	1217:  "INVALID_MESSAGENAME",
+	1218:  "INVALID_MESSAGEDEST",
+	1219:  "SESSION_CREDENTIAL_CONFLICT",
+	1220:  "REMOTE_SESSION_LIMIT_EXCEEDED",
+	1221:  "DUP_DOMAINNAME",
+	1222:  "NO_NETWORK",
+	1223:  "CANCELLED",
+	1224:  "USER_MAPPED_FILE",
+	1225:  "CONNECTION_REFUSED",
+	1226:  "GRACEFUL_DISCONNECT",
+	1227:  "ADDRESS_ALREADY_ASSOCIATED",
+	1228:  "ADDRESS_NOT_ASSOCIATED",
+	1229:  "CONNECTION_INVALID",
+	1230:  "CONNECTION_ACTIVE",
+	1231:  "NETWORK_UNREACHABLE",
+	1232:  "HOST_UNREACHABLE",
+	1233:  "PROTOCOL_UNREACHABLE",
+	1234:  "PORT_UNREACHABLE",
+	1235:  "REQUEST_ABORTED",
+	1236:  "CONNECTION_ABORTED",
+	1237:  "RETRY",
+	1238:  "CONNECTION_COUNT_LIMIT",
+	1239:  "LOGIN_TIME_RESTRICTION",
+	1240:  "LOGIN_WKSTA_RESTRICTION",
+	1241:  "INCORRECT_ADDRESS",
+	1242:  "ALREADY_REGISTERED",
+	1243:  "SERVICE_NOT_FOUND",
+	1244:  "NOT_AUTHENTICATED",
+	1245:  "NOT_LOGGED_ON",
+	1246:  "CONTINUE",
+	1247:  "ALREADY_INITIALIZED",
+	1248:  "NO_MORE_DEVICES",
+	1249:  "NO_SUCH_SITE",
+	1250:  "DOMAIN_CONTROLLER_EXISTS",
+	1251:  "DS_NOT_INSTALLED",
+	1300:  "NOT_ALL_ASSIGNED",
+	1301:  "SOME_NOT_MAPPED",
+	1302:  "NO_QUOTAS_FOR_ACCOUNT",
+	1303:  "LOCAL_USER_SESSION_KEY",
+	1304:  "NULL_LM_PASSWORD",
+	1305:  "UNKNOWN_REVISION",
+	1306:  "REVISION_MISMATCH",
+	1307:  "INVALID_OWNER",
+	1308:  "INVALID_PRIMARY_GROUP",
+	1309:  "NO_IMPERSONATION_TOKEN",
+	1310:  "CANT_DISABLE_MANDATORY",
+	1311:  "NO_LOGON_SERVERS",
+	1312:  "NO_SUCH_LOGON_SESSION",
+	1313:  "NO_SUCH_PRIVILEGE",
+	1314:  "PRIVILEGE_NOT_HELD",
+	1315:  "INVALID_ACCOUNT_NAME",
+	1316:  "USER_EXISTS",
+	1317:  "NO_SUCH_USER",
+	1318:  "GROUP_EXISTS",
+	1319:  "NO_SUCH_GROUP",
+	1320:  "MEMBER_IN_GROUP",
+	1321:  "MEMBER_NOT_IN_GROUP",
+	1322:  "LAST_ADMIN",
+	1323:  "WRONG_PASSWORD",
+	1324:  "ILL_FORMED_PASSWORD",
+	1325:  "PASSWORD_RESTRICTION",
+	1326:  "LOGON_FAILURE",
+	1327:  "ACCOUNT_RESTRICTION",
+	1328:  "INVALID_LOGON_HOURS",
+	1329:  "INVALID_WORKSTATION",
+	1330:  "PASSWORD_EXPIRED",
+	1331:  "ACCOUNT_DISABLED",
+	1332:  "NONE_MAPPED",
+	1333:  "TOO_MANY_LUIDS_REQUESTED",
+	1334:  "LUIDS_EXHAUSTED",
+	1335:  "INVALID_SUB_AUTHORITY",
+	1336:  "INVALID_ACL",
+	1337:  "INVALID_SID",
+	1338:  "INVALID_SECURITY_DESCR",
+	1340:  "BAD_INHERITANCE_ACL",
+	1341:  "SERVER_DISABLED",
+	1342:  "SERVER_NOT_DISABLED",
+	1343:  "INVALID_ID_AUTHORITY",
+	1344:  "ALLOTTED_SPACE_EXCEEDED",
+	1345:  "INVALID_GROUP_ATTRIBUTES",
+	1346:  "BAD_IMPERSONATION_LEVEL",
+	1347:  "CANT_OPEN_ANONYMOUS",
+	1348:  "BAD_VALIDATION_CLASS",
+	1349:  "BAD_TOKEN_TYPE",
+	1350:  "NO_SECURITY_ON_OBJECT",
+	1351:  "CANT_ACCESS_DOMAIN_INFO",
+	1352:  "INVALID_SERVER_STATE",
+	1353:  "INVALID_DOMAIN_STATE",
+	1354:  "INVALID_DOMAIN_ROLE",
+	1355:  "NO_SUCH_DOMAIN",
+	1356:  "DOMAIN_EXISTS",
+	1357:  "DOMAIN_LIMIT_EXCEEDED",
+	1358:  "INTERNAL_DB_CORRUPTION",
+	1359:  "INTERNAL_ERROR",
+	1360:  "GENERIC_NOT_MAPPED",
+	1361:  "BAD_DESCRIPTOR_FORMAT",
+	1362:  "NOT_LOGON_PROCESS",
+	1363:  "LOGON_SESSION_EXISTS",
+	1364:  "NO_SUCH_PACKAGE",
+	1365:  "BAD_LOGON_SESSION_STATE",
+	1366:  "LOGON_SESSION_COLLISION",
+	1367:  "INVALID_LOGON_TYPE",
+	1368:  "CANNOT_IMPERSONATE",
+	1369:  "RXACT_INVALID_STATE",
+	1370:  "RXACT_COMMIT_FAILURE",
+	1371:  "SPECIAL_ACCOUNT",
+	1372:  "SPECIAL_GROUP",
+	1373:  "SPECIAL_USER",
+	1374:  "MEMBERS_PRIMARY_GROUP",
+	1375:  "TOKEN_ALREADY_IN_USE",
+	1376:  "NO_SUCH_ALIAS",
+	1377:  "MEMBER_NOT_IN_ALIAS",
+	1378:  "MEMBER_IN_ALIAS",
+	1379:  "ALIAS_EXISTS",
+	1380:  "LOGON_NOT_GRANTED",
+	1381:  "TOO_MANY_SECRETS",
+	1382:  "SECRET_TOO_LONG",
+	1383:  "INTERNAL_DB_ERROR",
+	1384:  "TOO_MANY_CONTEXT_IDS",
+	1385:  "LOGON_TYPE_NOT_GRANTED",
+	1386:  "NT_CROSS_ENCRYPTION_REQUIRED",
+	1387:  "NO_SUCH_MEMBER",
+	1388:  "INVALID_MEMBER",
+	1389:  "TOO_MANY_SIDS",
+	1390:  "LM_CROSS_ENCRYPTION_REQUIRED",
+	1391:  "NO_INHERITANCE",
+	1392:  "FILE_CORRUPT",
+	1393:  "DISK_CORRUPT",
+	1394:  "NO_USER_SESSION_KEY",
+	1395:  "LICENSE_QUOTA_EXCEEDED",
+	1400:  "INVALID_WINDOW_HANDLE",
+	1401:  "INVALID_MENU_HANDLE",
+	1402:  "INVALID_CURSOR_HANDLE",
+	1403:  "INVALID_ACCEL_HANDLE",
+	1404:  "INVALID_HOOK_HANDLE",
+	1405:  "INVALID_DWP_HANDLE",
+	1406:  "TLW_WITH_WSCHILD",
+	1407:  "CANNOT_FIND_WND_CLASS",
+	1408:  "WINDOW_OF_OTHER_THREAD",
+	1409:  "HOTKEY_ALREADY_REGISTERED",
+	1410:  "CLASS_ALREADY_EXISTS",
+	1411:  "CLASS_DOES_NOT_EXIST",
+	1412:  "CLASS_HAS_WINDOWS",
+	1413:  "INVALID_INDEX",
+	1414:  "INVALID_ICON_HANDLE",
+	1415:  "PRIVATE_DIALOG_INDEX",
+	1416:  "LISTBOX_ID_NOT_FOUND",
+	1417:  "NO_WILDCARD_CHARACTERS",
+	1418:  "CLIPBOARD_NOT_OPEN",
+	1419:  "HOTKEY_NOT_REGISTERED",
+	1420:  "WINDOW_NOT_DIALOG",
+	1421:  "CONTROL_ID_NOT_FOUND",
+	1422:  "INVALID_COMBOBOX_MESSAGE",
+	1423:  "WINDOW_NOT_COMBOBOX",
+	1424:  "INVALID_EDIT_HEIGHT",
+	1425:  "DC_NOT_FOUND",
+	1426:  "INVALID_HOOK_FILTER",
+	1427:  "INVALID_FILTER_PROC",
+	1428:  "HOOK_NEEDS_HMOD",
+	1429:  "GLOBAL_ONLY_HOOK",
+	1430:  "JOURNAL_HOOK_SET",
+	1431:  "HOOK_NOT_INSTALLED",
+	1432:  "INVALID_LB_MESSAGE",
+	1433:  "SETCOUNT_ON_BAD_LB",
+	1434:  "LB_WITHOUT_TABSTOPS",
+	1435:  "DESTROY_OBJECT_OF_OTHER_THREAD",
+	1436:  "CHILD_WINDOW_MENU",
+	1437:  "NO_SYSTEM_MENU",
+	1438:  "INVALID_MSGBOX_STYLE",
+	1439:  "INVALID_SPI_VALUE",
+	1440:  "SCREEN_ALREADY_LOCKED",
+	1441:  "HWNDS_HAVE_DIFF_PARENT",
+	1442:  "NOT_CHILD_WINDOW",
+	1443:  "INVALID_GW_COMMAND",
+	1444:  "INVALID_THREAD_ID",
+	1445:  "NON_MDICHILD_WINDOW",
+	1446:  "POPUP_ALREADY_ACTIVE",
+	1447:  "NO_SCROLLBARS",
+	1448:  "INVALID_SCROLLBAR_RANGE",
+	1449:  "INVALID_SHOWWIN_COMMAND",
+	1450:  "NO_SYSTEM_RESOURCES",
+	1451:  "NONPAGED_SYSTEM_RESOURCES",
+	1452:  "PAGED_SYSTEM_RESOURCES",
+	1453:  "WORKING_SET_QUOTA",
+	1454:  "PAGEFILE_QUOTA",
+	1455:  "COMMITMENT_LIMIT",
+	1456:  "MENU_ITEM_NOT_FOUND",
+	1457:  "INVALID_KEYBOARD_HANDLE",
+	1458:  "HOOK_TYPE_NOT_ALLOWED",
+	1459:  "REQUIRES_INTERACTIVE_WINDOWSTATION",
+	1460:  "TIMEOUT",
+	1461:  "INVALID_MONITOR_HANDLE",
+	1462:  "INCORRECT_SIZE",
+	1463:  "SYMLINK_CLASS_DISABLED",
+	1464:  "SYMLINK_NOT_SUPPORTED",
+	1465:  "XML_PARSE_ERROR",
+	1466:  "XMLDSIG_ERROR",
+	1467:  "RESTART_APPLICATION",
+	1468:  "WRONG_COMPARTMENT",
+	1469:  "AUTHIP_FAILURE",
+	1500:  "EVENTLOG_FILE_CORRUPT",
+	1501:  "EVENTLOG_CANT_START",
+	1502:  "LOG_FILE_FULL",
+	1503:  "EVENTLOG_FILE_CHANGED",
+	1601:  "INSTALL_SERVICE",
+	1602:  "INSTALL_USEREXIT",
+	1603:  "INSTALL_FAILURE",
+	1604:  "INSTALL_SUSPEND",
+	1605:  "UNKNOWN_PRODUCT",
+	1606:  "UNKNOWN_FEATURE",
+	1607:  "UNKNOWN_COMPONENT",
+	1608:  "UNKNOWN_PROPERTY",
+	1609:  "INVALID_HANDLE_STATE",
+	1610:  "BAD_CONFIGURATION",
+	1611:  "INDEX_ABSENT",
+	1612:  "INSTALL_SOURCE_ABSENT",
+	1613:  "BAD_DATABASE_VERSION",
+	1614:  "PRODUCT_UNINSTALLED",
+	1615:  "BAD_QUERY_SYNTAX",
+	1616:  "INVALID_FIELD",
+	1617:  "DEVICE_REMOVED",
+	1618:  "INSTALL_ALREADY_RUNNING",
+	1619:  "INSTALL_PACKAGE_OPEN_FAILED",
+	1620:  "INSTALL_PACKAGE_INVALID",
+	1621:  "INSTALL_UI_FAILURE",
+	1622:  "INSTALL_LOG_FAILURE",
+	1623:  "INSTALL_LANGUAGE_UNSUPPORTED",
+	1624:  "INSTALL_TRANSFORM_FAILURE",
+	1625:  "INSTALL_PACKAGE_REJECTED",
+	1626:  "FUNCTION_NOT_CALLED",
+	1627:  "FUNCTION_FAILED",
+	1628:  "INVALID_TABLE",
+	1629:  "DATATYPE_MISMATCH",
+	1630:  "UNSUPPORTED_TYPE",
+	1631:  "CREATE_FAILED",
+	1632:  "INSTALL_TEMP_UNWRITABLE",
+	1633:  "INSTALL_PLATFORM_UNSUPPORTED",
+	1634:  "INSTALL_NOTUSED",
+	1635:  "PATCH_PACKAGE_OPEN_FAILED",
+	1636:  "PATCH_PACKAGE_INVALID",
+	1637:  "PATCH_PACKAGE_UNSUPPORTED",
+	1638:  "PRODUCT_VERSION",
+	1639:  "INVALID_COMMAND_LINE",
+	1640:  "INSTALL_REMOTE_DISALLOWED",
+	1641:  "SUCCESS_REBOOT_INITIATED",
+	1642:  "PATCH_TARGET_NOT_FOUND",
+	1643:  "PATCH_PACKAGE_REJECTED",
+	1644:  "INSTALL_TRANSFORM_REJECTED",
+	1645:  "INSTALL_REMOTE_PROHIBITED",
+	1646:  "PATCH_REMOVAL_UNSUPPORTED",
+	1647:  "UNKNOWN_PATCH",
+	1648:  "PATCH_NO_SEQUENCE",
+	1649:  "PATCH_REMOVAL_DISALLOWED",
+	1650:  "INVALID_PATCH_XML",
+	1651:  "PATCH_MANAGED_ADVERTISED_PRODUCT",
+	1652:  "INSTALL_SERVICE_SAFEBOOT",
+	10004: "WSAEINTR",           // Interrupted function call
+	10009: "WSAEBADF",           // Bad file descriptor
+	10013: "WSAEACCES",          // Permission denied
+	10014: "WSAEFAULT",          // Bad address
+	10022: "WSAEINVAL",          // Invalid argument
+	10024: "WSAEMFILE",          // Too many open files
+	10035: "WSAEWOULDBLOCK",     // Resource temporarily unavailable
+	10036: "WSAEINPROGRESS",     // Operation now in progress
+	10037: "WSAEALREADY",        // Operation already in progress
+	10038: "WSAENOTSOCK",        // Socket operation on nonsocket
+	10039: "WSAEDESTADDRREQ",    // Destination address required
+	10040: "WSAEMSGSIZE",        // Message too long
+	10041: "WSAEPROTOTYPE",      // Protocol wrong type for socket
+	10042: "WSAENOPROTOOPT",     // Bad protocol option
+	10043: "WSAEPROTONOSUPPORT", // Protocol not supported
+	10044: "WSAESOCKTNOSUPPORT", // Socket type not supported
+	10045: "WSAEOPNOTSUPP",      // Operation not supported
+	10046: "WSAEPFNOSUPPORT",    // Protocol family not supported
+	10047: "WSAEAFNOSUPPORT",    // Address family not supported by protocol family
+	10048: "WSAEADDRINUSE",      // Address already in use
+	10049: "WSAEADDRNOTAVAIL",   // Cannot assign requested address
+	10050: "WSAENETDOWN",        // Network is down
+	10051: "WSAENETUNREACH",     // Network is unreachable
+	10052: "WSAENETRESET",       // Network dropped connection on reset
+	10053: "WSAECONNABORTED",    // Software caused connection abort
+	10054: "WSAECONNRESET",      // Connection reset by peer
+	10055: "WSAENOBUFS",         // No buffer space available
+	10056: "WSAEISCONN",         // Socket is already connected
+	10057: "WSAENOTCONN",        // Socket is not connected
+	10058: "WSAESHUTDOWN",       // Cannot send after socket shutdown
+	10059: "WSAETOOMANYREFS",    // Too many references
+	10060: "WSAETIMEDOUT",       // Connection timed out
+	10061: "WSAECONNREFUSED",    // Connection refused
+	10062: "WSAELOOP",           // Cannot translate name
+	10063: "WSAENAMETOOLONG",    // Name too long
+	10064: "WSAEHOSTDOWN",       // Host is down
+	10065: "WSAEHOSTUNREACH",    // No route to host
+	10066: "WSAENOTEMPTY",       // Directory not empty
+	10067: "WSAEPROCLIM",        // Too many processes
+	10068: "WSAEUSERS",          // User quota exceeded
+	10069: "WSAEDQUOT",          // Disk quota exceeded
+	10070: "WSAESTALE",          // Stale file handle reference
+	10071: "WSAEREMOTE",         // Item is remote
+	10091: "WSASYSNOTREADY",     // Network subsystem is unavailable
+	10092: "WSAVERNOTSUPPORTED", // Winsock.dll version out of range
+	10093: "WSANOTINITIALISED",  // Successful WSAStartup not yet performed
+	10101: "WSAEDISCON",         // Graceful shutdown in progress
+	10109: "WSATYPE_NOT_FOUND",  // Class type not found
+	10110: "WSAHOST_NOT_FOUND",  // Host not found
+	10111: "WSATRY_AGAIN",       // Nonauthoritative host not found
+	10112: "WSANO_RECOVERY",     // Nonrecoverable error
+	10113: "WSANO_DATA",         // Valid name, no data record of requested type
+}
+
+func SizeBytesToFormat(size int64) string {
+	if size < 1024 {
+		return fmt.Sprintf("%d B", size)
+	}
+	
+	suffixes := []string{"B", "KB", "MB", "GB", "TB", "PB"}
+	base := float64(size)
+	i := 0
+	
+	for base >= 1024 && i < len(suffixes)-1 {
+		base /= 1024
+		i++
+	}
+	
+	return fmt.Sprintf("%.1f %s", base, suffixes[i])
+}
+
+func ConvertStringToWCharNullTerminated(input string) []byte {
+	runes := []rune(input)
+	utf16Data := utf16.Encode(runes)
+	
+	result := make([]byte, (len(utf16Data)+1)*2)
+	
+	for i, wchar := range utf16Data {
+		binary.LittleEndian.PutUint16(result[i*2:], wchar)
+	}
+	
+	return result
+}
+
+func ConvertWCharBytesToString(data []byte) string {
+	if len(data) < 2 {
+		return ""
+	}
+	
+	if len(data)%2 != 0 {
+		data = data[:len(data)-1]
+	}
+	
+	utf16Data := make([]uint16, 0, len(data)/2)
+	for i := 0; i < len(data); i += 2 {
+		wchar := binary.LittleEndian.Uint16(data[i:])
+		
+		if wchar == 0 {
+			break
+		}
+		
+		utf16Data = append(utf16Data, wchar)
+	}
+	
+	runes := utf16.Decode(utf16Data)
+	return string(runes)
+}
+
+func ConvertWCharBytesToCp(data []byte, codePage int) string {
+	utf8Str := ConvertWCharBytesToString(data)
+	
+	if codePage == 65001 { 
+		return utf8Str
+	}
+	
+	return ConvertUTF8toCp(utf8Str, codePage)
+}
+
+func ConvertWCharBytesToUTF8(data []byte) string {
+	return ConvertWCharBytesToString(data)
+}
+
+func ConvertCpToUTF8(input string, codePage int) string {
+	enc, exists := codePageMapping[codePage]
+	if !exists {
+		return input
+	}
+
+	reader := transform.NewReader(strings.NewReader(input), enc.NewDecoder())
+	utf8Text, err := io.ReadAll(reader)
+	if err != nil {
+		return input
+	}
+
+	return string(utf8Text)
+}
+
+func ConvertUTF8toCp(input string, codePage int) string {
+	enc, exists := codePageMapping[codePage]
+	if !exists {
+		return input
+	}
+
+	transform.NewWriter(io.Discard, enc.NewEncoder())
+	encodedText, err := io.ReadAll(transform.NewReader(strings.NewReader(input), enc.NewEncoder()))
+	if err != nil {
+		return input
+	}
+
+	return string(encodedText)
+}
+
+func ConvertCpToUTF16(input string, codePage int) []uint16 {
+	enc, exists := codePageMapping[codePage]
+	if !exists {
+		return utf16.Encode([]rune(input))
+	}
+
+	reader := transform.NewReader(strings.NewReader(input), enc.NewDecoder())
+	utf8Text, err := io.ReadAll(reader)
+	if err != nil {
+		return utf16.Encode([]rune(input))
+	}
+
+	runes := []rune(string(utf8Text))
+	return utf16.Encode(runes)
+}
+
+func ConvertUTF16toCp(utf16Data []uint16, codePage int) string {
+	runes := utf16.Decode(utf16Data)
+	utf8Str := string(runes)
+
+	enc, exists := codePageMapping[codePage]
+	if !exists {
+		return utf8Str
+	}
+
+	encodedText, err := io.ReadAll(
+		transform.NewReader(
+			strings.NewReader(utf8Str),
+			enc.NewEncoder(),
+		),
+	)
+	if err != nil {
+		return utf8Str
+	}
+
+	return string(encodedText)
+}
+
+func ConvertCpToUTF16String(input string, codePage int) string {
+	utf16Data := ConvertCpToUTF16(input, codePage)
+
+	runes := utf16.Decode(utf16Data)
+	return string(runes)
+}
+
+func ConvertUTF16StringToCp(input string, codePage int) string {
+	runes := []rune(input)
+	utf16Data := utf16.Encode(runes)
+	
+	return ConvertUTF16toCp(utf16Data, codePage)
+}
+
+func ConvertCpToUTF16LE(input string, codePage int) []byte {
+	fmt.Printf("before: %s\n", input)
+
+	utf16Data := ConvertCpToUTF16(input, codePage)
+
+	fmt.Printf("utf16 data: %v\n", utf16Data)
+	
+	result := make([]byte, len(utf16Data)*2)
+	for i, v := range utf16Data {
+		result[i*2] = byte(v)
+		result[i*2+1] = byte(v >> 8)
+	}
+
+	fmt.Printf("result data: %s\n", result)
+
+	return result
+}
+
+func ConvertUTF16LEToCp(data []byte, codePage int) string {
+	if len(data)%2 != 0 {
+		data = data[:len(data)-1] 
+	}
+	
+	utf16Data := make([]uint16, len(data)/2)
+	for i := 0; i < len(utf16Data); i++ {
+		utf16Data[i] = uint16(data[i*2]) | uint16(data[i*2+1])<<8
+	}
+	
+	return ConvertUTF16toCp(utf16Data, codePage)
+}
+
+type CodePageConverter struct {
+	decoder *encoding.Decoder
+	encoder *encoding.Encoder
+}
+
+func (c *CodePageConverter) ToUTF16(input string) []uint16 {
+	if c == nil {
+		return utf16.Encode([]rune(input))
+	}
+	
+	var buf strings.Builder
+	c.decoder.Reset()
+	writer := transform.NewWriter(&buf, c.decoder)
+	writer.Write([]byte(input))
+	writer.Close()
+	
+	return utf16.Encode([]rune(buf.String()))
+}
+
+func size_bytes_fmt(bytes int64) string {
+	const (
+		KB = 1024.0
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+
+	size := float64(bytes)
+
+	if size >= GB {
+		return fmt.Sprintf("%.2f Gb", size/GB)
+	} else if size >= MB {
+		return fmt.Sprintf("%.2f Mb", size/MB)
+	} else {
+		return fmt.Sprintf("%.2f Kb", size/KB)
+	}
+}
+
+func gen_rnd_str(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(b)
+}
+
+func gen_shelllcode_header(shellcode []byte) string {
+	var sb strings.Builder
+
+	sb.WriteString("#pragma once\n\n")
+	sb.WriteString("// Autogenerated shellcode\n")
+	sb.WriteString("#include <cstdint>\n\n")
+	sb.WriteString("namespace Shellcode {\n\n")
+	sb.WriteString(fmt.Sprintf("    constexpr size_t Size = %d;\n\n", len(shellcode)))
+	sb.WriteString("__attribute__((section(\".text\")))\n")
+	sb.WriteString("const uint8_t Data[] = {\n        ")
+
+	for i, b := range shellcode {
+		if i > 0 {
+			if i%12 == 0 {
+				sb.WriteString(",\n        ")
+			} else {
+				sb.WriteString(", ")
+			}
+		}
+		sb.WriteString(fmt.Sprintf("0x%02x", b))
+	}
+
+	sb.WriteString("\n    };\n\n")
+	sb.WriteString("}\n")
+
+	return sb.String()
+}
+
+func get_map_keys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func get_int_from_args(value interface{}) (int, bool) {
+    switch v := value.(type) {
+    case int:
+        return v, true
+    case float64:
+        return int(v), true
+    case int64:
+        return int(v), true
+    case string:
+        if i, err := strconv.Atoi(v); err == nil {
+            return i, true
+        }
+    }
+    return 0, false
+}
+
+func bool_to_int(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func int32_to_ipv4(ip uint) string {
+	bytes := []byte{
+		byte(ip),
+		byte(ip >> 8),
+		byte(ip >> 16),
+		byte(ip >> 24),
+	}
+	return net.IP(bytes).String()
+}
+
+func bytes_to_hexstr(data []byte) string {
+	if len(data) == 0 {
+		return "{ }"
+	}
+
+	var result string
+	result = "{ "
+	for i, b := range data {
+		result += fmt.Sprintf("0x%02x", b)
+		if i < len(data)-1 {
+			result += ", "
+		}
+	}
+	result += " }"
+	return result
+}
+
+func write_string(buf *bytes.Buffer, s string) error {
+	data := []byte(s)
+	if err := binary.Write(buf, binary.LittleEndian, uint32(len(data))); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.LittleEndian, data); err != nil {
+		return err
+	}
+	return nil
+}
+
+func read_string(buf *bytes.Reader) (string, error) {
+	var len uint32
+	if err := binary.Read(buf, binary.LittleEndian, &len); err != nil {
+		return "", err
+	}
+	data := make([]byte, len)
+	if err := binary.Read(buf, binary.LittleEndian, &data); err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func write_bool(buf *bytes.Buffer, b bool) error {
+	val := uint8(0)
+	if b {
+		val = 1
+	}
+	return binary.Write(buf, binary.LittleEndian, val)
+}
+
+func read_bool(buf *bytes.Reader) (bool, error) {
+	var val uint8
+	err := binary.Read(buf, binary.LittleEndian, &val)
+	return val != 0, err
+}
+
+func write_time(buf *bytes.Buffer, t time.Time) error {
+	return binary.Write(buf, binary.LittleEndian, t.Unix())
+}
+
+func read_time(buf *bytes.Reader) (time.Time, error) {
+	var timestamp int64
+	err := binary.Read(buf, binary.LittleEndian, &timestamp)
+	return time.Unix(timestamp, 0).UTC(), err
+}
+
+func FormatKharonTable(data *KharonData) string {
+	var b strings.Builder
+
+	colLabel := 25
+	colValue := 50
+
+	// ==================== HELPER FUNCTIONS ====================
+	boolStr := func(val bool) string {
+		if val {
+			return "True"
+		}
+		return "False"
+	}
+
+	maskTechStr := func(id uint32) string {
+		switch id {
+		case 1:
+			return "Timer"
+		case 2:
+			return "Pooling"
+		case 3:
+			return "None"
+		default:
+			return fmt.Sprintf("%d", id)
+		}
+	}
+
+	syscallStr := func(sys uint32) string {
+		switch sys {
+		case 0:
+			return "None"
+		case 1:
+			return "Spoof"
+		case 2:
+			return "Spoof + Indirect"
+		default:
+			return fmt.Sprintf("%d", sys)
+		}
+	}
+
+	amsietwbpStr := func(id int32) string {
+		switch id {
+		case 0x100:
+			return "All"
+		case 0x700:
+			return "AMSI"
+		case 0x400:
+			return "ETW"
+		case 0x000:
+			return "None"
+		default:
+			return fmt.Sprintf("0x%03X", id)
+		}
+	}
+
+	dseStatusStr := func(status uint32) string {
+		switch status {
+		case 0:
+			return "Disabled"
+		case 1:
+			return "Enabled"
+		default:
+			return fmt.Sprintf("%d", status)
+		}
+	}
+
+	vbsHvciStr := func(status uint32) string {
+		switch status {
+		case 0:
+			return "Disabled"
+		case 1:
+			return "Enabled"
+		default:
+			return fmt.Sprintf("%d", status)
+		}
+	}
+
+	// ==================== FORMATTING FUNCTIONS ====================
+	row := func(label, value string) string {
+		return fmt.Sprintf("│ %-*s │ %-*s │\n", colLabel, label, colValue, value)
+	}
+
+	border := func(title string) string {
+		borderLine := "├" + strings.Repeat("─", colLabel+2) + "┼" + strings.Repeat("─", colValue+2) + "┤"
+		switch title {
+		case "top":
+			return "┌" + strings.Repeat("─", colLabel+2) + "┬" + strings.Repeat("─", colValue+2) + "┐\n"
+		case "bottom":
+			return "└" + strings.Repeat("─", colLabel+2) + "┴" + strings.Repeat("─", colValue+2) + "┘\n"
+		}
+		return borderLine + "\n"
+	}
+
+	sectionTitle := func(title string) string {
+		totalWidth := colLabel + colValue + 5
+		padding := (totalWidth - len(title)) / 2
+		leftPad := strings.Repeat(" ", padding)
+		rightPad := strings.Repeat(" ", totalWidth-len(title)-padding)
+		return fmt.Sprintf("│%s%s%s│\n", leftPad, title, rightPad)
+	}
+
+	// Top border
+	b.WriteString(border("top"))
+
+	// ==================== SESSION ====================
+	b.WriteString(sectionTitle("SESSION INFORMATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Agent ID", data.Session.AgentIdStr[:min(8, len(data.Session.AgentIdStr))]))
+	b.WriteString(row("Image Name", data.Session.ImgName))
+	b.WriteString(row("Image Path", data.Session.ImgPath))
+	b.WriteString(row("Command Line", data.Session.CmdLine))
+	b.WriteString(row("Process ID", fmt.Sprintf("%d", data.Session.ProcessId)))
+	b.WriteString(row("Thread ID", fmt.Sprintf("%d", data.Session.ThreadId)))
+	b.WriteString(row("Parent ID", fmt.Sprintf("%d", data.Session.ParentId)))
+	b.WriteString(row("Elevated", boolStr(data.Session.Elevated)))
+	b.WriteString(row("Process Arch", fmt.Sprintf("0x%02X", data.Session.ProcessArch)))
+	b.WriteString(row("Heap Handle", fmt.Sprintf("0x%016X", data.Session.HeapHandle)))
+	b.WriteString(row("Kharon in-memory base", data.Session.Base.Start))
+	b.WriteString(row("Kharon in-memory Size", fmt.Sprintf("%d bytes", data.Session.Base.Size)))
+	b.WriteString(row("Code Page (ACP)", fmt.Sprintf("%d", data.Session.Acp)))
+	b.WriteString(row("OEM Code Page", fmt.Sprintf("%d", data.Session.Oemcp)))
+	b.WriteString(border("middle"))
+
+	// ==================== TIMING ====================
+	b.WriteString(sectionTitle("TIMING CONFIGURATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Sleep Time", fmt.Sprintf("%d ms", data.Session.SleepTime)))
+	b.WriteString(row("Jitter", fmt.Sprintf("%d%%", data.Session.Jitter)))
+	b.WriteString(border("middle"))
+
+	// ==================== EVASION ====================
+	b.WriteString(sectionTitle("EVASION TECHNIQUES"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Mask Beacon", maskTechStr(data.Mask.Beacon)))
+	b.WriteString(row("Heap Mask", boolStr(data.Mask.Heap)))
+	b.WriteString(row("Jump Gadget", data.Mask.Jmpgadget))
+	b.WriteString(row("NtContinue Gadget", data.Mask.Ntcontinue))
+	b.WriteString(row("BOF API Proxy", boolStr(data.Evasion.BofProxy)))
+	b.WriteString(row("Syscall Method", syscallStr(data.Evasion.Syscall)))
+	b.WriteString(row("AMSI/ETW Bypass", amsietwbpStr(data.Evasion.AmsiEtwBypass)))
+	b.WriteString(border("middle"))
+
+	// ==================== PROCESS SPAWNING ====================
+	b.WriteString(sectionTitle("PROCESS SPAWNING"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Parent PID", fmt.Sprintf("%d", data.Ps.ParentId)))
+	b.WriteString(row("Spoof Argument", fmt.Sprintf("%s", data.Ps.Spoofarg)))
+	b.WriteString(row("Block DLLs", boolStr(data.Ps.BlockDlls)))
+	b.WriteString(row("Spawn To", data.Ps.Spawnto))
+	b.WriteString(row("Fork Pipe", data.Ps.ForkPipe))
+	b.WriteString(border("middle"))
+
+	// ==================== KILLDATE ====================
+	b.WriteString(sectionTitle("KILLDATE CONFIGURATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Use Killdate", boolStr(data.Killdate.Enabled)))
+	b.WriteString(row("Exit Type", func() string {
+		if data.Killdate.Exit {
+			return "Exit Process"
+		}
+		return "Exit Thread"
+	}()))
+	b.WriteString(row("Self Delete", boolStr(data.Killdate.Selfdel)))
+	b.WriteString(row("Killdate", data.Killdate.Date.Format("02/01/2006")))
+	b.WriteString(border("middle"))
+
+	// ==================== WORKTIME ====================
+	b.WriteString(sectionTitle("WORKTIME CONFIGURATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Enable Worktime", boolStr(data.Worktime.Enabled)))
+	b.WriteString(row("Start Time", data.Worktime.Start))
+	b.WriteString(row("End Time", data.Worktime.End))
+	b.WriteString(border("middle"))
+
+	// ==================== GUARDRAILS ====================
+	b.WriteString(sectionTitle("GUARDRAILS"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("IP Address", data.Guardrails.Ipaddress))
+	b.WriteString(row("Hostname", data.Guardrails.Hostname))
+	b.WriteString(row("Username", data.Guardrails.Username))
+	b.WriteString(row("Domain", data.Guardrails.Domain))
+	b.WriteString(border("middle"))
+
+	// ==================== SYSTEM INFORMATION ====================
+	b.WriteString(sectionTitle("SYSTEM INFORMATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Username", data.Machine.Username))
+	b.WriteString(row("Computer Name", data.Machine.Computer))
+	b.WriteString(row("NetBIOS Name", data.Machine.Netbios))
+	b.WriteString(row("Domain", data.Machine.Domain))
+	b.WriteString(row("IP Address", data.Machine.Ipaddress))
+	b.WriteString(row("OS Architecture", fmt.Sprintf("0x%02X", data.Machine.OsArch)))
+	b.WriteString(row("OS Version", fmt.Sprintf("%d.%d.%d",
+		data.Machine.OsMajor,
+		data.Machine.OsMinor,
+		data.Machine.OsBuild)))
+	b.WriteString(row("Processor Name", data.Machine.ProcessorName))
+	b.WriteString(row("Processor Count", fmt.Sprintf("%d", data.Machine.ProcessorNumbers)))
+	b.WriteString(border("middle"))
+
+	// ==================== MEMORY INFORMATION ====================
+	b.WriteString(sectionTitle("MEMORY INFORMATION"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("Total RAM", fmt.Sprintf("%d MB", data.Machine.RamTotal)))
+	b.WriteString(row("Available RAM", fmt.Sprintf("%d MB", data.Machine.RamAval)))
+	b.WriteString(row("Used RAM", fmt.Sprintf("%d MB", data.Machine.RamUsed)))
+	b.WriteString(row("RAM Usage", fmt.Sprintf("%d%%", data.Machine.RamPerct)))
+	b.WriteString(row("Page Size", fmt.Sprintf("%d bytes", data.Machine.PageSize)))
+	b.WriteString(row("Allocation Granularity", fmt.Sprintf("%d bytes", data.Machine.AllocationGran)))
+	b.WriteString(border("middle"))
+
+	// ==================== SECURITY FEATURES ====================
+	b.WriteString(sectionTitle("SECURITY FEATURES"))
+	b.WriteString(border("middle"))
+	b.WriteString(row("CFG Enabled", boolStr(data.Machine.CfgEnabled)))
+	b.WriteString(row("DSE Status", dseStatusStr(data.Machine.DseStatus)))
+	b.WriteString(row("VBS/HVCI", vbsHvciStr(data.Machine.VbsHvci)))
+	b.WriteString(row("Test Signing", boolStr(data.Machine.TestsignEnabled)))
+	b.WriteString(row("Debug Mode", boolStr(data.Machine.DebugmodeEnabled)))
+	b.WriteString(row("Secure Boot", boolStr(data.Machine.SecurebootEnabled)))
+	b.WriteString(border("bottom"))
+
+	return b.String()
+}

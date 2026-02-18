@@ -1,0 +1,35 @@
+{
+    "callbacks": [
+        {
+            "hosts": ["127.0.0.1:443"],
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "server_error": {
+                "http_status": 404,
+                "response": "<html><body><h1>404 Not Found</h1></body></html>",
+                "headers": {"Content-Type": "text/html"}
+            },
+            "get": {
+                "server_headers": {"Content-Type": "text/html"},
+                "client_headers": {"Accept": "*/*"},
+                "empty_response": "",
+                "uri": {
+                    "/": {
+                        "server_output": {"mask": false, "format": "base64"},
+                        "client_output": {"mask": false, "format": "base64"}
+                    }
+                }
+            },
+            "post": {
+                "server_headers": {"Content-Type": "application/octet-stream"},
+                "client_headers": {"Content-Type": "application/octet-stream"},
+                "empty_response": "",
+                "uri": {
+                    "/": {
+                        "server_output": {"mask": false, "format": "base64"},
+                        "client_output": {"mask": false, "format": "base64"}
+                    }
+                }
+            }
+        }
+    ]
+}

