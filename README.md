@@ -1,101 +1,70 @@
-# Kharon v0.1
+# Kharon v0.2
 
-Kharon is a fully PIC agent that operates without a reflective loader and includes evasion features such as sleep obfuscation, heap obfuscation during sleep, stack spoofing with indirect syscalls, BOF API proxy for spoofed/indirect BOF API executions, and AMSI/ETW bypass.
+**Kharon** is a fully **Position-Independent Code (PIC)** agent that operates without a reflective loader. It incorporates multiple evasion mechanisms, including **sleep obfuscation**, **heap obfuscation during sleep**, **stack spoofing with indirect syscalls**, a **BOF API proxy** for spoofed and indirect BOF API execution, and **AMSI/ETW bypass**.
 
-## Modules
+For detailed information about features, setup, and usage, check the official documentation [here](./doc/)
 
-Kharon is compatible with the [Extension-Kit](https://github.com/Adaptix-Framework/Extension-Kit) and supports its own modules, available in the [PostEx-Arsenal](https://github.com/entropy-z/PostEx-Arsenal).  
-Modules can be loaded into the client using the `kh_modules.axs` script.
+## PIC Logic
 
-## Setup
+Kharon uses a class-based design to store the beacon instance.  
+The instance is retrieved using a **magic value** stored in a custom heap, allowing reliable access without relying on global symbols.
 
-1. Copy `agent_kharon` and `listener_kharon_http` into:
-   `AdaptixC2/AdaptixServer/extenders`
+## Core Features
 
-2. Inside of AdaptixServer folder run:
-   ```
-   go work use extenders/agent_kharon
-   go work use extenders/listener_kharon_http
-   go work sync
-   ```
+This section covers the main capabilities related to evasion, malleable profiles, and runtime control.
 
-3. Change directory to `AdaptixC2` and run:
-   ```make extenders```
+### HTTP Malleable Profile
 
-4. Copy the `src_beacon` and `src_loader` from the `AdaptixServer/extenders/agent_kharon` to the `dist/extenders/agent_kharon`
+- Proxy configuration (URL, username, and password)
+- Domain rotation strategies:
+  - Random
+  - Failover
+  - Round-robin
+- Multi-host configuration
+- Independent User-Agent and headers for GET and POST requests
+- Custom parameters
+- Fine-grained control over route behavior:
+  - Output data via body, parameter, or header
+  - Append / Prepend output data
+- Custom empty server responses
+- Custom error responses
 
-5. Set  
-   `dist/extenders/agent_kharon/config.json`
-   `dist/extenders/listener_kharon_http/config.json`
-   in `profile.json`
+Documentation here: [http-malleable](./doc/5.%20HttpProfile.md)
 
-Example (profile.json):
-```
-"extenders": [
-  "extenders/beacon_listener_http/config.json",
-  "extenders/beacon_listener_smb/config.json",
-  "extenders/beacon_listener_tcp/config.json",
-  "extenders/beacon_agent/config.json",
-  "extenders/gopher_listener_tcp/config.json",
-  "extenders/gopher_agent/config.json",
-  "extenders/agent_kharon/config.json",
-  "extenders/listener_kharon_http/config.json"
-]
-```
+### Post-Exploitation Execution
 
-## Supported BOF API Proxy
-<details>
-<summary>Click to expand</summary>
+Post-exploitation routines are based on **Beacon Object Files (BOFs)** and **PIC shellcode**, which can be executed:
+- In the current process (BOF/PIC)
+- In a remote target process (PIC)
 
-- VirtualAlloc
-- VirtualAllocEx
-- WriteProcessMemory
-- ReadProcessMemory
-- LoadLibraryA
-- VirtualProtect
-- VirtualProtectEx
-- NtSetContextThread
-- SetThreadContext
-- NtGetContextThread
-- GetThreadContext
-- CLRCreateInstance
-- CoInitialize
-- CoInitializeEx
+### Evasion
 
-</details>
+1. **Spoofed + Indirect Syscalls**  
+   Applies call stack spoofing to selected API executions.  
 
-## Supported Beacon API
-<details>
-<summary>Click to expand</summary>
+2. **BOF API Proxy**  
+   Proxies BOF API calls to enable spoofed call stacks and indirect syscalls.
 
-- BeaconDataParse
-- BeaconDataInt
-- BeaconDataExtract
-- BeaconDataShort
-- BeaconDataLength
-- BeaconOutput
-- BeaconPrintf
-- BeaconAddValue
-- BeaconGetValue
-- BeaconRemoveValue
-- BeaconVirtualAlloc
-- BeaconVirtualProtect
-- BeaconVirtualAllocEx
-- BeaconVirtualProtectEx
-- BeaconIsAdmin
-- BeaconUseToken
-- BeaconRevertToken
-- BeaconOpenProcess
-- BeaconOpenThread
-- BeaconFormatAlloc
-- BeaconFormatAppend
-- BeaconFormatFree
-- BeaconFormatInt
-- BeaconFormatPrintf
-- BeaconFormatReset
-- BeaconFormatToString
-- BeaconWriteAPC
-- BeaconDripAlloc
-- BeaconGetSpawnTo
+3. **Memory Evasion**  
+   - Sleep obfuscation
+   - Heap masking during beacon sleep
 
-</details>
+### Runtime Configuration Changes
+
+Kharon supports live runtime configuration updates using the `config` command.  
+This allows dynamic changes to beacon behavior, including:
+
+- Kill date (date-based or self-delete)
+- Working hours
+- BOF API proxy enable/disable
+- Spoofed + indirect syscall enable/disable
+- Memory obfuscation:
+  - Heap masking status
+  - Beacon masking technique
+- Process creation behavior:
+  - Parent Process ID (PPID) spoofing
+  - Block DLL policy
+- AMSI / ETW bypass
+- Sleep and jitter configuration
+
+> Check commands [documentation](./doc/4.%20Commands.md).

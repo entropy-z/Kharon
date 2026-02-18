@@ -30,6 +30,8 @@ auto DECLFN Spoof::Call(
     do {
         this->Setup.Gadget.Ptr  = Self->Usf->FindGadget( Self->KrnlBase.Handle, 0x23 );
         this->Setup.Gadget.Size = (UPTR)this->StackSizeWrapper( this->Setup.Gadget.Ptr );
+
+        KhDbg("gadget: %p", this->Setup.Gadget.Ptr, this->Setup.Gadget.Size);
     } while ( ! this->Setup.Gadget.Size );
 
     this->Setup.Ssn      = Ssn;
@@ -37,7 +39,6 @@ auto DECLFN Spoof::Call(
 
     return SpoofCall( Arg1, Arg2, Arg3, Arg4, Fnc, (UPTR)&this->Setup, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12 );
 }
-
 
 auto DECLFN Spoof::StackSizeWrapper(
     _In_ UPTR RetAddress
@@ -167,7 +168,6 @@ auto DECLFN Spoof::StackSize(
                 i++;
                 break;
 
-            // Operações ARM
             case UWOP_ALLOC_HUGE:
                 TotalSize += UwCode[++i].FrameOffset + 
                             (UwCode[++i].FrameOffset << 16) +

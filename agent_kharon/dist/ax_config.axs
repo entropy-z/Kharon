@@ -22,7 +22,7 @@ event.on_filebrowser_list(event_files_action, ["kharon"]);
 
 
 var event_process_action = function(id) {
-    ax.execute_browser(id, "ps list");
+    ax.execute_browser(id, "process list");
 }
 event.on_processbrowser_list(event_process_action, ["kharon"]);
 
@@ -68,31 +68,22 @@ function RegisterCommands(listenerType)
 
     /// PS
 
-    let cmd_ps_list = ax.create_command("list", "Display all running processes", "ps list", "Task: enumerate running processes");
+    let cmd_ps_list = ax.create_command("list", "Display all running processes", "process list", "Task: enumerate running processes");
     
-    let _cmd_ps_kill = ax.create_command("kill", "Terminate a process by its Process ID (PID)", "ps kill 1234", "Task: terminate process");
+    let _cmd_ps_kill = ax.create_command("kill", "Terminate a process by its Process ID (PID)", "process kill 1234", "Task: terminate process");
     _cmd_ps_kill.addArgInt("pid", true);
+    _cmd_ps_kill.addArgInt("exit_code", false);
     
-    let cmd_ps_run = ax.create_command("run", "Execute a new process with specified command line", "ps run \"cmd.exe /c whoami /all\"", "Task: create and execute new process");
-    cmd_ps_run.addArgString("cmd", true, "Full command line with arguments");
-    
-    let cmd_ps = ax.create_command("ps", "Process management - list, create, and terminate processes");
+    let cmd_ps_run = ax.create_command("create", "Execute a new process with specified command line", "process create --command \"cmd.exe /c whoami /all\"", "Task: create and execute new process");
+    cmd_ps_run.addArgFlagString("--command", "cmd", true, "Full command line with arguments");
+    cmd_ps_run.addArgFlagString("--state", "state", false, "State for process creation (suspended/standard)");
+    cmd_ps_run.addArgBool("--pipe", "Pipe to get output from process creation", true);
+    cmd_ps_run.addArgFlagString("--domain", "domain", false, "Domain for use with CreateProcessWithLogon");
+    cmd_ps_run.addArgFlagString("--username", "username", false, "Username for use with CreateProcessWithLogon");
+    cmd_ps_run.addArgFlagString("--password", "password", false, "Password for use with CreateProcessWithLogon");
+
+    let cmd_ps = ax.create_command("process", "Process management - list, create, and terminate processes");
     cmd_ps.addSubCommands([cmd_ps_list, cmd_ps_run, _cmd_ps_kill]);
-
-    /// STEALER
-
-    let cmd_stealer_browserdmp = ax.create_command("browser-dump", "Extract saved credentials and cookies from browser profile", "stealer browser-dump chrome", "Task: dump browser credentials and cookies");
-    cmd_stealer_browserdmp.addArgString("browser_name", true, "Browser name (currently only 'chrome' is supported)");
-
-    let cmd_stealer_screenshot = ax.create_command("screenshot", "Capture a screenshot of the current desktop", "stealer screenshot", "Task: capture desktop screenshot");
-
-    let cmd_stealer_clipdump = ax.create_command("clipdump", "Retrieve current clipboard contents", "stealer clipdump", "Task: dump clipboard data");
-
-    let cmd_stealer_officedump = ax.create_command("office-dump", "Extract credentials from Microsoft Office process memory", "stealer office-dump 1234", "Task: dump Office credentials from memory");
-    cmd_stealer_officedump.addArgInt("office_pid", true, "Process ID of running Office application");
-
-    let cmd_stealer = ax.create_command("stealer", "Information gathering and credential extraction operations");
-    cmd_stealer.addSubCommands([cmd_stealer_browserdmp, cmd_stealer_clipdump, cmd_stealer_screenshot, cmd_stealer_officedump]);
 
     /// JOB
     /// let cmd_job_list = ax.create_command("list", "Display all currently running background jobs", "job list", "Task: enumerate running jobs");
@@ -109,10 +100,10 @@ function RegisterCommands(listenerType)
     cmd_token_steal.addArgBool("impersonate", false, "Immediately use the stolen token");
 
     let cmd_token_use = ax.create_command("impersonate", "Apply a previously stolen access token from storage", "token impersonate 608", "Task: impersonate stored access token");
-    cmd_token_use.addArgInt("id", true);
+    cmd_token_use.addArgInt("token_id", true);
 
     let cmd_token_rm = ax.create_command("rm", "Remove an access token from storage", "token rm 608", "Task: delete stored token");
-    cmd_token_rm.addArgInt("id", true);
+    cmd_token_rm.addArgInt("token_id", true);
 
     let cmd_token_revert = ax.create_command("revert", "Restore the original access token", "token revert", "Task: revert to original token");
 
@@ -144,6 +135,9 @@ function RegisterCommands(listenerType)
     let cmd_config_blockdll = ax.create_command("blockdlls", "Block non-Microsoft DLLs from loading in child processes", "config blockdlls true", "Task: configure DLL blocking");
     cmd_config_blockdll.addArgString("status", true, "Enable (true) or disable (false)");
 
+    let cmd_config_spoofarg = ax.create_command("spoofarg", "Set false argument to spoof process args (obs: argument needs to be greater than legit argument)", "config spoofarg powershell do-nothing-command", "Task: configure argument spoof");
+    cmd_config_spoofarg.addArgString("arg", true);
+
     let cmd_config_killdate_date = ax.create_command("killdate.date", "Set the kill date when the beacon will self-terminate", "config killdate.date 28.02.2030", "Task: configure kill date");
     cmd_config_killdate_date.addArgString("date", true, "Date in 'DD.MM.YYYY' format, or '0' to disable");
 
@@ -165,27 +159,31 @@ function RegisterCommands(listenerType)
     let cmd_config_spawnto = ax.create_command("spawnto", "Set the executable path for spawning new processes", "config spawnto C:\\Windows\\System32\\rundll32.exe", "Task: configure spawn target");
     cmd_config_spawnto.addArgString("path", true);
 
-    let cmd_config_inject_alloc = ax.create_command("inject.alloc", "Change allocation method to shellcode injection routines", "config inject.alloc drip", "Task: configure allocation method");
-    cmd_config_inject_alloc.addArgString("alloc", true, "Options 'drip' or 'standard'");
-
-    let cmd_config_inject_write = ax.create_command("inject.write", "Change write method to shellcode injection routines", "config inject.write apc", "Task: configure write method");
-    cmd_config_inject_write.addArgString("write", true, "Options 'apc' or 'standard'");
-
     let cmd_config_wkrtime = ax.create_command("worktime", "Set operational hours for beacon activity", "config worktime 09:00 18:00", "Task: configure working hours");
     cmd_config_wkrtime.addArgString("start", true);
     cmd_config_wkrtime.addArgString("end", true);
 
-    let cmd_config = ax.create_command("config", "Configuration management - adjust beacon behavior and settings", "config sleep 50s");
-    cmd_config.addSubCommands([
-        cmd_config_sleep, cmd_config_jitter, cmd_config_ppid, cmd_config_blockdll, cmd_config_wkrtime,
+    let cmd_config_syscall = ax.create_command("syscall", "Change the syscall method", "config syscall spoof_indirect");
+    cmd_config_syscall.addArgString("syscall", true, "options: 'spoof', 'spoof_indirect' or 'none'");
+
+    let cmd_config_bofproxy = ax.create_command("bof_api_proxy", "Change BOF API Proxy status")
+    cmd_config_bofproxy.addArgBool("status", true)
+
+    let cmd_config_forkpipe = ax.create_command("fork_pipe_name", "Change named pipe to use in fork commands", "config fork_pipe_name \\\\.\\pipe\\new_pipe_name");
+    cmd_config_forkpipe.addArgString("name", true);
+
+    let cmd_config_subcommands = [
+        cmd_config_sleep, cmd_config_jitter, cmd_config_ppid, cmd_config_blockdll, cmd_config_spoofarg, cmd_config_wkrtime,
         cmd_config_killdate_date, cmd_config_killdate_exit, cmd_config_killdate_selfdel, 
-        cmd_config_heap_obf, cmd_config_mask, cmd_config_amsietwbypass, cmd_config_spawnto,
-        cmd_config_inject_write, cmd_config_inject_alloc
-    ]);
+        cmd_config_heap_obf, cmd_config_mask, cmd_config_amsietwbypass, cmd_config_spawnto, cmd_config_syscall, cmd_config_bofproxy
+    ];
+
+    let cmd_config = ax.create_command("config", "Configuration management - adjust beacon behavior and settings", "config sleep 50s");
+    cmd_config.addSubCommands(cmd_config_subcommands);
 
     /// INFO
 
-    let cmd_info = ax.create_command("info", "Display comprehensive beacon information and system details", "info", "Task: retrieve beacon information");
+    let cmd_info = ax.create_command("info", "Display comprehensive beacon information and system details", "info", "Task: retrieve beacon information (server-side)");
 
     // UPLOAD
     let cmd_upload = ax.create_command("upload", "Upload a file", "upload /tmp/file.txt C:\Temp\file.txt", "Task: upload file");
@@ -223,8 +221,8 @@ function RegisterCommands(listenerType)
     /// SCINJECT
 
     let cmd_scinject = ax.create_command("scinject", "Inject raw shellcode into a target process by PID", "scinject /tmp/payload.bin 1234", "Task: inject shellcode into process");
-    cmd_scinject.addArgFile("shellcode", true);
     cmd_scinject.addArgInt("pid", true);
+    cmd_scinject.addArgFile("shellcode", true);
 
     /// SELF_DELETE
     
@@ -236,12 +234,11 @@ function RegisterCommands(listenerType)
     cmd_exec_bof.addArgFile("bof_file", true, "Path to compiled object file (.o)");
     cmd_exec_bof.addArgString("param_data", false);
 
-    let cmd_exec_postex = ax.create_command("postex", "Execute post-exploitation shellcode inline or forked", "execute postex -m inline -t none -p 0 -f /tmp/module.bin -a params", "Task: execute post-exploitation module");
-    cmd_exec_postex.addArgFlagString("-m", "method", "Execution method: 'inline' (current process) or 'fork' (new/existing process)", "inline");
-    cmd_exec_postex.addArgFlagString("-t", "fork_type", "Fork type: 'spawn' (new process) or 'explicit' (existing PID)", "none");
-    cmd_exec_postex.addArgFlagInt("-p", "pid", "Target PID for explicit fork injection", 0);
-    cmd_exec_postex.addArgFlagFile("-f", "sc_file", "Shellcode file", true);
-    cmd_exec_postex.addArgFlagString("-a", "param_data", "Shellcode parameters");
+    let cmd_exec_postex = ax.create_command("postex", "Execute post-exploitation shellcode inline or forked", "execute postex --method spawn --file /tmp/module.bin --args params", "Task: execute post-exploitation module");
+    cmd_exec_postex.addArgFlagString("--method", "method", "Execution method: 'explicit' (current process) or 'spawn' (new/existing process)", "none");
+    cmd_exec_postex.addArgFlagInt("--pid", "pid", "Target PID for explicit fork injection", 0);
+    cmd_exec_postex.addArgFlagFile("--file", "sc_file", "Shellcode file", true);
+    cmd_exec_postex.addArgFlagString("--args", "param_data", "Shellcode parameters");
 
     let cmd_execute = ax.create_command("execute", "Execute Beacon Object Files or post-exploitation shellcode modules");
     cmd_execute.addSubCommands([cmd_exec_bof, cmd_exec_postex]);
@@ -261,7 +258,7 @@ function RegisterCommands(listenerType)
 
 function GenerateUI(listenerType)
 {
-    // Format combo (topo)
+    // Format combo 
     let labelFormat = form.create_label("Compilation Format:");
     let comboFormat = form.create_combo();
     comboFormat.addItem("Exe");
@@ -269,10 +266,6 @@ function GenerateUI(listenerType)
     comboFormat.addItem("Bin");
     comboFormat.addItem("Svc");
     comboFormat.setCurrentIndex(0);
-
-    // Debug Mode
-    let debug_check = form.create_check("Debug Mode");
-    debug_check.setChecked(false);
 
     // Sleep / Jitter
     let labelSleep  = form.create_label("Sleep (Jitter %):");
@@ -310,39 +303,33 @@ function GenerateUI(listenerType)
     let labelKilldateDate = form.create_label("Date:");
     let dateKill = form.create_dateline("dd.MM.yyyy");
     
-    let labelKilldateExit = form.create_label("Exit Method:");
-    let comboKilldateExit = form.create_combo();
-    comboKilldateExit.addItem("Process");
-    comboKilldateExit.addItem("Thread");
-    comboKilldateExit.setCurrentIndex(0);
-    
-    let checkKilldateSelfDel = form.create_check("Self Delete");
-    checkKilldateSelfDel.setChecked(false);
-    
     let layout_killdate = form.create_gridlayout();
     layout_killdate.addWidget(labelKilldateDate,     0, 0, 1, 1);
     layout_killdate.addWidget(dateKill,              0, 1, 1, 2);
-    layout_killdate.addWidget(labelKilldateExit,     1, 0, 1, 1);
-    layout_killdate.addWidget(comboKilldateExit,     1, 1, 1, 1);
-    layout_killdate.addWidget(checkKilldateSelfDel,  1, 2, 1, 1);
     let panel_killdate = form.create_panel();
     panel_killdate.setLayout(layout_killdate);
     killdate_group.setPanel(panel_killdate);
     killdate_group.setChecked(false);
 
     // Workingtime
-    let checkWorkingTime = form.create_check("Set 'workingtime'");
-    let timeStart        = form.create_timeline("HH:mm");
-    let timeFinish       = form.create_timeline("HH:mm");
-
+    let workingtime_group = form.create_groupbox("Working Time Settings", true);
+    
+    let labelTimeStart = form.create_label("Start Time:");
+    let timeStart = form.create_timeline("HH:mm");
+    
+    let labelTimeFinish = form.create_label("End Time:");
+    let timeFinish = form.create_timeline("HH:mm");
+    
     let layout_workingtime = form.create_gridlayout();
-    layout_workingtime.addWidget(checkWorkingTime, 0, 0, 1, 1);
-    layout_workingtime.addWidget(timeStart,        0, 1, 1, 1);
-    layout_workingtime.addWidget(timeFinish,       0, 2, 1, 1);
+    layout_workingtime.addWidget(labelTimeStart,  0, 0, 1, 1);
+    layout_workingtime.addWidget(timeStart,       0, 1, 1, 2);
+    layout_workingtime.addWidget(labelTimeFinish, 1, 0, 1, 1);
+    layout_workingtime.addWidget(timeFinish,      1, 1, 1, 2);
+    
     let panel_workingtime = form.create_panel();
     panel_workingtime.setLayout(layout_workingtime);
-    let workingtime_group = form.create_groupbox("Working Time Settings", false);
     workingtime_group.setPanel(panel_workingtime);
+    workingtime_group.setChecked(false);
 
     // PostEx Settings
     let labelPipename = form.create_label("Fork pipename:");
@@ -359,7 +346,7 @@ function GenerateUI(listenerType)
     let postex_group = form.create_groupbox("PostEx Settings", false)
     postex_group.setPanel(panel_postex);
 
-    // Evasion Settings
+    // Evasion Settings (Removido Shellcode Injection e Stomping)
     let labelBypass = form.create_label("Bypass:");
     let bypass_combo = form.create_combo();
     bypass_combo.addItem("None");
@@ -380,11 +367,11 @@ function GenerateUI(listenerType)
     syscall_combo.setCurrentIndex(0);
 
     let layout_evasion = form.create_gridlayout();
-    layout_evasion.addWidget(labelBypass, 0, 0, 1, 1);
-    layout_evasion.addWidget(bypass_combo, 0, 1, 1, 1);
-    layout_evasion.addWidget(labelSyscall, 1, 0, 1, 1);
-    layout_evasion.addWidget(syscall_combo, 1, 1, 1, 1);
-    layout_evasion.addWidget(bof_api_check, 2, 0, 1, 1);
+    layout_evasion.addWidget(labelBypass,       0, 0, 1, 1);
+    layout_evasion.addWidget(bypass_combo,      0, 1, 1, 1);
+    layout_evasion.addWidget(labelSyscall,      1, 0, 1, 1);
+    layout_evasion.addWidget(syscall_combo,     1, 1, 1, 1);
+    layout_evasion.addWidget(bof_api_check,     1, 2, 1, 1);
     let panel_evasion = form.create_panel();
     panel_evasion.setLayout(layout_evasion);
     let evasion_group = form.create_groupbox("Evasion settings", false)
@@ -413,7 +400,6 @@ function GenerateUI(listenerType)
     let layout_scroll = form.create_gridlayout();
     layout_scroll.addWidget(labelFormat,        0, 0, 1, 1);
     layout_scroll.addWidget(comboFormat,        0, 1, 1, 1);
-    layout_scroll.addWidget(debug_check,        0, 2, 1, 1);
     layout_scroll.addWidget(labelSleep,         1, 0, 1, 1);
     layout_scroll.addWidget(textSleep,          1, 1, 1, 1);
     layout_scroll.addWidget(spinJitter,         1, 2, 1, 1);
@@ -447,11 +433,9 @@ function GenerateUI(listenerType)
     // Killdate
     container.put("killdate_check", killdate_group)
     container.put("killdate_date", dateKill)
-    container.put("killdate_exit", comboKilldateExit)
-    container.put("killdate_selfdel", checkKilldateSelfDel)
     
     // Workingtime
-    container.put("workingtime_check", checkWorkingTime)
+    container.put("workingtime_check", workingtime_group)
     container.put("workingtime_start", timeStart)
     container.put("workingtime_end", timeFinish)
     
@@ -459,7 +443,6 @@ function GenerateUI(listenerType)
     container.put("fork_pipename", textPipename)
     container.put("spawnto", textSpawnTo)
     
-    // Evasion
     container.put("bypass", bypass_combo)
     container.put("bof_api_proxy", bof_api_check)
     container.put("syscall", syscall_combo)
@@ -467,13 +450,14 @@ function GenerateUI(listenerType)
     // Mask
     container.put("mask_heap", heap_obf_check)
     container.put("mask_sleep", sleep_mask_combo)
-    container.put("debug_mode", debug_check)
 
     let panel = form.create_panel()
     panel.setLayout(layout)
 
     return {
         ui_panel: panel,
-        ui_container: container
+        ui_container: container,
+        ui_height: 800,
+        ui_width: 800  
     }
 }

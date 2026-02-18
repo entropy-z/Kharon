@@ -1,0 +1,71 @@
+{
+    "callbacks": [
+        {
+            "hosts": ["172.23.60.72:5124", "172.23.60.72:5124"],
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "server_error": {
+                "http_status": 403,
+                "response": "{\"status\": 403, \"error\": \"Forbidden\", \"message\": \"Access denied\"}",
+                "headers": {
+                    "Content-Type": "application/json; charset=utf-8"
+                }
+            },
+            "get": {
+                "server_headers": {
+                    "Content-Type": "text/html; charset=utf-8",
+                    "Server": "Apache/2.4.41",
+                    "Cache-Control": "no-store, no-cache, must-revalidate",
+                    "X-Powered-By": "Express",
+                    "X-RateLimit-Limit": "1000",
+                    "X-RateLimit-Remaining": "998",
+                    "X-RateLimit-Reset": "1704110400",
+                    "X-Request-ID": "req_abc123def456"
+                },
+                "client_headers": {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                    "Cache-Control": "no-cache"
+                },
+                "empty_response": "\\x90\\x90\\x90\\x90\\x90",
+                "uri": {
+                    "/route4": {
+                        "server_output": {"mask": true, "format": "hex", "cookie": "CK_SRV"},
+                        "client_output": {"mask": true, "format": "base64url"},
+                        "client_parameters": [{"agent_name": "kharon"}, {"maded_by": "oblivion"}]
+                    }
+                }
+            },
+            "post": {
+                "server_headers": {
+                    "Content-Type": "application/json; charset=utf-8",
+                    "Server": "Apache/2.4.41",
+                    "Cache-Control": "no-store, no-cache, must-revalidate",
+                    "X-Powered-By": "Express",
+                    "X-RateLimit-Limit": "1000",
+                    "X-RateLimit-Remaining": "997",
+                    "X-RateLimit-Reset": "1704110400",
+                    "X-Request-ID": "req_abc123def456",
+                    "Location": "https://api.example.com/resource/123"
+                },
+                "client_headers": {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                    "Cache-Control": "no-cache"                
+                },
+                "empty_response": "\\x90\\x90\\x90\\x90\\x90",
+                "uri": {
+                    "/route1 /route2": {
+                        "server_output": {"mask": false, "format": "base32", "header": "MSG_PP", "body": "{\"status\": 200, \"message\": \"Success\"}"},
+                        "client_output": {"mask": true, "format": "base64", "prepend": "{\"health\": \"alive\", \"message\": \"", "append": "\"}"}
+                    },
+                    "/route3": {
+                        "server_output": {"mask": false, "format": "base32", "header": "MSG_PP", "body": "{\"status\": 200, \"message\": \"Success\"}"},
+                        "client_output": {"mask": true, "format": "hex", "prepend": "{\"health\": \"alive\", \"message\": \"", "append": "\"}"}
+                    }
+                }
+            }
+        }
+    ]
+}

