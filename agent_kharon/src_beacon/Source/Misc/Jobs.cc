@@ -130,6 +130,10 @@ auto DECLFN Jobs::Send(
                     Current->State = KH_JOB_RUNNING;
                     Self->Pkg->Destroy( Current->Pkg );
                     Current->Pkg = Self->Pkg->Create( Current->CmdID, Current->UUID );
+
+                    if ( Current->CmdID == (ULONG)Action::Task::PostEx ) {
+                        Self->Pkg->Int32( Current->Pkg, (ULONG)Action::Postex::Poll );
+                    }
                 }
             }
             Current = Current->Next;
@@ -256,7 +260,7 @@ auto DECLFN Jobs::GetByUUID(
 ) -> JOBS* {
     JOBS* Current = this->List;
     while ( Current ) {
-        if ( Str::CompareA( Current->UUID, UUID ) == 0 ) {
+        if ( Mem::Cmp( (PBYTE)Current->UUID, (PBYTE)UUID, 36 ) ) {
             return Current;
         }
         Current = Current->Next;

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
@@ -13,6 +14,7 @@ import (
 
 	"unicode/utf16"
 
+	ax "github.com/Adaptix-Framework/axc2"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -20,316 +22,327 @@ import (
 )
 
 type KharonData struct {
-	machine struct {
-		os_arch            uint8
-		username           string
-		computer           string
-		domain             string
-		netbios            string
-		ipaddress          string
-		processor_name     string
-		processor_numbers  uint32
-		ram_total          uint32
-		ram_aval           uint32
-		ram_used           uint32
-		ram_perct          uint32
-		os_major           uint32
-		os_minor           uint32
-		os_build           uint32
-		allocation_gran    uint32
-		page_size          uint32
-		cfg_enabled        bool
-		vbs_hvci           uint32
-		dse_status         uint32
-		testsign_enabled   bool
-		debugmode_enabled  bool
-		secureboot_enabled bool
-	}
+	Machine struct {
+		OsArch           uint8  `json:"os_arch"`
+		Username         string `json:"username"`
+		Computer         string `json:"computer"`
+		Domain           string `json:"domain"`
+		Netbios          string `json:"netbios"`
+		Ipaddress        string `json:"ipaddress"`
+		ProcessorName    string `json:"processor_name"`
+		ProcessorNumbers uint32 `json:"processor_numbers"`
+		RamTotal         uint32 `json:"ram_total"`
+		RamAval          uint32 `json:"ram_aval"`
+		RamUsed          uint32 `json:"ram_used"`
+		RamPerct         uint32 `json:"ram_perct"`
+		OsMajor          uint32 `json:"os_major"`
+		OsMinor          uint32 `json:"os_minor"`
+		OsBuild          uint32 `json:"os_build"`
+		AllocationGran   uint32 `json:"allocation_gran"`
+		PageSize         uint32 `json:"page_size"`
+		CfgEnabled       bool   `json:"cfg_enabled"`
+		VbsHvci          uint32 `json:"vbs_hvci"`
+		DseStatus        uint32 `json:"dse_status"`
+		TestsignEnabled  bool   `json:"testsign_enabled"`
+		DebugmodeEnabled bool   `json:"debugmode_enabled"`
+		SecurebootEnabled bool  `json:"secureboot_enabled"`
+	} `json:"machine"`
 
-	session struct {
-		agent_id_str string
-		agent_id_int uint32
+	Session struct {
+		AgentIdStr string `json:"agent_id_str"`
+		AgentIdInt uint32 `json:"agent_id_int"`
+		SleepTime  uint32 `json:"sleep_time"`
+		Jitter     uint32 `json:"jitter"`
+		HeapHandle uint64 `json:"heap_handle"`
+		Elevated   bool   `json:"elevated"`
+		ProcessArch uint32 `json:"process_arch"`
+		ImgPath    string `json:"img_path"`
+		ImgName    string `json:"img_name"`
+		CmdLine    string `json:"cmd_line"`
+		ProcessId  uint32 `json:"process_id"`
+		ThreadId   uint32 `json:"thread_id"`
+		ParentId   uint32 `json:"parent_id"`
+		Acp        uint32 `json:"acp"`
+		Oemcp      uint32 `json:"oemcp"`
+		Base struct {
+			Start string `json:"start"`
+			End   string `json:"end"`
+			Size  uint32 `json:"size"`
+		} `json:"base"`
+	} `json:"session"`
 
-		sleep_time uint32
-		jitter     uint32
+	Killdate struct {
+		Enabled bool      `json:"enabled"`
+		Exit    bool      `json:"exit"`
+		Selfdel bool      `json:"selfdel"`
+		Date    time.Time `json:"date"`
+	} `json:"killdate"`
 
-		heap_handle uint64
+	Worktime struct {
+		Enabled bool   `json:"enabled"`
+		Start   string `json:"start"`
+		End     string `json:"end"`
+	} `json:"worktime"`
 
-		elevated bool
+	Guardrails struct {
+		Ipaddress string `json:"ipaddress"`
+		Hostname  string `json:"hostname"`
+		Username  string `json:"username"`
+		Domain    string `json:"domain"`
+	} `json:"guardrails"`
 
-		process_arch uint32
+	Mask struct {
+		Heap       bool   `json:"heap"`
+		Beacon     uint32 `json:"beacon"`
+		Jmpgadget  string `json:"jmpgadget"`
+		Ntcontinue string `json:"ntcontinue"`
+	} `json:"mask"`
 
-		img_path   string
-		img_name   string
-		cmd_line   string
-		process_id uint32
-		thread_id  uint32
-		parent_id  uint32
+	Evasion struct {
+		BofProxy      bool   `json:"bof_proxy"`
+		Syscall       uint32 `json:"syscall"`
+		AmsiEtwBypass int32  `json:"amsi_etw_bypass"`
+	} `json:"evasion"`
 
-		acp   uint32
-		oemcp uint32
+	Ps struct {
+		ParentId  uint32 `json:"parent_id"`
+		Spoofarg  string `json:"spoofarg"`
+		BlockDlls bool   `json:"block_dlls"`
+		Spawnto   string `json:"spawnto"`
+		ForkPipe  string `json:"fork_pipe"`
+	} `json:"ps"`
 
-		base struct {
-			start string
-			end   string
+	PostexHandler struct {
+		PostexLoaded bool `json:"postex_loaded"`
+	} `json:"postex_handler"`
+}
 
-			size uint32
-		}
-	}
-
-	killdate struct {
-		enabled bool
-		exit    bool // true: exit process | false: exit thread
-		selfdel bool
-
-		date time.Time
-	}
-
-	worktime struct {
-		enabled bool
-		start   string
-		end     string
-	}
-
-	guardrails struct {
-		ipaddress string
-		hostname  string
-		username  string
-		domain    string
-	}
-
-	mask struct {
-		heap   bool
-		beacon uint32
-
-		jmpgadget  string
-		ntcontinue string
-	}
-
-	evasion struct {
-		bof_proxy       bool
-		syscall         uint32
-		amsi_etw_bypass int32
-	}
-
-	ps struct {
-		parent_id  uint32
-		spoofarg   string
-		block_dlls bool
-		spawnto    string
-		fork_pipe  string
-	}
-
-	postex_handler struct {
-		PostexLoaded bool
+func (k *KharonData) JsonMarshal(agent *ax.AgentData, update bool) {
+	var newbuff bytes.Buffer
+	json.NewEncoder(&newbuff).Encode(k)
+	agent.CustomData = newbuff.Bytes()
+	if update {
+		ModuleObject.ts.TsAgentUpdateDataPartial(
+			agent.Id, map[string]interface{}{
+				"custom_data": newbuff.String(),
+			},
+		)
 	}
 }
+
+func (k *KharonData) JsonUnmarshal(agent *ax.AgentData) error {
+	if len(agent.CustomData) == 0 {
+		return fmt.Errorf("custom_data is empty")
+	}
+	return json.Unmarshal(agent.CustomData, k)
+}
+
 
 func (k *KharonData) Marshal() ([]byte, error) {
 	var buf bytes.Buffer
 
 	// Machine
-	if err := write_string(&buf, k.machine.username); err != nil {
+	if err := write_string(&buf, k.Machine.Username); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.machine.computer); err != nil {
+	if err := write_string(&buf, k.Machine.Computer); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.machine.domain); err != nil {
+	if err := write_string(&buf, k.Machine.Domain); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.machine.netbios); err != nil {
+	if err := write_string(&buf, k.Machine.Netbios); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.machine.ipaddress); err != nil {
+	if err := write_string(&buf, k.Machine.Ipaddress); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_arch); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.OsArch); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.processor_numbers); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.ProcessorNumbers); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.machine.processor_name); err != nil {
+	if err := write_string(&buf, k.Machine.ProcessorName); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_used); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.RamUsed); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_total); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.RamTotal); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_aval); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.RamAval); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.ram_perct); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.RamPerct); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_minor); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.OsMinor); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_major); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.OsMajor); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.os_build); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.OsBuild); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.allocation_gran); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.AllocationGran); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.page_size); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.PageSize); err != nil {
 		return nil, err
 	}
-	if err := write_bool(&buf, k.machine.cfg_enabled); err != nil {
+	if err := write_bool(&buf, k.Machine.CfgEnabled); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.dse_status); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.DseStatus); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.machine.vbs_hvci); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Machine.VbsHvci); err != nil {
 		return nil, err
 	}
-	if err := write_bool(&buf, k.machine.testsign_enabled); err != nil {
+	if err := write_bool(&buf, k.Machine.TestsignEnabled); err != nil {
 		return nil, err
 	}
-	if err := write_bool(&buf, k.machine.debugmode_enabled); err != nil {
+	if err := write_bool(&buf, k.Machine.DebugmodeEnabled); err != nil {
 		return nil, err
 	}
-	if err := write_bool(&buf, k.machine.secureboot_enabled); err != nil {
+	if err := write_bool(&buf, k.Machine.SecurebootEnabled); err != nil {
 		return nil, err
 	}
 
 	// Session
-	if err := write_string(&buf, k.session.agent_id_str); err != nil {
+	if err := write_string(&buf, k.Session.AgentIdStr); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.agent_id_int); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.AgentIdInt); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.sleep_time); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.SleepTime); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.jitter); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.Jitter); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.heap_handle); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.HeapHandle); err != nil {
 		return nil, err
 	}
-	if err := write_bool(&buf, k.session.elevated); err != nil {
+	if err := write_bool(&buf, k.Session.Elevated); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.process_arch); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.ProcessArch); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.session.img_path); err != nil {
+	if err := write_string(&buf, k.Session.ImgPath); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.session.img_name); err != nil {
+	if err := write_string(&buf, k.Session.ImgName); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.session.cmd_line); err != nil {
+	if err := write_string(&buf, k.Session.CmdLine); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.process_id); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.ProcessId); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.thread_id); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.ThreadId); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.parent_id); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.ParentId); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.acp); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.Acp); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.oemcp); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.Oemcp); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.session.base.start); err != nil {
+	if err := write_string(&buf, k.Session.Base.Start); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.session.base.end); err != nil {
+	if err := write_string(&buf, k.Session.Base.End); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.session.base.size); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Session.Base.Size); err != nil {
 		return nil, err
 	}
 
 	// Killdate
-	if err := write_bool(&buf, k.killdate.enabled); err != nil {
+	if err := write_bool(&buf, k.Killdate.Enabled); err != nil {
 		return nil, err
 	}
-	if err := write_bool(&buf, k.killdate.exit); err != nil {
+	if err := write_bool(&buf, k.Killdate.Exit); err != nil {
 		return nil, err
 	}
-	if err := write_bool(&buf, k.killdate.selfdel); err != nil {
+	if err := write_bool(&buf, k.Killdate.Selfdel); err != nil {
 		return nil, err
 	}
-	if err := write_time(&buf, k.killdate.date); err != nil {
+	if err := write_time(&buf, k.Killdate.Date); err != nil {
 		return nil, err
 	}
 
 	// Worktime
-	if err := write_bool(&buf, k.worktime.enabled); err != nil {
+	if err := write_bool(&buf, k.Worktime.Enabled); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.worktime.start); err != nil {
+	if err := write_string(&buf, k.Worktime.Start); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.worktime.end); err != nil {
+	if err := write_string(&buf, k.Worktime.End); err != nil {
 		return nil, err
 	}
 
 	// Guardrails
-	if err := write_string(&buf, k.guardrails.ipaddress); err != nil {
+	if err := write_string(&buf, k.Guardrails.Ipaddress); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.guardrails.hostname); err != nil {
+	if err := write_string(&buf, k.Guardrails.Hostname); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.guardrails.username); err != nil {
+	if err := write_string(&buf, k.Guardrails.Username); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.guardrails.domain); err != nil {
+	if err := write_string(&buf, k.Guardrails.Domain); err != nil {
 		return nil, err
 	}
 
 	// Mask
-	if err := write_bool(&buf, k.mask.heap); err != nil {
+	if err := write_bool(&buf, k.Mask.Heap); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.mask.beacon); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Mask.Beacon); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.mask.jmpgadget); err != nil {
+	if err := write_string(&buf, k.Mask.Jmpgadget); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.mask.ntcontinue); err != nil {
+	if err := write_string(&buf, k.Mask.Ntcontinue); err != nil {
 		return nil, err
 	}
 
 	// Evasion
-	if err := write_bool(&buf, k.evasion.bof_proxy); err != nil {
+	if err := write_bool(&buf, k.Evasion.BofProxy); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.evasion.syscall); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Evasion.Syscall); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.LittleEndian, k.evasion.amsi_etw_bypass); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Evasion.AmsiEtwBypass); err != nil {
 		return nil, err
 	}
 
 	// PS
-	if err := binary.Write(&buf, binary.LittleEndian, k.ps.parent_id); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, k.Ps.ParentId); err != nil {
 		return nil, err
 	}
-	if err := write_bool(&buf, k.ps.block_dlls); err != nil {
+	if err := write_bool(&buf, k.Ps.BlockDlls); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.ps.spawnto); err != nil {
+	if err := write_string(&buf, k.Ps.Spawnto); err != nil {
 		return nil, err
 	}
-	if err := write_string(&buf, k.ps.fork_pipe); err != nil {
+	if err := write_string(&buf, k.Ps.ForkPipe); err != nil {
 		return nil, err
 	}
 
@@ -341,298 +354,298 @@ func (k *KharonData) Unmarshal(data []byte) error {
 
 	// Machine
 	var err error
-	k.machine.username, err = read_string(buf)
+	k.Machine.Username, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read machine.username: %w", err)
+		return fmt.Errorf("failed to read machine.Username: %w", err)
 	}
 
-	k.machine.computer, err = read_string(buf)
+	k.Machine.Computer, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read machine.computer: %w", err)
+		return fmt.Errorf("failed to read machine.Computer: %w", err)
 	}
 
-	k.machine.domain, err = read_string(buf)
+	k.Machine.Domain, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read machine.domain: %w", err)
+		return fmt.Errorf("failed to read machine.Domain: %w", err)
 	}
 
-	k.machine.netbios, err = read_string(buf)
+	k.Machine.Netbios, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read machine.netbios: %w", err)
+		return fmt.Errorf("failed to read machine.Netbios: %w", err)
 	}
 
-	k.machine.ipaddress, err = read_string(buf)
+	k.Machine.Ipaddress, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read machine.ipaddress: %w", err)
+		return fmt.Errorf("failed to read machine.Ipaddress: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_arch); err != nil {
-		return fmt.Errorf("failed to read machine.os_arch: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.OsArch); err != nil {
+		return fmt.Errorf("failed to read machine.OsArch: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.processor_numbers); err != nil {
-		return fmt.Errorf("failed to read machine.processor_numbers: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.ProcessorNumbers); err != nil {
+		return fmt.Errorf("failed to read machine.ProcessorNumbers: %w", err)
 	}
 
-	k.machine.processor_name, err = read_string(buf)
+	k.Machine.ProcessorName, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read machine.processor_name: %w", err)
+		return fmt.Errorf("failed to read machine.ProcessorName: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_used); err != nil {
-		return fmt.Errorf("failed to read machine.ram_used: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.RamUsed); err != nil {
+		return fmt.Errorf("failed to read machine.RamUsed: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_total); err != nil {
-		return fmt.Errorf("failed to read machine.ram_total: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.RamTotal); err != nil {
+		return fmt.Errorf("failed to read machine.RamTotal: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_aval); err != nil {
-		return fmt.Errorf("failed to read machine.ram_aval: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.RamAval); err != nil {
+		return fmt.Errorf("failed to read machine.RamAval: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.ram_perct); err != nil {
-		return fmt.Errorf("failed to read machine.ram_perct: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.RamPerct); err != nil {
+		return fmt.Errorf("failed to read machine.RamPerct: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_minor); err != nil {
-		return fmt.Errorf("failed to read machine.os_minor: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.OsMinor); err != nil {
+		return fmt.Errorf("failed to read machine.OsMinor: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_major); err != nil {
-		return fmt.Errorf("failed to read machine.os_major: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.OsMajor); err != nil {
+		return fmt.Errorf("failed to read machine.OsMajor: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.os_build); err != nil {
-		return fmt.Errorf("failed to read machine.os_build: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.OsBuild); err != nil {
+		return fmt.Errorf("failed to read machine.OsBuild: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.allocation_gran); err != nil {
-		return fmt.Errorf("failed to read machine.allocation_gran: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.AllocationGran); err != nil {
+		return fmt.Errorf("failed to read machine.AllocationGran: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.page_size); err != nil {
-		return fmt.Errorf("failed to read machine.page_size: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.PageSize); err != nil {
+		return fmt.Errorf("failed to read machine.PageSize: %w", err)
 	}
 
-	k.machine.cfg_enabled, err = read_bool(buf)
+	k.Machine.CfgEnabled, err = read_bool(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read machine.cfg_enabled: %w", err)
+		return fmt.Errorf("failed to read machine.CfgEnabled: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.dse_status); err != nil {
-		return fmt.Errorf("failed to read machine.dse_status: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.DseStatus); err != nil {
+		return fmt.Errorf("failed to read machine.DseStatus: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.machine.vbs_hvci); err != nil {
-		return fmt.Errorf("failed to read machine.vbs_hvci: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Machine.VbsHvci); err != nil {
+		return fmt.Errorf("failed to read machine.VbsHvci: %w", err)
 	}
 
-	k.machine.testsign_enabled, err = read_bool(buf)
+	k.Machine.TestsignEnabled, err = read_bool(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read machine.testsign_enabled: %w", err)
+		return fmt.Errorf("failed to read machine.TestsignEnabled: %w", err)
 	}
 
-	k.machine.debugmode_enabled, err = read_bool(buf)
+	k.Machine.DebugmodeEnabled, err = read_bool(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read machine.debugmode_enabled: %w", err)
+		return fmt.Errorf("failed to read machine.DebugmodeEnabled: %w", err)
 	}
 
-	k.machine.secureboot_enabled, err = read_bool(buf)
+	k.Machine.SecurebootEnabled, err = read_bool(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read machine.secureboot_enabled: %w", err)
+		return fmt.Errorf("failed to read machine.SecurebootEnabled: %w", err)
 	}
 
 	// Session
-	k.session.agent_id_str, err = read_string(buf)
+	k.Session.AgentIdStr, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read session.agent_id_str: %w", err)
+		return fmt.Errorf("failed to read Session.AgentIdStr: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.agent_id_int); err != nil {
-		return fmt.Errorf("failed to read session.agent_id_int: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.AgentIdInt); err != nil {
+		return fmt.Errorf("failed to read Session.AgentIdInt: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.sleep_time); err != nil {
-		return fmt.Errorf("failed to read session.sleep_time: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.SleepTime); err != nil {
+		return fmt.Errorf("failed to read Session.SleepTime: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.jitter); err != nil {
-		return fmt.Errorf("failed to read session.jitter: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.Jitter); err != nil {
+		return fmt.Errorf("failed to read Session.Jitter: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.heap_handle); err != nil {
-		return fmt.Errorf("failed to read session.heap_handle: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.HeapHandle); err != nil {
+		return fmt.Errorf("failed to read Session.HeapHandle: %w", err)
 	}
 
-	k.session.elevated, err = read_bool(buf)
+	k.Session.Elevated, err = read_bool(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read session.elevated: %w", err)
+		return fmt.Errorf("failed to read Session.Elevated: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.process_arch); err != nil {
-		return fmt.Errorf("failed to read session.process_arch: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.ProcessArch); err != nil {
+		return fmt.Errorf("failed to read Session.ProcessArch: %w", err)
 	}
 
-	k.session.img_path, err = read_string(buf)
+	k.Session.ImgPath, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read session.img_path: %w", err)
+		return fmt.Errorf("failed to read Session.ImgPath: %w", err)
 	}
 
-	k.session.img_name, err = read_string(buf)
+	k.Session.ImgName, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read session.img_name: %w", err)
+		return fmt.Errorf("failed to read Session.ImgName: %w", err)
 	}
 
-	k.session.cmd_line, err = read_string(buf)
+	k.Session.CmdLine, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read session.cmd_line: %w", err)
+		return fmt.Errorf("failed to read Session.CmdLine: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.process_id); err != nil {
-		return fmt.Errorf("failed to read session.process_id: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.ProcessId); err != nil {
+		return fmt.Errorf("failed to read Session.ProcessId: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.thread_id); err != nil {
-		return fmt.Errorf("failed to read session.thread_id: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.ThreadId); err != nil {
+		return fmt.Errorf("failed to read Session.ThreadId: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.parent_id); err != nil {
-		return fmt.Errorf("failed to read session.parent_id: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.ParentId); err != nil {
+		return fmt.Errorf("failed to read Session.ParentId: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.acp); err != nil {
-		return fmt.Errorf("failed to read session.acp: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.Acp); err != nil {
+		return fmt.Errorf("failed to read Session.Acp: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.oemcp); err != nil {
-		return fmt.Errorf("failed to read session.oemcp: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.Oemcp); err != nil {
+		return fmt.Errorf("failed to read Session.Oemcp: %w", err)
 	}
 
-	k.session.base.start, err = read_string(buf)
+	k.Session.Base.Start, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read session.base.start: %w", err)
+		return fmt.Errorf("failed to read Session.Base.Start: %w", err)
 	}
 
-	k.session.base.end, err = read_string(buf)
+	k.Session.Base.End, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read session.base.end: %w", err)
+		return fmt.Errorf("failed to read Session.Base.End: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.session.base.size); err != nil {
-		return fmt.Errorf("failed to read session.base.size: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Session.Base.Size); err != nil {
+		return fmt.Errorf("failed to read Session.Base.Size: %w", err)
 	}
 
 	// Killdate
-	k.killdate.enabled, err = read_bool(buf)
+	k.Killdate.Enabled, err = read_bool(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read killdate.enabled: %w", err)
+		return fmt.Errorf("failed to read Killdate.Enabled: %w", err)
 	}
 
-	k.killdate.exit, err = read_bool(buf)
+	k.Killdate.Exit, err = read_bool(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read killdate.exit: %w", err)
+		return fmt.Errorf("failed to read Killdate.Exit: %w", err)
 	}
 
-	k.killdate.selfdel, err = read_bool(buf)
+	k.Killdate.Selfdel, err = read_bool(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read killdate.selfdel: %w", err)
+		return fmt.Errorf("failed to read Killdate.Selfdel: %w", err)
 	}
 
-	k.killdate.date, err = read_time(buf)
+	k.Killdate.Date, err = read_time(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read killdate.date: %w", err)
+		return fmt.Errorf("failed to read Killdate.Date: %w", err)
 	}
 
 	// Worktime
-	k.worktime.enabled, err = read_bool(buf)
+	k.Worktime.Enabled, err = read_bool(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read worktime.enabled: %w", err)
+		return fmt.Errorf("failed to read Worktime.Enabled: %w", err)
 	}
 
-	k.worktime.start, err = read_string(buf)
+	k.Worktime.Start, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read worktime.start: %w", err)
+		return fmt.Errorf("failed to read Worktime.Start: %w", err)
 	}
 
-	k.worktime.end, err = read_string(buf)
+	k.Worktime.End, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read worktime.end: %w", err)
+		return fmt.Errorf("failed to read Worktime.End: %w", err)
 	}
 
 	// Guardrails
-	k.guardrails.ipaddress, err = read_string(buf)
+	k.Guardrails.Ipaddress, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read guardrails.ipaddress: %w", err)
+		return fmt.Errorf("failed to read Guardrails.Ipaddress: %w", err)
 	}
 
-	k.guardrails.hostname, err = read_string(buf)
+	k.Guardrails.Hostname, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read guardrails.hostname: %w", err)
+		return fmt.Errorf("failed to read Guardrails.Hostname: %w", err)
 	}
 
-	k.guardrails.username, err = read_string(buf)
+	k.Guardrails.Username, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read guardrails.username: %w", err)
+		return fmt.Errorf("failed to read Guardrails.Username: %w", err)
 	}
 
-	k.guardrails.domain, err = read_string(buf)
+	k.Guardrails.Domain, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read guardrails.domain: %w", err)
+		return fmt.Errorf("failed to read Guardrails.Domain: %w", err)
 	}
 
 	// Mask
-	k.mask.heap, err = read_bool(buf)
+	k.Mask.Heap, err = read_bool(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read mask.heap: %w", err)
+		return fmt.Errorf("failed to read Mask.Heap: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.mask.beacon); err != nil {
-		return fmt.Errorf("failed to read mask.beacon: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Mask.Beacon); err != nil {
+		return fmt.Errorf("failed to read Mask.Beacon: %w", err)
 	}
 
-	k.mask.jmpgadget, err = read_string(buf)
+	k.Mask.Jmpgadget, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read mask.jmpgadget: %w", err)
+		return fmt.Errorf("failed to read mask.Jmpgadget: %w", err)
 	}
 
-	k.mask.ntcontinue, err = read_string(buf)
+	k.Mask.Ntcontinue, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read mask.ntcontinue: %w", err)
+		return fmt.Errorf("failed to read mask.Ntcontinue: %w", err)
 	}
 
 	// Evasion
-	k.evasion.bof_proxy, err = read_bool(buf)
+	k.Evasion.BofProxy, err = read_bool(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read evasion.bof_proxy: %w", err)
+		return fmt.Errorf("failed to read evasion.BofProxy: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.evasion.syscall); err != nil {
-		return fmt.Errorf("failed to read evasion.syscall: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Evasion.Syscall); err != nil {
+		return fmt.Errorf("failed to read evasion.Syscall: %w", err)
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &k.evasion.amsi_etw_bypass); err != nil {
-		return fmt.Errorf("failed to read evasion.amsi_etw_bypass: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Evasion.AmsiEtwBypass); err != nil {
+		return fmt.Errorf("failed to read evasion.AmsiEtwBypass: %w", err)
 	}
 
 	// PS
-	if err := binary.Read(buf, binary.LittleEndian, &k.ps.parent_id); err != nil {
-		return fmt.Errorf("failed to read ps.parent_id: %w", err)
+	if err := binary.Read(buf, binary.LittleEndian, &k.Ps.ParentId); err != nil {
+		return fmt.Errorf("failed to read ps.ParentId: %w", err)
 	}
 
-	k.ps.block_dlls, err = read_bool(buf)
+	k.Ps.BlockDlls, err = read_bool(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read ps.block_dlls: %w", err)
+		return fmt.Errorf("failed to read ps.BlockDlls: %w", err)
 	}
 
-	k.ps.spawnto, err = read_string(buf)
+	k.Ps.Spawnto, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read ps.spawnto: %w", err)
+		return fmt.Errorf("failed to read ps.Spawnto: %w", err)
 	}
 
-	k.ps.fork_pipe, err = read_string(buf)
+	k.Ps.ForkPipe, err = read_string(buf)
 	if err != nil {
-		return fmt.Errorf("failed to read ps.fork_pipe: %w", err)
+		return fmt.Errorf("failed to read ps.ForkPipe: %w", err)
 	}
 
 	return nil
@@ -2271,9 +2284,10 @@ func FormatKharonTable(data *KharonData) string {
 
 	border := func(title string) string {
 		borderLine := "├" + strings.Repeat("─", colLabel+2) + "┼" + strings.Repeat("─", colValue+2) + "┤"
-		if title == "top" {
+		switch title {
+		case "top":
 			return "┌" + strings.Repeat("─", colLabel+2) + "┬" + strings.Repeat("─", colValue+2) + "┐\n"
-		} else if title == "bottom" {
+		case "bottom":
 			return "└" + strings.Repeat("─", colLabel+2) + "┴" + strings.Repeat("─", colValue+2) + "┘\n"
 		}
 		return borderLine + "\n"
@@ -2293,118 +2307,119 @@ func FormatKharonTable(data *KharonData) string {
 	// ==================== SESSION ====================
 	b.WriteString(sectionTitle("SESSION INFORMATION"))
 	b.WriteString(border("middle"))
-	b.WriteString(row("Agent ID", data.session.agent_id_str[:min(8, len(data.session.agent_id_str))]))
-	b.WriteString(row("Image Name", data.session.img_name))
-	b.WriteString(row("Image Path", data.session.img_path))
-	b.WriteString(row("Command Line", data.session.cmd_line))
-	b.WriteString(row("Process ID", fmt.Sprintf("%d", data.session.process_id)))
-	b.WriteString(row("Thread ID", fmt.Sprintf("%d", data.session.thread_id)))
-	b.WriteString(row("Parent ID", fmt.Sprintf("%d", data.session.parent_id)))
-	b.WriteString(row("Elevated", boolStr(data.session.elevated)))
-	b.WriteString(row("Process Arch", fmt.Sprintf("0x%02X", data.session.process_arch)))
-	b.WriteString(row("Heap Handle", fmt.Sprintf("0x%016X", data.session.heap_handle)))
-	b.WriteString(row("Kharon in-memory base", data.session.base.start))
-	b.WriteString(row("Kharon in-memory Size", fmt.Sprintf("%d bytes", data.session.base.size)))
-	b.WriteString(row("Code Page (ACP)", fmt.Sprintf("%d", data.session.acp)))
-	b.WriteString(row("OEM Code Page", fmt.Sprintf("%d", data.session.oemcp)))
+	b.WriteString(row("Agent ID", data.Session.AgentIdStr[:min(8, len(data.Session.AgentIdStr))]))
+	b.WriteString(row("Image Name", data.Session.ImgName))
+	b.WriteString(row("Image Path", data.Session.ImgPath))
+	b.WriteString(row("Command Line", data.Session.CmdLine))
+	b.WriteString(row("Process ID", fmt.Sprintf("%d", data.Session.ProcessId)))
+	b.WriteString(row("Thread ID", fmt.Sprintf("%d", data.Session.ThreadId)))
+	b.WriteString(row("Parent ID", fmt.Sprintf("%d", data.Session.ParentId)))
+	b.WriteString(row("Elevated", boolStr(data.Session.Elevated)))
+	b.WriteString(row("Process Arch", fmt.Sprintf("0x%02X", data.Session.ProcessArch)))
+	b.WriteString(row("Heap Handle", fmt.Sprintf("0x%016X", data.Session.HeapHandle)))
+	b.WriteString(row("Kharon in-memory base", data.Session.Base.Start))
+	b.WriteString(row("Kharon in-memory Size", fmt.Sprintf("%d bytes", data.Session.Base.Size)))
+	b.WriteString(row("Code Page (ACP)", fmt.Sprintf("%d", data.Session.Acp)))
+	b.WriteString(row("OEM Code Page", fmt.Sprintf("%d", data.Session.Oemcp)))
 	b.WriteString(border("middle"))
 
 	// ==================== TIMING ====================
 	b.WriteString(sectionTitle("TIMING CONFIGURATION"))
 	b.WriteString(border("middle"))
-	b.WriteString(row("Sleep Time", fmt.Sprintf("%d ms", data.session.sleep_time)))
-	b.WriteString(row("Jitter", fmt.Sprintf("%d%%", data.session.jitter)))
+	b.WriteString(row("Sleep Time", fmt.Sprintf("%d ms", data.Session.SleepTime)))
+	b.WriteString(row("Jitter", fmt.Sprintf("%d%%", data.Session.Jitter)))
 	b.WriteString(border("middle"))
 
 	// ==================== EVASION ====================
 	b.WriteString(sectionTitle("EVASION TECHNIQUES"))
 	b.WriteString(border("middle"))
-	b.WriteString(row("Mask Beacon", maskTechStr(data.mask.beacon)))
-	b.WriteString(row("Heap Mask", boolStr(data.mask.heap)))
-	b.WriteString(row("Jump Gadget", data.mask.jmpgadget))
-	b.WriteString(row("NtContinue Gadget", data.mask.ntcontinue))
-	b.WriteString(row("BOF API Proxy", boolStr(data.evasion.bof_proxy)))
-	b.WriteString(row("Syscall Method", syscallStr(data.evasion.syscall)))
-	b.WriteString(row("AMSI/ETW Bypass", amsietwbpStr(data.evasion.amsi_etw_bypass)))
+	b.WriteString(row("Mask Beacon", maskTechStr(data.Mask.Beacon)))
+	b.WriteString(row("Heap Mask", boolStr(data.Mask.Heap)))
+	b.WriteString(row("Jump Gadget", data.Mask.Jmpgadget))
+	b.WriteString(row("NtContinue Gadget", data.Mask.Ntcontinue))
+	b.WriteString(row("BOF API Proxy", boolStr(data.Evasion.BofProxy)))
+	b.WriteString(row("Syscall Method", syscallStr(data.Evasion.Syscall)))
+	b.WriteString(row("AMSI/ETW Bypass", amsietwbpStr(data.Evasion.AmsiEtwBypass)))
 	b.WriteString(border("middle"))
 
 	// ==================== PROCESS SPAWNING ====================
 	b.WriteString(sectionTitle("PROCESS SPAWNING"))
 	b.WriteString(border("middle"))
-	b.WriteString(row("Parent PID", fmt.Sprintf("%d", data.ps.parent_id)))
-	b.WriteString(row("Block DLLs", boolStr(data.ps.block_dlls)))
-	b.WriteString(row("Spawn To", data.ps.spawnto))
-	b.WriteString(row("Fork Pipe", data.ps.fork_pipe))
+	b.WriteString(row("Parent PID", fmt.Sprintf("%d", data.Ps.ParentId)))
+	b.WriteString(row("Spoof Argument", fmt.Sprintf("%s", data.Ps.Spoofarg)))
+	b.WriteString(row("Block DLLs", boolStr(data.Ps.BlockDlls)))
+	b.WriteString(row("Spawn To", data.Ps.Spawnto))
+	b.WriteString(row("Fork Pipe", data.Ps.ForkPipe))
 	b.WriteString(border("middle"))
 
 	// ==================== KILLDATE ====================
 	b.WriteString(sectionTitle("KILLDATE CONFIGURATION"))
 	b.WriteString(border("middle"))
-	b.WriteString(row("Use Killdate", boolStr(data.killdate.enabled)))
+	b.WriteString(row("Use Killdate", boolStr(data.Killdate.Enabled)))
 	b.WriteString(row("Exit Type", func() string {
-		if data.killdate.exit {
+		if data.Killdate.Exit {
 			return "Exit Process"
 		}
 		return "Exit Thread"
 	}()))
-	b.WriteString(row("Self Delete", boolStr(data.killdate.selfdel)))
-	b.WriteString(row("Killdate", data.killdate.date.Format("02/01/2006")))
+	b.WriteString(row("Self Delete", boolStr(data.Killdate.Selfdel)))
+	b.WriteString(row("Killdate", data.Killdate.Date.Format("02/01/2006")))
 	b.WriteString(border("middle"))
 
 	// ==================== WORKTIME ====================
 	b.WriteString(sectionTitle("WORKTIME CONFIGURATION"))
 	b.WriteString(border("middle"))
-	b.WriteString(row("Enable Worktime", boolStr(data.worktime.enabled)))
-	b.WriteString(row("Start Time", data.worktime.start))
-	b.WriteString(row("End Time", data.worktime.end))
+	b.WriteString(row("Enable Worktime", boolStr(data.Worktime.Enabled)))
+	b.WriteString(row("Start Time", data.Worktime.Start))
+	b.WriteString(row("End Time", data.Worktime.End))
 	b.WriteString(border("middle"))
 
 	// ==================== GUARDRAILS ====================
 	b.WriteString(sectionTitle("GUARDRAILS"))
 	b.WriteString(border("middle"))
-	b.WriteString(row("IP Address", data.guardrails.ipaddress))
-	b.WriteString(row("Hostname", data.guardrails.hostname))
-	b.WriteString(row("Username", data.guardrails.username))
-	b.WriteString(row("Domain", data.guardrails.domain))
+	b.WriteString(row("IP Address", data.Guardrails.Ipaddress))
+	b.WriteString(row("Hostname", data.Guardrails.Hostname))
+	b.WriteString(row("Username", data.Guardrails.Username))
+	b.WriteString(row("Domain", data.Guardrails.Domain))
 	b.WriteString(border("middle"))
 
 	// ==================== SYSTEM INFORMATION ====================
 	b.WriteString(sectionTitle("SYSTEM INFORMATION"))
 	b.WriteString(border("middle"))
-	b.WriteString(row("Username", data.machine.username))
-	b.WriteString(row("Computer Name", data.machine.computer))
-	b.WriteString(row("NetBIOS Name", data.machine.netbios))
-	b.WriteString(row("Domain", data.machine.domain))
-	b.WriteString(row("IP Address", data.machine.ipaddress))
-	b.WriteString(row("OS Architecture", fmt.Sprintf("0x%02X", data.machine.os_arch)))
+	b.WriteString(row("Username", data.Machine.Username))
+	b.WriteString(row("Computer Name", data.Machine.Computer))
+	b.WriteString(row("NetBIOS Name", data.Machine.Netbios))
+	b.WriteString(row("Domain", data.Machine.Domain))
+	b.WriteString(row("IP Address", data.Machine.Ipaddress))
+	b.WriteString(row("OS Architecture", fmt.Sprintf("0x%02X", data.Machine.OsArch)))
 	b.WriteString(row("OS Version", fmt.Sprintf("%d.%d.%d",
-		data.machine.os_major,
-		data.machine.os_minor,
-		data.machine.os_build)))
-	b.WriteString(row("Processor Name", data.machine.processor_name))
-	b.WriteString(row("Processor Count", fmt.Sprintf("%d", data.machine.processor_numbers)))
+		data.Machine.OsMajor,
+		data.Machine.OsMinor,
+		data.Machine.OsBuild)))
+	b.WriteString(row("Processor Name", data.Machine.ProcessorName))
+	b.WriteString(row("Processor Count", fmt.Sprintf("%d", data.Machine.ProcessorNumbers)))
 	b.WriteString(border("middle"))
 
 	// ==================== MEMORY INFORMATION ====================
 	b.WriteString(sectionTitle("MEMORY INFORMATION"))
 	b.WriteString(border("middle"))
-	b.WriteString(row("Total RAM", fmt.Sprintf("%d MB", data.machine.ram_total)))
-	b.WriteString(row("Available RAM", fmt.Sprintf("%d MB", data.machine.ram_aval)))
-	b.WriteString(row("Used RAM", fmt.Sprintf("%d MB", data.machine.ram_used)))
-	b.WriteString(row("RAM Usage", fmt.Sprintf("%d%%", data.machine.ram_perct)))
-	b.WriteString(row("Page Size", fmt.Sprintf("%d bytes", data.machine.page_size)))
-	b.WriteString(row("Allocation Granularity", fmt.Sprintf("%d bytes", data.machine.allocation_gran)))
+	b.WriteString(row("Total RAM", fmt.Sprintf("%d MB", data.Machine.RamTotal)))
+	b.WriteString(row("Available RAM", fmt.Sprintf("%d MB", data.Machine.RamAval)))
+	b.WriteString(row("Used RAM", fmt.Sprintf("%d MB", data.Machine.RamUsed)))
+	b.WriteString(row("RAM Usage", fmt.Sprintf("%d%%", data.Machine.RamPerct)))
+	b.WriteString(row("Page Size", fmt.Sprintf("%d bytes", data.Machine.PageSize)))
+	b.WriteString(row("Allocation Granularity", fmt.Sprintf("%d bytes", data.Machine.AllocationGran)))
 	b.WriteString(border("middle"))
 
 	// ==================== SECURITY FEATURES ====================
 	b.WriteString(sectionTitle("SECURITY FEATURES"))
 	b.WriteString(border("middle"))
-	b.WriteString(row("CFG Enabled", boolStr(data.machine.cfg_enabled)))
-	b.WriteString(row("DSE Status", dseStatusStr(data.machine.dse_status)))
-	b.WriteString(row("VBS/HVCI", vbsHvciStr(data.machine.vbs_hvci)))
-	b.WriteString(row("Test Signing", boolStr(data.machine.testsign_enabled)))
-	b.WriteString(row("Debug Mode", boolStr(data.machine.debugmode_enabled)))
-	b.WriteString(row("Secure Boot", boolStr(data.machine.secureboot_enabled)))
+	b.WriteString(row("CFG Enabled", boolStr(data.Machine.CfgEnabled)))
+	b.WriteString(row("DSE Status", dseStatusStr(data.Machine.DseStatus)))
+	b.WriteString(row("VBS/HVCI", vbsHvciStr(data.Machine.VbsHvci)))
+	b.WriteString(row("Test Signing", boolStr(data.Machine.TestsignEnabled)))
+	b.WriteString(row("Debug Mode", boolStr(data.Machine.DebugmodeEnabled)))
+	b.WriteString(row("Secure Boot", boolStr(data.Machine.SecurebootEnabled)))
 	b.WriteString(border("bottom"))
 
 	return b.String()

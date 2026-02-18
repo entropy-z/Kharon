@@ -145,6 +145,11 @@ auto DECLFN LoadApi(
     ExpAddress = reinterpret_cast<PDWORD>( ModBase + ExpDir->AddressOfFunctions );
     ExpOrds    = reinterpret_cast<PWORD> ( ModBase + ExpDir->AddressOfNameOrdinals );
 
+    // Check if export table exists
+    if ( !ExpDir || !ExpDir->NumberOfNames ) {
+        return 0;
+    }
+
     for ( int i = 0; i < ExpDir->NumberOfNames; i++ ) {
         SymbName = reinterpret_cast<PSTR>( ModBase + ExpNames[ i ] );
 
@@ -153,6 +158,59 @@ auto DECLFN LoadApi(
         }
 
         FuncPtr = ModBase + ExpAddress[ ExpOrds[ i ] ];
+
+        // Forwarded exports point to text within the export table section
+        UPTR ExportSectionStart = ModBase + NtHdr->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress;
+        UPTR ExportSectionEnd   = ExportSectionStart + NtHdr->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].Size;
+
+        if ( FuncPtr >= ExportSectionStart && FuncPtr < ExportSectionEnd ) {
+            PSTR ForwarderString = reinterpret_cast<PSTR>( FuncPtr );
+            
+            PSTR DotPos = ForwarderString;
+            while ( *DotPos && *DotPos != '.' ) {
+                DotPos++;
+            }
+
+            if ( *DotPos == '.' ) {
+                // Get DLL name length
+                SIZE_T DllNameLen = DotPos - ForwarderString;
+                
+                // Build the DLL filename
+                CHAR DllName[256] = { 0 };
+                for ( SIZE_T j = 0; j < DllNameLen && j < 250; j++ ) {
+                    DllName[j] = ForwarderString[j];
+                }
+                
+                if ( DllNameLen < 250 ) {
+                    DllName[DllNameLen] = '\0';
+                    PSTR LastDot = DllName + DllNameLen - 1;
+                    while ( LastDot > DllName && *LastDot != '.' ) {
+                        LastDot--;
+                    }
+                    if ( *LastDot != '.' ) {
+                        if ( DllNameLen + 4 < 256 ) {
+                            DllName[DllNameLen] = '.';
+                            DllName[DllNameLen + 1] = 'd';
+                            DllName[DllNameLen + 2] = 'l';
+                            DllName[DllNameLen + 3] = 'l';
+                            DllName[DllNameLen + 4] = '\0';
+                        }
+                    }
+                }
+
+                // Get the target function name
+                PSTR TargetFuncName = DotPos + 1;
+                
+                // Load the forwarded DLL
+                UPTR ForwardedModule = LoadModule( HashStr( DllName ) );
+                if ( !ForwardedModule ) {
+                    return FuncPtr;
+                }
+
+                UPTR TargetFuncHash = HashStr( TargetFuncName );
+                FuncPtr = LoadApi( ForwardedModule, TargetFuncHash );
+            }
+        }
 
         break;
     }

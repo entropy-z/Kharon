@@ -1,7 +1,7 @@
 #include <general.h>
 #include <dotnet.h>
 
-auto Dotnet::VersionList( VOID ) -> VOID {
+auto VersionList( VOID ) -> VOID {
     HRESULT HResult = S_OK;
 
     WCHAR FmVersion[MAX_PATH] = { 0 };
@@ -52,5 +52,5 @@ _BOF_END:
 }
 
 EXTERN_C auto go( CHAR* Args, INT32 Argc ) -> VOID {
-    return Dotnet::VersionList();
+    return VersionList();
 }

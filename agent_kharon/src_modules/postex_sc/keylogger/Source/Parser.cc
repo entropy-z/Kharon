@@ -1,4 +1,4 @@
-﻿#include <General.hpp>
+#include <General.hpp>
 
 auto DECLFN Parser::New( 
     _In_ PARSER* parser, 
@@ -6,10 +6,11 @@ auto DECLFN Parser::New(
 ) -> VOID {
     G_INSTANCE
 
-    if ( parser == nullptr )
+    if ( parser == nullptr ) {
         return;
+    }
 
-    if (Buffer == nullptr) {
+    if ( Buffer == nullptr ) {
         return;
     }
 
@@ -27,10 +28,35 @@ auto DECLFN Parser::New(
     ULONG Bypass       = *(ULONG*)bufferPtr;
     bufferPtr += sizeof(ULONG);
 
+    ULONG PipeNameL = 0;
+    CHAR* PipeName  = nullptr;
+
+    
+    PipeNameL = *(ULONG*)bufferPtr;
+    bufferPtr += sizeof(ULONG);
+        
+    PipeName = Heap::Alloc<CHAR*>( PipeNameL );
+    Mem::Copy( PipeName, bufferPtr, PipeNameL );
+    bufferPtr += PipeNameL;
+
+    Instance->Pipe.Name = PipeName;
+
     ULONG ArgSize = *(ULONG*)bufferPtr;
     bufferPtr    += sizeof(ULONG);
 
     parser->Original = Heap::Alloc<CHAR*>( ArgSize );
+    
+    if (parser->Original == nullptr) {
+        return;
+    }
+
+    Instance->Win32.DbgPrint("[+] Parser arguments :=\n");
+    Instance->Win32.DbgPrint("exec mtd: %d\n", ExecMethod);
+    Instance->Win32.DbgPrint("fork cat: %d\n", ForkCategory);
+    Instance->Win32.DbgPrint("spoof: %d\n", Spoof);
+    Instance->Win32.DbgPrint("bypass: %d\n", Bypass);
+    Instance->Win32.DbgPrint("pipename: %s\n\n", PipeName);
+    
     Mem::Copy( parser->Original, bufferPtr, ArgSize );
     parser->Buffer   = parser->Original;
     parser->Length   = ArgSize;
@@ -40,13 +66,6 @@ auto DECLFN Parser::New(
     Instance->Ctx.ForkCategory = ForkCategory;
     Instance->Ctx.Bypass       = Bypass;
     Instance->Ctx.IsSpoof      = Spoof;
-
-    Instance->Win32.DbgPrint("[+] Parser arguments :=\n");
-    Instance->Win32.DbgPrint("exec mtd: %d\n", ExecMethod);
-    Instance->Win32.DbgPrint("fork cat: %d\n", ForkCategory);
-    Instance->Win32.DbgPrint("spoof: %d\n", Spoof);
-    Instance->Win32.DbgPrint("bypass: %d\n", Bypass);
-    Instance->Win32.DbgPrint("buff: %p \nsize: %d\n", parser->Buffer, parser->Size);
 }
 
 auto DECLFN Parser::Pad(
@@ -74,19 +93,12 @@ auto DECLFN Parser::Int32(
 
     INT32 intBytes = 0;
 
-    // if ( parser->Length < 4 )
-        // return 0;
-
     Mem::Copy( &intBytes, parser->Buffer, 4 );
-
-    Dbg2("int32 %d", intBytes);
 
     parser->Buffer += 4;
     parser->Length -= 4;
 
-    // if ( ! Parser::Endian )
-    //     return ( INT ) intBytes;
-    // else
+   
     return ( INT ) ( intBytes );
 }
 
@@ -102,12 +114,9 @@ auto DECLFN Parser::Bytes(
     if ( parser->Length < 4 || !parser->Buffer )
         return NULL;
 
-	//Instance->Win32.DbgPrint("[+] Buffer Address: %p\n", parser->Buffer);
-
     Mem::Copy( &Length, parser->Buffer, 4 );
     parser->Buffer += 4;
 
-    // if ( this->Endian )
     Length = ( Length );
 
     outdata = (BYTE*)( parser->Buffer );
@@ -132,13 +141,14 @@ auto DECLFN Parser::Destroy(
     BOOL Success = TRUE;
 
     if ( Parser->Original ) {
+        Mem::Zero( Parser->Original, Parser->Length );
         Success = Heap::Free( Parser->Original );
         Parser->Original = nullptr;
         Parser->Length   = 0;
     }
 
     if ( Parser ) {
-        Success = Heap::Free( Parser );
+        Mem::Zero( Parser, sizeof( PARSER ) );
         Parser = nullptr;
     }
 
@@ -171,9 +181,7 @@ auto DECLFN Parser::Int16(
     parser->Buffer += 2;
     parser->Length -= 2;
 
-    // if ( !this->Endian ) 
-    //     return intBytes;
-    // else 
+   
     return __builtin_bswap16( intBytes ) ;
 }
 
@@ -193,9 +201,7 @@ auto DECLFN Parser::Int64(
     parser->Buffer += 8;
     parser->Length -= 8;
 
-    // if ( !this->Endian )
-    //     return ( INT64 ) intBytes;
-    // else
+ 
     return ( INT64 ) __builtin_bswap64( intBytes );
 }
 

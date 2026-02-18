@@ -165,6 +165,7 @@ namespace Action {
         ProcessTunnels,
         ProcessDownloads,
         RPortfwd,
+        ProcessPostex,
         TaskLast
     };
 

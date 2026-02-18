@@ -62,6 +62,7 @@ extern "C" {
     DFR(KERNEL32, K32GetModuleFileNameExA)
 
     DFR(KERNEL32, CreateThread)
+    DFR(KERNEL32, ResumeThread)
     DFR(KERNEL32, CreateRemoteThread)
 
     DFR(KERNEL32, InitializeProcThreadAttributeList)
@@ -146,6 +147,7 @@ extern "C" {
     DFR(ADVAPI32, RegSetValueExA)
 
     // ==================== MSVCRT ====================
+    DFR(MSVCRT, calloc)
     DFR(MSVCRT, malloc)
     DFR(MSVCRT, realloc)
     DFR(MSVCRT, free)
@@ -251,6 +253,7 @@ extern "C" {
 #define GetModuleFileNameW                KERNEL32$GetModuleFileNameW
 
 #define CreateThread                      KERNEL32$CreateThread
+#define ResumeThread                      KERNEL32$ResumeThread
 #define CreateRemoteThread                KERNEL32$CreateRemoteThread
 
 #define InitializeProcThreadAttributeList KERNEL32$InitializeProcThreadAttributeList
@@ -335,6 +338,7 @@ extern "C" {
 #define RegSetValueExA                    ADVAPI32$RegSetValueExA
 
 // ==================== MSVCRT MACROS ====================
+#define calloc                            MSVCRT$calloc
 #define malloc                            MSVCRT$malloc
 #define realloc                           MSVCRT$realloc
 #define free                              MSVCRT$free

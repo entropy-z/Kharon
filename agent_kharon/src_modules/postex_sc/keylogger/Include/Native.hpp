@@ -1,4 +1,4 @@
-﻿#ifndef WIN32_H
+#ifndef WIN32_H
 #define WIN32_H
 
 #include <windows.h>
@@ -8,10 +8,10 @@
 typedef ULONG       ERROR_CODE;
 typedef UINT_PTR    UPTR;
 
-#define KhGetErrorCode   NtCurrentTeb()->LastErrorValue
+#define KhGetErrorMsg       NtCurrentTeb()->LastErrorValue
 #define KhSetError( x )  NtCurrentTeb()->LastErrorValue = x
-#define KhRetError( x )  KhSetError( x ); return KhGetErrorCode
-#define KhRetSuccess     KhSetError( ERROR_SUCCESS ); return KhGetErrorCode
+#define KhRetError( x )  KhSetError( x ); return KhGetErrorMsg
+#define KhRetSuccess     KhSetError( ERROR_SUCCESS ); return KhGetErrorMsg
 
 typedef struct {
     ULONG_PTR Attribute;
@@ -2707,6 +2707,7 @@ typedef struct _IO_STATUS_BLOCK
     ULONG_PTR Information;
 } IO_STATUS_BLOCK, *PIO_STATUS_BLOCK;
 
+
 WINBASEAPI
 HRESULT
 WINAPI
@@ -2749,6 +2750,7 @@ NTSYSAPI NTSTATUS NTAPI NtGetContextThread( _In_ HANDLE ThreadHandle, _Inout_ PC
 NTSYSAPI NTSTATUS NTAPI NtSetContextThread( _In_ HANDLE ThreadHandle, _In_ PCONTEXT ThreadContext );
 NTSYSAPI NTSTATUS NTAPI NtCreateEvent( _Out_ HANDLE* EventHandle, _In_ ACCESS_MASK DesiredAccess, _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes, _In_ EVENT_TYPE EventType, _In_ BOOLEAN InitialState );
 NTSYSAPI NTSTATUS NTAPI NtContinue( _In_ PCONTEXT ContextRecord, _In_ BOOLEAN TestAlert );
+NTSYSAPI NTSTATUS NTAPI NtDelayExecution(_In_ BOOLEAN Alertable, _In_ PLARGE_INTEGER DelayInterval);
 NTSYSAPI NTSTATUS NTAPI NtWaitForSingleObject( _In_ HANDLE Handle, _In_ BOOLEAN Alertable, _In_opt_ LARGE_INTEGER* Timeout );
 NTSYSAPI NTSTATUS NTAPI NtSignalAndWaitForSingleObject( _In_ HANDLE SignalHandle, _In_ HANDLE WaitHandle, _In_ BOOLEAN Alertable, _In_opt_ LARGE_INTEGER* Timeout );
 NTSYSAPI NTSTATUS NTAPI NtTestAlert( VOID );

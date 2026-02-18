@@ -8,6 +8,8 @@
 #define nt_current_process() ((HANDLE)-1)
 #define PIPE_BUFFER_DEFAULT_LEN 0x10000
 
+typedef DWORD ERROR_CODE;
+
 auto inline fmt_error( _In_ int error_code ) -> WCHAR* {
     WCHAR* error_msg = nullptr;
     ULONG  flags     = FORMAT_MESSAGE_ALLOCATE_BUFFER | 
@@ -59,8 +61,11 @@ struct _PS_CREATE_ARGS {
 typedef _PS_CREATE_ARGS PS_CREATE_ARGS;
 
 auto kh_process_creation( 
-    _In_  PS_CREATE_ARGS*      create_args,
-    _Out_ PROCESS_INFORMATION* ps_information
+    _In_      PS_CREATE_ARGS*      create_args,
+    _Out_opt_ PROCESS_INFORMATION* ps_information,
+    _Out_opt_ PBYTE*               output_ptr  = nullptr,
+    _Out_opt_ ULONG*               output_len  = nullptr,
+    _Out_opt_ BOOL                 spawnto     = TRUE
 ) -> ULONG;
 
 #endif // GENERAL_H

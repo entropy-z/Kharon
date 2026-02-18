@@ -20,10 +20,6 @@ auto declfn parser::header(
         return;
     }
 
-    INT32 (*mdbg)( PCHAR, ... ) = (decltype(mdbg))load_api( load_module(hashstr("ntdll.dll")), hashstr("DbgPrint") );
-
-    mdbg("header at: %p\n", buff);
-
     PBYTE bufferptr = (PBYTE)buff;
 
     postex->id = *(ULONG*)bufferptr;
@@ -48,13 +44,6 @@ auto declfn parser::header(
     bufferptr += sizeof(ULONG);
 
     postex->args = bufferptr;
-
-    mdbg("id %p\n", postex->id);
-    mdbg("method %p\n", postex->execmethod);
-    mdbg("spoof %p\n", postex->spoof);
-    mdbg("bypass %p\n", postex->bypassflag);
-    mdbg("pipename %p %d\n", postex->pipename, postex->pipename_len);
-    mdbg("args [%d] %p\n", postex->argc, postex->args);
 }
 
 auto declfn parser::create(

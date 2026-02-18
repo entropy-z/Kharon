@@ -38,9 +38,14 @@ extern "C" {
     DFR(KERNEL32, VirtualAllocEx)
     DFR(KERNEL32, VirtualProtect)
     DFR(KERNEL32, VirtualProtectEx)
+    DFR(KERNEL32, VirtualQuery)
+    DFR(KERNEL32, VirtualQueryEx)
     DFR(KERNEL32, WriteProcessMemory)
     DFR(KERNEL32, ReadProcessMemory)
     DFR(KERNEL32, LoadLibraryW)
+
+    DFR(KERNEL32, CreateEventW)
+    DFR(KERNEL32, SetEvent)
 
     DFR(KERNEL32, OpenProcess)
     DFR(KERNEL32, GetCurrentProcess)
@@ -54,6 +59,9 @@ extern "C" {
     DFR(KERNEL32, EnumProcessModules)
     DFR(KERNEL32, GetModuleFileNameW)
     DFR(KERNEL32, K32GetModuleFileNameExA)
+
+    DFR(KERNEL32, GlobalLock)
+    DFR(KERNEL32, GlobalUnlock)
 
     DFR(KERNEL32, CreateThread)
     DFR(KERNEL32, CreateRemoteThread)
@@ -141,10 +149,12 @@ extern "C" {
     DFR(MSVCRT, free)
     DFR(MSVCRT, memset)
     DFR(MSVCRT, memcpy)
+    DFR(MSVCRT, memcmp)
     DFR(MSVCRT, wcslen)
     DFR(MSVCRT, wcsncpy)
     DFR(MSVCRT, strlen)
     DFR(MSVCRT, sprintf)
+    DFR(MSVCRT, wcsstr)
     DFR(MSVCRT, wcsrchr)
     DFR(MSVCRT, _swprintf)
     DFR(MSVCRT, wcscpy)
@@ -168,6 +178,7 @@ extern "C" {
     // ==================== OLE32 ====================
     DFR(OLE32, CoInitializeSecurity)
     DFR(OLE32, CoCreateInstance)
+    DFR(OLE32, StringFromGUID2)
     DFR(OLE32, CoInitializeEx)
     DFR(OLE32, CoUninitialize)
     DFR(OLE32, CLSIDFromString)
@@ -182,6 +193,10 @@ extern "C" {
 
     // ==================== USER32 ====================
     DFR(USER32, GetDC)
+    DFR(USER32, ReleaseDC)
+    DFR(USER32, OpenClipboard)
+    DFR(USER32, GetClipboardData)
+    DFR(USER32, CloseClipboard)
     DFR(USER32, GetSystemMetrics)
 
     // ==================== GDI32 ====================
@@ -190,7 +205,10 @@ extern "C" {
     DFR(GDI32, CreateDIBSection)
     DFR(GDI32, CreateCompatibleDC)
     DFR(GDI32, GetObjectW)
+    DFR(GDI32, GdiFlush)
     DFR(GDI32, GetCurrentObject)
+    DFR(GDI32, DeleteDC)
+    DFR(GDI32, DeleteObject)
 
     // ==================== WSMSVC ====================
     DFR(WSMSVC, WSManInitialize)
@@ -222,6 +240,12 @@ extern "C" {
 #define WriteProcessMemory                KERNEL32$WriteProcessMemory
 #define LoadLibraryW                      KERNEL32$LoadLibraryW
 
+#define VirtualQuery    KERNEL32$VirtualQuery
+#define VirtualQueryEx  KERNEL32$VirtualQueryEx
+
+#define CreateEventW                      KERNEL32$CreateEventW
+#define SetEvent                          KERNEL32$SetEvent
+
 #define OpenProcess                       KERNEL32$OpenProcess
 #define GetCurrentProcess                 KERNEL32$GetCurrentProcess
 #define CreateProcessW                    KERNEL32$CreateProcessW
@@ -250,6 +274,9 @@ extern "C" {
 #define DeleteCriticalSection             KERNEL32$DeleteCriticalSection
 #define EnterCriticalSection              KERNEL32$EnterCriticalSection
 #define LeaveCriticalSection              KERNEL32$LeaveCriticalSection
+
+#define GlobalLock      KERNEL32$GlobalLock
+#define GlobalUnlock    KERNEL32$GlobalUnlock
 
 #define FileTimeToSystemTime              KERNEL32$FileTimeToSystemTime
 #define CreatePipe                        KERNEL32$CreatePipe
@@ -319,6 +346,7 @@ extern "C" {
 #define realloc                           MSVCRT$realloc
 #define free                              MSVCRT$free
 #define memset                            MSVCRT$memset
+#define memcmp                            MSVCRT$memcmp
 #define memcpy                            MSVCRT$memcpy
 #define wcslen                            MSVCRT$wcslen
 #define wcsncpy                           MSVCRT$wcsncpy
@@ -326,6 +354,7 @@ extern "C" {
 #define strlen                            MSVCRT$strlen
 #define sprintf                           MSVCRT$sprintf
 #define _swprintf                         MSVCRT$_swprintf
+#define wcsstr                            MSVCRT$wcsstr
 #define wcscpy                            MSVCRT$wcscpy
 #define wcscat                            MSVCRT$wcscat
 #define wcscmp                            MSVCRT$wcscmp
@@ -348,6 +377,7 @@ extern "C" {
 // ==================== OLE32 MACROS ====================
 #define CoCreateInstance                  OLE32$CoCreateInstance
 #define CoInitializeSecurity              OLE32$CoInitializeSecurity
+#define StringFromGUID2                   OLE32$StringFromGUID2
 #define CoInitializeEx                    OLE32$CoInitializeEx
 #define CoUninitialize                    OLE32$CoUninitialize
 #define CLSIDFromString                   OLE32$CLSIDFromString
@@ -362,12 +392,19 @@ extern "C" {
 
 // ==================== USER32 MACROS ====================
 #define GetDC                             USER32$GetDC
+#define ReleaseDC                         USER32$ReleaseDC
 #define GetSystemMetrics                  USER32$GetSystemMetrics
+#define OpenClipboard                     USER32$OpenClipboard
+#define GetClipboardData                  USER32$GetClipboardData
+#define CloseClipboard                    USER32$CloseClipboard
 
 // ==================== GDI32 MACROS ====================
 #define BitBlt                            GDI32$BitBlt
 #define SelectObject                      GDI32$SelectObject
+#define DeleteDC                          GDI32$DeleteDC
+#define DeleteObject                      GDI32$DeleteObject
 #define CreateDIBSection                  GDI32$CreateDIBSection
+#define GdiFlush                          GDI32$GdiFlush
 #define CreateCompatibleDC                GDI32$CreateCompatibleDC
 #define GetObjectW                        GDI32$GetObjectW
 #define GetCurrentObject                  GDI32$GetCurrentObject

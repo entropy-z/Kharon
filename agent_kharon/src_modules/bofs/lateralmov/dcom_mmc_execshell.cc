@@ -1,4 +1,4 @@
-#include <Externs.hpp>
+#include <general.h>
 
 size_t my_wcslen(const WCHAR* str) {
     const WCHAR* s = str;
@@ -50,7 +50,7 @@ HRESULT InvokeMethod(IDispatch* pDisp, LPCOLESTR methodName, VARIANT* pResult, V
 
 EXTERN_C
 void go( CHAR* Args, int Argc ) {
-    Data Parser = { 0 };
+    datap Parser = { 0 };
 
     BeaconDataParse( &Parser, Args, Argc );
     
