@@ -14,7 +14,7 @@
 - Upload routine now displays message regarding upload completion
 - Code refact
 - process run with new arguments for use token and user/pass/domain
-- Http Profile improved
+- Http Profile improved (Malleable Profile)
 - Ported commands like ``process*``, ``fs*``, ``scinject*`` and ``postex*`` to BOF format
 
 ## Additions
@@ -23,7 +23,7 @@
 - Change named pipe to fork commands capability (config)
 - IpAddress Checkin
 - Added a script to simplify agent setup (consult setup_kharon.sh)
-- Show cfg, VBS/HVCI, and DSE status for info command
+- Show CFG, VBS/HVCI, and DSE status for info command
 - info command show the amsi/etw bypass
 - config syscall capability
 - Config bof api prox via config command
