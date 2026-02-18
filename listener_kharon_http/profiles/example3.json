@@ -39,13 +39,10 @@
                 "empty_response": "",
                 
                 "uri": {
-                    "/api/v1/status /api/v1/health /api/v1/ping": {
-                        "_comment": "Multiple URIs with same config (space-separated)",
-                        
+                    "/api/v1/status /api/v1/health /api/v1/ping": {                     
                         "server_output": {
                             "mask": true,
-                            "format": "base64",
-                            "_format_options": "base64 | base32 | base64url | hex"
+                            "format": "base64"
                         },
                         
                         "client_output": {
@@ -83,9 +80,7 @@
                     "/api/v1/submit /api/v1/upload": {
                         "server_output": {
                             "mask": false,
-                            "format": "base64",
-                            "header": "X-Response-Data",
-                            "body": "{\"status\": \"ok\", \"code\": 200}"
+                            "format": "base64"
                         },
                         
                         "client_output": {

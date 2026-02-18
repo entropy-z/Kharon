@@ -128,16 +128,15 @@ type Teamserver interface {
 	TsConvertCpToUTF8(input string, codePage int) string
 	TsConvertUTF8toCp(input string, codePage int) string
 	TsWin32Error(errorCode uint) string
-
 }
 
-type PluginAgent   struct{}
+type PluginAgent struct{}
 type ExtenderAgent struct{}
 
 type ModuleExtender struct {
-	ts  	Teamserver
-	pa 		*PluginAgent
-	ext 	*ExtenderAgent
+	ts  Teamserver
+	pa  *PluginAgent
+	ext *ExtenderAgent
 }
 
 var (
@@ -146,7 +145,7 @@ var (
 	AgentWatermark string
 )
 
-func (p* PluginAgent) GetExtender() ax.ExtenderAgent {
+func (p *PluginAgent) GetExtender() ax.ExtenderAgent {
 	return ModuleObject.ext
 }
 
@@ -155,15 +154,15 @@ func InitPlugin(ts any, moduleDir string, watermark string) ax.PluginAgent {
 	AgentWatermark = watermark
 
 	ModuleObject = &ModuleExtender{
-		ts: ts.(Teamserver),
-		pa: &PluginAgent{},
+		ts:  ts.(Teamserver),
+		pa:  &PluginAgent{},
 		ext: &ExtenderAgent{},
 	}
 
 	return ModuleObject.pa
 }
 
-func (pa* PluginAgent) GenerateProfiles(profile ax.BuildProfile) ([][] byte, error) {
+func (pa *PluginAgent) GenerateProfiles(profile ax.BuildProfile) ([][]byte, error) {
 	var (
 		agentProfiles [][]byte
 		listenerMap   map[string]any
@@ -180,11 +179,11 @@ func (pa* PluginAgent) GenerateProfiles(profile ax.BuildProfile) ([][] byte, err
 	return agentProfiles, nil
 }
 
-func (pa* PluginAgent) BuildPayload(profile ax.BuildProfile, agentProfiles [][]byte) ([]byte, string, error) {
+func (pa *PluginAgent) BuildPayload(profile ax.BuildProfile, agentProfiles [][]byte) ([]byte, string, error) {
 	var (
-		agentProfile  []byte
-		listenerMap   map[string]any
-		err           error
+		agentProfile []byte
+		listenerMap  map[string]any
+		err          error
 	)
 
 	for _, transportProfile := range profile.ListenerProfiles {
@@ -198,15 +197,15 @@ func (pa* PluginAgent) BuildPayload(profile ax.BuildProfile, agentProfiles [][]b
 	return AgentGenerateBuild(profile.AgentConfig, agentProfile, listenerMap)
 }
 
-func (ext* ExtenderAgent) Encrypt(data []byte, key[]byte) ([]byte, error) {
+func (ext *ExtenderAgent) Encrypt(data []byte, key []byte) ([]byte, error) {
 	return data, nil
 }
 
-func (ext* ExtenderAgent) Decrypt(data []byte, key[]byte) ([]byte, error) {
+func (ext *ExtenderAgent) Decrypt(data []byte, key []byte) ([]byte, error) {
 	return data, nil
 }
 
-func (pa* PluginAgent) CreateAgent(beat []byte) (ax.AgentData, ax.ExtenderAgent, error) {
+func (pa *PluginAgent) CreateAgent(beat []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 	return CreateAgent(beat)
 }
 
@@ -216,14 +215,14 @@ func (ext *ExtenderAgent) CreateCommand(agentData ax.AgentData, args map[string]
 
 func (ext *ExtenderAgent) PackTasks(agentData ax.AgentData, tasks []ax.TaskData) ([]byte, error) {
 	packedData, err := PackTasks(agentData, tasks)
-	if err != nil {
+	if err != nil || tasks == nil {
 		return nil, err
 	}
 
 	return ext.Encrypt(packedData, agentData.SessionKey)
 }
 
-func (ext* ExtenderAgent) PivotPackData(pivotId string, data []byte) (ax.TaskData, error) {
+func (ext *ExtenderAgent) PivotPackData(pivotId string, data []byte) (ax.TaskData, error) {
 	packData, err := PackPivotTasks(pivotId, data)
 	if err != nil {
 		return ax.TaskData{}, err
@@ -306,19 +305,19 @@ func makeProxyTask(packData []byte) ax.TaskData {
 
 func TunnelMessagePause(channelId int) ax.TaskData {
 	var packData []byte
-	
+
 	array := []interface{}{COMMAND_TUNNEL_PAUSE, channelId}
 	packData, _ = PackArray(array)
-	
+
 	return makeProxyTask(packData)
 }
 
 func TunnelMessageResume(channelId int) ax.TaskData {
 	var packData []byte
-	
+
 	array := []interface{}{COMMAND_TUNNEL_RESUME, channelId}
 	packData, _ = PackArray(array)
-	
+
 	return makeProxyTask(packData)
 }
 

@@ -30,26 +30,26 @@ x86-debug: CFLAGS += -D DEBUG
 x86-debug: x86
 
 x64: nasm64 $(OBJ64)
-        @ echo "compiling x64 project"
-        @ $(CCX64) $(BUILD_PATH)/Bin/obj/*.x64.obj -o $(BUILD_PATH)/Bin/$(NAME).x64.exe $(CFLAGS)
-        @ objcopy --dump-section .text=$(BUILD_PATH)/Bin/$(NAME).x64.bin $(BUILD_PATH)/Bin/$(NAME).x64.exe
-        @ rm $(BUILD_PATH)/Bin/$(NAME).x64.exe
+		@ echo "compiling x64 project"
+		@ $(CCX64) $(BUILD_PATH)/Bin/obj/*.x64.obj -o $(BUILD_PATH)/Bin/$(NAME).x64.exe $(CFLAGS)
+		@ objcopy --dump-section .text=$(BUILD_PATH)/Bin/$(NAME).x64.bin $(BUILD_PATH)/Bin/$(NAME).x64.exe
+		@ rm $(BUILD_PATH)/Bin/$(NAME).x64.exe
 
 %.x64.obj: %.cc
-        @ echo "-> compiling $< to $(notdir $@)"
-        @ $(CCX64) -o $(BUILD_PATH)/Bin/obj/$(notdir $@) -c $< $(CFLAGS) $(DEFS)
+		@ echo "-> compiling $< to $(notdir $@)"
+		@ $(CCX64) -o $(BUILD_PATH)/Bin/obj/$(notdir $@) -c $< $(CFLAGS) $(DEFS)
 
 %.x86.obj: %.cc
-        @ echo "-> compiling $< to $(notdir $@)"
-        @ $(CCX86) -o $(BUILD_PATH)/Bin/obj/$(notdir $@) -c $< $(CFLAGS) $(DEFS)
+		@ echo "-> compiling $< to $(notdir $@)"
+		@ $(CCX86) -o $(BUILD_PATH)/Bin/obj/$(notdir $@) -c $< $(CFLAGS) $(DEFS)
 
 nasm64:
-        @ $(ASMCC) -f win64 Source/Asm/Start.x64.s -o $(BUILD_PATH)/Bin/obj/start.x64.obj
-        @ $(ASMCC) -f win64 Source/Asm/Spoof.x64.s -o $(BUILD_PATH)/Bin/obj/spf.x64.obj
+		@ $(ASMCC) -f win64 Source/Asm/Start.x64.s -o $(BUILD_PATH)/Bin/obj/start.x64.obj
+		@ $(ASMCC) -f win64 Source/Asm/Spoof.x64.s -o $(BUILD_PATH)/Bin/obj/spf.x64.obj
 
 clean:
-        @ rm -f $(BUILD_PATH)/obj/*.x64.obj
-        @ rm -f $(BUILD_PATH)/obj/*.x86.obj
-        @ rm -f $(BUILD_PATH)/*.exe
-        @ rm -f $(BUILD_PATH)/*.Bin
-        @ echo "removed object files"
+		@ rm -f $(BUILD_PATH)/obj/*.x64.obj
+		@ rm -f $(BUILD_PATH)/obj/*.x86.obj
+		@ rm -f $(BUILD_PATH)/*.exe
+		@ rm -f $(BUILD_PATH)/*.Bin
+		@ echo "removed object files"

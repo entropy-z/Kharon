@@ -209,7 +209,8 @@ typedef struct {
 
     struct {
         WCHAR* Spawnto;
-        WCHAR* ForkPipe;
+        PCHAR  ForkPipe;
+        PCHAR  CurrentUUID;
     } Postex;
 
     struct {
@@ -299,6 +300,11 @@ EXTERN_C {
     DECLSPEC_IMPORT INT   BeaconDataLength     (datap* Parser);
     DECLSPEC_IMPORT PCHAR BeaconDataExtract    (datap* Parser, PINT Size);
 
+    DECLSPEC_IMPORT PVOID BeaconHeapAlloc( ULONG size );
+    DECLSPEC_IMPORT PVOID BeaconHeapReAlloc( PVOID block, ULONG size );
+    DECLSPEC_IMPORT BOOL  BeaconHeapFree( PVOID block );
+    DECLSPEC_IMPORT BOOL  BeaconHeapCheckPtr( PVOID block );
+
     DECLSPEC_IMPORT VOID  BeaconFormatAlloc    (fmt* Format, INT Maxsz);
     DECLSPEC_IMPORT VOID  BeaconFormatReset    (fmt* Format);
     DECLSPEC_IMPORT VOID  BeaconFormatFree     (fmt* Format);
@@ -311,11 +317,11 @@ EXTERN_C {
     DECLSPEC_IMPORT PVOID BeaconGetValue(PCCH Key);
     DECLSPEC_IMPORT BOOL  BeaconRemoveValue(PCCH Key);
 
-    DECLSPEC_IMPORT VOID BeaconPkgBytes( PBYTE Buffer, ULONG Length );
-    DECLSPEC_IMPORT VOID BeaconPkgInt8( INT8 Data );
-    DECLSPEC_IMPORT VOID BeaconPkgInt16( INT16 Data );
-    DECLSPEC_IMPORT VOID BeaconPkgInt32( INT32 Data );
-    DECLSPEC_IMPORT VOID BeaconPkgInt64( INT64 Data );
+    DECLSPEC_IMPORT VOID BeaconPkgBytes( PBYTE Buffer, ULONG Length, PCHAR UUID = nullptr );
+    DECLSPEC_IMPORT VOID BeaconPkgInt8( INT8 Data, PCHAR UUID = nullptr );
+    DECLSPEC_IMPORT VOID BeaconPkgInt16( INT16 Data, PCHAR UUID = nullptr );
+    DECLSPEC_IMPORT VOID BeaconPkgInt32( INT32 Data, PCHAR UUID = nullptr );
+    DECLSPEC_IMPORT VOID BeaconPkgInt64( INT64 Data, PCHAR UUID = nullptr );
 
     DECLSPEC_IMPORT BOOL BeaconInformation( BEACON_INFO* info );
 

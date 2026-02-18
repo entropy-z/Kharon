@@ -1,4 +1,4 @@
-#include <externs.h>
+#include <general.h>
 
 auto WriteBin(
     _In_ BYTE* BinBuff,
@@ -55,7 +55,7 @@ auto RmtSvcCreate(
 
 EXTERN_C
 auto go(PCHAR Args, INT Argc) -> void {
-    Data Parser = { 0 };
+    datap Parser = { 0 };
 
     BeaconDataParse( &Parser, Args, Argc );
 

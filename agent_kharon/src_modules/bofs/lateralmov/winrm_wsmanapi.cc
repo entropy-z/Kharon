@@ -1,4 +1,4 @@
-#include <externs.h>
+#include <general.h>
 
 typedef struct {
     HANDLE Event;
@@ -112,7 +112,7 @@ auto ReceiveCallback(
 
 EXTERN_C
 void go(char* args, int argc) {
-    Data DataPsr = { 0 };
+    datap DataPsr = { 0 };
 
     BeaconDataParse( &DataPsr, args, argc );
 

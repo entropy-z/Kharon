@@ -34,8 +34,8 @@ Documentation here: [http-malleable](./doc/5.%20HttpProfile.md)
 ### Post-Exploitation Execution
 
 Post-exploitation routines are based on **Beacon Object Files (BOFs)** and **PIC shellcode**, which can be executed:
-- In the current process
-- In a remote target process
+- In the current process (BOF/PIC)
+- In a remote target process (PIC)
 
 ### Evasion
 

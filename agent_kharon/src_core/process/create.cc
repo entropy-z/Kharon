@@ -25,7 +25,6 @@ extern "C" auto go( char* args, int argc ) -> void {
 
     create_args.method   = process_method;
     create_args.argument = process_argument;
-    create_args.state    = process_state;
     create_args.pipe     = process_pipe;
 
     create_args.domain   = process_domain;
@@ -35,7 +34,11 @@ extern "C" auto go( char* args, int argc ) -> void {
     PBYTE output_ptr = nullptr;
     ULONG output_len = 0;
 
-    kh_process_creation( &create_args, &ps_information, &output_ptr, &output_len );
+    if ( process_state ) {
+        create_args.state = CREATE_SUSPENDED;
+    }
+
+    kh_process_creation( &create_args, &ps_information, &output_ptr, &output_len, FALSE );
 
     if ( ps_information.dwProcessId && ps_information.dwThreadId ) {
         BeaconPkgInt32( ps_information.dwProcessId );
