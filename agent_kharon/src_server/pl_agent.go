@@ -1545,10 +1545,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 
 		case "spoofarg":
 			argument, ok := args["arg"].(string)
-			if !ok {
-				err = errors.New("parameter 'arg' must be set")
-				goto RET
-			}
+
 			kharon_cfg.Ps.Spoofarg = argument
 			kharon_cfg.JsonMarshal(&agent, true)
 
@@ -1758,16 +1755,22 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
 		case "bofproxy":
-			status, ok := args["status"].(bool)
+			status, ok := args["status"].(string)
 			if !ok {
 				err = errors.New("parameter 'status' must be set")
 				goto RET
 			}
 			enabled := 0
-			if status {
+			if status == "true" {
 				enabled = 1
+			} else if status == "" {
+				enabled = 0
+			} else {
+				err = errors.New("parameter 'status' must be 'true' or 'false'")
+				goto RET
 			}
-			kharon_cfg.Evasion.BofProxy = status
+			
+			kharon_cfg.Evasion.BofProxy = enabled
 			kharon_cfg.JsonMarshal(&agent, true)
 
 			bofParam, _ = PackExtData(int(CONFIG_BOFPROXY), int(enabled))
