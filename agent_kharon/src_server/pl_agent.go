@@ -1700,13 +1700,13 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			bypass_n := 0
 			switch bypass {
 			case "amsi":
-				bypass_n = 0x700
+				bypass_n = 0x01
 			case "etw":
-				bypass_n = 0x400
+				bypass_n = 0x02
 			case "all":
-				bypass_n = 0x100
+				bypass_n = 0x03
 			case "none":
-				bypass_n = 0x000
+				bypass_n = 0x00
 			default:
 				err = errors.New("unknown bypass type. Type must be 'amsi', 'etw', 'all' or 'none'")
 				goto RET
