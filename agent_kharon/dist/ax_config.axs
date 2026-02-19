@@ -167,7 +167,7 @@ function RegisterCommands(listenerType)
     cmd_config_syscall.addArgString("syscall", true, "options: 'spoof', 'spoof_indirect' or 'none'");
 
     let cmd_config_bofproxy = ax.create_command("bofproxy", "Change BOF API Proxy status (true/false)", "config bofproxy true")
-    cmd_config_bofproxy.addArgBool("status", true)
+    cmd_config_bofproxy.addArgString("status", true)
 
     let cmd_config_forkpipe = ax.create_command("fork_pipe_name", "Change named pipe to use in fork commands", "config fork_pipe_name \\\\.\\pipe\\new_pipe_name");
     cmd_config_forkpipe.addArgString("name", true);
