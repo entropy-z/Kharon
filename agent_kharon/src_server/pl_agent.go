@@ -1856,9 +1856,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			method_n := 0
 			switch method {
 			case "explicit":
-				method_n = 0x100
+				method_n = 0x30
 			case "spawn":
-				method_n = 0x200
+				method_n = 0x50
 			}
 
 			scContent, _ := base64.StdEncoding.DecodeString(scfile)
