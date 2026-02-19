@@ -1763,7 +1763,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			enabled := 0
 			if status == "true" {
 				enabled = 1
-			} else if status == "" {
+			} else if status == "false" {
 				enabled = 0
 			} else {
 				err = errors.New("parameter 'status' must be 'true' or 'false'")
