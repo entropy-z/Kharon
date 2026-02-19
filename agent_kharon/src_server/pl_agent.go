@@ -308,13 +308,13 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 	fmt.Printf("DEBUG: Bypass method: %s\n", cfg.Bypass)
 	switch cfg.Bypass {
 	case "AMSI":
-		makeVars = append(makeVars, "KH_AMSI_ETW_BYPASS=0x700")
+		makeVars = append(makeVars, "KH_AMSI_ETW_BYPASS=0x1")
 	case "ETW":
-		makeVars = append(makeVars, "KH_AMSI_ETW_BYPASS=0x400")
+		makeVars = append(makeVars, "KH_AMSI_ETW_BYPASS=0x2")
 	case "AMSI + ETW":
-		makeVars = append(makeVars, "KH_AMSI_ETW_BYPASS=0x100")
+		makeVars = append(makeVars, "KH_AMSI_ETW_BYPASS=0x3")
 	default:
-		makeVars = append(makeVars, "KH_AMSI_ETW_BYPASS=0x000")
+		makeVars = append(makeVars, "KH_AMSI_ETW_BYPASS=0x0")
 	}
 
 	// Heap obfuscation
