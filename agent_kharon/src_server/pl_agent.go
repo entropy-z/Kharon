@@ -2008,7 +2008,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 				filename := ConvertCpToUTF8(inner.ParseString(), agentData.ACP)
 				data := inner.ParseBytes()
 				fileId := fmt.Sprintf("%08x", rand.Uint32())
-				addErr := ts.TsDownloadAdd(agentData.Id, fileId, filename, len(data))
+				addErr := ts.TsDownloadAdd(agentData.Id, fileId, filename, int64(len(data)))
 				updErr := ts.TsDownloadUpdate(fileId, 1, data)
 				clsErr := ts.TsDownloadClose(fileId, 3)
 				if addErr != nil || updErr != nil || clsErr != nil {
@@ -2109,7 +2109,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 					file_path := cmd_packer.ParseString()
 					// file_bytes := cmd_packer.ParseBytes()
 
-					_ = ts.TsDownloadAdd(agentData.Id, file_id, file_path, int(file_size))
+					_ = ts.TsDownloadAdd(agentData.Id, file_id, file_path, int64(file_size))
 					// _ = ts.TsDownloadUpdate(file_id, 1, file_bytes)
 
 					// if params.Canceled {
