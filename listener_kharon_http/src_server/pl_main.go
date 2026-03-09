@@ -45,7 +45,7 @@ type Teamserver interface {
 	TsCredentialsSetTag(credsId []string, tag string) error
 	TsCredentilsDelete(credsId []string) error
 
-	TsDownloadAdd(agentId string, fileId string, fileName string, fileSize int) error
+	TsDownloadAdd(agentId string, fileId string, fileName string, fileSize int64) error
 	TsDownloadUpdate(fileId string, state int, data []byte) error
 	TsDownloadClose(fileId string, reason int) error
 	TsDownloadDelete(fileid []string) error
