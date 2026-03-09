@@ -84,6 +84,9 @@ type HTTPConfig struct {
 	ProxyUserName string `json:"proxy_user"`
 	ProxyPassword string `json:"proxy_pass"`
 
+	TrustXForwardedHost    bool   `json:"trust_x_forwarded_host"`
+	AdditionalTrustedHosts string `json:"additional_trusted_hosts"`
+
 	ChunkTask []HttpTask
 
 	Addresses 	string

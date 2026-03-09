@@ -15,6 +15,13 @@ function ListenerUI(mode_create)
     spinPortBind.setValue(443);
     spinPortBind.setEnabled(mode_create);
 
+    // === TRUSTED HOST HEADERS ===
+    let checkTrustXForwardedHost = form.create_check("Trust X-Forwarded-Host");
+
+    let labelAdditionalTrustedHosts = form.create_label("Additional Trusted Hosts:");
+    let textAdditionalTrustedHosts = form.create_textmulti();
+    textAdditionalTrustedHosts.setPlaceholder("domain1.com\ndomain2.com");
+
     // === BLOCK USER AGENTS ===
     let labelBlockUserAgents = form.create_label("Block User Agents:");
     let blockUserAgentsText = form.create_textmulti();
@@ -99,18 +106,23 @@ function ListenerUI(mode_create)
     layoutMain.addWidget(comboHostBind, 0, 1, 1, 1);
     layoutMain.addWidget(spinPortBind,  0, 2, 1, 1);
 
-    layoutMain.addWidget(labelBlockUserAgents, 1, 0, 1, 3);
-    layoutMain.addWidget(blockUserAgentsText,  2, 0, 1, 3);
+    // Trusted Host Headers
+    layoutMain.addWidget(checkTrustXForwardedHost, 1, 0, 1, 3);
+    layoutMain.addWidget(labelAdditionalTrustedHosts, 2, 0, 1, 3);
+    layoutMain.addWidget(textAdditionalTrustedHosts, 3, 0, 1, 3);
 
-    layoutMain.addWidget(labelDomainRotation, 3, 0, 1, 1);
-    layoutMain.addWidget(domainRotationCombo, 3, 1, 1, 2);
+    layoutMain.addWidget(labelBlockUserAgents, 4, 0, 1, 3);
+    layoutMain.addWidget(blockUserAgentsText,  5, 0, 1, 3);
 
-    layoutMain.addWidget(labelUploadProfile,  4, 0, 1, 1);
-    layoutMain.addWidget(fileSelector,        4, 1, 1, 2);
+    layoutMain.addWidget(labelDomainRotation, 6, 0, 1, 1);
+    layoutMain.addWidget(domainRotationCombo, 6, 1, 1, 2);
+
+    layoutMain.addWidget(labelUploadProfile,  7, 0, 1, 1);
+    layoutMain.addWidget(fileSelector,        7, 1, 1, 2);
     // layoutMain.addWidget(uploadedFileText,    5, 0, 1, 3);
 
-    layoutMain.addWidget(proxy_group,        5, 0, 1, 3);
-    layoutMain.addWidget(ssl_group,          6, 0, 1, 3);
+    layoutMain.addWidget(proxy_group,         8, 0, 1, 3);
+    layoutMain.addWidget(ssl_group,            9, 0, 1, 3);
 
     let panelMain = form.create_panel();
     panelMain.setLayout(layoutMain);
@@ -140,6 +152,10 @@ function ListenerUI(mode_create)
     container.put("ssl", ssl_group);
     container.put("ssl_cert", certSelector);
     container.put("ssl_key", keySelector);
+
+    // Trusted Host Headers
+    container.put("trust_x_forwarded_host", checkTrustXForwardedHost);
+    container.put("additional_trusted_hosts", textAdditionalTrustedHosts);
 
     let layout = form.create_hlayout();
     layout.addWidget(panelMain);

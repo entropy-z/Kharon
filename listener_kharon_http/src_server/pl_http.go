@@ -587,7 +587,54 @@ func (handler *HTTP) process_request(ctx *gin.Context) {
 
 	fmt.Printf("[DEBUG] Incoming request - URI: %s, Method: %s, UA: %s\n", client.Uri, client.HttpMethod, client.UserAgent)
 
-	callbackByHost = handler.get_callback_by_host(client.Address)
+	// Check if we should trust X-Forwarded-Host header and skip callback matching
+	skipHostMatching := false
+
+	if handler.Config.TrustXForwardedHost {
+		xForwardedHost := ctx.GetHeader("X-Forwarded-Host")
+		if xForwardedHost != "" {
+			// Strip port if present
+			if idx := strings.LastIndex(xForwardedHost, ":"); idx != -1 {
+				xForwardedHost = xForwardedHost[:idx]
+			}
+			fmt.Printf("[DEBUG] Trusting X-Forwarded-Host: %s\n", xForwardedHost)
+			client.Address = xForwardedHost
+			skipHostMatching = true
+		}
+	}
+
+	// Check if host matches additional trusted hosts list
+	if !skipHostMatching && handler.Config.AdditionalTrustedHosts != "" {
+		trustedHosts := strings.Split(handler.Config.AdditionalTrustedHosts, "\n")
+		for _, trustedHost := range trustedHosts {
+			trustedHost = strings.TrimSpace(trustedHost)
+			if trustedHost == "" {
+				continue
+			}
+			if strings.EqualFold(trustedHost, client.Address) {
+				fmt.Printf("[DEBUG] Host matches additional trusted host: %s\n", client.Address)
+				skipHostMatching = true
+				break
+			}
+		}
+	}
+
+	if skipHostMatching {
+		// Trust the host, use the first callback
+		if len(handler.Config.Callbacks) > 0 {
+			callbackByHost = &handler.Config.Callbacks[0]
+			fmt.Printf("[DEBUG] Using first callback (trusted host)\n")
+		} else {
+			fmt.Printf("[ERROR] No callbacks configured\n")
+			ctx.Writer.Write([]byte("Bad Request"))
+			ctx.Status(http.StatusBadRequest)
+			return
+		}
+	} else {
+		// Normal callback host matching
+		callbackByHost = handler.get_callback_by_host(client.Address)
+	}
+
 	if callbackByHost == nil {
 		fmt.Printf("[ERROR] No callback found for host: %s\n", client.Address)
 		ctx.Writer.Write([]byte("Bad Request"))
