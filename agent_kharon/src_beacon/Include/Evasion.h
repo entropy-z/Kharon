@@ -94,13 +94,13 @@ enum Reg {
 #define COFF_FNC 0x20
 #define COFF_IMP 0x30
 
-#define CALLBACK_OUTPUT      0x0
-#define CALLBACK_OUTPUT_OEM  0x1e
-#define CALLBACK_OUTPUT_UTF8 0x20
-#define CALLBACK_ERROR       0x0d
-#define CALLBACK_NO_PRE_MSG  0x4f
-#define CALLBACK_CUSTOM      0x1000
-#define CALLBACK_CUSTOM_LAST 0x13ff
+#define CALLBACK_OUTPUT          0x0
+#define CALLBACK_OUTPUT_OEM      0x1e
+#define CALLBACK_OUTPUT_UTF8     0x20
+#define CALLBACK_ERROR           0x0d
+#define CALLBACK_NO_PRE_MSG      0x4f
+#define CALLBACK_CUSTOM          0x1000
+#define CALLBACK_CUSTOM_LAST     0x13ff
 #define CALLBACK_AX_SCREENSHOT   0x81
 #define CALLBACK_AX_DOWNLOAD_MEM 0x82
 
@@ -115,10 +115,18 @@ typedef _BOF_OBJ BOF_OBJ;
 
 struct _DATA_STORE {
     INT32  Type;
+    BOOL   IsAsync;
     UINT64 Hash;
     BOOL   Masked;
     CHAR*  Buffer;
     SIZE_T Length;
+
+    struct {
+        HANDLE           ThreadHandle;
+        ULONG            ThreadId;
+        HANDLE           Stop;
+        CRITICAL_SECTION CriticalSection;
+    } Async;
 };
 typedef _DATA_STORE DATA_STORE;
 
@@ -166,7 +174,6 @@ typedef struct _COFF_MAPPED {
     ULONG*      ExecSizes;         // array of executable section sizes
     ULONG       ExecCount;         // number of executable sections
 } COFF_MAPPED, *PCOFF_MAPPED;
-
 
 #define POSTEX_LIST_HANDLE      "\x66\x55\x44\x77"
 #define POSTEX_COUNT_HANDLE     "\x77\x44\x55\x66"

