@@ -53,7 +53,6 @@ auto DECLFN Coff::PrintfW(
 
     va_start( VaList, fmt );
 
-    // Primeira cópia para calcular o tamanho
     va_copy( VaListCopy, VaList );
     MsgSize = Self->Msvcrt.k_vscwprintf( fmt, VaListCopy );
     va_end( VaListCopy );
@@ -69,7 +68,6 @@ auto DECLFN Coff::PrintfW(
         goto _CLEANUP;
     }
 
-    // Segunda cópia para formatar a string
     va_copy( VaListCopy, VaList );
     written = Self->Msvcrt.k_vswprintf( MsgBuff, MsgSize + 1, fmt, VaListCopy );
     va_end( VaListCopy );

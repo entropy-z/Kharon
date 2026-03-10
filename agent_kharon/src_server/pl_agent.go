@@ -1506,6 +1506,8 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			kharon_cfg.Session.SleepTime = uint32(sleepTime * 1000)
 			kharon_cfg.JsonMarshal(&agent, true)
 
+			ModuleObject.ts.TsAgentUpdateData(agent)
+
 			bofParam, _ = PackExtData(int(CONFIG_SLEEP), int(sleepTime))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
@@ -1524,6 +1526,8 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			agent.Jitter = uint(jitterTime)
 			kharon_cfg.Session.Jitter = uint32(jitterTime)
 			kharon_cfg.JsonMarshal(&agent, true)
+
+			ModuleObject.ts.TsAgentUpdateData(agent)
 
 			bofParam, _ = PackExtData(int(CONFIG_JITTER), int(jitterTime))
 			if err != nil {
@@ -1815,13 +1819,28 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 	case "execute":
 		switch subcommand {
 		case "bof":
+			var isAsync  bool
+			var isAsyncn int
+
 			taskData.Type = TYPE_JOB
 
 			wd, wdErr := os.Getwd()
 			if wdErr != nil {
 				panic(wdErr)
 			}
+
 			postex_path := filepath.Join(filepath.Dir(wd), "dist", "extenders", "agent_kharon", "src_modules")
+			
+			isAsync, ok := args["async"].(bool)
+			if !ok {
+				isAsync = false
+			}
+
+			if isAsync == true {
+				isAsyncn = 1
+			} else {
+				isAsyncn = 0
+			}
 
 			bofFile, ok := args["bof_file"].(string)
 			if !ok {
@@ -1831,6 +1850,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			if strings.Contains(bofFile, "kharon_replace_folder") {
 				bofFile = strings.ReplaceAll(bofFile, "kharon_replace_folder", postex_path)
 			}
+
 			var bofContent []byte
 			bofContent, err = base64.StdEncoding.DecodeString(bofFile)
 			if err != nil {
@@ -1843,9 +1863,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				if decErr != nil {
 					params = []byte(paramData)
 				}
-				array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, 0, len(params), params}
+				array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, 0, isAsyncn, len(params), params}
 			} else {
-				array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, 0, 0, params}
+				array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, 0, isAsyncn, 0, params}
 			}
 
 		case "postex":
