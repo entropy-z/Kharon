@@ -76,20 +76,23 @@ auto DECLFN Useful::CfgPrivAdd(
 }
 
 auto DECLFN Useful::CfgCheck( VOID ) -> BOOL {
-    EXTENDED_PROCESS_INFORMATION ProcInfoEx = { 0 };
-    NTSTATUS                     NtStatus   = STATUS_SUCCESS;
+    EXTENDED_PROCESS_INFORMATION ProcInfoEx = {};
 
     ProcInfoEx.ExtendedProcessInfo       = ProcessControlFlowGuardPolicy;
     ProcInfoEx.ExtendedProcessInfoBuffer = 0;
 
-    if ( ! NT_SUCCESS( NtStatus = Self->Ntdll.NtQueryInformationProcess(
-        NtCurrentProcess(), ProcessCookie | ProcessUserModeIOPL, &ProcInfoEx, sizeof( ProcInfoEx ), nullptr )
-    ) ) {
-        KhDbg( "NtQueryInformationProcess Failed => %p", NtStatus ); return FALSE; 
-    } 
+    NTSTATUS status = Self->Ntdll.NtQueryInformationProcess(
+        NtCurrentProcess(), ProcessMitigationPolicy, &ProcInfoEx, sizeof( ProcInfoEx ), nullptr
+    );
 
-    KhDbg( "Control Flow Guard Policy Enabled = %s", ProcInfoEx.ExtendedProcessInfoBuffer ? "TRUE" : "FALSE" );
-    return ProcInfoEx.ExtendedProcessInfoBuffer;
+    if ( status != 0 ) {
+        KhDbg( "NtQueryInformationProcess failed: 0x%X\n", status );
+        return FALSE;
+    }
+
+    BOOL enabled = ProcInfoEx.ExtendedProcessInfoBuffer != 0;
+    KhDbg( "CFG Enabled: %s\n", enabled ? "TRUE" : "FALSE" );
+    return enabled;
 }
 
 auto DECLFN Useful::FindGadget(

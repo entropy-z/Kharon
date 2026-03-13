@@ -561,11 +561,11 @@ extern "C" auto go_inject( char* args, int argc ) -> BOOL {
     current += sizeof(INT16);
 
     // Write spoof (1 byte)
-    *(INT8*)current = 0;
+    *(INT8*)current = info.Config->Syscall;
     current += sizeof(INT8);
 
     // Write bypassflag (1 byte)
-    *(INT8*)current = 0;
+    *(INT8*)current = info.Config->AmsiEtwBypass;
     current += sizeof(INT8);
 
     // Write pipename_len (4 bytes)

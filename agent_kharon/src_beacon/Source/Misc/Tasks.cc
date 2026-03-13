@@ -1734,9 +1734,9 @@ auto DECLFN Task::Exit(
     Job->ExitCode = EXIT_SUCCESS;
 
     Self->Jbs->Send( Self->Jbs->PostJobs );
-    Self->Jbs->Cleanup();
+    // Self->Jbs->Cleanup();
 
-    Self->Hp->Clean();
+    // Self->Hp->Clean();
 
     if ( ExitType == Action::Exit::Proc ) {
         Self->Ntdll.RtlExitUserProcess( EXIT_SUCCESS );
