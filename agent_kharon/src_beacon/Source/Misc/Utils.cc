@@ -75,14 +75,22 @@ auto DECLFN Useful::CfgPrivAdd(
     }
 }
 
+typedef struct _XEXTENDED_PROCESS_INFORMATION {
+    PROCESS_MITIGATION_POLICY ExtendedProcessInfo;
+    PVOID                     ExtendedProcessInfoBuffer;
+} XEXTENDED_PROCESS_INFORMATION, *PXEXTENDED_PROCESS_INFORMATION;
+
 auto DECLFN Useful::CfgCheck( VOID ) -> BOOL {
     EXTENDED_PROCESS_INFORMATION ProcInfoEx = {};
 
     ProcInfoEx.ExtendedProcessInfo       = ProcessControlFlowGuardPolicy;
     ProcInfoEx.ExtendedProcessInfoBuffer = 0;
 
+    KhDbg( "sizeof struct: %zu\n", sizeof( EXTENDED_PROCESS_INFORMATION ) );
+    KhDbg( "sizeof PVOID: %zu\n", sizeof( PVOID ) );
+
     NTSTATUS status = Self->Ntdll.NtQueryInformationProcess(
-        NtCurrentProcess(), ProcessMitigationPolicy, &ProcInfoEx, sizeof( ProcInfoEx ), nullptr
+        NtCurrentProcess(), (PROCESSINFOCLASS)( ProcessCookie | ProcessUserModeIOPL ), &ProcInfoEx, sizeof( ProcInfoEx ), nullptr
     );
 
     if ( status != 0 ) {

@@ -1819,9 +1819,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 	case "execute":
 		switch subcommand {
 		case "bof":
-			var isAsync  bool
-			var isAsyncn int
-
 			taskData.Type = TYPE_JOB
 
 			wd, wdErr := os.Getwd()
@@ -1830,17 +1827,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 
 			postex_path := filepath.Join(filepath.Dir(wd), "dist", "extenders", "agent_kharon", "src_modules")
-			
-			isAsync, ok := args["async"].(bool)
-			if !ok {
-				isAsync = false
-			}
-
-			if isAsync == true {
-				isAsyncn = 1
-			} else {
-				isAsyncn = 0
-			}
 
 			bofFile, ok := args["bof_file"].(string)
 			if !ok {
@@ -1863,9 +1849,9 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				if decErr != nil {
 					params = []byte(paramData)
 				}
-				array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, 0, isAsyncn, len(params), params}
+				array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, 0, len(params), params}
 			} else {
-				array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, 0, isAsyncn, 0, params}
+				array = []interface{}{TASK_EXEC_BOF, len(bofContent), bofContent, 0, 0, params}
 			}
 
 		case "postex":
@@ -1926,6 +1912,7 @@ RET:
 
 	return taskData, messageData, err
 }
+
 func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskData, packedData []byte) []ax.TaskData {
 	var outTasks []ax.TaskData
 

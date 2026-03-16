@@ -2311,7 +2311,7 @@ typedef struct _WORKER_FACTORY_BASIC_INFORMATION
     NTSTATUS LastThreadCreationStatus;
 } WORKER_FACTORY_BASIC_INFORMATION, *PWORKER_FACTORY_BASIC_INFORMATION;
 
-typedef struct __attribute__((packed))
+typedef struct 
 {
     ULONG ExtendedProcessInfo;
     ULONG ExtendedProcessInfoBuffer;
