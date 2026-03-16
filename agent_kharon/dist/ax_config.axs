@@ -220,7 +220,7 @@ function RegisterCommands(listenerType)
 
     /// SCINJECT
 
-    let cmd_scinject = ax.create_command("scinject", "Inject raw shellcode into a target process by PID", "scinject /tmp/payload.bin 1234", "Task: inject shellcode into process");
+    let cmd_scinject = ax.create_command("scinject", "Inject raw shellcode into a target process by PID", "scinject 1234 /tmp/payload.bin", "Task: inject shellcode into process");
     cmd_scinject.addArgInt("pid", true);
     cmd_scinject.addArgFile("shellcode", true);
 
