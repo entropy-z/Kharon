@@ -157,7 +157,7 @@ function RegisterCommands(listenerType)
     cmd_config_amsietwbypass.addArgString("bypass", true, "Bypass target: 'all', 'amsi', 'etw', or 'none'");
 
     let cmd_config_spawnto = ax.create_command("spawnto", "Set the executable path for spawning new processes", "config spawnto C:\\Windows\\System32\\rundll32.exe", "Task: configure spawn target");
-    cmd_config_spawnto.addArgString("path", true);
+    cmd_config_spawnto.addArgString("spawnto", true);
 
     let cmd_config_wkrtime = ax.create_command("worktime", "Set operational hours for beacon activity", "config worktime 09:00 18:00", "Task: configure working hours");
     cmd_config_wkrtime.addArgString("start", true);
