@@ -460,9 +460,13 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 			"-ladvapi32",
 		}
 
-		if cfg.Format == "Dll" {
+		switch cfg.Format {
+		case "Dll":
 			clangArgs = append(clangArgs, "-shared")
 			fmt.Println("DEBUG: Added -shared flag for DLL compilation")
+		case "Svc":
+			clangArgs = append(clangArgs, "-Wl,-e,WinMain")
+			fmt.Println("DEBUG: Added -e WinMain entry point for Svc compilation")
 		}
 
 		fmt.Printf("→ Running clang++: %v\n", clangArgs)
@@ -1026,7 +1030,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
-			if ( len(kharon_cfg.Ps.Spoofarg) > 0 ) {
+			if len(kharon_cfg.Ps.Spoofarg) > 0 {
 				if len(programArgs) > len(kharon_cfg.Ps.Spoofarg) {
 					err = errors.New("Spoof argument needs be greater than legit args")
 					goto RET
@@ -1775,7 +1779,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			}
 
 			boolean := enabled == 1
-			
+
 			kharon_cfg.Evasion.BofProxy = boolean
 			kharon_cfg.JsonMarshal(&agent, true)
 
@@ -2030,7 +2034,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 			case CALLBACK_INFO:
 				task.MessageType = MESSAGE_INFO
 				task.Message = packer.ParseString()
-			
+
 			default:
 				output := packer.ParseString()
 
