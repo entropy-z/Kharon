@@ -27,11 +27,14 @@ auto DECLFN Spoof::Call(
     Self->Spf->Setup.First.Size  = Self->Spf->StackSizeWrapper( Self->Spf->Setup.First.Ptr );
     Self->Spf->Setup.Second.Size = Self->Spf->StackSizeWrapper( Self->Spf->Setup.Second.Ptr );
 
+    KhDbg("frame one: %p %d", this->Setup.First.Ptr, this->Setup.First.Size);
+    KhDbg("frame two: %p %d", this->Setup.Second.Ptr, this->Setup.Second.Size);
+
     do {
         this->Setup.Gadget.Ptr  = Self->Usf->FindGadget( Self->KrnlBase.Handle, 0x23 );
         this->Setup.Gadget.Size = (UPTR)this->StackSizeWrapper( this->Setup.Gadget.Ptr );
 
-        KhDbg("gadget: %p", this->Setup.Gadget.Ptr, this->Setup.Gadget.Size);
+        KhDbg("gadget: %p %d", this->Setup.Gadget.Ptr, this->Setup.Gadget.Size);
     } while ( ! this->Setup.Gadget.Size );
 
     this->Setup.Ssn      = Ssn;
@@ -64,177 +67,103 @@ auto DECLFN Spoof::StackSize(
     _In_ UPTR RtmFunction,
     _In_ UPTR ImgBase
 ) -> UPTR {
-    STACK_FRAME Stack = { 0 };
     RUNTIME_FUNCTION* pFunc = reinterpret_cast<RUNTIME_FUNCTION*>( RtmFunction );
     
-    if ( ! pFunc || ! ImgBase ) {
-        return 0x30;
+    if ( !pFunc || !ImgBase ) {
+        return 0;
     }
 
     UNWIND_INFO* UwInfo = reinterpret_cast<UNWIND_INFO*>(pFunc->UnwindData + ImgBase);
     
     if ( UwInfo->Version < 1 || UwInfo->Version > 2 ) {
-        return 0x30;
+        return 0;
     }
 
     ULONG TotalSize = 0;
     ULONG CodeCount = UwInfo->CountOfCodes;
     UNWIND_CODE* UwCode = UwInfo->UnwindCode;
 
-    for (ULONG i = 0; i < CodeCount; ) {
-        UBYTE UnwOp = UwCode[i].UnwindOp;
+    for ( ULONG i = 0; i < CodeCount; ) {
+        UBYTE UnwOp  = UwCode[i].UnwindOp;
         UBYTE OpInfo = UwCode[i].OpInfo;
 
-        switch (UnwOp) {
-            case UWOP_PUSH_NONVOL:
+        switch ( UnwOp ) {
+            case UWOP_PUSH_NONVOL:          // 0
                 TotalSize += 8;
                 i++;
                 break;
 
-            case UWOP_ALLOC_LARGE:
-                if (OpInfo == 0) {
-                    TotalSize += UwCode[++i].FrameOffset * 8;
+            case UWOP_ALLOC_LARGE:          // 1
+                if ( OpInfo == 0 ) {
+                    TotalSize += (ULONG)UwCode[i + 1].FrameOffset * 8;
+                    i += 2;
                 } else {
-                    TotalSize += UwCode[++i].FrameOffset + 
-                               (UwCode[++i].FrameOffset << 16);
+                    TotalSize += *(ULONG*)&UwCode[i + 1];
+                    i += 3;
                 }
-                i++;
                 break;
 
-            case UWOP_ALLOC_SMALL:
+            case UWOP_ALLOC_SMALL:          // 2
                 TotalSize += (OpInfo * 8) + 8;
                 i++;
                 break;
 
-            case UWOP_SET_FPREG:
-            case UWOP_SET_FP: 
-                Stack.SetsFramePtr = TRUE;
+            case UWOP_SET_FPREG:            // 3
                 i++;
                 break;
 
-            case UWOP_SAVE_NONVOL:
-            case UWOP_SAVE_NONVOL_BIG:
+            case UWOP_SAVE_NONVOL:          // 4
                 i += 2;
                 break;
 
-            case UWOP_SAVE_XMM128:
-            case UWOP_SAVE_XMM128BIG:
+            case UWOP_SAVE_NONVOL_BIG:      // 5
                 i += 3;
                 break;
 
-            case UWOP_PUSH_MACH_FRAME:
-                TotalSize += OpInfo ? sizeof(UPTR) : 0; 
-                TotalSize += 6 * sizeof(UPTR); 
-                i++;
-                break;
-
-            case UWOP_ALLOC_MEDIUM:
-                TotalSize += ((OpInfo << 4) + 16);
-                i++;
-                break;
-
-            case UWOP_SAVE_FPLR:
-                TotalSize += 2 * sizeof(UPTR);
-                i++;
-                break;
-
-            case UWOP_SAVE_REG:
-            case UWOP_SAVE_REGX:
+            case UWOP_EPILOG:               // 6
                 i += 2;
                 break;
 
-            case UWOP_SAVE_REGP:
-            case UWOP_SAVE_REGPX:
+            case UWOP_SPARE_CODE:           // 7
                 i += 3;
                 break;
 
-            case UWOP_SAVE_LRPAIR:
-                TotalSize += 2 * sizeof(UPTR);
+            case UWOP_SAVE_XMM128:          // 8
                 i += 2;
                 break;
 
-            case UWOP_SAVE_FREG:
-            case UWOP_SAVE_FREGX:
-                i += 2;
-                break;
-
-            case UWOP_SAVE_FREGP:
-            case UWOP_SAVE_FREGPX:
+            case UWOP_SAVE_XMM128BIG:       // 9
                 i += 3;
                 break;
 
-            case UWOP_ADD_FP:
-                TotalSize += (OpInfo << 3);
+            case UWOP_PUSH_MACH_FRAME:      // 10
+                TotalSize += (OpInfo ? 48 : 40);
                 i++;
                 break;
 
-            case UWOP_ALLOC_HUGE:
-                TotalSize += UwCode[++i].FrameOffset + 
-                            (UwCode[++i].FrameOffset << 16) +
-                            (UwCode[++i].FrameOffset << 32);
-                i++;
-                break;
-
-            case UWOP_SAVE_REG_MASK:
-            case UWOP_WIDE_SAVE_REG_MASK:
-                TotalSize += (__builtin_popcount(OpInfo) * sizeof(UPTR));
-                i += 2;
-                break;
-
-            case UWOP_SAVE_REGS_R4R7LR:
-                TotalSize += 5 * sizeof(UPTR);
-                i++;
-                break;
-
-            case UWOP_WIDE_SAVE_REGS_R4R11LR:
-                TotalSize += 9 * sizeof(UPTR);
-                i++;
-                break;
-
-            case UWOP_SAVE_FREG_D8D15:
-                TotalSize += 8 * sizeof(DWORD64);
-                i++;
-                break;
-
-            case UWOP_SAVE_FREG_D0D15:
-                TotalSize += 16 * sizeof(DWORD64);
-                i++;
-                break;
-
-            case UWOP_SAVE_FREG_D16D31:
-                TotalSize += 16 * sizeof(DWORD64);
-                i++;
-                break;
-
-            case UWOP_NOP:
-            case UWOP_WIDE_NOP:
-            case UWOP_END:
-            case UWOP_END_NOP:
-            case UWOP_WIDE_END_NOP:
-                i++;
-                break;
-
-            default:
-                TotalSize += 0x20;
+            default:                        // 11-15: reserved/invalid in x64
                 i++;
                 break;
         }
     }
 
-    if (UwInfo->Flags & UNW_FLAG_CHAININFO) {
+    // Handle chained unwind info
+    if ( UwInfo->Flags & UNW_FLAG_CHAININFO ) {
         ULONG ChainOffset = CodeCount;
-        if (ChainOffset & 1) ChainOffset++;
+        if ( ChainOffset & 1 ) ChainOffset++;
 
         RUNTIME_FUNCTION* ChainFunc = reinterpret_cast<RUNTIME_FUNCTION*>(
             &UwInfo->UnwindCode[ChainOffset]
         );
         
-        TotalSize += StackSize((UPTR)ChainFunc, ImgBase);
+        TotalSize += StackSize( (UPTR)ChainFunc, ImgBase );
     }
 
-    TotalSize += sizeof(UPTR); 
-    TotalSize = ALIGN_UP( TotalSize, 16 ); 
-    TotalSize += 0x20; 
+    // Return address (pushed by call instruction)
+    TotalSize += 8;
 
-    return min( TotalSize, 0x1000 ); 
+    // Stack must be 16-byte aligned
+    TotalSize = ALIGN_UP( TotalSize, 16 );
+
+    return TotalSize;
 }
