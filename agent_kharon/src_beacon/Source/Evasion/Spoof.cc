@@ -27,14 +27,9 @@ auto DECLFN Spoof::Call(
     Self->Spf->Setup.First.Size  = Self->Spf->StackSizeWrapper( Self->Spf->Setup.First.Ptr );
     Self->Spf->Setup.Second.Size = Self->Spf->StackSizeWrapper( Self->Spf->Setup.Second.Ptr );
 
-    KhDbg("frame one: %p %d", this->Setup.First.Ptr, this->Setup.First.Size);
-    KhDbg("frame two: %p %d", this->Setup.Second.Ptr, this->Setup.Second.Size);
-
     do {
         this->Setup.Gadget.Ptr  = Self->Usf->FindGadget( Self->KrnlBase.Handle, 0x23 );
         this->Setup.Gadget.Size = (UPTR)this->StackSizeWrapper( this->Setup.Gadget.Ptr );
-
-        KhDbg("gadget: %p %d", this->Setup.Gadget.Ptr, this->Setup.Gadget.Size);
     } while ( ! this->Setup.Gadget.Size );
 
     this->Setup.Ssn      = Ssn;
@@ -141,13 +136,12 @@ auto DECLFN Spoof::StackSize(
                 i++;
                 break;
 
-            default:                        // 11-15: reserved/invalid in x64
+            default:                      
                 i++;
                 break;
         }
     }
 
-    // Handle chained unwind info
     if ( UwInfo->Flags & UNW_FLAG_CHAININFO ) {
         ULONG ChainOffset = CodeCount;
         if ( ChainOffset & 1 ) ChainOffset++;
@@ -159,10 +153,8 @@ auto DECLFN Spoof::StackSize(
         TotalSize += StackSize( (UPTR)ChainFunc, ImgBase );
     }
 
-    // Return address (pushed by call instruction)
     TotalSize += 8;
 
-    // Stack must be 16-byte aligned
     TotalSize = ALIGN_UP( TotalSize, 16 );
 
     return TotalSize;
