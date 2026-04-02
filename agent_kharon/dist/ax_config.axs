@@ -174,8 +174,8 @@ function RegisterCommands(listenerType)
 
     let cmd_config_subcommands = [
         cmd_config_sleep, cmd_config_jitter, cmd_config_ppid, cmd_config_blockdll, cmd_config_spoofarg, cmd_config_wkrtime,
-        cmd_config_killdate_date, cmd_config_killdate_exit, cmd_config_killdate_selfdel, 
-        cmd_config_heap_obf, cmd_config_mask, cmd_config_amsietwbypass, cmd_config_spawnto, cmd_config_syscall, cmd_config_bofproxy
+        cmd_config_killdate_date, cmd_config_killdate_exit, cmd_config_killdate_selfdel,
+        cmd_config_heap_obf, cmd_config_mask, cmd_config_amsietwbypass, cmd_config_spawnto, cmd_config_syscall, cmd_config_bofproxy, cmd_config_forkpipe
     ];
 
     let cmd_config = ax.create_command("config", "Configuration management - adjust beacon behavior and settings", "config sleep 50s");
