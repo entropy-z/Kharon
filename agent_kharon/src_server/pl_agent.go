@@ -2006,7 +2006,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 		// Read callback type (4 bytes BIG ENDIAN at offset 37)
 		remaining := packedData[37:]
 		if len(remaining) >= 4 {
-			callbackType := uint32(remaining[0])<<24 | uint32(remaining[1])<<16 | uint32(remaining[2])<<8 | uint32(remaining[3])
+			_ = uint32(remaining[0])<<24 | uint32(remaining[1])<<16 | uint32(remaining[2])<<8 | uint32(remaining[3])
 			remaining = remaining[4:]
 
 			// Read message string (length-prefixed BIG ENDIAN: [4B len][chars])
