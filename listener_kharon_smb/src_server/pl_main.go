@@ -311,7 +311,9 @@ func (l *Listener) InternalHandler(data []byte) (string, error) {
 			}
 		}
 
-		// Try all stored keys to find a match (handles renamed agent IDs)
+		// Try all stored keys to find a match (handles renamed agent IDs).
+		// Validate decrypted data starts with a known format byte to avoid
+		// false matches — a wrong key produces garbage that won't start with 0x01/0x05/0x07.
 		keys, keyErr := ModuleObject.ts.TsExtenderDataKeys(l.transport.Name)
 		if keyErr == nil {
 			for _, k := range keys {
@@ -322,6 +324,14 @@ func (l *Listener) InternalHandler(data []byte) (string, error) {
 						encryptedData := data[36:]
 						crypt := NewLokyCrypt(storedKey, storedKey)
 						decryptedData := crypt.Decrypt(encryptedData)
+
+						// Verify decryption produced valid data — wrong key = garbage
+						if len(decryptedData) > 0 {
+							fb := decryptedData[0]
+							if fb != 0x01 && fb != 0x05 && fb != 0x07 {
+								continue // wrong key, try next
+							}
+						}
 
 						_ = ModuleObject.ts.TsAgentSetTick(agentID, l.transport.Name)
 						processDecryptedData(agentID, decryptedData)
