@@ -319,37 +319,39 @@ func (l *Listener) InternalHandler(data []byte) (string, error) {
 			}
 		}
 
-		// Try all stored keys to find a match (handles renamed agent IDs).
-		// Validate decrypted data starts with a known format byte to avoid
-		// false matches — a wrong key produces garbage that won't start with 0x01/0x05/0x07.
-		keys, keyErr := ModuleObject.ts.TsExtenderDataKeys(l.transport.Name)
-		if keyErr == nil {
+		// Look up key by the original UUID prefix (data[:8]).
+		// The key was stored as key_<originalUUID> at first checkin, and also
+		// as key_<serverAssignedId>. Using the original UUID is the most reliable
+		// way to find the correct key — avoids false matches from key scanning.
+		origPrefix := string(data[:8])
+		storedKey, keyErr := ModuleObject.ts.TsExtenderDataLoad(l.transport.Name, "key_"+origPrefix)
+		if keyErr == nil && len(storedKey) == 16 {
+			encryptedData := data[36:]
+			crypt := NewLokyCrypt(storedKey, storedKey)
+			decryptedData := crypt.Decrypt(encryptedData)
+
+			// Find the server-assigned agent ID for this original UUID
+			agentID := origPrefix // fallback
+			keys, _ := ModuleObject.ts.TsExtenderDataKeys(l.transport.Name)
 			for _, k := range keys {
 				if len(k) > 4 && k[:4] == "key_" {
-					agentID := k[4:]
-					storedKey, _ := ModuleObject.ts.TsExtenderDataLoad(l.transport.Name, k)
-					if len(storedKey) == 16 && ModuleObject.ts.TsAgentIsExists(agentID) {
-						encryptedData := data[36:]
-						crypt := NewLokyCrypt(storedKey, storedKey)
-						decryptedData := crypt.Decrypt(encryptedData)
-
-						// Verify decryption produced valid data — wrong key = garbage
-						if len(decryptedData) > 0 {
-							fb := decryptedData[0]
-							fmt.Printf("[IH-DBG] stored key scan: trying key_%s, firstByte=0x%02x\n", agentID, fb)
-							if fb != 0x01 && fb != 0x05 && fb != 0x07 {
-								continue // wrong key, try next
-							}
+					candidateID := k[4:]
+					if candidateID != origPrefix && ModuleObject.ts.TsAgentIsExists(candidateID) {
+						// Check if this agent has the same key
+						candidateKey, _ := ModuleObject.ts.TsExtenderDataLoad(l.transport.Name, k)
+						if len(candidateKey) == 16 && string(candidateKey) == string(storedKey) {
+							agentID = candidateID
+							break
 						}
-
-						fmt.Printf("[IH-DBG] stored key scan: MATCHED agent=%s\n", agentID)
-						_ = ModuleObject.ts.TsAgentSetTick(agentID, l.transport.Name)
-						processDecryptedData(agentID, decryptedData)
-
-						return agentID, nil
 					}
 				}
 			}
+
+			fmt.Printf("[IH-DBG] direct key match: origUUID='%s' → agent=%s\n", origPrefix, agentID)
+			_ = ModuleObject.ts.TsAgentSetTick(agentID, l.transport.Name)
+			processDecryptedData(agentID, decryptedData)
+
+			return agentID, nil
 		}
 	}
 
