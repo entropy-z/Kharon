@@ -2914,12 +2914,15 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 
 						case 20: // Action::Pivot::Exchange — child response relayed by parent
 							if cmd_packer.CheckPacker([]string{"int", "array"}) {
-								_ = cmd_packer.ParseInt32() // profileType
+								profileType := cmd_packer.ParseInt32()
 								childResp := cmd_packer.ParseBytes()
 
+								dumpLen := len(childResp)
+								if dumpLen > 50 { dumpLen = 50 }
+								fmt.Printf("[EXCH-DBG] case20: profileType=0x%x, respLen=%d, first50=%x\n",
+									profileType, len(childResp), childResp[:dumpLen])
+
 								if len(childResp) >= 37 {
-									// childResp = [36B child UUID][1B PostTask][4B taskCount][tasks...]
-									// Reverse-lookup PivotUUIDMap to find the server-assigned agent ID
 									origPrefix := string(childResp[:8])
 									childAgentId := ""
 									for serverId, origUUID := range PivotUUIDMap {
@@ -2928,11 +2931,16 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 											break
 										}
 									}
+									fmt.Printf("[EXCH-DBG] origPrefix='%s', childAgentId='%s'\n", origPrefix, childAgentId)
+
 									if childAgentId != "" {
-										// Strip UUID (36B) + PostTask byte (1B), pass raw task data
 										taskPayload := childResp[37:]
+										fmt.Printf("[EXCH-DBG] taskPayload first8=%x (len=%d)\n", taskPayload[:min(8, len(taskPayload))], len(taskPayload))
 										_ = ts.TsAgentProcessData(childAgentId, taskPayload)
 										_ = ts.TsAgentSetTick(childAgentId, "")
+									} else {
+										// Fallback: try InternalHandler for checkins
+										_, _ = ts.TsListenerInteralHandler("c17a905a", childResp)
 									}
 								}
 							}
