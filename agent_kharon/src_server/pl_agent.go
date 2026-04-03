@@ -2032,31 +2032,38 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 	}
 
 	taskCount := packer.ParseInt32()
+	fmt.Printf("[PTR-DBG] ProcessTasksResult: agent=%s, taskCount=%d, packerSize=%d\n", agentData.Id, taskCount, packer.Size())
 
 	for taskIndex := uint(0); taskIndex < taskCount && packer.CheckPacker([]string{"int"}); taskIndex++ {
 		dataType := packer.ParseInt32()
+		fmt.Printf("[PTR-DBG]   task[%d]: dataType=0x%x, remaining=%d\n", taskIndex, dataType, packer.Size())
 
 		if dataType == uint(MSG_QUICK) || dataType == uint(MSG_OUT) {
 			if len(packer.buffer) < 16 {
+				fmt.Printf("[PTR-DBG]   MSG_QUICK: buffer too small (%d)\n", len(packer.buffer))
 				return outTasks
 			}
 
 			TaskUID := string(packer.ParsePad(36))
 			if len(TaskUID) < 8 {
+				fmt.Printf("[PTR-DBG]   MSG_QUICK: TaskUID too short\n")
 				return outTasks
 			}
 			task := taskData
 			task.TaskId = TaskUID[:8]
+			fmt.Printf("[PTR-DBG]   MSG_QUICK: TaskId=%s, remaining=%d\n", task.TaskId, packer.Size())
 
 			if dataType == 0x7 && packer.CheckPacker([]string{"int"}) {
 				packer.ParseInt32()
 			}
 
 			if false == packer.CheckPacker([]string{"int", "array"}) {
+				fmt.Printf("[PTR-DBG]   MSG_QUICK: CheckPacker(int,array) FAILED, remaining=%d\n", packer.Size())
 				return outTasks
 			}
 
 			outputType := packer.ParseInt32()
+			fmt.Printf("[PTR-DBG]   MSG_QUICK: outputType=%d\n", outputType)
 
 			switch outputType {
 			case CALLBACK_ERROR:
@@ -2139,12 +2146,16 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 			outTasks = append(outTasks, task)
 
 		} else if dataType == uint(PROFILE_WEB) || dataType == uint(PROFILE_SMB) { // web || smb
+			fmt.Printf("[PTR-DBG]   PROFILE_SMB/WEB entry, checking array...\n")
 
 			if false == packer.CheckPacker([]string{"array"}) {
+				fmt.Printf("[PTR-DBG]   CheckPacker(array) FAILED, remaining=%d\n", packer.Size())
 				return outTasks
 			}
 
-			cmd_packer := CreatePacker(packer.ParseBytes())
+			innerBytes := packer.ParseBytes()
+			fmt.Printf("[PTR-DBG]   inner bytes=%d\n", len(innerBytes))
+			cmd_packer := CreatePacker(innerBytes)
 			if cmd_packer.CheckPacker([]string{"array", "word"}) {
 
 				TaskUID := cmd_packer.ParseString()
@@ -2155,6 +2166,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 				task.TaskId = TaskUID[:8]
 
 				commandId := int16(cmd_packer.ParseInt16())
+				fmt.Printf("[PTR-DBG]   PROFILE_SMB: TaskUID=%s, commandId=%d\n", task.TaskId, commandId)
 					switch commandId {
 
 				case TASK_JOB:
