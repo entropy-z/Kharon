@@ -143,6 +143,10 @@ var (
 	ModuleObject   *ModuleExtender
 	ModuleDir      string
 	AgentWatermark string
+
+	// PivotUUIDMap maps server-assigned agentId → original beacon UUID prefix (first 8 chars).
+	// Needed because CreateAgent generates a random ID unrelated to the beacon's SmbUUID.
+	PivotUUIDMap = make(map[string]string)
 )
 
 func (p *PluginAgent) GetExtender() ax.ExtenderAgent {
@@ -225,14 +229,13 @@ func (ext *ExtenderAgent) PackTasks(agentData ax.AgentData, tasks []ax.TaskData)
 func (ext *ExtenderAgent) PivotPackData(pivotId string, data []byte) (ax.TaskData, error) {
 	// Resolve the beacon's original UUID from the pivot table.
 	// The beacon stores children by SmbUUID (first 8 chars of checkin UUID),
-	// but the server assigns a random agent ID. We stored the mapping at Link time.
+	// but CreateAgent assigns a random agent ID. We stored the mapping at Link time.
 	childId := pivotId
 	if ModuleObject != nil && ModuleObject.ts != nil {
 		_, _, cid := ModuleObject.ts.TsGetPivotInfoById(pivotId)
 		if cid != "" {
-			origUUID, err := ModuleObject.ts.TsExtenderDataLoad("kharon_pivot_map", cid)
-			if err == nil && len(origUUID) > 0 {
-				childId = string(origUUID)
+			if origUUID, ok := PivotUUIDMap[cid]; ok {
+				childId = origUUID
 			} else {
 				childId = cid
 			}
