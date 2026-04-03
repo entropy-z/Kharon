@@ -278,9 +278,11 @@ func (l *Listener) InternalHandler(data []byte) (string, error) {
 	// QuickMsg (0x05) / QuickOut (0x07): wrap with 7-byte header like HTTP listener
 	processDecryptedData := func(agentID string, decryptedData []byte) {
 		if len(decryptedData) <= 1 {
+			fmt.Printf("[IH-DBG] processDecryptedData: too short (%d) for agent %s\n", len(decryptedData), agentID)
 			return
 		}
 		firstByte := decryptedData[0]
+		fmt.Printf("[IH-DBG] processDecryptedData: agent=%s, len=%d, firstByte=0x%02x\n", agentID, len(decryptedData), firstByte)
 		var taskData []byte
 		if firstByte == 0x05 || firstByte == 0x07 {
 			msgTypePattern := append([]byte{0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0}, decryptedData...)
@@ -288,14 +290,20 @@ func (l *Listener) InternalHandler(data []byte) (string, error) {
 		} else if firstByte == 0x01 {
 			taskData = decryptedData[1:]
 		} else {
+			fmt.Printf("[IH-DBG] processDecryptedData: UNKNOWN format 0x%02x, passing raw\n", firstByte)
 			taskData = decryptedData
 		}
-		_ = ModuleObject.ts.TsAgentProcessData(agentID, taskData)
+		err := ModuleObject.ts.TsAgentProcessData(agentID, taskData)
+		if err != nil {
+			fmt.Printf("[IH-DBG] TsAgentProcessData ERROR: %v\n", err)
+		}
 	}
 
 	// Try to match against known agents by UUID in first 8 bytes
 	if totalLen >= 36 {
 		testAgentID := string(data[:8])
+		fmt.Printf("[IH-DBG] InternalHandler: len=%d, testAgentID='%s', exists=%v\n",
+			totalLen, testAgentID, ModuleObject.ts.TsAgentIsExists(testAgentID))
 
 		if ModuleObject.ts.TsAgentIsExists(testAgentID) {
 			storedKey, err := ModuleObject.ts.TsExtenderDataLoad(l.transport.Name, "key_"+testAgentID)
@@ -328,11 +336,13 @@ func (l *Listener) InternalHandler(data []byte) (string, error) {
 						// Verify decryption produced valid data — wrong key = garbage
 						if len(decryptedData) > 0 {
 							fb := decryptedData[0]
+							fmt.Printf("[IH-DBG] stored key scan: trying key_%s, firstByte=0x%02x\n", agentID, fb)
 							if fb != 0x01 && fb != 0x05 && fb != 0x07 {
 								continue // wrong key, try next
 							}
 						}
 
+						fmt.Printf("[IH-DBG] stored key scan: MATCHED agent=%s\n", agentID)
 						_ = ModuleObject.ts.TsAgentSetTick(agentID, l.transport.Name)
 						processDecryptedData(agentID, decryptedData)
 
