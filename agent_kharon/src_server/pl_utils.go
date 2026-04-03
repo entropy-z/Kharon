@@ -2329,6 +2329,9 @@ func FormatKharonTable(data *KharonData) string {
 	b.WriteString(row("Kharon in-memory Size", fmt.Sprintf("%d bytes", data.Session.Base.Size)))
 	b.WriteString(row("Code Page (ACP)", fmt.Sprintf("%d", data.Session.Acp)))
 	b.WriteString(row("OEM Code Page", fmt.Sprintf("%d", data.Session.Oemcp)))
+	if data.PipeName != "" {
+		b.WriteString(row("SMB Pipe Name", data.PipeName))
+	}
 	b.WriteString(border("middle"))
 
 	// ==================== TIMING ====================
