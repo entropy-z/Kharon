@@ -196,6 +196,12 @@ function setup_go_workspace_listener_smb {
     info_msg "Go workspace configured for SMB listener"
 }
 
+function build_server {
+    cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter AdaptixServer directory"
+    go build -o ../dist/adaptixserver . || error_exit "Failed to rebuild Adaptix server"
+    info_msg "Rebuilt Adaptix server (ensures plugin compatibility)"
+}
+
 function build_agent_code {
     cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter AdaptixServer directory"
     
@@ -303,6 +309,7 @@ case $ACTION in
         build_agent_beacon
         build_listener
         build_listener_smb
+        build_server
         copy_agent_dist
         copy_listener_dist
         copy_listener_smb_dist
