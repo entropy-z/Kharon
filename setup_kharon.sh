@@ -309,7 +309,6 @@ case $ACTION in
         build_agent_beacon
         build_listener
         build_listener_smb
-        build_server
         copy_agent_dist
         copy_listener_dist
         copy_listener_smb_dist
