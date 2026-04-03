@@ -1923,10 +1923,12 @@ auto DECLFN Task::Exit(
     Job->State    = KH_JOB_READY_SEND;
     Job->ExitCode = EXIT_SUCCESS;
 
-    Self->Jbs->Send( Self->Jbs->PostJobs );
-    // Self->Jbs->Cleanup();
-
-    // Self->Hp->Clean();
+    // For SMB: skip manual Send — it creates a new pipe and blocks forever
+    // on ConnectNamedPipe, preventing RtlExitUserProcess from executing.
+    // The Dispatcher's FinalRoutine will handle the final Send.
+    if ( ! Self->Tsp->Pipe.Name ) {
+        Self->Jbs->Send( Self->Jbs->PostJobs );
+    }
 
     if ( ExitType == Action::Exit::Proc ) {
         Self->Ntdll.RtlExitUserProcess( EXIT_SUCCESS );
