@@ -2917,8 +2917,23 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 								_ = cmd_packer.ParseInt32() // profileType
 								childResp := cmd_packer.ParseBytes()
 
-								if len(childResp) > 0 {
-									_, _ = ts.TsListenerInteralHandler("c17a905a", childResp)
+								if len(childResp) >= 37 {
+									// childResp = [36B child UUID][1B PostTask][4B taskCount][tasks...]
+									// Reverse-lookup PivotUUIDMap to find the server-assigned agent ID
+									origPrefix := string(childResp[:8])
+									childAgentId := ""
+									for serverId, origUUID := range PivotUUIDMap {
+										if origUUID == origPrefix {
+											childAgentId = serverId
+											break
+										}
+									}
+									if childAgentId != "" {
+										// Strip UUID (36B) + PostTask byte (1B), pass raw task data
+										taskPayload := childResp[37:]
+										_ = ts.TsAgentProcessData(childAgentId, taskPayload)
+										_ = ts.TsAgentSetTick(childAgentId, "")
+									}
 								}
 							}
 						}
