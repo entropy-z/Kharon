@@ -370,11 +370,33 @@ func (l *Listener) InternalHandler(data []byte) (string, error) {
 	crypt := NewLokyCrypt(extractedKey, extractedKey)
 	decryptedBeat := crypt.Decrypt(encryptedBeat)
 
-	// Clear old stored keys (prevent stale key matching across sessions)
+	// Clean up only stale keys (agents that no longer exist).
+	// Do NOT clear all keys — other active SMB agents need their keys preserved.
 	oldKeys, _ := ModuleObject.ts.TsExtenderDataKeys(l.transport.Name)
 	for _, k := range oldKeys {
 		if len(k) > 4 && k[:4] == "key_" {
-			ModuleObject.ts.TsExtenderDataDelete(l.transport.Name, k)
+			oldAgentID := k[4:]
+			if !ModuleObject.ts.TsAgentIsExists(oldAgentID) {
+				// Check if this is an original-UUID key (not server-assigned)
+				// by seeing if any existing agent shares the same key bytes
+				oldKey, _ := ModuleObject.ts.TsExtenderDataLoad(l.transport.Name, k)
+				isOrphan := true
+				for _, k2 := range oldKeys {
+					if k2 != k && len(k2) > 4 && k2[:4] == "key_" {
+						k2Agent := k2[4:]
+						if ModuleObject.ts.TsAgentIsExists(k2Agent) {
+							k2Key, _ := ModuleObject.ts.TsExtenderDataLoad(l.transport.Name, k2)
+							if len(k2Key) == 16 && len(oldKey) == 16 && string(k2Key) == string(oldKey) {
+								isOrphan = false
+								break
+							}
+						}
+					}
+				}
+				if isOrphan {
+					ModuleObject.ts.TsExtenderDataDelete(l.transport.Name, k)
+				}
+			}
 		}
 	}
 
