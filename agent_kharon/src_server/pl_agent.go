@@ -233,7 +233,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 	forkPipe := cfg.ForkPipe
 	forkPipe = strings.ReplaceAll(forkPipe, `\`, `\\`)
 	forkPipe = strings.ReplaceAll(forkPipe, `"`, `\"`)
-	forkPipeC := fmt.Sprintf("L\\\"%s\\\"", forkPipe)
+	forkPipeC := fmt.Sprintf("\"%s\"", forkPipe)
 
 	// Escape and format Spawnto
 	spawnto := cfg.Spawnto
