@@ -1,9 +1,7 @@
 #include <Kharon.h>
-#include <Shellcode.h>
 
 EXTERN_C auto DLLEXPORT Runner( VOID ) -> VOID {
-    VOID ( *Kharon )( VOID ) = ( decltype( Kharon ) )Shellcode::Data;
-    Kharon();
+    EntryLoader();
 }
 
 auto WINAPI DllMain(
