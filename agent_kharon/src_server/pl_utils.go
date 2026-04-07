@@ -23,48 +23,48 @@ import (
 
 type KharonData struct {
 	Machine struct {
-		OsArch            uint8  `json:"os_arch"`
-		Username          string `json:"username"`
-		Computer          string `json:"computer"`
-		Domain            string `json:"domain"`
-		Netbios           string `json:"netbios"`
-		Ipaddress         string `json:"ipaddress"`
-		ProcessorName     string `json:"processor_name"`
-		ProcessorNumbers  uint32 `json:"processor_numbers"`
-		RamTotal          uint32 `json:"ram_total"`
-		RamAval           uint32 `json:"ram_aval"`
-		RamUsed           uint32 `json:"ram_used"`
-		RamPerct          uint32 `json:"ram_perct"`
-		OsMajor           uint32 `json:"os_major"`
-		OsMinor           uint32 `json:"os_minor"`
-		OsBuild           uint32 `json:"os_build"`
-		AllocationGran    uint32 `json:"allocation_gran"`
-		PageSize          uint32 `json:"page_size"`
-		CfgEnabled        bool   `json:"cfg_enabled"`
-		VbsHvci           uint32 `json:"vbs_hvci"`
-		DseStatus         uint32 `json:"dse_status"`
-		TestsignEnabled   bool   `json:"testsign_enabled"`
-		DebugmodeEnabled  bool   `json:"debugmode_enabled"`
-		SecurebootEnabled bool   `json:"secureboot_enabled"`
+		OsArch           uint8  `json:"os_arch"`
+		Username         string `json:"username"`
+		Computer         string `json:"computer"`
+		Domain           string `json:"domain"`
+		Netbios          string `json:"netbios"`
+		Ipaddress        string `json:"ipaddress"`
+		ProcessorName    string `json:"processor_name"`
+		ProcessorNumbers uint32 `json:"processor_numbers"`
+		RamTotal         uint32 `json:"ram_total"`
+		RamAval          uint32 `json:"ram_aval"`
+		RamUsed          uint32 `json:"ram_used"`
+		RamPerct         uint32 `json:"ram_perct"`
+		OsMajor          uint32 `json:"os_major"`
+		OsMinor          uint32 `json:"os_minor"`
+		OsBuild          uint32 `json:"os_build"`
+		AllocationGran   uint32 `json:"allocation_gran"`
+		PageSize         uint32 `json:"page_size"`
+		CfgEnabled       bool   `json:"cfg_enabled"`
+		VbsHvci          uint32 `json:"vbs_hvci"`
+		DseStatus        uint32 `json:"dse_status"`
+		TestsignEnabled  bool   `json:"testsign_enabled"`
+		DebugmodeEnabled bool   `json:"debugmode_enabled"`
+		SecurebootEnabled bool  `json:"secureboot_enabled"`
 	} `json:"machine"`
 
 	Session struct {
-		AgentIdStr  string `json:"agent_id_str"`
-		AgentIdInt  uint32 `json:"agent_id_int"`
-		SleepTime   uint32 `json:"sleep_time"`
-		Jitter      uint32 `json:"jitter"`
-		HeapHandle  uint64 `json:"heap_handle"`
-		Elevated    bool   `json:"elevated"`
+		AgentIdStr string `json:"agent_id_str"`
+		AgentIdInt uint32 `json:"agent_id_int"`
+		SleepTime  uint32 `json:"sleep_time"`
+		Jitter     uint32 `json:"jitter"`
+		HeapHandle uint64 `json:"heap_handle"`
+		Elevated   bool   `json:"elevated"`
 		ProcessArch uint32 `json:"process_arch"`
-		ImgPath     string `json:"img_path"`
-		ImgName     string `json:"img_name"`
-		CmdLine     string `json:"cmd_line"`
-		ProcessId   uint32 `json:"process_id"`
-		ThreadId    uint32 `json:"thread_id"`
-		ParentId    uint32 `json:"parent_id"`
-		Acp         uint32 `json:"acp"`
-		Oemcp       uint32 `json:"oemcp"`
-		Base        struct {
+		ImgPath    string `json:"img_path"`
+		ImgName    string `json:"img_name"`
+		CmdLine    string `json:"cmd_line"`
+		ProcessId  uint32 `json:"process_id"`
+		ThreadId   uint32 `json:"thread_id"`
+		ParentId   uint32 `json:"parent_id"`
+		Acp        uint32 `json:"acp"`
+		Oemcp      uint32 `json:"oemcp"`
+		Base struct {
 			Start string `json:"start"`
 			End   string `json:"end"`
 			Size  uint32 `json:"size"`
@@ -136,6 +136,7 @@ func (k *KharonData) JsonUnmarshal(agent *ax.AgentData) error {
 	}
 	return json.Unmarshal(agent.CustomData, k)
 }
+
 
 func (k *KharonData) Marshal() ([]byte, error) {
 	var buf bytes.Buffer
@@ -861,15 +862,15 @@ const (
 )
 
 const (
-	CALLBACK_OUTPUT          = 0x0
-	CALLBACK_OUTPUT_OEM      = 0x1e
-	CALLBACK_OUTPUT_UTF8     = 0x20
-	CALLBACK_ERROR           = 0x0d
-	CALLBACK_NO_PRE_MSG      = 0x4f
-	CALLBACK_INFO            = 0x4e
-	CALLBACK_SCREENSHOT      = 0x55
-	CALLBACK_CUSTOM          = 0x1000
-	CALLBACK_CUSTOM_LAST     = 0x13ff
+	CALLBACK_OUTPUT      = 0x0
+	CALLBACK_OUTPUT_OEM  = 0x1e
+	CALLBACK_OUTPUT_UTF8 = 0x20
+	CALLBACK_ERROR       = 0x0d
+	CALLBACK_NO_PRE_MSG  = 0x4f
+	CALLBACK_INFO        = 0x4e
+	CALLBACK_SCREENSHOT  = 0x55
+	CALLBACK_CUSTOM      = 0x1000
+	CALLBACK_CUSTOM_LAST = 0x13ff
 	CALLBACK_AX_SCREENSHOT   = 0x81
 	CALLBACK_AX_DOWNLOAD_MEM = 0x82
 )
@@ -1849,29 +1850,29 @@ func SizeBytesToFormat(size int64) string {
 	if size < 1024 {
 		return fmt.Sprintf("%d B", size)
 	}
-
+	
 	suffixes := []string{"B", "KB", "MB", "GB", "TB", "PB"}
 	base := float64(size)
 	i := 0
-
+	
 	for base >= 1024 && i < len(suffixes)-1 {
 		base /= 1024
 		i++
 	}
-
+	
 	return fmt.Sprintf("%.1f %s", base, suffixes[i])
 }
 
 func ConvertStringToWCharNullTerminated(input string) []byte {
 	runes := []rune(input)
 	utf16Data := utf16.Encode(runes)
-
+	
 	result := make([]byte, (len(utf16Data)+1)*2)
-
+	
 	for i, wchar := range utf16Data {
 		binary.LittleEndian.PutUint16(result[i*2:], wchar)
 	}
-
+	
 	return result
 }
 
@@ -1879,33 +1880,33 @@ func ConvertWCharBytesToString(data []byte) string {
 	if len(data) < 2 {
 		return ""
 	}
-
+	
 	if len(data)%2 != 0 {
 		data = data[:len(data)-1]
 	}
-
+	
 	utf16Data := make([]uint16, 0, len(data)/2)
 	for i := 0; i < len(data); i += 2 {
 		wchar := binary.LittleEndian.Uint16(data[i:])
-
+		
 		if wchar == 0 {
 			break
 		}
-
+		
 		utf16Data = append(utf16Data, wchar)
 	}
-
+	
 	runes := utf16.Decode(utf16Data)
 	return string(runes)
 }
 
 func ConvertWCharBytesToCp(data []byte, codePage int) string {
 	utf8Str := ConvertWCharBytesToString(data)
-
-	if codePage == 65001 {
+	
+	if codePage == 65001 { 
 		return utf8Str
 	}
-
+	
 	return ConvertUTF8toCp(utf8Str, codePage)
 }
 
@@ -1991,7 +1992,7 @@ func ConvertCpToUTF16String(input string, codePage int) string {
 func ConvertUTF16StringToCp(input string, codePage int) string {
 	runes := []rune(input)
 	utf16Data := utf16.Encode(runes)
-
+	
 	return ConvertUTF16toCp(utf16Data, codePage)
 }
 
@@ -2001,7 +2002,7 @@ func ConvertCpToUTF16LE(input string, codePage int) []byte {
 	utf16Data := ConvertCpToUTF16(input, codePage)
 
 	fmt.Printf("utf16 data: %v\n", utf16Data)
-
+	
 	result := make([]byte, len(utf16Data)*2)
 	for i, v := range utf16Data {
 		result[i*2] = byte(v)
@@ -2015,14 +2016,14 @@ func ConvertCpToUTF16LE(input string, codePage int) []byte {
 
 func ConvertUTF16LEToCp(data []byte, codePage int) string {
 	if len(data)%2 != 0 {
-		data = data[:len(data)-1]
+		data = data[:len(data)-1] 
 	}
-
+	
 	utf16Data := make([]uint16, len(data)/2)
 	for i := 0; i < len(utf16Data); i++ {
 		utf16Data[i] = uint16(data[i*2]) | uint16(data[i*2+1])<<8
 	}
-
+	
 	return ConvertUTF16toCp(utf16Data, codePage)
 }
 
@@ -2035,13 +2036,13 @@ func (c *CodePageConverter) ToUTF16(input string) []uint16 {
 	if c == nil {
 		return utf16.Encode([]rune(input))
 	}
-
+	
 	var buf strings.Builder
 	c.decoder.Reset()
 	writer := transform.NewWriter(&buf, c.decoder)
 	writer.Write([]byte(input))
 	writer.Close()
-
+	
 	return utf16.Encode([]rune(buf.String()))
 }
 
@@ -2129,19 +2130,19 @@ func get_map_keys(m map[string]any) []string {
 }
 
 func get_int_from_args(value interface{}) (int, bool) {
-	switch v := value.(type) {
-	case int:
-		return v, true
-	case float64:
-		return int(v), true
-	case int64:
-		return int(v), true
-	case string:
-		if i, err := strconv.Atoi(v); err == nil {
-			return i, true
-		}
-	}
-	return 0, false
+    switch v := value.(type) {
+    case int:
+        return v, true
+    case float64:
+        return int(v), true
+    case int64:
+        return int(v), true
+    case string:
+        if i, err := strconv.Atoi(v); err == nil {
+            return i, true
+        }
+    }
+    return 0, false
 }
 
 func bool_to_int(b bool) int {

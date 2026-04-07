@@ -271,7 +271,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 	forkPipe := cfg.ForkPipe
 	forkPipe = strings.ReplaceAll(forkPipe, `\`, `\\`)
 	forkPipe = strings.ReplaceAll(forkPipe, `"`, `\"`)
-	forkPipeC := fmt.Sprintf("L\\\"%s\\\"", forkPipe)
+	forkPipeC := fmt.Sprintf("\"%s\"", forkPipe)
 
 	// Escape and format Spawnto
 	spawnto := cfg.Spawnto
@@ -1589,6 +1589,8 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			kharon_cfg.Session.SleepTime = uint32(sleepTime * 1000)
 			kharon_cfg.JsonMarshal(&agent, true)
 
+			ModuleObject.ts.TsAgentUpdateData(agent)
+
 			bofParam, _ = PackExtData(int(CONFIG_SLEEP), int(sleepTime))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
@@ -1607,6 +1609,8 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			agent.Jitter = uint(jitterTime)
 			kharon_cfg.Session.Jitter = uint32(jitterTime)
 			kharon_cfg.JsonMarshal(&agent, true)
+
+			ModuleObject.ts.TsAgentUpdateData(agent)
 
 			bofParam, _ = PackExtData(int(CONFIG_JITTER), int(jitterTime))
 			if err != nil {
@@ -1914,6 +1918,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			if strings.Contains(bofFile, "kharon_replace_folder") {
 				bofFile = strings.ReplaceAll(bofFile, "kharon_replace_folder", postex_path)
 			}
+
 			var bofContent []byte
 			bofContent, err = base64.StdEncoding.DecodeString(bofFile)
 			if err != nil {
@@ -1989,6 +1994,7 @@ RET:
 
 	return taskData, messageData, err
 }
+
 func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskData, packedData []byte) []ax.TaskData {
 	var outTasks []ax.TaskData
 
