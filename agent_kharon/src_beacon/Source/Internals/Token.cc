@@ -401,7 +401,7 @@ auto DECLFN Token::TdOpen(
     _In_  BOOL    OpenAsSelf,
     _Out_ HANDLE* TokenHandle
 ) -> BOOL {    
-    const UINT32 Flags = Self->Config.Syscall;
+    const UINT32 Flags = Self->Config.Evasion.Syscall;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
     if ( ! Flags ) {
@@ -428,7 +428,7 @@ auto DECLFN Token::ProcOpen(
     _In_  ULONG   RightsAccess,
     _Out_ HANDLE* TokenHandle
 ) -> BOOL {    
-    const UINT32 Flags  = Self->Config.Syscall;
+    const UINT32 Flags  = Self->Config.Evasion.Syscall;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
     if ( ! Flags ) {

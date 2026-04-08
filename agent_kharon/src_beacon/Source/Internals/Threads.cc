@@ -57,7 +57,7 @@ auto DECLFN Thread::Create(
     _Out_ ULONG* ThreadID,
     _In_  LPSECURITY_ATTRIBUTES Attributes
 ) -> HANDLE {
-    const UINT32 Flags = Self->Config.Syscall;
+    const UINT32 Flags = Self->Config.Evasion.Syscall;
     HANDLE   Handle = nullptr;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
@@ -73,8 +73,8 @@ auto DECLFN Thread::Create(
         );
     }
 
-    UPTR Address = SYS_ADDR( Sys::CrThread );
-    UPTR ssn     = SYS_SSN( Sys::CrThread );
+    UPTR Address = SYS_ADDR( Sys::CreateTd );
+    UPTR ssn     = SYS_SSN( Sys::CreateTd );
 
     ULONG CreateFlags = 0;
     if ( uFlags & CREATE_SUSPENDED) CreateFlags |= 0x00000001; 
@@ -100,13 +100,13 @@ auto DECLFN Thread::SetCtx(
     _In_ HANDLE   Handle,
     _In_ CONTEXT* Ctx
 ) -> BOOL {
-    const UINT32 Flags  = Self->Config.Syscall;
+    const UINT32 Flags  = Self->Config.Evasion.Syscall;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
     if ( ! Flags ) return NT_SUCCESS( Self->Ntdll.NtSetContextThread( Handle, Ctx ) );
 
-    UPTR Address = SYS_ADDR( Sys::SetCtxThrd );
-    UPTR ssn = SYS_SSN( Sys::SetCtxThrd );
+    UPTR Address = SYS_ADDR( Sys::SetCtxThread );
+    UPTR ssn = SYS_SSN( Sys::SetCtxThread );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)Handle, (UPTR)Ctx
@@ -121,13 +121,13 @@ auto DECLFN Thread::GetCtx(
     _In_  HANDLE   Handle,
     _Out_ CONTEXT* Ctx
 ) -> BOOL {
-    const UINT32 Flags  = Self->Config.Syscall;
+    const UINT32 Flags  = Self->Config.Evasion.Syscall;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
     if ( ! Flags ) return NT_SUCCESS( Self->Ntdll.NtGetContextThread( Handle, Ctx ) );
 
-    UPTR Address = SYS_ADDR( Sys::GetCtxThrd );
-    UPTR ssn     = SYS_SSN( Sys::GetCtxThrd );
+    UPTR Address = SYS_ADDR( Sys::GetCtxThread );
+    UPTR ssn     = SYS_SSN( Sys::GetCtxThread );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)Handle, (UPTR)Ctx
@@ -143,7 +143,7 @@ auto DECLFN Thread::Open(
     _In_ BOOL  Inherit,
     _In_ ULONG ThreadID
 ) -> HANDLE {
-    const UINT32 Flags = Self->Config.Syscall;
+    const UINT32 Flags = Self->Config.Evasion.Syscall;
     
     OBJECT_ATTRIBUTES ObjAttr  = { sizeof(ObjAttr) };
     CLIENT_ID         ClientId = { 0, UlongToHandle( ThreadID ) };
@@ -154,8 +154,8 @@ auto DECLFN Thread::Open(
         return Self->Krnl32.OpenThread( RightAccess, Inherit, ThreadID );
     }
 
-    UPTR Address = SYS_ADDR( Sys::OpenThrd );
-    UPTR ssn = SYS_SSN( Sys::OpenThrd );
+    UPTR Address = SYS_ADDR( Sys::OpenTd );
+    UPTR ssn = SYS_SSN( Sys::OpenTd );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)&Result, RightAccess, (UPTR)&ObjAttr, (UPTR)&ClientId
@@ -173,7 +173,7 @@ auto DECLFN Thread::QueueAPC(
     _In_opt_ PVOID  Argument2,
     _In_opt_ PVOID  Argument3
 ) -> LONG {
-    const UINT32 Flags  = Self->Config.Syscall;
+    const UINT32 Flags  = Self->Config.Evasion.Syscall;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
     if ( ! Flags ) {

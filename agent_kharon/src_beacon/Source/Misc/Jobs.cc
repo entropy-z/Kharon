@@ -1,7 +1,7 @@
 #include <Kharon.h>
 
 auto DECLFN Jobs::Create(
-    _In_ CHAR*   UUID, 
+    _In_ CHAR*   TaskId, 
     _In_ PARSER* Parser,
     _In_ BOOL    IsResponse
 ) -> JOBS* {
@@ -33,16 +33,16 @@ auto DECLFN Jobs::Create(
 
     ULONG cmdID = Self->Psr->Int16( JobPsr );
 
-    NewJob->UUID = (CHAR*)KhAlloc( Str::LengthA(UUID) + 1 );
-    Mem::Copy( NewJob->UUID,UUID, Str::LengthA(UUID) + 1 );
+    NewJob->Id = (CHAR*)KhAlloc( Str::LengthA(TaskId) + 1 );
+    Mem::Copy( NewJob->Id, TaskId, Str::LengthA(TaskId) + 1 );
 
     NewJob->CmdID    = cmdID;
     NewJob->ExitCode = -1;
     NewJob->State    = KH_JOB_PRE_START;
     NewJob->Psr      = JobPsr;
-    NewJob->Pkg      = Self->Pkg->Create( NewJob->CmdID, UUID );
+    NewJob->Pkg      = Self->Pkg->Create( NewJob->CmdID, TaskId );
     NewJob->Clean    = TRUE;
-    NewJob->PersistTriggered = FALSE;
+    NewJob->PersistTriggered = FALSE;   
 
     if ( ! NewJob->Pkg ) {
         KhFree( NewJob );
@@ -50,7 +50,7 @@ auto DECLFN Jobs::Create(
         return nullptr;
     }
 
-    KhDbg( "adding job with uuid: %s and command id: %d", NewJob->UUID, NewJob->CmdID );
+    KhDbg( "adding job with id: %s and command id: %d", NewJob->Id, NewJob->CmdID );
 
     if ( !this->List ) {
         this->List = NewJob;
@@ -79,7 +79,8 @@ auto DECLFN Jobs::Send(
             Current->State    == KH_JOB_READY_SEND &&
             Current->ExitCode == EXIT_SUCCESS
         ) {
-            Self->Pkg->Int32( PostJobs, PROFILE_C2 );
+            Self->Pkg->Byte( PostJobs, 1 );
+            Self->Pkg->Pad( PostJobs, UC_PTR( Current->Id ), 8 );
             Self->Pkg->Int32( PostJobs, Current->Pkg->Length );
             Self->Pkg->Pad( PostJobs, UC_PTR( Current->Pkg->Buffer ), Current->Pkg->Length );
         } else if ( 
@@ -100,10 +101,9 @@ auto DECLFN Jobs::Send(
 
             MsgLen = MsgLen ? MsgLen : Str::LengthA( Unknown );
 
-            Self->Pkg->Int32( PostJobs, PROFILE_C2 );
+            Self->Pkg->Pad( PostJobs, UC_PTR( Current->Id ), 8 );
             Self->Pkg->Int32( PostJobs, MsgLen + 2 + 40 + sizeof(INT16) + sizeof(INT32) );
 
-            Self->Pkg->Bytes( PostJobs, UC_PTR( Current->UUID ), 36 );
             Self->Pkg->Int16( PostJobs, (INT16)Action::Task::Error );
             Self->Pkg->Int32( PostJobs, Current->ExitCode );
 
@@ -129,7 +129,7 @@ auto DECLFN Jobs::Send(
                 } else {
                     Current->State = KH_JOB_RUNNING;
                     Self->Pkg->Destroy( Current->Pkg );
-                    Current->Pkg = Self->Pkg->Create( Current->CmdID, Current->UUID );
+                    Current->Pkg = Self->Pkg->Create( Current->CmdID, Current->Id );
 
                     if ( Current->CmdID == (ULONG)Action::Task::PostEx ) {
                         Self->Pkg->Int32( Current->Pkg, (ULONG)Action::Postex::Poll );
@@ -147,7 +147,7 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
 
     while ( Current ) {
         if ( Current->State == KH_JOB_TERMINATE ) {
-            KhDbg("Cleaning up job: %s", Current->UUID);
+            KhDbg("Cleaning up job: %s", Current->Id);
             JOBS* ToRemove = Current;
              
             if ( Previous ) {
@@ -159,39 +159,39 @@ auto DECLFN Jobs::Cleanup( VOID ) -> VOID {
             }
 
             if ( ToRemove->Pkg ) {
-                KhDbg("Destroying Package for job %s", ToRemove->UUID);
+                KhDbg("Destroying Package for job %s", ToRemove->Id);
                 Self->Pkg->Destroy( ToRemove->Pkg );
                 ToRemove->Pkg = nullptr;
             }
 
             if ( ToRemove->Psr ) {
-                KhDbg("Destroying Parser for job %s", ToRemove->UUID);
+                KhDbg("Destroying Parser for job %s", ToRemove->Id);
                 Self->Psr->Destroy( ToRemove->Psr ); 
                 if ( Self->Hp->CheckPtr( ToRemove->Psr ) ) {
-                    KhDbg("Freeing Parser struct for job %s", ToRemove->UUID);
+                    KhDbg("Freeing Parser struct for job %s", ToRemove->Id);
                     KhFree( ToRemove->Psr );
                 }
                 ToRemove->Psr = nullptr;
             }
 
             if ( ToRemove->Destroy ) {
-                KhDbg("Destroying original Parser (Destroy) for job %s", ToRemove->UUID);
+                KhDbg("Destroying original Parser (Destroy) for job %s", ToRemove->Id);
                 Self->Psr->Destroy( (PARSER*)ToRemove->Destroy );
                 if ( Self->Hp->CheckPtr( ToRemove->Destroy ) ) {
-                    KhDbg("Freeing original Parser struct (Destroy) for job %s", ToRemove->UUID);
+                    KhDbg("Freeing original Parser struct (Destroy) for job %s", ToRemove->Id);
                     KhFree( ToRemove->Destroy );
                 }
                 ToRemove->Destroy = nullptr;
             }
 
-            if ( ToRemove->UUID ) {
-                if ( Self->Hp->CheckPtr( ToRemove->UUID ) ) {
-                    KhFree( ToRemove->UUID );
+            if ( ToRemove->Id ) {
+                if ( Self->Hp->CheckPtr( ToRemove->Id ) ) {
+                    KhFree( ToRemove->Id );
                 }
             }
 
             if ( Self->Hp->CheckPtr( ToRemove ) ) {
-                KhDbg("Freeing JOBS struct for job %s", ToRemove->UUID);
+                KhDbg("Freeing JOBS struct for job %s", ToRemove->Id);
                 KhFree( ToRemove );
             }
             
@@ -210,13 +210,13 @@ auto DECLFN Jobs::ExecuteAll( VOID ) -> LONG {
     while ( Current ) {
         if ( Current->State == KH_JOB_PRE_START || Current->State == KH_JOB_RUNNING ) {
             if( ! Current->PersistTriggered && ((Action::Task)Current->CmdID == Action::Task::ProcessDownloads || (Action::Task)Current->CmdID == Action::Task::ProcessTunnels ) ){
-                KhDbg("Persist Triggered for job: %s", Current->UUID);
+                KhDbg("Persist Triggered for job: %s", Current->Id);
                 Current->PersistTriggered = TRUE;
                 Current = Current->Next;
                 continue;
             }
             
-            KhDbg( "executing task UUID : %s", Current->UUID );
+            KhDbg( "executing task UUID : %s", Current->Id );
             KhDbg( "executing command id: %d", Current->CmdID );
 
             FlagRet = 1;
@@ -224,7 +224,7 @@ auto DECLFN Jobs::ExecuteAll( VOID ) -> LONG {
             Self->Pkg->Shared = Current->Pkg;
             Self->Psr->Shared = Current->Psr;
 
-            this->CurrentUUID  = Current->UUID;
+            this->CurrentId    = Current->Id;
             this->CurrentCmdId = Current->CmdID;
             Current->State     = KH_JOB_RUNNING;
             ERROR_CODE Result  = Self->Jbs->Execute( Current );
@@ -255,12 +255,12 @@ auto DECLFN Jobs::Execute(
     return -2;
 }
 
-auto DECLFN Jobs::GetByUUID(
-    _In_ CHAR* UUID
+auto DECLFN Jobs::GetById(
+    _In_ CHAR* Id
 ) -> JOBS* {
     JOBS* Current = this->List;
     while ( Current ) {
-        if ( Mem::Cmp( (PBYTE)Current->UUID, (PBYTE)UUID, 36 ) ) {
+        if ( Mem::Cmp( (PBYTE)Current->Id, (PBYTE)Id, 8 ) ) {
             return Current;
         }
         Current = Current->Next;
@@ -268,12 +268,12 @@ auto DECLFN Jobs::GetByUUID(
     return nullptr;
 }
 
-auto DECLFN Jobs::GetByID(
-    _In_ ULONG ID
+auto DECLFN Jobs::GetByCmdId(
+    _In_ ULONG Id
 ) -> JOBS* {
     JOBS* Current = this->List;
     while ( Current ) {
-        if ( Current->CmdID == ID ) {
+        if ( Current->CmdID == Id ) {
             return Current;
         }
         Current = Current->Next;

@@ -3,7 +3,7 @@
 auto DECLFN Library::Load(
     _In_ PCHAR LibName
 ) -> UPTR {
-    if ( Self->Config.Syscall ) {
+    if ( Self->Config.Evasion.Syscall ) {
         return (UPTR)Self->Spf->Call( (UPTR)Self->Krnl32.LoadLibraryA, 0, (UPTR)LibName );
     }
     

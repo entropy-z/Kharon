@@ -5,7 +5,7 @@ auto DECLFN Process::Open(
     _In_ BOOL  InheritHandle,
     _In_ ULONG ProcessID
 ) -> HANDLE {
-    const UINT32 Flags    = Self->Config.Syscall;
+    const UINT32 Flags    = Self->Config.Evasion.Syscall;
     NTSTATUS     Status   = STATUS_UNSUCCESSFUL;
     HANDLE       Handle   = nullptr;
     CLIENT_ID    ClientID = { .UniqueProcess = UlongToHandle( ProcessID ) };
@@ -38,7 +38,7 @@ auto Process::Create(
     _In_  STARTUPINFOW*         StartupInfo,
     _Out_ PROCESS_INFORMATION*  PsInfo
 ) -> BOOL {
-    if ( Self->Config.Syscall ) {
+    if ( Self->Config.Evasion.Syscall ) {
         return Self->Spf->Call(
            (UPTR)Self->Krnl32.CreateProcessW, 0, (UPTR)Application,
            (UPTR)Command, (UPTR)PsAttributes, (UPTR)ThreadAttributes, Inherit, 

