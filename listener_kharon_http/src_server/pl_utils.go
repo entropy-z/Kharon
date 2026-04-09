@@ -133,6 +133,13 @@ func (handler *HTTP) get_all_uris(method *HTTPMethod) []string {
 	return uris
 }
 
+func stripPort(hostport string) string {
+	if idx := strings.LastIndex(hostport, ":"); idx != -1 {
+		return hostport[:idx]
+	}
+	return hostport
+}
+
 func (handler *HTTP) get_callback_by_host(host string) *Callback {
 	if host == "" {
 		return nil
@@ -141,18 +148,21 @@ func (handler *HTTP) get_callback_by_host(host string) *Callback {
 	fmt.Printf("[DEBUG] Looking for callback with address: %s\n", host)
 	fmt.Printf("[DEBUG] Total callbacks available: %d\n", len(handler.Config.Callbacks))
 
+	hostNoPort := stripPort(host)
+
 	for i := range handler.Config.Callbacks {
 		callback := handler.Config.Callbacks[i]
 		fmt.Printf("[DEBUG] Checking callback %d with %d hosts\n", i, len(callback.Hosts))
 
 		for j, callbackHost := range callback.Hosts {
-			fmt.Printf("[DEBUG][%d][%d] Comparing: '%s' == '%s'? %v\n",
-				i, j, callbackHost, host, strings.EqualFold(callbackHost, host))
+			callbackHostNoPort := stripPort(callbackHost)
 
-			if strings.EqualFold(callbackHost, host) {
-				fmt.Printf("[SUCCESS] Found callback at index %d for host: %s\n", i, host)
+			if strings.EqualFold(callbackHost, host) || strings.EqualFold(callbackHostNoPort, host) || strings.EqualFold(callbackHost, hostNoPort) || strings.EqualFold(callbackHostNoPort, hostNoPort) {
+				fmt.Printf("[SUCCESS] Found callback at index %d for host: %s (matched with %s)\n", i, host, callbackHost)
 				return &callback
 			}
+
+			fmt.Printf("[DEBUG][%d][%d] Comparing: '%s' == '%s'? false\n", i, j, callbackHost, host)
 		}
 	}
 
