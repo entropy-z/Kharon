@@ -1037,7 +1037,24 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, PROC_LIST, 0, 0}
+		case "details": //todo
+			bofData, err = LoadExtModule("src_core", "grep", "x64")
+			if err != nil {
+				goto RET
+			}
 
+			pid, ok := args["pid"].(float64)
+			if !ok {
+				err = errors.New("parameter 'pid' is required and must be a int")
+				goto RET
+			}
+
+			bofParam, err = PackExtData(
+				int(pid),
+			)
+			
+			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, PROC_GREP, len(bofParam), bofParam}
+			
 		case "create":
 			programArgs, ok := args["cmd"].(string)
 			if !ok || programArgs == "" {
@@ -2715,6 +2732,20 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 									task.ClearText = ps_output
 								}
 							}
+						case PROC_GREP: //todo
+								if cmd_packer.CheckPacker([]string{"int"}) {
+									count := int(cmd_packer.ParseInt32())
+
+									policies := make([]string, 0, count)
+									for i := 0; i < count; i++ {
+										if cmd_packer.CheckPacker([]string{"array"}) {
+											policies = append(policies, string(cmd_packer.ParseBytes()))
+										}
+									}
+
+									data := &MitigationData{Policies: policies}
+									task.ClearText = FormatMitigationTable(data)
+								}
 						case TASK_CONFIG:
 							{
 								exit_code := uint(0)

@@ -2226,6 +2226,85 @@ func read_time(buf *bytes.Reader) (time.Time, error) {
 	return time.Unix(timestamp, 0).UTC(), err
 }
 
+type MitigationData struct {
+	Policies []string
+}
+
+func FormatMitigationTable(data *MitigationData) string {
+	var b strings.Builder
+
+	colLabel := 45
+	colValue := 10
+
+	row := func(label, value string) string {
+		return fmt.Sprintf("│ %-*s │ %-*s │\n", colLabel, label, colValue, value)
+	}
+
+	border := func(kind string) string {
+		switch kind {
+		case "top":
+			return "┌" + strings.Repeat("─", colLabel+2) + "┬" + strings.Repeat("─", colValue+2) + "┐\n"
+		case "bottom":
+			return "└" + strings.Repeat("─", colLabel+2) + "┴" + strings.Repeat("─", colValue+2) + "┘\n"
+		}
+		return "├" + strings.Repeat("─", colLabel+2) + "┼" + strings.Repeat("─", colValue+2) + "┤\n"
+	}
+
+	sectionTitle := func(title string) string {
+		totalWidth := colLabel + colValue + 5
+		padding := (totalWidth - len(title)) / 2
+		leftPad := strings.Repeat(" ", padding)
+		rightPad := strings.Repeat(" ", totalWidth-len(title)-padding)
+		return fmt.Sprintf("│%s%s%s│\n", leftPad, title, rightPad)
+	}
+
+	type category struct {
+		name    string
+		entries []string
+	}
+
+	var categories []category
+	categoryMap := make(map[string]int)
+
+	for _, p := range data.Policies {
+		dot := strings.Index(p, ".")
+		if dot == -1 {
+			continue
+		}
+
+		cat := p[:dot]
+		field := p[dot+1:]
+
+		if idx, ok := categoryMap[cat]; ok {
+			categories[idx].entries = append(categories[idx].entries, field)
+		} else {
+			categoryMap[cat] = len(categories)
+			categories = append(categories, category{name: cat, entries: []string{field}})
+		}
+	}
+
+	b.WriteString(border("top"))
+	b.WriteString(sectionTitle("PROCESS MITIGATION POLICIES"))
+	b.WriteString(border("middle"))
+
+	if len(categories) == 0 {
+		b.WriteString(row("No policies enabled", "-"))
+	}
+
+	for i, cat := range categories {
+		for _, entry := range cat.entries {
+			b.WriteString(row(cat.name+"."+entry, "Enabled"))
+		}
+		if i < len(categories)-1 {
+			b.WriteString(border("middle"))
+		}
+	}
+
+	b.WriteString(border("bottom"))
+
+	return b.String()
+}
+
 func FormatKharonTable(data *KharonData) string {
 	var b strings.Builder
 

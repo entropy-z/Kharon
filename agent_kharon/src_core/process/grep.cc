@@ -50,18 +50,181 @@ auto get_modules(
 auto get_policy(
     _In_ HANDLE process_handle
 ) -> void {
-    PROCESS_MITIGATION_POLICY_INFORMATION policy = {};
+    const char* entries[ 128 ] = {};
+    int         count          = 0;
+ 
+    auto query = [&]( PROCESS_MITIGATION_POLICY pol ) -> PROCESS_MITIGATION_POLICY_INFORMATION
+    {
+        PROCESS_MITIGATION_POLICY_INFORMATION info = {};
+        info.Policy = pol;
+        NTSTATUS status = STATUS_SUCCESS;
+        if ( ! nt_success (status = NtQueryInformationProcess( process_handle, ProcessMitigationPolicy, &info, sizeof( info ), nullptr ))){
+            //BeaconPrintf(CALLBACK_OUTPUT, "NTQuery failed with error: %x during: %d", status, pol);
+        }
+        return info;
+    };
+ 
+    auto add = [&]( const char* name, bool enabled )
+    {
+        if ( enabled && count < 128 )
+            entries[ count++ ] = name;
+    };
+ 
+    {
+        ULONG dep_flags = 0;
+        NTSTATUS status = NtQueryInformationProcess( process_handle, ProcessExecuteFlags, &dep_flags, sizeof( dep_flags ), nullptr );
 
-    NTSTATUS status = STATUS_SUCCESS;
+        if ( nt_success( status ) )
+        {
+            add( "DEP.Enable",                   dep_flags & 0x01 );
+            add( "DEP.DisableAtlThunkEmulation", dep_flags & 0x02 );
+            add( "DEP.Permanent",                dep_flags & 0x08 );
+        } else{
+            BeaconPrintf(CALLBACK_OUTPUT, "NTQuery failed with error: %x during: DEP", status);
+        }
 
-    status = NtQueryInformationProcess( process_handle, ProcessMitigationPolicy, &policy, sizeof( policy ), nullptr );
-    if ( ! nt_success( status ) ) {
-        return;
+    }
+    //BeaconPrintf(CALLBACK_OUTPUT, "count: %d", count);
+ 
+    {
+        auto p = query( ProcessASLRPolicy );
+        add( "ASLR.EnableBottomUpRandomization",  p.ASLRPolicy.EnableBottomUpRandomization );
+        add( "ASLR.EnableForceRelocateImages",    p.ASLRPolicy.EnableForceRelocateImages );
+        add( "ASLR.EnableHighEntropy",            p.ASLRPolicy.EnableHighEntropy );
+        add( "ASLR.DisallowStrippedImages",       p.ASLRPolicy.DisallowStrippedImages );
+    }
+ 
+    {
+        auto p = query( ProcessDynamicCodePolicy );
+        add( "DynamicCode.ProhibitDynamicCode",      p.DynamicCodePolicy.ProhibitDynamicCode );
+        add( "DynamicCode.AllowThreadOptOut",        p.DynamicCodePolicy.AllowThreadOptOut );
+        add( "DynamicCode.AllowRemoteDowngrade",     p.DynamicCodePolicy.AllowRemoteDowngrade );
+        add( "DynamicCode.AuditProhibitDynamicCode", p.DynamicCodePolicy.AuditProhibitDynamicCode );
+    }
+ 
+    {
+        auto p = query( ProcessStrictHandleCheckPolicy );
+        add( "StrictHandleCheck.RaiseExceptionOnInvalidHandleReference", p.StrictHandleCheckPolicy.RaiseExceptionOnInvalidHandleReference );
+        add( "StrictHandleCheck.HandleExceptionsPermanentlyEnabled",     p.StrictHandleCheckPolicy.HandleExceptionsPermanentlyEnabled );
+    }
+ 
+    {
+        auto p = query( ProcessSystemCallDisablePolicy );
+        add( "SystemCallDisable.DisallowWin32kSystemCalls",      p.SystemCallDisablePolicy.DisallowWin32kSystemCalls );
+        add( "SystemCallDisable.AuditDisallowWin32kSystemCalls", p.SystemCallDisablePolicy.AuditDisallowWin32kSystemCalls );
+        add( "SystemCallDisable.DisallowFsctlSystemCalls",       p.SystemCallDisablePolicy.DisallowFsctlSystemCalls );
+        add( "SystemCallDisable.AuditDisallowFsctlSystemCalls",  p.SystemCallDisablePolicy.AuditDisallowFsctlSystemCalls );
+    }
+ 
+    {
+        auto p = query( ProcessExtensionPointDisablePolicy );
+        add( "ExtensionPointDisable.DisableExtensionPoints", p.ExtensionPointDisablePolicy.DisableExtensionPoints );
+    }
+ 
+    {
+        auto p = query( ProcessControlFlowGuardPolicy );
+        add( "CFG.EnableControlFlowGuard",   p.ControlFlowGuardPolicy.EnableControlFlowGuard );
+        add( "CFG.EnableExportSuppression",  p.ControlFlowGuardPolicy.EnableExportSuppression );
+        add( "CFG.StrictMode",               p.ControlFlowGuardPolicy.StrictMode );
+        add( "CFG.EnableXfg",                p.ControlFlowGuardPolicy.EnableXfg );
+        add( "CFG.EnableXfgAuditMode",       p.ControlFlowGuardPolicy.EnableXfgAuditMode );
+    }
+ 
+    {
+        auto p = query( ProcessSignaturePolicy );
+        add( "Signature.MicrosoftSignedOnly",      p.SignaturePolicy.MicrosoftSignedOnly );
+        add( "Signature.StoreSignedOnly",          p.SignaturePolicy.StoreSignedOnly );
+        add( "Signature.MitigationOptIn",          p.SignaturePolicy.MitigationOptIn );
+        add( "Signature.AuditMicrosoftSignedOnly", p.SignaturePolicy.AuditMicrosoftSignedOnly );
+        add( "Signature.AuditStoreSignedOnly",     p.SignaturePolicy.AuditStoreSignedOnly );
+    }
+ 
+    {
+        auto p = query( ProcessFontDisablePolicy );
+        add( "FontDisable.DisableNonSystemFonts",     p.FontDisablePolicy.DisableNonSystemFonts );
+        add( "FontDisable.AuditNonSystemFontLoading", p.FontDisablePolicy.AuditNonSystemFontLoading );
+    }
+ 
+    {
+        auto p = query( ProcessImageLoadPolicy );
+        add( "ImageLoad.NoRemoteImages",                  p.ImageLoadPolicy.NoRemoteImages );
+        add( "ImageLoad.NoLowMandatoryLabelImages",       p.ImageLoadPolicy.NoLowMandatoryLabelImages );
+        add( "ImageLoad.PreferSystem32Images",            p.ImageLoadPolicy.PreferSystem32Images );
+        add( "ImageLoad.AuditNoRemoteImages",             p.ImageLoadPolicy.AuditNoRemoteImages );
+        add( "ImageLoad.AuditNoLowMandatoryLabelImages",  p.ImageLoadPolicy.AuditNoLowMandatoryLabelImages );
+    }
+ 
+    {
+        auto p = query( ProcessChildProcessPolicy );
+        add( "ChildProcess.NoChildProcessCreation",      p.ChildProcessPolicy.NoChildProcessCreation );
+        add( "ChildProcess.AuditNoChildProcessCreation", p.ChildProcessPolicy.AuditNoChildProcessCreation );
+        add( "ChildProcess.AllowSecureProcessCreation",  p.ChildProcessPolicy.AllowSecureProcessCreation );
+    }
+ 
+    {
+        auto p = query( ProcessSystemCallFilterPolicy );
+        add( "SystemCallFilter.FilterId", p.SystemCallFilterPolicy.FilterId );
+    }
+ 
+    {
+        auto p = query( ProcessPayloadRestrictionPolicy );
+        add( "PayloadRestriction.EnableExportAddressFilter",       p.PayloadRestrictionPolicy.EnableExportAddressFilter );
+        add( "PayloadRestriction.AuditExportAddressFilter",        p.PayloadRestrictionPolicy.AuditExportAddressFilter );
+        add( "PayloadRestriction.EnableExportAddressFilterPlus",   p.PayloadRestrictionPolicy.EnableExportAddressFilterPlus );
+        add( "PayloadRestriction.AuditExportAddressFilterPlus",    p.PayloadRestrictionPolicy.AuditExportAddressFilterPlus );
+        add( "PayloadRestriction.EnableImportAddressFilter",       p.PayloadRestrictionPolicy.EnableImportAddressFilter );
+        add( "PayloadRestriction.AuditImportAddressFilter",        p.PayloadRestrictionPolicy.AuditImportAddressFilter );
+        add( "PayloadRestriction.EnableRopStackPivot",             p.PayloadRestrictionPolicy.EnableRopStackPivot );
+        add( "PayloadRestriction.AuditRopStackPivot",              p.PayloadRestrictionPolicy.AuditRopStackPivot );
+        add( "PayloadRestriction.EnableRopCallerCheck",            p.PayloadRestrictionPolicy.EnableRopCallerCheck );
+        add( "PayloadRestriction.AuditRopCallerCheck",             p.PayloadRestrictionPolicy.AuditRopCallerCheck );
+        add( "PayloadRestriction.EnableRopSimExec",                p.PayloadRestrictionPolicy.EnableRopSimExec );
+        add( "PayloadRestriction.AuditRopSimExec",                 p.PayloadRestrictionPolicy.AuditRopSimExec );
+    }
+ 
+    {
+        auto p = query( ProcessSideChannelIsolationPolicy );
+        add( "SideChannel.SmtBranchTargetIsolation",       p.SideChannelIsolationPolicy.SmtBranchTargetIsolation );
+        add( "SideChannel.IsolateSecurityDomain",          p.SideChannelIsolationPolicy.IsolateSecurityDomain );
+        add( "SideChannel.DisablePageCombine",             p.SideChannelIsolationPolicy.DisablePageCombine );
+        add( "SideChannel.SpeculativeStoreBypassDisable",  p.SideChannelIsolationPolicy.SpeculativeStoreBypassDisable );
+        add( "SideChannel.RestrictCoreSharing",            p.SideChannelIsolationPolicy.RestrictCoreSharing );
+    }
+ 
+    {
+        auto p = query( ProcessUserShadowStackPolicy );
+        add( "CET.EnableUserShadowStack",                    p.UserShadowStackPolicy.EnableUserShadowStack );
+        add( "CET.AuditUserShadowStack",                     p.UserShadowStackPolicy.AuditUserShadowStack );
+        add( "CET.SetContextIpValidation",                   p.UserShadowStackPolicy.SetContextIpValidation );
+        add( "CET.AuditSetContextIpValidation",              p.UserShadowStackPolicy.AuditSetContextIpValidation );
+        add( "CET.EnableUserShadowStackStrictMode",          p.UserShadowStackPolicy.EnableUserShadowStackStrictMode );
+        add( "CET.BlockNonCetBinaries",                      p.UserShadowStackPolicy.BlockNonCetBinaries );
+        add( "CET.BlockNonCetBinariesNonEhcont",             p.UserShadowStackPolicy.BlockNonCetBinariesNonEhcont );
+        add( "CET.AuditBlockNonCetBinaries",                 p.UserShadowStackPolicy.AuditBlockNonCetBinaries );
+        add( "CET.CetDynamicApisOutOfProcOnly",              p.UserShadowStackPolicy.CetDynamicApisOutOfProcOnly );
+        add( "CET.SetContextIpValidationRelaxedMode",        p.UserShadowStackPolicy.SetContextIpValidationRelaxedMode );
+    }
+ 
+    {
+        auto p = query( ProcessRedirectionTrustPolicy );
+        add( "RedirectionTrust.EnforceRedirectionTrust", p.RedirectionTrustPolicy.EnforceRedirectionTrust );
+        add( "RedirectionTrust.AuditRedirectionTrust",   p.RedirectionTrustPolicy.AuditRedirectionTrust );
+    }
+ 
+    {
+        auto p = query( ProcessUserPointerAuthPolicy );
+        add( "UserPointerAuth.EnablePointerAuthUserIp", p.UserPointerAuthPolicy.EnablePointerAuthUserIp );
+    }
+ 
+    {
+        auto p = query( ProcessSEHOPPolicy );
+        add( "SEHOP.EnableSehop", p.SEHOPPolicy.EnableSehop );
     }
 
-    policy.Policy;
-
-    return;
+    BeaconPkgInt32( count );
+ 
+    for ( int i = 0; i < count; i++ )
+        BeaconPkgBytes( ( PBYTE ) entries[ i ], ( ULONG ) strlen( entries[ i ] ) );
 }
 
 auto get_threads(
@@ -304,6 +467,15 @@ extern "C" auto go( char* args, int argc ) -> void {
     HANDLE process_handle = nullptr;
     ULONG  target_process = BeaconDataInt( &data_parser );
 
+    process_handle = OpenProcess( PROCESS_QUERY_INFORMATION, FALSE, target_process );
+    if ( ! process_handle || process_handle == INVALID_HANDLE_VALUE ) {
+        return;
+    }
+
+    get_policy(process_handle);
+
+
+    /*
     BOOL modules    = BeaconDataInt( &data_parser );
     BOOL protection = BeaconDataInt( &data_parser );
     BOOL tokens     = BeaconDataInt( &data_parser );
@@ -315,6 +487,7 @@ extern "C" auto go( char* args, int argc ) -> void {
     BOOL arch       = BeaconDataInt( &data_parser );
     BOOL parentid   = BeaconDataInt( &data_parser );
     BOOL processid  = BeaconDataInt( &data_parser );
+    
 
     process_handle = OpenProcess( PROCESS_QUERY_INFORMATION, FALSE, target_process );
     if ( ! process_handle || process_handle == INVALID_HANDLE_VALUE ) {
@@ -333,6 +506,7 @@ extern "C" auto go( char* args, int argc ) -> void {
     if ( threads   ) get_threads( processid );
     if ( cmdline   ) get_cmdline( process_handle );
     if ( callbacks ) get_instcallbacks( process_handle );
+    */
 
     return;
 }

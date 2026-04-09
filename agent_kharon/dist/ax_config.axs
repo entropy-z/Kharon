@@ -64,8 +64,10 @@ function RegisterCommands(listenerType)
     let cmd_exit_process = ax.create_command("process", "Terminate the entire Kharon process", "exit process", "Task: terminate agent process");
     let cmd_exit = ax.create_command("exit", "Terminate the current session");
     cmd_exit.addSubCommands([cmd_exit_thread, cmd_exit_process]);
-
+    
     /// PS
+    let cmd_ps_grep = ax.create_command("details", "Display various information about a process", "process details 21814", "Task: display details of target process");
+    cmd_ps_grep.addArgInt("pid", true);
 
     let cmd_ps_list = ax.create_command("list", "Display all running processes", "process list", "Task: enumerate running processes");
     
@@ -82,7 +84,7 @@ function RegisterCommands(listenerType)
     cmd_ps_run.addArgFlagString("--password", "password", false, "Password for use with CreateProcessWithLogon");
 
     let cmd_ps = ax.create_command("process", "Process management - list, create, and terminate processes");
-    cmd_ps.addSubCommands([cmd_ps_list, cmd_ps_run, _cmd_ps_kill]);
+    cmd_ps.addSubCommands([cmd_ps_list, cmd_ps_grep, cmd_ps_run, _cmd_ps_kill]);
 
     /// JOB
     /// let cmd_job_list = ax.create_command("list", "Display all currently running background jobs", "job list", "Task: enumerate running jobs");
@@ -537,7 +539,7 @@ function GenerateUI(listenerType)
     return {
         ui_panel:     panel,
         ui_container: container,
-        ui_height:    800,
-        ui_width:     800
+        ui_height:    1000,
+        ui_width:     1000
     }
 }

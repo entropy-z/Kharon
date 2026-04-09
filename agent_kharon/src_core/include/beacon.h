@@ -318,7 +318,7 @@ EXTERN_C {
     DECLSPEC_IMPORT BOOL  BeaconRemoveValue(PCCH Key);
 
     DECLSPEC_IMPORT VOID BeaconPkgBytes( PBYTE Buffer, ULONG Length, PCHAR UUID = nullptr );
-    DECLSPEC_IMPORT VOID BeaconPkgInt8( INT8 Data, PCHAR UUID = nullptr );
+    DECLSPEC_IMPORT VOID BeaconPkgInt8 ( INT8 Data, PCHAR UUID = nullptr );
     DECLSPEC_IMPORT VOID BeaconPkgInt16( INT16 Data, PCHAR UUID = nullptr );
     DECLSPEC_IMPORT VOID BeaconPkgInt32( INT32 Data, PCHAR UUID = nullptr );
     DECLSPEC_IMPORT VOID BeaconPkgInt64( INT64 Data, PCHAR UUID = nullptr );

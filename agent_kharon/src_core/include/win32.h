@@ -149,6 +149,74 @@ typedef struct _PROCESS_MITIGATION_ACTIVATION_CONTEXT_TRUST_POLICY2
     } DUMMYUNIONNAME;
 } PROCESS_MITIGATION_ACTIVATION_CONTEXT_TRUST_POLICY2, *PPROCESS_MITIGATION_ACTIVATION_CONTEXT_TRUST_POLICY2;
 
+typedef struct _PROCESS_MITIGATION_DYNAMIC_CODE_POLICY_U {
+    __C89_NAMELESS union {
+        DWORD  Flags;
+        __C89_NAMELESS struct {
+          DWORD ProhibitDynamicCode  :1;
+          DWORD AllowThreadOptOut  :1;
+          DWORD AllowRemoteDowngrade  :1;
+          DWORD AuditProhibitDynamicCode : 1;
+          DWORD ReservedFlags  :28;
+        };
+    };
+} PROCESS_MITIGATION_DYNAMIC_CODE_POLICY_U, *PPROCESS_MITIGATION_DYNAMIC_CODE_POLICY_U;
+
+typedef struct _PROCESS_MITIGATION_SYSTEM_CALL_DISABLE_POLICY_U {
+    __C89_NAMELESS union {
+        DWORD Flags;
+        __C89_NAMELESS struct {
+            DWORD DisallowWin32kSystemCalls      : 1;
+            DWORD AuditDisallowWin32kSystemCalls : 1;
+            DWORD DisallowFsctlSystemCalls       : 1;
+            DWORD AuditDisallowFsctlSystemCalls  : 1;
+            DWORD ReservedFlags                  : 28;
+        };
+    };
+} PROCESS_MITIGATION_SYSTEM_CALL_DISABLE_POLICY_U,*PPROCESS_MITIGATION_SYSTEM_CALL_DISABLE_POLICY_U;
+
+typedef struct _PROCESS_MITIGATION_CONTROL_FLOW_GUARD_POLICY_U {
+    __C89_NAMELESS union {
+        DWORD  Flags;
+        __C89_NAMELESS struct {
+          DWORD EnableControlFlowGuard  : 1;
+          DWORD EnableExportSuppression : 1;
+          DWORD StrictMode              : 1;
+          DWORD EnableXfg               : 1;
+          DWORD EnableXfgAuditMode      : 1;
+          DWORD ReservedFlags           : 27;
+        };
+    };
+} PROCESS_MITIGATION_CONTROL_FLOW_GUARD_POLICY_U, *PPROCESS_MITIGATION_CONTROL_FLOW_GUARD_POLICY_U;
+
+typedef struct _PROCESS_MITIGATION_BINARY_SIGNATURE_POLICY_U {
+    __C89_NAMELESS union {
+        DWORD  Flags;
+        __C89_NAMELESS struct {
+          DWORD MicrosoftSignedOnly      : 1;
+          DWORD StoreSignedOnly          : 1;
+          DWORD MitigationOptIn          : 1;
+          DWORD AuditMicrosoftSignedOnly : 1;
+          DWORD AuditStoreSignedOnly     : 1;
+          DWORD ReservedFlags            : 27;
+        };
+    };
+} PROCESS_MITIGATION_BINARY_SIGNATURE_POLICY_U, *PPROCESS_MITIGATION_BINARY_SIGNATURE_POLICY_U;
+
+typedef struct _PROCESS_MITIGATION_IMAGE_LOAD_POLICY_U {
+    __C89_NAMELESS union {
+        DWORD  Flags;
+        __C89_NAMELESS struct {
+          DWORD NoRemoteImages                  : 1;
+          DWORD NoLowMandatoryLabelImages       : 1;
+          DWORD PreferSystem32Images            : 1;
+          DWORD AuditNoRemoteImages             : 1;
+          DWORD AuditNoLowMandatoryLabelImages  : 1;
+          DWORD ReservedFlags                   : 27;
+        };
+    };
+} PROCESS_MITIGATION_IMAGE_LOAD_POLICY_U, *PPROCESS_MITIGATION_IMAGE_LOAD_POLICY_U;
+
 typedef struct _PROCESS_MITIGATION_POLICY_INFORMATION
 {
     PROCESS_MITIGATION_POLICY Policy;
@@ -156,13 +224,13 @@ typedef struct _PROCESS_MITIGATION_POLICY_INFORMATION
     {
         PROCESS_MITIGATION_ASLR_POLICY ASLRPolicy;
         PROCESS_MITIGATION_STRICT_HANDLE_CHECK_POLICY StrictHandleCheckPolicy;
-        PROCESS_MITIGATION_SYSTEM_CALL_DISABLE_POLICY SystemCallDisablePolicy;
+        PROCESS_MITIGATION_SYSTEM_CALL_DISABLE_POLICY_U SystemCallDisablePolicy;
         PROCESS_MITIGATION_EXTENSION_POINT_DISABLE_POLICY ExtensionPointDisablePolicy;
-        PROCESS_MITIGATION_DYNAMIC_CODE_POLICY DynamicCodePolicy;
-        PROCESS_MITIGATION_CONTROL_FLOW_GUARD_POLICY ControlFlowGuardPolicy;
-        PROCESS_MITIGATION_BINARY_SIGNATURE_POLICY SignaturePolicy;
+        PROCESS_MITIGATION_DYNAMIC_CODE_POLICY_U DynamicCodePolicy;
+        PROCESS_MITIGATION_CONTROL_FLOW_GUARD_POLICY_U ControlFlowGuardPolicy;
+        PROCESS_MITIGATION_BINARY_SIGNATURE_POLICY_U SignaturePolicy;
         PROCESS_MITIGATION_FONT_DISABLE_POLICY FontDisablePolicy;
-        PROCESS_MITIGATION_IMAGE_LOAD_POLICY ImageLoadPolicy;
+        PROCESS_MITIGATION_IMAGE_LOAD_POLICY_U ImageLoadPolicy;
         PROCESS_MITIGATION_SYSTEM_CALL_FILTER_POLICY SystemCallFilterPolicy;
         PROCESS_MITIGATION_PAYLOAD_RESTRICTION_POLICY PayloadRestrictionPolicy;
         PROCESS_MITIGATION_CHILD_PROCESS_POLICY ChildProcessPolicy;
