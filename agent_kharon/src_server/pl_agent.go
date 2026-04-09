@@ -461,7 +461,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		}
 		rsrcID := mrand.Intn(50) + 100
 		shellcodeHeaderPath := filepath.Join(loaderPath, "Include", "Shellcode.h")
-		if cfg.PeSection == "rsrc" {
+		if cfg.PeSection == ".rsrc" {
 			rsrcHeader := "#pragma once\n\n#include <cstdint>\n\nnamespace Shellcode {\n    extern uint8_t* Data;\n    extern size_t         Size;\n}\n"
 			if err := os.WriteFile(shellcodeHeaderPath, []byte(rsrcHeader), 0644); err != nil {
 				return nil, "", fmt.Errorf("failed to write Shellcode.h for rsrc: %v", err)

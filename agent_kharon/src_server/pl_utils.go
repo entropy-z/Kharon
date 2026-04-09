@@ -2078,11 +2078,11 @@ func gen_shellcode_header(shellcode []byte, section string, customName string) s
 
 	sectionAttr := ""
 	switch strings.ToLower(section) {
-	case "text":
+	case ".text":
 		sectionAttr = "__attribute__((section(\".text\")))\n"
-	case "data":
+	case ".data":
 		sectionAttr = "__attribute__((section(\".data\")))\n"
-	case "rdata":
+	case ".rdata":
 		sectionAttr = "__attribute__((section(\".rdata\")))\n"
 	case "custom":
 		name := strings.TrimSpace(customName)

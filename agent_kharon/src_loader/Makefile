@@ -28,7 +28,9 @@ DEFS := \
     -D XOR_KEY='$(XOR_KEY)'
 
 # Shellcode Section 
-ifeq ($(SECTION),rsrc)
+SECTION_CLEAN := $(strip $(SECTION))
+
+ifeq ($(SECTION_CLEAN),.rsrc)
     DEFS    += -D SHELLCODE_SECTION_LOCATION=SHELLCODE_SECTION_RSRC
     DEFS    += -D RSRC_ID=$(RSRC_ID)
     RES_OBJ := Include/shellcode.res
@@ -38,22 +40,26 @@ else
 endif
 
 # Injection Technique 
-ifeq ($(INJECTION_TECHNIQUE),Module Stomp)
+INJECTION_TECHNIQUE_CLEAN := $(strip $(INJECTION_TECHNIQUE))
+
+ifeq ($(INJECTION_TECHNIQUE_CLEAN),Module Stomp)
     INJECTION_SRC := Source/Injection/Stomper.cc
     DEFS          += -D INJECTION_TECHNIQUE=INJECTION_TECHNIQUE_STOMPER
 endif
 
-ifeq ($(INJECTION_TECHNIQUE),Classic)
+ifeq ($(INJECTION_TECHNIQUE_CLEAN),Classic)
     INJECTION_SRC := Source/Injection/Classic.cc
     DEFS          += -D INJECTION_TECHNIQUE=INJECTION_TECHNIQUE_CLASSIC
 endif
 
 # Encryption Type
-ifeq ($(ENCRYPTION_TYPE),xor)
+ENCRYPTION_TYPE_CLEAN := $(strip $(ENCRYPTION_TYPE))
+
+ifeq ($(ENCRYPTION_TYPE_CLEAN),Xor)
     DEFS += -D ENCRYPTION_TYPE=ENCRYPTION_XOR
 endif
 
-ifeq ($(ENCRYPTION_TYPE),none)
+ifeq ($(ENCRYPTION_TYPE_CLEAN),None)
     DEFS += -D ENCRYPTION_TYPE=ENCRYPTION_NONE
 endif
 
@@ -94,10 +100,10 @@ svc:
 	@ $(MAKE) FORMAT=Svc SECTION=$(SECTION) XOR_KEY='$(XOR_KEY)' INJECTION_TECHNIQUE=$(INJECTION_TECHNIQUE) ENCRYPTION_TYPE=$(ENCRYPTION_TYPE) build
 
 build: $(OBJ_PATH)
-	@ echo "SECTION           = '$(SECTION)'"
-	@ echo "INJECTION         = '$(INJECTION_TECHNIQUE)'"
-	@ echo "ENCRYPTION        = '$(ENCRYPTION_TYPE)'"
-	@ echo "DEFS              = $(DEFS)"
+	@ echo "SECTION           = '$(SECTION_CLEAN)'"
+	@ echo "INJECTION         = '$(INJECTION_TECHNIQUE_CLEAN)'"
+	@ echo "ENCRYPTION        = '$(ENCRYPTION_TYPE_CLEAN)'"
+	@ echo "DEFS              =  $(DEFS)"
 	@ echo "RES_OBJ           = '$(RES_OBJ)'"
 	@ echo "[*] Compiling $(FORMAT) x64..."
 	@ $(CCX64)            \
