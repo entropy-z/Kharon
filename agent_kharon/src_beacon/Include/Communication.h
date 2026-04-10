@@ -271,7 +271,7 @@ typedef struct _DNS_RECORD_KH {
     DWORD dwReserved;
     union {
         struct { DWORD IpAddress; } A;
-        struct { PSTR pStringData; } TXT;
+        struct { DWORD dwStringCount; PSTR pStringArray[1]; } TXT;
         BYTE Data[1];
     } Data;
 } DNS_RECORD_KH, *PDNS_RECORD_KH;

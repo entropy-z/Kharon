@@ -233,18 +233,23 @@ static BOOL DECLFN DnsQueryTXTRecord(
     ULONG pos = 0;
     PDNS_RECORD_KH rec = pRecords;
     while ( rec ) {
-        if ( rec->wType == DNS_TYPE_TXT && rec->Data.TXT.pStringData ) {
-            PCHAR txt = rec->Data.TXT.pStringData;
-            ULONG tlen = 0;
-            while ( txt[tlen] ) tlen++;
-            if ( pos + tlen < outMax ) {
-                Mem::Copy( outBuf + pos, txt, tlen );
-                pos += tlen;
+        if ( rec->wType == DNS_TYPE_TXT ) {
+            // DNS_TXT_DATAA: dwStringCount followed by pStringArray[] of PSTR pointers
+            DWORD nStrings = rec->Data.TXT.dwStringCount;
+            for ( DWORD si = 0; si < nStrings; si++ ) {
+                PCHAR txt = rec->Data.TXT.pStringArray[si];
+                if ( ! txt ) continue;
+                ULONG tlen = 0;
+                while ( txt[tlen] ) tlen++;
+                if ( pos + tlen < outMax ) {
+                    Mem::Copy( outBuf + pos, txt, tlen );
+                    pos += tlen;
+                }
             }
         }
         rec = rec->pNext;
     }
-    outBuf[pos] = 0;
+    if ( pos < outMax ) outBuf[pos] = 0;
     *outLen = pos;
 
     Self->Dnsapi.DnsFree( pRecords, DNS_FREE_RECORD_LIST );

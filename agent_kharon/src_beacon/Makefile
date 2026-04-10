@@ -4,6 +4,11 @@ BUILD_PATH ?= .
 OBJ_PATH   := $(BUILD_PATH)/Bin/obj
 PREBUILD_MARKER := $(OBJ_PATH)/.prebuild_done
 
+# Default profile for prebuild (overridden per-build by agent server)
+ifeq ($(PROFILE_C2),)
+PROFILE_C2 := 0x25
+endif
+
 CCX64  := clang++ -target x86_64-w64-mingw32
 CCX86  := clang++ -target i686-w64-mingw32
 ASMCC  := nasm

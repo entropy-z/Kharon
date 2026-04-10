@@ -37,11 +37,21 @@ typedef struct _COFF_SECTION_HEADER {
     USHORT NumberOfLinenumbers;
     ULONG  Characteristics;
 } COFF_SECTION_HEADER;
+
+typedef struct _COFF_RELOCATION {
+    union {
+        ULONG VirtualAddress;
+        ULONG RelocCount;
+    };
+    ULONG  SymbolTableIndex;
+    USHORT Type;
+} COFF_RELOCATION;
 #pragma pack(pop)
 
 static_assert(sizeof(COFF_FILE_HEADER) == 20, "COFF_FILE_HEADER must be 20 bytes");
 static_assert(sizeof(COFF_SYMBOL) == 18, "COFF_SYMBOL must be 18 bytes");
 static_assert(sizeof(COFF_SECTION_HEADER) == 40, "COFF_SECTION_HEADER must be 40 bytes");
+static_assert(sizeof(COFF_RELOCATION) == 10, "COFF_RELOCATION must be 10 bytes");
 
 auto Coff::GetCmdID(
     PVOID Address
@@ -272,7 +282,7 @@ auto Coff::Map(
     COFF_FILE_HEADER*    Header  = { 0 };
     COFF_SECTION_HEADER* SecHdr  = { 0 };
     COFF_SYMBOL*         Symbols = { 0 };
-    PIMAGE_RELOCATION     Relocs  = { 0 };
+    COFF_RELOCATION*      Relocs  = { 0 };
 
     KhDbg("starting COFF mapping process");
 
@@ -425,7 +435,7 @@ auto Coff::Map(
     {
         PVOID* ImportTable = (PVOID*)LastSec;
         for ( INT i = 0; i < SecNbrs; i++ ) {
-            Relocs = (PIMAGE_RELOCATION)( Buffer + SecHdr[i].PointerToRelocations );
+            Relocs = (COFF_RELOCATION*)( Buffer + SecHdr[i].PointerToRelocations );
 
             for ( INT x = 0; x < SecHdr[i].NumberOfRelocations; x++ ) {
                 COFF_SYMBOL* SymReloc = &Symbols[Relocs[x].SymbolTableIndex];
