@@ -2001,6 +2001,18 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 				ts.TsScreenshotAdd(agentData.Id, "", screenBuff)
 				task.Message = "Screenshot saved!"
 
+			case CALLBACK_OUTPUT:
+				output := packer.ParseString()
+
+				task.MessageType = MESSAGE_SUCCESS
+				task.ClearText = ConvertCpToUTF8(output, agentData.ACP)
+
+			case CALLBACK_OUTPUT_UTF8:
+				output := packer.ParseString()
+
+				task.MessageType = MESSAGE_SUCCESS
+				task.ClearText = output
+
 			case CALLBACK_OUTPUT_OEM:
 				output := packer.ParseString()
 
