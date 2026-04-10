@@ -519,11 +519,11 @@ auto DECLFN LdrLoad::Module(
 ) -> UPTR {
     RangeHeadList( NtCurrentPeb()->Ldr->InLoadOrderModuleList, PLDR_DATA_TABLE_ENTRY, {
         if ( !LibHash ) {
-            return reinterpret_cast<UPTR>( Entry->OriginalBase );
+            return reinterpret_cast<UPTR>( Entry->DllBase );
         }
 
         if ( Hsh::Str<WCHAR>( Entry->BaseDllName.Buffer ) == LibHash ) {
-            return reinterpret_cast<UPTR>( Entry->OriginalBase );
+            return reinterpret_cast<UPTR>( Entry->DllBase );
         }
      } )
  
