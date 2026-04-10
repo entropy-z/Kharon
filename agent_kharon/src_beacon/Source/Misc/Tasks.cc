@@ -1032,6 +1032,8 @@ auto DECLFN Task::ProcessTunnel(
 ) -> ERROR_CODE {
     PACKAGE* Package = Job->Pkg;
 
+    KhDbg("ProcessTunnel called - TunnelTasksCount: %d", Self->Tsp->TunnelTasksCount);
+
     COMMAND_TUNNEL_ACCEPT_EVENT    AcceptEvents[30] = { 0 };
     COMMAND_TUNNEL_START_TCP_EVENT Events[90]       = { 0 };
     COMMAND_TUNNEL_WRITE_TCP_EVENT WriteEvents[30]  = { 0 };
@@ -1656,6 +1658,7 @@ auto Task::RPortfwd(
     if ( SocketObj != INVALID_SOCKET ) {
         sockaddr_in SocketAddr = { 0 };
         SocketAddr.sin_family = AF_INET;
+        SocketAddr.sin_addr.s_addr = INADDR_ANY;  // Bind to all interfaces
         SocketAddr.sin_port   = Self->Ws2_32.htons( Port );
         
         ULONG Mode = 1;
