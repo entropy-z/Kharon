@@ -24,6 +24,7 @@ PULL_CHANGES=false
 ADAPTIX_DIR=""
 AGENT="agent_kharon"
 LISTENER="listener_kharon_http"
+LISTENER_DNS="listener_kharon_dns"
 ACTION="all"
 
 # Parse arguments
@@ -123,17 +124,28 @@ function copy_listener {
     info_msg "Copied listener files to AdaptixServer"
 }
 
+function copy_listener_dns {
+    if [ -d "$LISTENER_DNS" ]; then
+        cp -r "$LISTENER_DNS" "$ADAPTIX_DIR/AdaptixServer/extenders/" || error_exit "Failed to copy DNS listener"
+        info_msg "Copied DNS listener files to AdaptixServer"
+    fi
+}
+
 function setup_go_workspace {
     cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter $ADAPTIX_DIR/AdaptixServer"
-    
+
     if [ -d "extenders/$AGENT" ]; then
         go work use "extenders/$AGENT" || error_exit "Failed to add agent to Go workspace"
     fi
-    
+
     if [ -d "extenders/$LISTENER" ]; then
         go work use "extenders/$LISTENER" || error_exit "Failed to add listener to Go workspace"
     fi
-    
+
+    if [ -d "extenders/$LISTENER_DNS" ]; then
+        go work use "extenders/$LISTENER_DNS" || error_exit "Failed to add DNS listener to Go workspace"
+    fi
+
     go work sync || error_exit "Failed to synchronize Go workspace"
     info_msg "Go workspace configured"
 }
@@ -195,13 +207,22 @@ function build_agent_beacon {
 
 function build_listener {
     cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter AdaptixServer directory"
-    
+
     if [ ! -f "extenders/$LISTENER/Makefile" ]; then
         error_exit "Makefile not found for $LISTENER"
     fi
-    
+
     make -C "extenders/$LISTENER" all || error_exit "Failed to build listener"
     info_msg "Built listener"
+}
+
+function build_listener_dns {
+    cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter AdaptixServer directory"
+
+    if [ -d "extenders/$LISTENER_DNS" ] && [ -f "extenders/$LISTENER_DNS/Makefile" ]; then
+        make -C "extenders/$LISTENER_DNS" all || error_exit "Failed to build DNS listener"
+        info_msg "Built DNS listener"
+    fi
 }
 
 function copy_agent_dist {
@@ -224,12 +245,22 @@ function copy_agent_dist {
 
 function copy_listener_dist {
     mkdir -p "$ADAPTIX_DIR/dist/extenders/$LISTENER" || error_exit "Failed to create listener dist directory"
-    
+
     if [ -d "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER/dist" ]; then
         cp -r "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER/dist"/* "$ADAPTIX_DIR/dist/extenders/$LISTENER/" || error_exit "Failed to copy listener dist files"
     fi
-    
+
     info_msg "Copied listener distribution files to dist"
+}
+
+function copy_listener_dns_dist {
+    if [ -d "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER_DNS" ]; then
+        mkdir -p "$ADAPTIX_DIR/dist/extenders/$LISTENER_DNS"
+        if [ -d "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER_DNS/dist" ]; then
+            cp -r "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER_DNS/dist"/* "$ADAPTIX_DIR/dist/extenders/$LISTENER_DNS/" || error_exit "Failed to copy DNS listener dist"
+        fi
+        info_msg "Copied DNS listener distribution files to dist"
+    fi
 }
 
 # Execute actions based on ACTION parameter
@@ -240,13 +271,16 @@ case $ACTION in
         clean_listener
         copy_agent
         copy_listener
+        copy_listener_dns
         setup_go_workspace
         build_agent_code
         build_agent_core
         build_agent_beacon
         build_listener
+        build_listener_dns
         copy_agent_dist
         copy_listener_dist
+        copy_listener_dns_dist
         ;;
     
     agent-full)

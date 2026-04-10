@@ -733,12 +733,16 @@ auto DECLFN Package::Transmit(
         }
 
         Self->Crp->Decrypt( DecryptBuff, DecryptLength );
-         
-        *Response = RecvData.Ptr;
-        *Size     = RecvData.Size;
-        
+
+        if ( Response && Size ) {
+            *Response = RecvData.Ptr;
+            *Size     = RecvData.Size;
+        } else {
+            KhFree( RecvData.Ptr );
+        }
+
         Success = TRUE;
-    } else if ( RecvData.Ptr ) {        
+    } else if ( RecvData.Ptr ) {
         KhFree( RecvData.Ptr );
         Success = FALSE;
     }

