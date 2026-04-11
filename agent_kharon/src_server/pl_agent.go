@@ -25,6 +25,7 @@ import (
 	ax "github.com/Adaptix-Framework/axc2"
 )
 
+// Encryption
 type EncryptResult struct {
 	Data   []byte
 	KeyStr string
@@ -1037,7 +1038,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, PROC_LIST, 0, 0}
-		case "details": //todo
+		case "details":
 			bofData, err = LoadExtModule("src_core", "grep", "x64")
 			if err != nil {
 				goto RET
@@ -1049,12 +1050,50 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 				goto RET
 			}
 
+			// build section flags from args
+			sectionFlags := uint32(0)
+
+			flagMap := map[string]uint32{
+				"pid":          1 << 0,
+				"ppid":         1 << 1,
+				"arch":         1 << 2,
+				"image_name":   1 << 3,
+				"image_path":   1 << 4,
+				"cmdline":      1 << 5,
+				"protection":   1 << 6,
+				"mitigations":  1 << 7,
+				"modules":      1 << 8,
+				"threads":      1 << 9,
+				"handles":      1 << 10,
+				"memory":       1 << 11,
+				"network":      1 << 12,
+				"env":          1 << 13,
+				"token":        1 << 14,
+				"started":      1 << 15,
+				"instcallback": 1 << 16,
+			}
+
+			if sections, ok := args["sections"].(string); ok {
+				if sections == "all" {
+					sectionFlags = 0xFFFFFFFF
+				} else {
+					for _, s := range strings.Split(sections, ",") {
+						if flag, exists := flagMap[strings.TrimSpace(s)]; exists {
+							sectionFlags |= flag
+						}
+					}
+				}
+			} else {
+				sectionFlags = 0xFFFFFFFF // default: all
+			}
+
 			bofParam, err = PackExtData(
 				int(pid),
+				int(sectionFlags),
 			)
-			
+
 			array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, PROC_GREP, len(bofParam), bofParam}
-			
+
 		case "create":
 			programArgs, ok := args["cmd"].(string)
 			if !ok || programArgs == "" {
@@ -2733,19 +2772,40 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 								}
 							}
 						case PROC_GREP: //todo
-								if cmd_packer.CheckPacker([]string{"int"}) {
-									count := int(cmd_packer.ParseInt32())
+							details := &ProcessDetails{}
 
-									policies := make([]string, 0, count)
+							for {
+								if !cmd_packer.CheckPacker([]string{"int"}) {
+									break
+								}
+
+								section := cmd_packer.ParseInt32()
+								if section == SECTION_END {
+									break
+								}
+
+								switch section {
+								case SECTION_PROTECTION:
+									details.Protection = &ProtectionInfo{
+										Type:   uint8(cmd_packer.ParseInt32()),
+										Audit:  uint8(cmd_packer.ParseInt32()),
+										Signer: uint8(cmd_packer.ParseInt32()),
+									}
+
+								case SECTION_MITIGATIONS:
+									count := int(cmd_packer.ParseInt32())
+									details.Mitigations = make([]string, 0, count)
 									for i := 0; i < count; i++ {
 										if cmd_packer.CheckPacker([]string{"array"}) {
-											policies = append(policies, string(cmd_packer.ParseBytes()))
+											details.Mitigations = append(details.Mitigations, string(cmd_packer.ParseBytes()))
 										}
 									}
 
-									data := &MitigationData{Policies: policies}
-									task.ClearText = FormatMitigationTable(data)
+								default:
+									break
 								}
+							}
+							task.ClearText = FormatDetailsTable(details)
 						case TASK_CONFIG:
 							{
 								exit_code := uint(0)

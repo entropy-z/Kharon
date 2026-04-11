@@ -1,15 +1,46 @@
-/*
-    Get target process by name/pid and retrieve informations like:
-        - tokens
-        - modules
-        - handles
-        - protection
-        - command line
-        - threads
-        - arch
-*/  
-
 #include <general.h>
+
+enum section_id : INT32 {
+    SECTION_END           = 0x00,
+    SECTION_PID           = 0x01,
+    SECTION_PPID          = 0x02,
+    SECTION_ARCH          = 0x03,
+    SECTION_IMAGE_NAME    = 0x04,
+    SECTION_IMAGE_PATH    = 0x05,
+    SECTION_CMDLINE       = 0x06,
+    SECTION_PROTECTION    = 0x07,
+    SECTION_MITIGATIONS   = 0x08,
+    SECTION_MODULES       = 0x09,
+    SECTION_THREADS       = 0x0A,
+    SECTION_HANDLES       = 0x0B,
+    SECTION_MEMORY        = 0x0C,
+    SECTION_NETWORK       = 0x0D,
+    SECTION_ENV           = 0x0E,
+    SECTION_TOKEN         = 0x0F,
+    SECTION_STARTED       = 0x10,
+    SECTION_INST_CALLBACK = 0x11,
+};
+
+enum section_flag : UINT32 {
+    FLAG_PID           = 1 << 0,
+    FLAG_PPID          = 1 << 1,
+    FLAG_ARCH          = 1 << 2,
+    FLAG_IMAGE_NAME    = 1 << 3,
+    FLAG_IMAGE_PATH    = 1 << 4,
+    FLAG_CMDLINE       = 1 << 5,
+    FLAG_PROTECTION    = 1 << 6,
+    FLAG_MITIGATIONS   = 1 << 7,
+    FLAG_MODULES       = 1 << 8,
+    FLAG_THREADS       = 1 << 9,
+    FLAG_HANDLES       = 1 << 10,
+    FLAG_MEMORY        = 1 << 11,
+    FLAG_NETWORK       = 1 << 12,
+    FLAG_ENV           = 1 << 13,
+    FLAG_TOKEN         = 1 << 14,
+    FLAG_STARTED       = 1 << 15,
+    FLAG_INST_CALLBACK = 1 << 16,
+    FLAG_ALL           = 0xFFFFFFFF,
+};
 
 auto get_modules(
     _In_ HANDLE process_handle
@@ -47,7 +78,7 @@ auto get_modules(
 }
 
 // NtQueryInformationProcess( handle, ProcessMitigationPolicy ... ); # PROCESS_MITIGATION_POLICY_INFORMATION
-auto get_policy(
+auto get_mitigations(
     _In_ HANDLE process_handle
 ) -> void {
     const char* entries[ 128 ] = {};
@@ -221,8 +252,8 @@ auto get_policy(
         add( "SEHOP.EnableSehop", p.SEHOPPolicy.EnableSehop );
     }
 
+    BeaconPkgInt32( SECTION_MITIGATIONS );
     BeaconPkgInt32( count );
- 
     for ( int i = 0; i < count; i++ )
         BeaconPkgBytes( ( PBYTE ) entries[ i ], ( ULONG ) strlen( entries[ i ] ) );
 }
@@ -284,19 +315,23 @@ auto get_instcallbacks(
 auto get_protection(
     _In_ HANDLE process_handle
 ) -> void {
-    PS_PROTECTION protection = { 0 };
-    NTSTATUS      status     = STATUS_SUCCESS;
+    PS_PROTECTION protection = {};
 
-    status = NtQueryInformationProcess( process_handle, ProcessProtectionInformation, &protection, sizeof( protection ), nullptr );
+    NTSTATUS status = NtQueryInformationProcess(
+        process_handle, ProcessProtectionInformation, &protection, sizeof( protection ), nullptr
+    );
+
     if ( ! nt_success( status ) ) {
+        BeaconPrintf( CALLBACK_OUTPUT, "[DEBUG] protection query failed: 0x%X", status );
         return;
     }
 
-    protection.Audit;  
-    protection.Signer; 
-    protection.Type;   
+        protection.Type, protection.Audit, protection.Signer );
 
-    return;
+    BeaconPkgInt32( SECTION_PROTECTION );
+    BeaconPkgInt32( protection.Type );
+    BeaconPkgInt32( protection.Audit );
+    BeaconPkgInt32( protection.Signer );
 }
 
 // NtQueryInformationProcess( handle, ProcessBasicInformation, ... ); # PROCESS_EXTENDED_BASIC_INFORMATION
@@ -460,53 +495,26 @@ auto get_cmdline(
 }
 
 extern "C" auto go( char* args, int argc ) -> void {
-    datap data_parser = { 0 };
-
+    datap data_parser = {};
     BeaconDataParse( &data_parser, args, argc );
 
-    HANDLE process_handle = nullptr;
-    ULONG  target_process = BeaconDataInt( &data_parser );
+    DWORD    target_pid    = ( DWORD ) BeaconDataInt( &data_parser );
+    UINT32 section_flags = ( UINT32 ) BeaconDataInt( &data_parser );
 
-    process_handle = OpenProcess( PROCESS_QUERY_INFORMATION, FALSE, target_process );
+    HANDLE process_handle = OpenProcess( PROCESS_QUERY_INFORMATION, FALSE, target_pid );
     if ( ! process_handle || process_handle == INVALID_HANDLE_VALUE ) {
         return;
     }
 
-    get_policy(process_handle);
-
-
-    /*
-    BOOL modules    = BeaconDataInt( &data_parser );
-    BOOL protection = BeaconDataInt( &data_parser );
-    BOOL tokens     = BeaconDataInt( &data_parser );
-    BOOL policy     = BeaconDataInt( &data_parser );
-    BOOL threads    = BeaconDataInt( &data_parser );
-    BOOL callbacks  = BeaconDataInt( &data_parser );
-    BOOL cmdline    = BeaconDataInt( &data_parser );
-    BOOL handles    = BeaconDataInt( &data_parser );
-    BOOL arch       = BeaconDataInt( &data_parser );
-    BOOL parentid   = BeaconDataInt( &data_parser );
-    BOOL processid  = BeaconDataInt( &data_parser );
-    
-
-    process_handle = OpenProcess( PROCESS_QUERY_INFORMATION, FALSE, target_process );
-    if ( ! process_handle || process_handle == INVALID_HANDLE_VALUE ) {
-        return;
+    if ( section_flags & FLAG_PROTECTION ) {
+        get_protection( process_handle );
     }
 
-    BASICEX_FLAGS basicex = { 0 };
+    if ( section_flags & FLAG_MITIGATIONS ) {
+        get_mitigations( process_handle );
+    }
 
-    basicex.Flags = (arch & 0xFF) | ((parentid & 0xFF) << 8) | ((processid & 0xFF) << 16) | ((protection & 0xFF) << 24);
+    BeaconPkgInt32( SECTION_END );
 
-    if ( processid || parentid || protection ) get_basicex( process_handle, basicex );
-
-    if ( modules   ) get_modules( process_handle );
-    if ( tokens    ) get_tokens( process_handle );
-    if ( handles   ) get_handles( process_handle );
-    if ( threads   ) get_threads( processid );
-    if ( cmdline   ) get_cmdline( process_handle );
-    if ( callbacks ) get_instcallbacks( process_handle );
-    */
-
-    return;
+    CloseHandle( process_handle );
 }

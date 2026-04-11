@@ -893,6 +893,98 @@ const (
 	POSTEX_MSG_RAW    = 0x14
 )
 
+// For Details Command
+const (
+	SECTION_END              = 0x00
+	SECTION_PID              = 0x01
+	SECTION_PPID             = 0x02
+	SECTION_ARCH             = 0x03
+	SECTION_IMAGE_NAME       = 0x04
+	SECTION_IMAGE_PATH       = 0x05
+	SECTION_CMDLINE          = 0x06
+	SECTION_PROTECTION       = 0x07
+	SECTION_MITIGATIONS      = 0x08
+	SECTION_MODULES          = 0x09
+	SECTION_THREADS          = 0x0A
+	SECTION_HANDLES          = 0x0B
+	SECTION_MEMORY           = 0x0C
+	SECTION_NETWORK          = 0x0D
+	SECTION_ENV              = 0x0E
+	SECTION_TOKEN            = 0x0F
+	SECTION_STARTED          = 0x10
+	SECTION_INST_CALLBACK    = 0x11
+)
+ 
+type ModuleInfo struct {
+	Name       string
+	EntryPoint uint64
+	Base       uint64
+	Size       uint32
+}
+ 
+type ThreadInfo struct {
+	Tid      int32
+	Flags    int32
+	Size     int32
+	Priority int32
+}
+ 
+type HandleInfo struct {
+	Value       uint16
+	TypeIndex   uint32
+	GrantedAccess uint32
+}
+ 
+type TokenInfo struct {
+	Username       string
+	Domain         string
+	Elevated       bool
+	IntegrityLevel string
+}
+ 
+type ProtectionInfo struct {
+	Type   uint8
+	Audit  uint8
+	Signer uint8
+}
+ 
+type MemoryRegion struct {
+	BaseAddress uint64
+	RegionSize  uint64
+	State       uint32
+	Protect     uint32
+	Type        uint32
+}
+ 
+type NetworkEntry struct {
+	Protocol   int32
+	LocalAddr  string
+	LocalPort  int32
+	RemoteAddr string
+	RemotePort int32
+	State      int32
+}
+ 
+type ProcessDetails struct {
+	Pid              int32
+	Ppid             int32
+	Arch             int32
+	ImageName        string
+	ImagePath        string
+	CmdLine          string
+	Protection       *ProtectionInfo
+	Mitigations      []string
+	Modules          []ModuleInfo
+	Threads          []ThreadInfo
+	Handles          []HandleInfo
+	Memory           []MemoryRegion
+	Network          []NetworkEntry
+	Env              []string
+	Token            *TokenInfo
+	StartedDate      int64
+	InstCallback     uint64
+}
+
 var codePageMapping = map[int]encoding.Encoding{
 	037:   charmap.CodePage037,   // IBM EBCDIC US-Canada
 	437:   charmap.CodePage437,   // OEM United States
@@ -2230,79 +2322,116 @@ type MitigationData struct {
 	Policies []string
 }
 
-func FormatMitigationTable(data *MitigationData) string {
-	var b strings.Builder
+func FormatDetailsTable(data *ProcessDetails) string {
+    var b strings.Builder
 
-	colLabel := 45
-	colValue := 10
+    colLabel := 45
+    colValue := 15
 
-	row := func(label, value string) string {
-		return fmt.Sprintf("│ %-*s │ %-*s │\n", colLabel, label, colValue, value)
-	}
+    row := func(label, value string) string {
+        return fmt.Sprintf("│ %-*s │ %-*s │\n", colLabel, label, colValue, value)
+    }
 
-	border := func(kind string) string {
-		switch kind {
-		case "top":
-			return "┌" + strings.Repeat("─", colLabel+2) + "┬" + strings.Repeat("─", colValue+2) + "┐\n"
-		case "bottom":
-			return "└" + strings.Repeat("─", colLabel+2) + "┴" + strings.Repeat("─", colValue+2) + "┘\n"
-		}
-		return "├" + strings.Repeat("─", colLabel+2) + "┼" + strings.Repeat("─", colValue+2) + "┤\n"
-	}
+    border := func(kind string) string {
+        switch kind {
+        case "top":
+            return "┌" + strings.Repeat("─", colLabel+2) + "┬" + strings.Repeat("─", colValue+2) + "┐\n"
+        case "bottom":
+            return "└" + strings.Repeat("─", colLabel+2) + "┴" + strings.Repeat("─", colValue+2) + "┘\n"
+        }
+        return "├" + strings.Repeat("─", colLabel+2) + "┼" + strings.Repeat("─", colValue+2) + "┤\n"
+    }
 
-	sectionTitle := func(title string) string {
-		totalWidth := colLabel + colValue + 5
-		padding := (totalWidth - len(title)) / 2
-		leftPad := strings.Repeat(" ", padding)
-		rightPad := strings.Repeat(" ", totalWidth-len(title)-padding)
-		return fmt.Sprintf("│%s%s%s│\n", leftPad, title, rightPad)
-	}
+    sectionTitle := func(title string) string {
+        totalWidth := colLabel + colValue + 5
+        padding := (totalWidth - len(title)) / 2
+        leftPad := strings.Repeat(" ", padding)
+        rightPad := strings.Repeat(" ", totalWidth-len(title)-padding)
+        return fmt.Sprintf("│%s%s%s│\n", leftPad, title, rightPad)
+    }
 
-	type category struct {
-		name    string
-		entries []string
-	}
+    protectionTypeStr := func(t uint8) string {
+        switch t {
+        case 0:
+            return "None"
+        case 1:
+            return "ProtectedLight"
+        case 2:
+            return "Protected"
+        default:
+            return fmt.Sprintf("0x%02X", t)
+        }
+    }
 
-	var categories []category
-	categoryMap := make(map[string]int)
+    protectionSignerStr := func(s uint8) string {
+        switch s {
+        case 0:
+            return "None"
+        case 1:
+            return "Authenticode"
+        case 2:
+            return "CodeGen"
+        case 3:
+            return "Antimalware"
+        case 4:
+            return "Lsa"
+        case 5:
+            return "Windows"
+        case 6:
+            return "WinTcb"
+        case 7:
+            return "WinSystem"
+        case 8:
+            return "App"
+        default:
+            return fmt.Sprintf("0x%02X", s)
+        }
+    }
 
-	for _, p := range data.Policies {
-		dot := strings.Index(p, ".")
-		if dot == -1 {
-			continue
-		}
+    b.WriteString(border("top"))
 
-		cat := p[:dot]
-		field := p[dot+1:]
+    // ==================== PROTECTION ====================
+    if data.Protection != nil {
+        b.WriteString(sectionTitle("PROTECTION"))
+        b.WriteString(border("middle"))
+        b.WriteString(row("Type", protectionTypeStr(data.Protection.Type)))
+        b.WriteString(row("Signer", protectionSignerStr(data.Protection.Signer)))
+        b.WriteString(row("Audit", fmt.Sprintf("%v", data.Protection.Audit != 0)))
+        b.WriteString(border("middle"))
+    }
 
-		if idx, ok := categoryMap[cat]; ok {
-			categories[idx].entries = append(categories[idx].entries, field)
-		} else {
-			categoryMap[cat] = len(categories)
-			categories = append(categories, category{name: cat, entries: []string{field}})
-		}
-	}
+    // ==================== MITIGATIONS ====================
+    if len(data.Mitigations) > 0 {
+        b.WriteString(sectionTitle("MITIGATION POLICIES"))
+        b.WriteString(border("middle"))
 
-	b.WriteString(border("top"))
-	b.WriteString(sectionTitle("PROCESS MITIGATION POLICIES"))
-	b.WriteString(border("middle"))
+        var currentCat string
+        for _, p := range data.Mitigations {
+            dot := strings.Index(p, ".")
+            if dot == -1 {
+                continue
+            }
 
-	if len(categories) == 0 {
-		b.WriteString(row("No policies enabled", "-"))
-	}
+            cat := p[:dot]
+            if cat != currentCat {
+                if currentCat != "" {
+                    b.WriteString(border("middle"))
+                }
+                currentCat = cat
+            }
 
-	for i, cat := range categories {
-		for _, entry := range cat.entries {
-			b.WriteString(row(cat.name+"."+entry, "Enabled"))
-		}
-		if i < len(categories)-1 {
-			b.WriteString(border("middle"))
-		}
-	}
+            b.WriteString(row(p, "Enabled"))
+        }
+        b.WriteString(border("middle"))
+    }
 
-	b.WriteString(border("bottom"))
+    result := b.String()
+    lastMiddle := strings.LastIndex(result, "├")
+    if lastMiddle != -1 {
+        result = result[:lastMiddle] + border("bottom")
+    }
 
-	return b.String()
+    return result
 }
 
 func FormatKharonTable(data *KharonData) string {
