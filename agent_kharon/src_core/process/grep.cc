@@ -317,16 +317,12 @@ auto get_protection(
 ) -> void {
     PS_PROTECTION protection = {};
 
-    NTSTATUS status = NtQueryInformationProcess(
-        process_handle, ProcessProtectionInformation, &protection, sizeof( protection ), nullptr
-    );
+    NTSTATUS status = NtQueryInformationProcess( process_handle, ProcessProtectionInformation, &protection, sizeof( protection ), nullptr);
 
     if ( ! nt_success( status ) ) {
         BeaconPrintf( CALLBACK_OUTPUT, "[DEBUG] protection query failed: 0x%X", status );
         return;
     }
-
-        protection.Type, protection.Audit, protection.Signer );
 
     BeaconPkgInt32( SECTION_PROTECTION );
     BeaconPkgInt32( protection.Type );
