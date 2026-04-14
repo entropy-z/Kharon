@@ -2800,6 +2800,24 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 											details.Mitigations = append(details.Mitigations, string(cmd_packer.ParseBytes()))
 										}
 									}
+								case SECTION_CMDLINE:
+									details.CmdLine = utf16LeToString(cmd_packer.ParseBytes())
+								case SECTION_MODULES:
+									count := int(cmd_packer.ParseInt32())
+									details.Modules = make([]ModuleInfo, 0, count)
+									for i := 0; i < count; i++ {
+										name := utf16LeToString(cmd_packer.ParseBytes())
+										entry := binary.LittleEndian.Uint64(cmd_packer.ParseBytes())
+										base := binary.LittleEndian.Uint64(cmd_packer.ParseBytes())
+
+										mod := ModuleInfo{
+											Name:       name,
+											EntryPoint: entry,
+											Base:       base,
+											Size:       uint32(cmd_packer.ParseInt32()),
+										}
+										details.Modules = append(details.Modules, mod)
+									}
 
 								default:
 									break

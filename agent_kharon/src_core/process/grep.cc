@@ -42,42 +42,6 @@ enum section_flag : UINT32 {
     FLAG_ALL           = 0xFFFFFFFF,
 };
 
-auto get_modules(
-    _In_ HANDLE process_handle
-) -> void {
-    HMODULE modules[1024];
-    ULONG   bytes_needed = 0;
-
-    if ( ! EnumProcessModulesEx( process_handle, modules, sizeof(modules), &bytes_needed, LIST_MODULES_ALL ) ) {
-        BeaconPrintfW( CALLBACK_ERROR, L"EnumProcessModulesEx failed with error: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
-        return;
-    }
-
-    INT32 module_count = bytes_needed / sizeof(HMODULE);
-
-    for ( INT32 i = 0; i < module_count; i++) {
-        WCHAR      module_name[MAX_PATH * sizeof(WCHAR)] = { 0 };
-        MODULEINFO module_info = { 0 };
-
-        if ( GetModuleFileNameExW( process_handle, modules[i], module_name, MAX_PATH * sizeof(WCHAR) ) ) {
-            GetModuleInformation( process_handle, modules[i], &module_info, sizeof(module_info) );
-            
-            BeaconPkgBytes( (PBYTE)module_name, wcslen( module_name ) * sizeof(WCHAR) );
-            BeaconPkgInt64( (INT64)module_info.EntryPoint  );
-            BeaconPkgInt64( (INT64)module_info.lpBaseOfDll );
-            BeaconPkgInt32( module_info.SizeOfImage );
-
-            printf("    [%03lu] 0x%p | Size: 0x%08lX | %s\n",
-                i,
-                module_info.lpBaseOfDll,
-                module_info.SizeOfImage,
-                module_name
-            );
-        }
-    }
-}
-
-// NtQueryInformationProcess( handle, ProcessMitigationPolicy ... ); # PROCESS_MITIGATION_POLICY_INFORMATION
 auto get_mitigations(
     _In_ HANDLE process_handle
 ) -> void {
@@ -90,7 +54,7 @@ auto get_mitigations(
         info.Policy = pol;
         NTSTATUS status = STATUS_SUCCESS;
         if ( ! nt_success (status = NtQueryInformationProcess( process_handle, ProcessMitigationPolicy, &info, sizeof( info ), nullptr ))){
-            //BeaconPrintf(CALLBACK_OUTPUT, "NTQuery failed with error: %x during: %d", status, pol);
+            //BeaconPrintf(CALLBACK_OUTPUT, "NTQuery failed with error: %x during: %d", status, pol); todo
         }
         return info;
     };
@@ -115,7 +79,6 @@ auto get_mitigations(
         }
 
     }
-    //BeaconPrintf(CALLBACK_OUTPUT, "count: %d", count);
  
     {
         auto p = query( ProcessASLRPolicy );
@@ -258,6 +221,116 @@ auto get_mitigations(
         BeaconPkgBytes( ( PBYTE ) entries[ i ], ( ULONG ) strlen( entries[ i ] ) );
 }
 
+auto get_protection(
+    _In_ HANDLE process_handle
+) -> void {
+    PS_PROTECTION protection = {};
+
+    NTSTATUS status = NtQueryInformationProcess( process_handle, ProcessProtectionInformation, &protection, sizeof( protection ), nullptr);
+
+    if ( ! nt_success( status ) ) {
+        BeaconPrintf( CALLBACK_OUTPUT, "[DEBUG] protection query failed: 0x%X", status );
+        return;
+    }
+
+    BeaconPkgInt32( SECTION_PROTECTION );
+    BeaconPkgInt32( protection.Type );
+    BeaconPkgInt32( protection.Audit );
+    BeaconPkgInt32( protection.Signer );
+}
+
+auto get_cmdline(
+    _In_ HANDLE process_handle
+) -> void {
+    NTSTATUS status     = STATUS_SUCCESS;
+    ULONG    return_len = 0;
+
+    status = NtQueryInformationProcess( process_handle, ProcessCommandLineInformation, nullptr, 0, &return_len );
+
+    if ( return_len == 0 ) {
+        return;
+    }
+
+    auto cmdline = ( PUNICODE_STRING ) malloc( return_len );
+    if ( ! cmdline ) {
+        return;
+    }
+
+    status = NtQueryInformationProcess( process_handle, ProcessCommandLineInformation, cmdline, return_len, nullptr );
+
+    if ( nt_success( status ) && cmdline->Buffer ) {
+        BeaconPkgInt32( SECTION_CMDLINE );
+        BeaconPkgBytes( ( PBYTE ) cmdline->Buffer, cmdline->Length );
+    }
+
+    free( cmdline );
+}
+
+auto get_modules(
+    _In_ HANDLE process_handle
+) -> void {
+    ULONG bytes_needed = 0;
+
+    K32EnumProcessModulesEx( process_handle, nullptr, 0, &bytes_needed, LIST_MODULES_ALL );
+
+    if ( bytes_needed == 0 ) {
+        return;
+    }
+
+    auto hmodules = ( HMODULE* ) malloc( bytes_needed );
+    if ( ! hmodules ) return;
+
+    if ( ! K32EnumProcessModulesEx( process_handle, hmodules, bytes_needed, &bytes_needed, LIST_MODULES_ALL ) ) {
+        free( hmodules );
+        return;
+    }
+
+    INT32 total = bytes_needed / sizeof( HMODULE );
+
+    struct mod_entry {
+        WCHAR      name[ MAX_PATH ];
+        MODULEINFO info;
+    };
+
+    auto entries = ( mod_entry* ) malloc( sizeof( mod_entry ) * total );
+    if ( ! entries ) {
+        free( hmodules );
+        return;
+    }
+
+    INT32 count = 0;
+
+    for ( INT32 i = 0; i < total; i++ ) {
+        memset( &entries[ count ], 0, sizeof( mod_entry ) );
+
+        if ( K32GetModuleFileNameExW( process_handle, hmodules[ i ], entries[ count ].name, MAX_PATH ) ) {
+            K32GetModuleInformation( process_handle, hmodules[ i ], &entries[ count ].info, sizeof( MODULEINFO ) );
+            count++;
+        }
+    }
+
+    BeaconPrintf( CALLBACK_OUTPUT, "[DEBUG] modules: collected=%d", count );
+
+    if ( count > 0 ) {
+        BeaconPkgInt32( SECTION_MODULES );
+        BeaconPkgInt32( count );
+
+        for ( INT32 i = 0; i < count; i++ ) {
+            BeaconPkgBytes( ( PBYTE ) entries[ i ].name, wcslen( entries[ i ].name ) * sizeof( WCHAR ) );
+
+            ULONG_PTR entry = ( ULONG_PTR ) entries[ i ].info.EntryPoint;
+            ULONG_PTR base  = ( ULONG_PTR ) entries[ i ].info.lpBaseOfDll;
+            BeaconPkgBytes( ( PBYTE ) &entry, sizeof( ULONG_PTR ) );
+            BeaconPkgBytes( ( PBYTE ) &base,  sizeof( ULONG_PTR ) );
+            
+            BeaconPkgInt32( entries[ i ].info.SizeOfImage );
+        }
+    }
+
+    free( entries );
+    free( hmodules );
+}
+
 auto get_threads(
     _In_ DWORD process_id
 ) -> void {
@@ -312,23 +385,7 @@ auto get_instcallbacks(
     return;
 }
 
-auto get_protection(
-    _In_ HANDLE process_handle
-) -> void {
-    PS_PROTECTION protection = {};
 
-    NTSTATUS status = NtQueryInformationProcess( process_handle, ProcessProtectionInformation, &protection, sizeof( protection ), nullptr);
-
-    if ( ! nt_success( status ) ) {
-        BeaconPrintf( CALLBACK_OUTPUT, "[DEBUG] protection query failed: 0x%X", status );
-        return;
-    }
-
-    BeaconPkgInt32( SECTION_PROTECTION );
-    BeaconPkgInt32( protection.Type );
-    BeaconPkgInt32( protection.Audit );
-    BeaconPkgInt32( protection.Signer );
-}
 
 // NtQueryInformationProcess( handle, ProcessBasicInformation, ... ); # PROCESS_EXTENDED_BASIC_INFORMATION
 // - arch
@@ -460,35 +517,6 @@ auto get_tokens(
     CloseHandle( token_handle );
 }
 
-auto get_cmdline(
-    _In_ HANDLE process_handle
-) -> void {
-    NTSTATUS status     = STATUS_SUCCESS;
-    ULONG    return_len = 0;
-
-    status = NtQueryInformationProcess(
-        process_handle, ProcessCommandLineInformation, nullptr, 0, &return_len
-    );
-    if ( return_len == 0 ) {
-        BeaconPrintfW( CALLBACK_ERROR, L"Failed to get command line size: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
-        return;
-    }
-
-    auto cmdline = (PUNICODE_STRING)malloc( return_len );
-    if ( ! cmdline ) {
-        return;
-    }
-
-    status = NtQueryInformationProcess(
-        process_handle, ProcessCommandLineInformation, cmdline, return_len, nullptr
-    );
-    if ( nt_success( status ) && cmdline->Buffer ) {
-        BeaconPkgBytes( (PBYTE)cmdline->Buffer, wcslen( cmdline->Buffer ) * sizeof(WCHAR) );
-        DbgPrint("[*] Command Line: %s\n", cmdline->Buffer);
-    }
-
-    free( cmdline );
-}
 
 extern "C" auto go( char* args, int argc ) -> void {
     datap data_parser = {};
@@ -497,7 +525,7 @@ extern "C" auto go( char* args, int argc ) -> void {
     DWORD    target_pid    = ( DWORD ) BeaconDataInt( &data_parser );
     UINT32 section_flags = ( UINT32 ) BeaconDataInt( &data_parser );
 
-    HANDLE process_handle = OpenProcess( PROCESS_QUERY_INFORMATION, FALSE, target_pid );
+    HANDLE process_handle = OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, target_pid );
     if ( ! process_handle || process_handle == INVALID_HANDLE_VALUE ) {
         return;
     }
@@ -509,6 +537,15 @@ extern "C" auto go( char* args, int argc ) -> void {
     if ( section_flags & FLAG_MITIGATIONS ) {
         get_mitigations( process_handle );
     }
+    
+    if ( section_flags & FLAG_CMDLINE ) {
+        get_cmdline( process_handle );
+    }
+
+    if ( section_flags & FLAG_MODULES ) {
+        get_modules( process_handle );
+    }
+
 
     BeaconPkgInt32( SECTION_END );
 

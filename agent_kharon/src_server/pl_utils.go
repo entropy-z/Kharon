@@ -23,48 +23,48 @@ import (
 
 type KharonData struct {
 	Machine struct {
-		OsArch           uint8  `json:"os_arch"`
-		Username         string `json:"username"`
-		Computer         string `json:"computer"`
-		Domain           string `json:"domain"`
-		Netbios          string `json:"netbios"`
-		Ipaddress        string `json:"ipaddress"`
-		ProcessorName    string `json:"processor_name"`
-		ProcessorNumbers uint32 `json:"processor_numbers"`
-		RamTotal         uint32 `json:"ram_total"`
-		RamAval          uint32 `json:"ram_aval"`
-		RamUsed          uint32 `json:"ram_used"`
-		RamPerct         uint32 `json:"ram_perct"`
-		OsMajor          uint32 `json:"os_major"`
-		OsMinor          uint32 `json:"os_minor"`
-		OsBuild          uint32 `json:"os_build"`
-		AllocationGran   uint32 `json:"allocation_gran"`
-		PageSize         uint32 `json:"page_size"`
-		CfgEnabled       bool   `json:"cfg_enabled"`
-		VbsHvci          uint32 `json:"vbs_hvci"`
-		DseStatus        uint32 `json:"dse_status"`
-		TestsignEnabled  bool   `json:"testsign_enabled"`
-		DebugmodeEnabled bool   `json:"debugmode_enabled"`
-		SecurebootEnabled bool  `json:"secureboot_enabled"`
+		OsArch            uint8  `json:"os_arch"`
+		Username          string `json:"username"`
+		Computer          string `json:"computer"`
+		Domain            string `json:"domain"`
+		Netbios           string `json:"netbios"`
+		Ipaddress         string `json:"ipaddress"`
+		ProcessorName     string `json:"processor_name"`
+		ProcessorNumbers  uint32 `json:"processor_numbers"`
+		RamTotal          uint32 `json:"ram_total"`
+		RamAval           uint32 `json:"ram_aval"`
+		RamUsed           uint32 `json:"ram_used"`
+		RamPerct          uint32 `json:"ram_perct"`
+		OsMajor           uint32 `json:"os_major"`
+		OsMinor           uint32 `json:"os_minor"`
+		OsBuild           uint32 `json:"os_build"`
+		AllocationGran    uint32 `json:"allocation_gran"`
+		PageSize          uint32 `json:"page_size"`
+		CfgEnabled        bool   `json:"cfg_enabled"`
+		VbsHvci           uint32 `json:"vbs_hvci"`
+		DseStatus         uint32 `json:"dse_status"`
+		TestsignEnabled   bool   `json:"testsign_enabled"`
+		DebugmodeEnabled  bool   `json:"debugmode_enabled"`
+		SecurebootEnabled bool   `json:"secureboot_enabled"`
 	} `json:"machine"`
 
 	Session struct {
-		AgentIdStr string `json:"agent_id_str"`
-		AgentIdInt uint32 `json:"agent_id_int"`
-		SleepTime  uint32 `json:"sleep_time"`
-		Jitter     uint32 `json:"jitter"`
-		HeapHandle uint64 `json:"heap_handle"`
-		Elevated   bool   `json:"elevated"`
+		AgentIdStr  string `json:"agent_id_str"`
+		AgentIdInt  uint32 `json:"agent_id_int"`
+		SleepTime   uint32 `json:"sleep_time"`
+		Jitter      uint32 `json:"jitter"`
+		HeapHandle  uint64 `json:"heap_handle"`
+		Elevated    bool   `json:"elevated"`
 		ProcessArch uint32 `json:"process_arch"`
-		ImgPath    string `json:"img_path"`
-		ImgName    string `json:"img_name"`
-		CmdLine    string `json:"cmd_line"`
-		ProcessId  uint32 `json:"process_id"`
-		ThreadId   uint32 `json:"thread_id"`
-		ParentId   uint32 `json:"parent_id"`
-		Acp        uint32 `json:"acp"`
-		Oemcp      uint32 `json:"oemcp"`
-		Base struct {
+		ImgPath     string `json:"img_path"`
+		ImgName     string `json:"img_name"`
+		CmdLine     string `json:"cmd_line"`
+		ProcessId   uint32 `json:"process_id"`
+		ThreadId    uint32 `json:"thread_id"`
+		ParentId    uint32 `json:"parent_id"`
+		Acp         uint32 `json:"acp"`
+		Oemcp       uint32 `json:"oemcp"`
+		Base        struct {
 			Start string `json:"start"`
 			End   string `json:"end"`
 			Size  uint32 `json:"size"`
@@ -136,7 +136,6 @@ func (k *KharonData) JsonUnmarshal(agent *ax.AgentData) error {
 	}
 	return json.Unmarshal(agent.CustomData, k)
 }
-
 
 func (k *KharonData) Marshal() ([]byte, error) {
 	var buf bytes.Buffer
@@ -678,10 +677,10 @@ type AgentConfig struct {
 	WorkingTimeEnd   string `json:"workingtime_end"`
 	WorkingTimeStart string `json:"workingtime_start"`
 
-	PeSection             string `json:"pe_section"`
-	CustomSectionName	  string `json:"custom_section_name"`
-	InjectionTechnique 	  string `json:"injection_technique"`
-	EncryptionTechnique	  string `json:"encryption_technique"`
+	PeSection           string `json:"pe_section"`
+	CustomSectionName   string `json:"custom_section_name"`
+	InjectionTechnique  string `json:"injection_technique"`
+	EncryptionTechnique string `json:"encryption_technique"`
 
 	kharon_data []byte
 }
@@ -862,15 +861,15 @@ const (
 )
 
 const (
-	CALLBACK_OUTPUT      = 0x0
-	CALLBACK_OUTPUT_OEM  = 0x1e
-	CALLBACK_OUTPUT_UTF8 = 0x20
-	CALLBACK_ERROR       = 0x0d
-	CALLBACK_NO_PRE_MSG  = 0x4f
-	CALLBACK_INFO        = 0x4e
-	CALLBACK_SCREENSHOT  = 0x55
-	CALLBACK_CUSTOM      = 0x1000
-	CALLBACK_CUSTOM_LAST = 0x13ff
+	CALLBACK_OUTPUT          = 0x0
+	CALLBACK_OUTPUT_OEM      = 0x1e
+	CALLBACK_OUTPUT_UTF8     = 0x20
+	CALLBACK_ERROR           = 0x0d
+	CALLBACK_NO_PRE_MSG      = 0x4f
+	CALLBACK_INFO            = 0x4e
+	CALLBACK_SCREENSHOT      = 0x55
+	CALLBACK_CUSTOM          = 0x1000
+	CALLBACK_CUSTOM_LAST     = 0x13ff
 	CALLBACK_AX_SCREENSHOT   = 0x81
 	CALLBACK_AX_DOWNLOAD_MEM = 0x82
 )
@@ -895,59 +894,59 @@ const (
 
 // For Details Command
 const (
-	SECTION_END              = 0x00
-	SECTION_PID              = 0x01
-	SECTION_PPID             = 0x02
-	SECTION_ARCH             = 0x03
-	SECTION_IMAGE_NAME       = 0x04
-	SECTION_IMAGE_PATH       = 0x05
-	SECTION_CMDLINE          = 0x06
-	SECTION_PROTECTION       = 0x07
-	SECTION_MITIGATIONS      = 0x08
-	SECTION_MODULES          = 0x09
-	SECTION_THREADS          = 0x0A
-	SECTION_HANDLES          = 0x0B
-	SECTION_MEMORY           = 0x0C
-	SECTION_NETWORK          = 0x0D
-	SECTION_ENV              = 0x0E
-	SECTION_TOKEN            = 0x0F
-	SECTION_STARTED          = 0x10
-	SECTION_INST_CALLBACK    = 0x11
+	SECTION_END           = 0x00
+	SECTION_PID           = 0x01
+	SECTION_PPID          = 0x02
+	SECTION_ARCH          = 0x03
+	SECTION_IMAGE_NAME    = 0x04
+	SECTION_IMAGE_PATH    = 0x05
+	SECTION_CMDLINE       = 0x06
+	SECTION_PROTECTION    = 0x07
+	SECTION_MITIGATIONS   = 0x08
+	SECTION_MODULES       = 0x09
+	SECTION_THREADS       = 0x0A
+	SECTION_HANDLES       = 0x0B
+	SECTION_MEMORY        = 0x0C
+	SECTION_NETWORK       = 0x0D
+	SECTION_ENV           = 0x0E
+	SECTION_TOKEN         = 0x0F
+	SECTION_STARTED       = 0x10
+	SECTION_INST_CALLBACK = 0x11
 )
- 
+
 type ModuleInfo struct {
 	Name       string
 	EntryPoint uint64
 	Base       uint64
 	Size       uint32
 }
- 
+
 type ThreadInfo struct {
 	Tid      int32
 	Flags    int32
 	Size     int32
 	Priority int32
 }
- 
+
 type HandleInfo struct {
-	Value       uint16
-	TypeIndex   uint32
+	Value         uint16
+	TypeIndex     uint32
 	GrantedAccess uint32
 }
- 
+
 type TokenInfo struct {
 	Username       string
 	Domain         string
 	Elevated       bool
 	IntegrityLevel string
 }
- 
+
 type ProtectionInfo struct {
 	Type   uint8
 	Audit  uint8
 	Signer uint8
 }
- 
+
 type MemoryRegion struct {
 	BaseAddress uint64
 	RegionSize  uint64
@@ -955,7 +954,7 @@ type MemoryRegion struct {
 	Protect     uint32
 	Type        uint32
 }
- 
+
 type NetworkEntry struct {
 	Protocol   int32
 	LocalAddr  string
@@ -964,25 +963,25 @@ type NetworkEntry struct {
 	RemotePort int32
 	State      int32
 }
- 
+
 type ProcessDetails struct {
-	Pid              int32
-	Ppid             int32
-	Arch             int32
-	ImageName        string
-	ImagePath        string
-	CmdLine          string
-	Protection       *ProtectionInfo
-	Mitigations      []string
-	Modules          []ModuleInfo
-	Threads          []ThreadInfo
-	Handles          []HandleInfo
-	Memory           []MemoryRegion
-	Network          []NetworkEntry
-	Env              []string
-	Token            *TokenInfo
-	StartedDate      int64
-	InstCallback     uint64
+	Pid          int32
+	Ppid         int32
+	Arch         int32
+	ImageName    string
+	ImagePath    string
+	CmdLine      string
+	Protection   *ProtectionInfo
+	Mitigations  []string
+	Modules      []ModuleInfo
+	Threads      []ThreadInfo
+	Handles      []HandleInfo
+	Memory       []MemoryRegion
+	Network      []NetworkEntry
+	Env          []string
+	Token        *TokenInfo
+	StartedDate  int64
+	InstCallback uint64
 }
 
 var codePageMapping = map[int]encoding.Encoding{
@@ -1942,29 +1941,43 @@ func SizeBytesToFormat(size int64) string {
 	if size < 1024 {
 		return fmt.Sprintf("%d B", size)
 	}
-	
+
 	suffixes := []string{"B", "KB", "MB", "GB", "TB", "PB"}
 	base := float64(size)
 	i := 0
-	
+
 	for base >= 1024 && i < len(suffixes)-1 {
 		base /= 1024
 		i++
 	}
-	
+
 	return fmt.Sprintf("%.1f %s", base, suffixes[i])
+}
+
+func utf16LeToString(b []byte) string {
+	if len(b)%2 != 0 {
+		b = b[:len(b)-1]
+	}
+	u16 := make([]uint16, len(b)/2)
+	for i := range u16 {
+		u16[i] = uint16(b[i*2]) | uint16(b[i*2+1])<<8
+	}
+	if len(u16) > 0 && u16[len(u16)-1] == 0 {
+		u16 = u16[:len(u16)-1]
+	}
+	return string(utf16.Decode(u16))
 }
 
 func ConvertStringToWCharNullTerminated(input string) []byte {
 	runes := []rune(input)
 	utf16Data := utf16.Encode(runes)
-	
+
 	result := make([]byte, (len(utf16Data)+1)*2)
-	
+
 	for i, wchar := range utf16Data {
 		binary.LittleEndian.PutUint16(result[i*2:], wchar)
 	}
-	
+
 	return result
 }
 
@@ -1972,33 +1985,33 @@ func ConvertWCharBytesToString(data []byte) string {
 	if len(data) < 2 {
 		return ""
 	}
-	
+
 	if len(data)%2 != 0 {
 		data = data[:len(data)-1]
 	}
-	
+
 	utf16Data := make([]uint16, 0, len(data)/2)
 	for i := 0; i < len(data); i += 2 {
 		wchar := binary.LittleEndian.Uint16(data[i:])
-		
+
 		if wchar == 0 {
 			break
 		}
-		
+
 		utf16Data = append(utf16Data, wchar)
 	}
-	
+
 	runes := utf16.Decode(utf16Data)
 	return string(runes)
 }
 
 func ConvertWCharBytesToCp(data []byte, codePage int) string {
 	utf8Str := ConvertWCharBytesToString(data)
-	
-	if codePage == 65001 { 
+
+	if codePage == 65001 {
 		return utf8Str
 	}
-	
+
 	return ConvertUTF8toCp(utf8Str, codePage)
 }
 
@@ -2084,7 +2097,7 @@ func ConvertCpToUTF16String(input string, codePage int) string {
 func ConvertUTF16StringToCp(input string, codePage int) string {
 	runes := []rune(input)
 	utf16Data := utf16.Encode(runes)
-	
+
 	return ConvertUTF16toCp(utf16Data, codePage)
 }
 
@@ -2094,7 +2107,7 @@ func ConvertCpToUTF16LE(input string, codePage int) []byte {
 	utf16Data := ConvertCpToUTF16(input, codePage)
 
 	fmt.Printf("utf16 data: %v\n", utf16Data)
-	
+
 	result := make([]byte, len(utf16Data)*2)
 	for i, v := range utf16Data {
 		result[i*2] = byte(v)
@@ -2108,14 +2121,14 @@ func ConvertCpToUTF16LE(input string, codePage int) []byte {
 
 func ConvertUTF16LEToCp(data []byte, codePage int) string {
 	if len(data)%2 != 0 {
-		data = data[:len(data)-1] 
+		data = data[:len(data)-1]
 	}
-	
+
 	utf16Data := make([]uint16, len(data)/2)
 	for i := 0; i < len(utf16Data); i++ {
 		utf16Data[i] = uint16(data[i*2]) | uint16(data[i*2+1])<<8
 	}
-	
+
 	return ConvertUTF16toCp(utf16Data, codePage)
 }
 
@@ -2128,13 +2141,13 @@ func (c *CodePageConverter) ToUTF16(input string) []uint16 {
 	if c == nil {
 		return utf16.Encode([]rune(input))
 	}
-	
+
 	var buf strings.Builder
 	c.decoder.Reset()
 	writer := transform.NewWriter(&buf, c.decoder)
 	writer.Write([]byte(input))
 	writer.Close()
-	
+
 	return utf16.Encode([]rune(buf.String()))
 }
 
@@ -2181,7 +2194,7 @@ func gen_shellcode_header(shellcode []byte, section string, customName string) s
 		if name == "" {
 			name = ".kharon"
 		}
-		if !strings.HasPrefix(name, "."){
+		if !strings.HasPrefix(name, ".") {
 			name = "." + name
 		}
 		sectionAttr = fmt.Sprintf("__attribute__((section(\"%s\")))\n", name)
@@ -2222,19 +2235,19 @@ func get_map_keys(m map[string]any) []string {
 }
 
 func get_int_from_args(value interface{}) (int, bool) {
-    switch v := value.(type) {
-    case int:
-        return v, true
-    case float64:
-        return int(v), true
-    case int64:
-        return int(v), true
-    case string:
-        if i, err := strconv.Atoi(v); err == nil {
-            return i, true
-        }
-    }
-    return 0, false
+	switch v := value.(type) {
+	case int:
+		return v, true
+	case float64:
+		return int(v), true
+	case int64:
+		return int(v), true
+	case string:
+		if i, err := strconv.Atoi(v); err == nil {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 func bool_to_int(b bool) int {
@@ -2323,115 +2336,225 @@ type MitigationData struct {
 }
 
 func FormatDetailsTable(data *ProcessDetails) string {
-    var b strings.Builder
+	var b strings.Builder
 
-    colLabel := 45
-    colValue := 15
+	colLabel := 45
+	colValue := 45
 
-    row := func(label, value string) string {
-        return fmt.Sprintf("│ %-*s │ %-*s │\n", colLabel, label, colValue, value)
-    }
+	row := func(label, value string) string {
+		return fmt.Sprintf("│ %-*s │ %-*s │\n", colLabel, label, colValue, value)
+	}
 
-    border := func(kind string) string {
-        switch kind {
-        case "top":
-            return "┌" + strings.Repeat("─", colLabel+2) + "┬" + strings.Repeat("─", colValue+2) + "┐\n"
-        case "bottom":
-            return "└" + strings.Repeat("─", colLabel+2) + "┴" + strings.Repeat("─", colValue+2) + "┘\n"
-        }
-        return "├" + strings.Repeat("─", colLabel+2) + "┼" + strings.Repeat("─", colValue+2) + "┤\n"
-    }
+	border := func(kind string) string {
+		switch kind {
+		case "top":
+			return "┌" + strings.Repeat("─", colLabel+2) + "┬" + strings.Repeat("─", colValue+2) + "┐\n"
+		case "bottom":
+			return "└" + strings.Repeat("─", colLabel+2) + "┴" + strings.Repeat("─", colValue+2) + "┘\n"
+		}
+		return "├" + strings.Repeat("─", colLabel+2) + "┼" + strings.Repeat("─", colValue+2) + "┤\n"
+	}
 
-    sectionTitle := func(title string) string {
-        totalWidth := colLabel + colValue + 5
-        padding := (totalWidth - len(title)) / 2
-        leftPad := strings.Repeat(" ", padding)
-        rightPad := strings.Repeat(" ", totalWidth-len(title)-padding)
-        return fmt.Sprintf("│%s%s%s│\n", leftPad, title, rightPad)
-    }
+	fullBorder := func(kind string) string {
+		totalWidth := colLabel + colValue + 5
+		switch kind {
+		case "top":
+			return "┌" + strings.Repeat("─", totalWidth) + "┐\n"
+		case "bottom":
+			return "└" + strings.Repeat("─", totalWidth) + "┘\n"
+		}
+		return "├" + strings.Repeat("─", totalWidth) + "┤\n"
+	}
 
-    protectionTypeStr := func(t uint8) string {
-        switch t {
-        case 0:
-            return "None"
-        case 1:
-            return "ProtectedLight"
-        case 2:
-            return "Protected"
-        default:
-            return fmt.Sprintf("0x%02X", t)
-        }
-    }
+	splitBorder := func() string {
+		return "├" + strings.Repeat("─", colLabel+2) + "┬" + strings.Repeat("─", colValue+2) + "┤\n"
+	}
 
-    protectionSignerStr := func(s uint8) string {
-        switch s {
-        case 0:
-            return "None"
-        case 1:
-            return "Authenticode"
-        case 2:
-            return "CodeGen"
-        case 3:
-            return "Antimalware"
-        case 4:
-            return "Lsa"
-        case 5:
-            return "Windows"
-        case 6:
-            return "WinTcb"
-        case 7:
-            return "WinSystem"
-        case 8:
-            return "App"
-        default:
-            return fmt.Sprintf("0x%02X", s)
-        }
-    }
+	mergeBorder := func() string {
+		return "├" + strings.Repeat("─", colLabel+2) + "┴" + strings.Repeat("─", colValue+2) + "┤\n"
+	}
 
-    b.WriteString(border("top"))
+	sectionTitle := func(title string) string {
+		totalWidth := colLabel + colValue + 5
+		padding := (totalWidth - len(title)) / 2
+		leftPad := strings.Repeat(" ", padding)
+		rightPad := strings.Repeat(" ", totalWidth-len(title)-padding)
+		return fmt.Sprintf("│%s%s%s│\n", leftPad, title, rightPad)
+	}
 
-    // ==================== PROTECTION ====================
-    if data.Protection != nil {
-        b.WriteString(sectionTitle("PROTECTION"))
-        b.WriteString(border("middle"))
-        b.WriteString(row("Type", protectionTypeStr(data.Protection.Type)))
-        b.WriteString(row("Signer", protectionSignerStr(data.Protection.Signer)))
-        b.WriteString(row("Audit", fmt.Sprintf("%v", data.Protection.Audit != 0)))
-        b.WriteString(border("middle"))
-    }
+	wrapRow := func(label, value string) string {
+		value = strings.TrimRight(value, "\x00\r\n")
+		runes := []rune(value)
+		if len(runes) == 0 {
+			return row(label, "")
+		}
+		var out string
+		for i := 0; i < len(runes); i += colValue {
+			end := i + colValue
+			if end > len(runes) {
+				end = len(runes)
+			}
+			if i == 0 {
+				out += row(label, string(runes[i:end]))
+			} else {
+				out += row("", string(runes[i:end]))
+			}
+		}
+		return out
+	}
 
-    // ==================== MITIGATIONS ====================
-    if len(data.Mitigations) > 0 {
-        b.WriteString(sectionTitle("MITIGATION POLICIES"))
-        b.WriteString(border("middle"))
+	wrapBoth := func(label, value string) string {
+		maxLabel := colLabel
+		maxValue := colValue
 
-        var currentCat string
-        for _, p := range data.Mitigations {
-            dot := strings.Index(p, ".")
-            if dot == -1 {
-                continue
-            }
+		labelRunes := []rune(label)
+		valueRunes := []rune(value)
 
-            cat := p[:dot]
-            if cat != currentCat {
-                if currentCat != "" {
-                    b.WriteString(border("middle"))
-                }
-                currentCat = cat
-            }
+		var labelLines []string
+		for len(labelRunes) > maxLabel {
+			labelLines = append(labelLines, string(labelRunes[:maxLabel]))
+			labelRunes = labelRunes[maxLabel:]
+		}
+		labelLines = append(labelLines, string(labelRunes))
 
-            b.WriteString(row(p, "Enabled"))
-        }
-        b.WriteString(border("middle"))
-    }
+		var valueLines []string
+		for len(valueRunes) > maxValue {
+			valueLines = append(valueLines, string(valueRunes[:maxValue]))
+			valueRunes = valueRunes[maxValue:]
+		}
+		valueLines = append(valueLines, string(valueRunes))
 
-    result := b.String()
-    lastMiddle := strings.LastIndex(result, "├")
-    if lastMiddle != -1 {
-        result = result[:lastMiddle] + border("bottom")
-    }
+		total := len(labelLines)
+		if len(valueLines) > total {
+			total = len(valueLines)
+		}
 
-    return result
+		var out string
+		for i := 0; i < total; i++ {
+			l := ""
+			v := ""
+			if i < len(labelLines) {
+				l = labelLines[i]
+			}
+			if i < len(valueLines) {
+				v = valueLines[i]
+			}
+			out += row(l, v)
+		}
+		return out
+	}
+
+	protectionTypeStr := func(t uint8) string {
+		switch t {
+		case 0:
+			return "None"
+		case 1:
+			return "ProtectedLight"
+		case 2:
+			return "Protected"
+		default:
+			return fmt.Sprintf("0x%02X", t)
+		}
+	}
+
+	protectionSignerStr := func(s uint8) string {
+		switch s {
+		case 0:
+			return "None"
+		case 1:
+			return "Authenticode"
+		case 2:
+			return "CodeGen"
+		case 3:
+			return "Antimalware"
+		case 4:
+			return "Lsa"
+		case 5:
+			return "Windows"
+		case 6:
+			return "WinTcb"
+		case 7:
+			return "WinSystem"
+		case 8:
+			return "App"
+		default:
+			return fmt.Sprintf("0x%02X", s)
+		}
+	}
+
+	b.WriteString(fullBorder("top"))
+
+	// ==================== PROTECTION ====================
+	if data.Protection != nil {
+		b.WriteString(sectionTitle("PROTECTION"))
+		b.WriteString(splitBorder())
+		b.WriteString(row("Type", protectionTypeStr(data.Protection.Type)))
+		b.WriteString(row("Signer", protectionSignerStr(data.Protection.Signer)))
+		b.WriteString(row("Audit", fmt.Sprintf("%v", data.Protection.Audit != 0)))
+		b.WriteString(mergeBorder())
+	}
+
+	// ==================== MITIGATIONS ====================
+	if len(data.Mitigations) > 0 {
+		b.WriteString(sectionTitle("MITIGATION POLICIES"))
+		b.WriteString(splitBorder())
+
+		var currentCat string
+		for _, p := range data.Mitigations {
+			dot := strings.Index(p, ".")
+			if dot == -1 {
+				continue
+			}
+			cat := p[:dot]
+			if cat != currentCat {
+				if currentCat != "" {
+					b.WriteString(border("middle"))
+				}
+				currentCat = cat
+			}
+			b.WriteString(row(p, "Enabled"))
+		}
+		b.WriteString(mergeBorder())
+	}
+
+	// ==================== COMMAND LINE ====================
+	if data.CmdLine != "" {
+		b.WriteString(sectionTitle("COMMAND LINE"))
+		b.WriteString(splitBorder())
+		b.WriteString(wrapRow("Command Line", data.CmdLine))
+		b.WriteString(mergeBorder())
+	}
+
+	// ==================== MODULES ====================
+	if len(data.Modules) > 0 {
+		b.WriteString(sectionTitle("MODULES"))
+		b.WriteString(splitBorder())
+		for i, mod := range data.Modules {
+			name := mod.Name
+			if idx := strings.LastIndex(name, "\\"); idx != -1 {
+				name = name[idx+1:]
+			}
+
+			b.WriteString(wrapBoth(name, fmt.Sprintf("Base:  0x%016X", mod.Base)))
+			b.WriteString(row("", fmt.Sprintf("Size:  0x%08X", mod.Size)))
+			b.WriteString(wrapBoth("", "Path:  "+mod.Name))
+			if i < len(data.Modules)-1 {
+				b.WriteString(border("middle"))
+			}
+		}
+		b.WriteString(mergeBorder())
+	}
+
+	result := b.String()
+	lastMerge := strings.LastIndex(result, "┴")
+	if lastMerge != -1 {
+		lineStart := strings.LastIndex(result[:lastMerge], "├")
+		if lineStart != -1 {
+			result = result[:lineStart] + border("bottom")
+		}
+	}
+
+	return result
 }
 
 func FormatKharonTable(data *KharonData) string {

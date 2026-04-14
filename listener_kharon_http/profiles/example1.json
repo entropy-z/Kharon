@@ -1,7 +1,7 @@
 {
     "callbacks": [
         {
-            "hosts": ["172.23.60.72:5124", "172.23.60.72:5124"],
+            "hosts": ["172.28.133.174:5124", "172.28.133.174:5124"],
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "server_error": {
                 "http_status": 403,

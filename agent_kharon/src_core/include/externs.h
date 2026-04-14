@@ -118,6 +118,10 @@ extern "C" {
     DFR(KERNEL32, WideCharToMultiByte)
     DFR(KERNEL32, QueryFullProcessImageNameA)
 
+    DFR(KERNEL32, K32EnumProcessModulesEx)
+    DFR(KERNEL32, K32GetModuleFileNameExW)
+    DFR(KERNEL32, K32GetModuleInformation)
+
     // ==================== NTDLL ====================
     DFR(NTDLL, DbgPrint)
     DFR(NTDLL, RtlRandomEx)
@@ -308,6 +312,10 @@ extern "C" {
 #define FreeEnvironmentStringsW           KERNEL32$FreeEnvironmentStringsW
 #define WideCharToMultiByte               KERNEL32$WideCharToMultiByte
 #define QueryFullProcessImageNameA        KERNEL32$QueryFullProcessImageNameA
+
+#define K32EnumProcessModulesEx              KERNEL32$K32EnumProcessModulesEx
+#define K32GetModuleFileNameExW              KERNEL32$K32GetModuleFileNameExW
+#define K32GetModuleInformation              KERNEL32$K32GetModuleInformation
 
 // ==================== NTDLL MACROS ====================
 #define DbgPrint                          NTDLL$DbgPrint
