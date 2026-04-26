@@ -125,6 +125,8 @@ auto DECLFN Useful::FindGadget(
         }
     }
 
+    if ( GadgetCounter == 0 ) return 0;
+
     RndIndex = Rnd32() % GadgetCounter;
     Gadget   = GadgetList[RndIndex];
 

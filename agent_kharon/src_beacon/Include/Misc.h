@@ -193,7 +193,8 @@ namespace Action {
     enum class Pivot {
         Link = 10,
         Unlink,
-        List
+        List,
+        Exchange = 20
     };
 
     enum class Up {

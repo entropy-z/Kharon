@@ -1,0 +1,7 @@
+extender_type: "listener"
+extender_file: "listener_kharon_smb.so"
+ax_file: "ax_config.axs"
+
+listener_name: "KharonSMB"
+listener_type: "internal"
+protocol: "bind_smb"

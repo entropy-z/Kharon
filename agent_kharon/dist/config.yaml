@@ -6,4 +6,5 @@ agent_name: "kharon"
 agent_watermark: "c17a905a"
 listeners:
   - "KharonHTTP"
+  - "KharonSMB"
 multi_listeners: false

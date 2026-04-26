@@ -4,6 +4,7 @@ import (
 	// "database/sql/driver"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math/rand"
 	"time"
@@ -143,6 +144,21 @@ var (
 	ModuleObject   *ModuleExtender
 	ModuleDir      string
 	AgentWatermark string
+
+	// PivotUUIDMap maps server-assigned agentId → original beacon UUID prefix (first 8 chars).
+	// Needed because CreateAgent generates a random ID unrelated to the beacon's SmbUUID.
+	PivotUUIDMap = make(map[string]string)
+
+	// TaskOwnerMap maps taskId → agentId for link commands.
+	// When ProcessTasksResult sees a TASK_PIVOT Link inside a relayed PROFILE_SMB response,
+	// agentData is the outer HTTP parent — not the SMB child that actually did the link.
+	// This map lets us find the real parent.
+	TaskOwnerMap = make(map[string]string)
+
+	// SmbPipeName stores the pipe name from the SMB listener config.
+	// Updated during Generate() when building an SMB beacon.
+	// Used by CreateTask to auto-resolve pipe name for "link smb <target>".
+	SmbPipeName = "kharon_c2"
 )
 
 func (p *PluginAgent) GetExtender() ax.ExtenderAgent {
@@ -223,7 +239,28 @@ func (ext *ExtenderAgent) PackTasks(agentData ax.AgentData, tasks []ax.TaskData)
 }
 
 func (ext *ExtenderAgent) PivotPackData(pivotId string, data []byte) (ax.TaskData, error) {
-	packData, err := PackPivotTasks(pivotId, data)
+	// Resolve the beacon's original UUID from the pivot table.
+	// The beacon stores children by SmbUUID (first 8 chars of checkin UUID),
+	// but CreateAgent assigns a random agent ID. We stored the mapping at Link time.
+	childId := pivotId
+	if ModuleObject != nil && ModuleObject.ts != nil {
+		_, _, cid := ModuleObject.ts.TsGetPivotInfoById(pivotId)
+		if cid != "" {
+			if origUUID, ok := PivotUUIDMap[cid]; ok {
+				childId = origUUID
+			} else {
+				childId = cid
+			}
+		}
+	}
+
+	// Don't send Exchange when child has no pending data — the beacon rejects
+	// empty Exchange tasks and it wastes a pipe cycle.
+	if len(data) == 0 {
+		return ax.TaskData{}, fmt.Errorf("no data for child")
+	}
+
+	packData, err := PackPivotTasks(childId, data)
 	if err != nil {
 		return ax.TaskData{}, err
 	}

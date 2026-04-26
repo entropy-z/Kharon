@@ -24,30 +24,32 @@ INTN   := $(wildcard Source/Internals/*.cc)
 # Exclude Config.cc from prebuild
 SRC_NO_CONFIG    := $(filter-out Source/Config.cc, $(SRC))
 
-# Prebuild objects (all except Config.cc)
+# Prebuild objects (all except Config.cc and Communication/*.cc)
+# Communication files contain #if PROFILE_C2 conditionals and must be
+# force-recompiled when the profile changes (HTTP vs SMB)
 PREBUILD_OBJ64_PATHS := $(SRC_NO_CONFIG:%.cc=$(OBJ_PATH)/%.x64.obj) \
                         $(MISC:%.cc=$(OBJ_PATH)/%.x64.obj) \
-                        $(COMM:%.cc=$(OBJ_PATH)/%.x64.obj) \
                         $(EVS:%.cc=$(OBJ_PATH)/%.x64.obj) \
                         $(INTN:%.cc=$(OBJ_PATH)/%.x64.obj)
 
 PREBUILD_OBJ86_PATHS := $(SRC_NO_CONFIG:%.cc=$(OBJ_PATH)/%.x86.obj) \
                         $(MISC:%.cc=$(OBJ_PATH)/%.x86.obj) \
-                        $(COMM:%.cc=$(OBJ_PATH)/%.x86.obj) \
                         $(EVS:%.cc=$(OBJ_PATH)/%.x86.obj) \
                         $(INTN:%.cc=$(OBJ_PATH)/%.x86.obj)
 
-# Config objects (compiled ONLY in final build, not in prebuild)
+# Config + Communication objects (force-recompiled in final build, not in prebuild)
 CONFIG_OBJ64 := $(OBJ_PATH)/Config.x64.obj
 CONFIG_OBJ86 := $(OBJ_PATH)/Config.x86.obj
+COMM_OBJ64   := $(COMM:%.cc=$(OBJ_PATH)/%.x64.obj)
+COMM_OBJ86   := $(COMM:%.cc=$(OBJ_PATH)/%.x86.obj)
 
 # ASM objects
 ASM_OBJ64 := $(OBJ_PATH)/entry_asm.x64.obj $(OBJ_PATH)/spoof_asm.x64.obj
 ASM_OBJ86 := $(OBJ_PATH)/entry.x86.obj
 
 # All objects for final link
-OBJ64_FINAL  := $(PREBUILD_OBJ64_PATHS) $(ASM_OBJ64) $(CONFIG_OBJ64)
-OBJ86_FINAL  := $(PREBUILD_OBJ86_PATHS) $(ASM_OBJ86) $(CONFIG_OBJ86)
+OBJ64_FINAL  := $(PREBUILD_OBJ64_PATHS) $(COMM_OBJ64) $(ASM_OBJ64) $(CONFIG_OBJ64)
+OBJ86_FINAL  := $(PREBUILD_OBJ86_PATHS) $(COMM_OBJ86) $(ASM_OBJ86) $(CONFIG_OBJ86)
 
 DEFS := \
  	-D KH_AGENT_UUID='"$(KH_AGENT_UUID)"' \
@@ -85,6 +87,10 @@ DEFS := \
 	-D HTTP_PROXY_USERNAME='L"$(WEB_PROXY_USERNAME)"' \
 	-D SMB_PIPE_NAME=${SMB_PIPE_NAME} \
 
+ifdef PROFILE_C2
+DEFS += -D PROFILE_C2=$(PROFILE_C2)
+endif
+
 .PHONY: all release debug x64 x86 x64-debug x86-debug prebuild-x64 prebuild-x86 clean show-prebuild force_config
 
 all: release debug
@@ -113,14 +119,14 @@ prebuild-x86: nasm86 $(PREBUILD_OBJ86_PATHS)
 	@ echo "[✓] Prebuild x86 completed (Config.cc will be compiled in final build)"
 
 # ==================== FINAL BUILD TARGETS ====================
-x64: prebuild-x64 $(CONFIG_OBJ64)
+x64: prebuild-x64 $(CONFIG_OBJ64) $(COMM_OBJ64)
 	@ echo "[*] Linking x64..."
 	@ $(CCX64) $(OBJ64_FINAL) -o $(BUILD_PATH)/Bin/$(NAME).x64.exe $(CFLAGS)
 	@ objcopy --dump-section .text=$(BUILD_PATH)/Bin/$(NAME).x64.bin $(BUILD_PATH)/Bin/$(NAME).x64.exe
 	@ rm $(BUILD_PATH)/Bin/$(NAME).x64.exe
 	@ echo "[✓] Build x64 completed"
 
-x86: prebuild-x86 $(CONFIG_OBJ86)
+x86: prebuild-x86 $(CONFIG_OBJ86) $(COMM_OBJ86)
 	@ echo "[*] Linking x86..."
 	@ $(CCX86) $(OBJ86_FINAL) -o $(BUILD_PATH)/Bin/$(NAME).x86.exe $(CFLAGS)
 	@ objcopy --dump-section .text=$(BUILD_PATH)/Bin/$(NAME).x86.bin $(BUILD_PATH)/Bin/$(NAME).x86.exe
@@ -150,9 +156,20 @@ $(CONFIG_OBJ86): Source/Config.cc force_config
 	@ echo "[*] Compiling Config.cc x86..."
 	@ $(CCX86) -o $@ -c $< $(CFLAGS) $(DEFS)
 
-# Force Config.cc to always recompile
+# Communication/*.cc - force recompile (contain #if PROFILE_C2 conditionals)
+$(OBJ_PATH)/Source/Communication/%.x64.obj: Source/Communication/%.cc force_config
+	@ mkdir -p $(dir $@)
+	@ echo "[*] Compiling $< x64..."
+	@ $(CCX64) -o $@ -c $< $(CFLAGS) $(DEFS)
+
+$(OBJ_PATH)/Source/Communication/%.x86.obj: Source/Communication/%.cc force_config
+	@ mkdir -p $(dir $@)
+	@ echo "[*] Compiling $< x86..."
+	@ $(CCX86) -o $@ -c $< $(CFLAGS) $(DEFS)
+
+# Force Config.cc and Communication/*.cc to always recompile
 force_config:
-	@ # This forces Config.cc to always recompile when included as dependency
+	@ # This forces profile-dependent files to always recompile
 	@ true
 
 # ==================== ASM TARGETS ====================

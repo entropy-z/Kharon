@@ -2712,31 +2712,7 @@ typedef struct _IO_STATUS_BLOCK
 } IO_STATUS_BLOCK, *PIO_STATUS_BLOCK;
 
 
-// Console Allocation Modes
-typedef enum ALLOC_CONSOLE_MODE {
-    ALLOC_CONSOLE_MODE_DEFAULT    = 0,
-    ALLOC_CONSOLE_MODE_NEW_WINDOW = 1,
-    ALLOC_CONSOLE_MODE_NO_WINDOW  = 2
-} ALLOC_CONSOLE_MODE;
-
-typedef enum ALLOC_CONSOLE_RESULT {
-    ALLOC_CONSOLE_RESULT_NO_CONSOLE       = 0,
-    ALLOC_CONSOLE_RESULT_NEW_CONSOLE      = 1,
-    ALLOC_CONSOLE_RESULT_EXISTING_CONSOLE = 2
-} ALLOC_CONSOLE_RESULT, *PALLOC_CONSOLE_RESULT;
-
-typedef
-struct ALLOC_CONSOLE_OPTIONS
-{
-    ALLOC_CONSOLE_MODE mode;
-    BOOL useShowWindow;
-    WORD showWindow;
-} ALLOC_CONSOLE_OPTIONS, *PALLOC_CONSOLE_OPTIONS;
-
-WINBASEAPI
-HRESULT
-WINAPI
-AllocConsoleWithOptions(_In_opt_ PALLOC_CONSOLE_OPTIONS allocOptions, _Out_opt_ PALLOC_CONSOLE_RESULT result);
+// Console allocation types removed: provided by <consoleapi.h> on modern mingw-w64; unused in this project.
 
 /* ========== [ Expands ] ========== */
 #define THREAD_CREATE_FLAGS_CREATE_SUSPENDED 0x00000001 // NtCreateUserProcess & NtCreateThreadEx

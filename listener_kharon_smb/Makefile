@@ -1,0 +1,24 @@
+.PHONY: all clean help
+
+GO := go
+GOFLAGS := -buildmode=plugin -ldflags="-s -w"
+GOEXPERIMENT := jsonv2,greenteagc
+DIST_DIR := dist
+OUTPUT_FILE := $(DIST_DIR)/listener_kharon_smb.so
+SRC_SERVER := src_server
+SOURCE_FILES := \
+	$(SRC_SERVER)/pl_lokycrypt.go \
+	$(SRC_SERVER)/pl_main.go \
+	$(SRC_SERVER)/pl_transport.go
+
+all: clean
+	@ echo "    * Building listener_kharon_smb plugin"
+	@ mkdir -p $(DIST_DIR)
+	@ cp config.yaml ax_config.axs ./$(DIST_DIR)/
+	@ GOEXPERIMENT=$(GOEXPERIMENT) $(GO) build $(GOFLAGS) -o $(OUTPUT_FILE) $(SOURCE_FILES)
+	@ echo "      done..."
+
+clean:
+	@ echo "    * Cleaning build artifacts..."
+	@ rm -rf $(DIST_DIR)
+	@ echo "      done..."

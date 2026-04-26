@@ -24,6 +24,7 @@ PULL_CHANGES=false
 ADAPTIX_DIR=""
 AGENT="agent_kharon"
 LISTENER="listener_kharon_http"
+LISTENER_SMB="listener_kharon_smb"
 ACTION="all"
 
 # Parse arguments
@@ -63,7 +64,8 @@ if [ -z "$ADAPTIX_DIR" ]; then
     echo "  agent-full          Build agent server, modules and beacon"
     echo "  agent-modules       Build and copy agent modules only"
     echo "  agent-code          Build and copy agent code only"
-    echo "  listener            Build and copy listener only"
+    echo "  listener            Build and copy HTTP listener only"
+    echo "  listener-smb        Build and copy SMB listener only"
     echo ""
     echo "Examples:"
     echo "  $0 --ax AdaptixC2"
@@ -96,6 +98,10 @@ if [ ! -d "$LISTENER" ]; then
     error_exit "Listener folder ($LISTENER) not found in current directory"
 fi
 
+if [ ! -d "$LISTENER_SMB" ]; then
+    warning_msg "SMB Listener folder ($LISTENER_SMB) not found — SMB listener will be skipped"
+fi
+
 # Create necessary directories
 mkdir -p "$ADAPTIX_DIR/AdaptixServer/extenders" || error_exit "Failed to create extenders directory"
 mkdir -p "$ADAPTIX_DIR/dist/extenders" || error_exit "Failed to create dist/extenders directory"
@@ -110,7 +116,13 @@ function clean_agent {
 function clean_listener {
     rm -rf "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER"
     rm -rf "$ADAPTIX_DIR/dist/extenders/$LISTENER"
-    info_msg "Cleaned previous listener installation"
+    info_msg "Cleaned previous HTTP listener installation"
+}
+
+function clean_listener_smb {
+    rm -rf "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER_SMB"
+    rm -rf "$ADAPTIX_DIR/dist/extenders/$LISTENER_SMB"
+    info_msg "Cleaned previous SMB listener installation"
 }
 
 function copy_agent {
@@ -119,21 +131,34 @@ function copy_agent {
 }
 
 function copy_listener {
-    cp -r "$LISTENER" "$ADAPTIX_DIR/AdaptixServer/extenders/" || error_exit "Failed to copy listener"
-    info_msg "Copied listener files to AdaptixServer"
+    cp -r "$LISTENER" "$ADAPTIX_DIR/AdaptixServer/extenders/" || error_exit "Failed to copy HTTP listener"
+    info_msg "Copied HTTP listener files to AdaptixServer"
+}
+
+function copy_listener_smb {
+    if [ -d "$LISTENER_SMB" ]; then
+        cp -r "$LISTENER_SMB" "$ADAPTIX_DIR/AdaptixServer/extenders/" || error_exit "Failed to copy SMB listener"
+        info_msg "Copied SMB listener files to AdaptixServer"
+    else
+        warning_msg "SMB listener directory not found, skipping copy"
+    fi
 }
 
 function setup_go_workspace {
     cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter $ADAPTIX_DIR/AdaptixServer"
-    
+
     if [ -d "extenders/$AGENT" ]; then
         go work use "extenders/$AGENT" || error_exit "Failed to add agent to Go workspace"
     fi
-    
+
     if [ -d "extenders/$LISTENER" ]; then
-        go work use "extenders/$LISTENER" || error_exit "Failed to add listener to Go workspace"
+        go work use "extenders/$LISTENER" || error_exit "Failed to add HTTP listener to Go workspace"
     fi
-    
+
+    if [ -d "extenders/$LISTENER_SMB" ]; then
+        go work use "extenders/$LISTENER_SMB" || error_exit "Failed to add SMB listener to Go workspace"
+    fi
+
     go work sync || error_exit "Failed to synchronize Go workspace"
     info_msg "Go workspace configured"
 }
@@ -151,13 +176,30 @@ function setup_go_workspace_agent {
 
 function setup_go_workspace_listener {
     cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter $ADAPTIX_DIR/AdaptixServer"
-    
+
     if [ -d "extenders/$LISTENER" ]; then
         go work use "extenders/$LISTENER" || error_exit "Failed to add listener to Go workspace"
     fi
-    
+
     go work sync || error_exit "Failed to synchronize Go workspace"
-    info_msg "Go workspace configured for listener"
+    info_msg "Go workspace configured for HTTP listener"
+}
+
+function setup_go_workspace_listener_smb {
+    cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter $ADAPTIX_DIR/AdaptixServer"
+
+    if [ -d "extenders/$LISTENER_SMB" ]; then
+        go work use "extenders/$LISTENER_SMB" || error_exit "Failed to add SMB listener to Go workspace"
+    fi
+
+    go work sync || error_exit "Failed to synchronize Go workspace"
+    info_msg "Go workspace configured for SMB listener"
+}
+
+function build_server {
+    cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter AdaptixServer directory"
+    go build -o ../dist/adaptixserver . || error_exit "Failed to rebuild Adaptix server"
+    info_msg "Rebuilt Adaptix server (ensures plugin compatibility)"
 }
 
 function build_agent_code {
@@ -195,13 +237,24 @@ function build_agent_beacon {
 
 function build_listener {
     cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter AdaptixServer directory"
-    
+
     if [ ! -f "extenders/$LISTENER/Makefile" ]; then
         error_exit "Makefile not found for $LISTENER"
     fi
-    
-    make -C "extenders/$LISTENER" all || error_exit "Failed to build listener"
-    info_msg "Built listener"
+
+    make -C "extenders/$LISTENER" all || error_exit "Failed to build HTTP listener"
+    info_msg "Built HTTP listener"
+}
+
+function build_listener_smb {
+    cd "$ADAPTIX_DIR/AdaptixServer" || error_exit "Could not enter AdaptixServer directory"
+
+    if [ -d "extenders/$LISTENER_SMB" ] && [ -f "extenders/$LISTENER_SMB/Makefile" ]; then
+        make -C "extenders/$LISTENER_SMB" all || error_exit "Failed to build SMB listener"
+        info_msg "Built SMB listener"
+    else
+        warning_msg "SMB listener not found, skipping build"
+    fi
 }
 
 function copy_agent_dist {
@@ -224,12 +277,20 @@ function copy_agent_dist {
 
 function copy_listener_dist {
     mkdir -p "$ADAPTIX_DIR/dist/extenders/$LISTENER" || error_exit "Failed to create listener dist directory"
-    
+
     if [ -d "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER/dist" ]; then
         cp -r "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER/dist"/* "$ADAPTIX_DIR/dist/extenders/$LISTENER/" || error_exit "Failed to copy listener dist files"
     fi
-    
-    info_msg "Copied listener distribution files to dist"
+
+    info_msg "Copied HTTP listener distribution files to dist"
+}
+
+function copy_listener_smb_dist {
+    if [ -d "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER_SMB/dist" ]; then
+        mkdir -p "$ADAPTIX_DIR/dist/extenders/$LISTENER_SMB" || error_exit "Failed to create SMB listener dist directory"
+        cp -r "$ADAPTIX_DIR/AdaptixServer/extenders/$LISTENER_SMB/dist"/* "$ADAPTIX_DIR/dist/extenders/$LISTENER_SMB/" || error_exit "Failed to copy SMB listener dist files"
+        info_msg "Copied SMB listener distribution files to dist"
+    fi
 }
 
 # Execute actions based on ACTION parameter
@@ -238,15 +299,19 @@ case $ACTION in
         info_msg "Action: Full installation (all)"
         clean_agent
         clean_listener
+        clean_listener_smb
         copy_agent
         copy_listener
+        copy_listener_smb
         setup_go_workspace
         build_agent_code
         build_agent_core
         build_agent_beacon
         build_listener
+        build_listener_smb
         copy_agent_dist
         copy_listener_dist
+        copy_listener_smb_dist
         ;;
     
     agent-full)
@@ -279,14 +344,23 @@ case $ACTION in
         ;;
     
     listener)
-        info_msg "Action: Listener only"
+        info_msg "Action: HTTP Listener only"
         clean_listener
         copy_listener
         setup_go_workspace_listener
         build_listener
         copy_listener_dist
         ;;
-    
+
+    listener-smb)
+        info_msg "Action: SMB Listener only"
+        clean_listener_smb
+        copy_listener_smb
+        setup_go_workspace_listener_smb
+        build_listener_smb
+        copy_listener_smb_dist
+        ;;
+
     *)
         error_exit "Unknown action: $ACTION"
         ;;
@@ -297,6 +371,7 @@ info_msg "Installation completed successfully"
 echo "================================================================"
 echo "Action: $ACTION"
 echo "Agent: $AGENT"
-echo "Listener: $LISTENER"
+echo "Listener HTTP: $LISTENER"
+echo "Listener SMB: $LISTENER_SMB"
 echo "Location: $ADAPTIX_DIR"
 echo "================================================================"

