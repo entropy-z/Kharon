@@ -20,7 +20,6 @@ var event_files_action = function(id, path) {
 event.on_filebrowser_list(event_files_action, ["kharon"]);
 
 
-
 var event_process_action = function(id) {
     ax.execute_browser(id, "process list");
 }
@@ -61,7 +60,7 @@ function RegisterCommands(listenerType)
 
     /// EXIT
 
-    let cmd_exit_thread = ax.create_command("thread", "Terminate the main Kharon thread", "exit thread", "Task: terminate agent thread");
+    let cmd_exit_thread  = ax.create_command("thread", "Terminate the main Kharon thread", "exit thread", "Task: terminate agent thread");
     let cmd_exit_process = ax.create_command("process", "Terminate the entire Kharon process", "exit process", "Task: terminate agent process");
     let cmd_exit = ax.create_command("exit", "Terminate the current session");
     cmd_exit.addSubCommands([cmd_exit_thread, cmd_exit_process]);
@@ -69,11 +68,11 @@ function RegisterCommands(listenerType)
     /// PS
 
     let cmd_ps_list = ax.create_command("list", "Display all running processes", "process list", "Task: enumerate running processes");
-    
+
     let _cmd_ps_kill = ax.create_command("kill", "Terminate a process by its Process ID (PID)", "process kill 1234", "Task: terminate process");
     _cmd_ps_kill.addArgInt("pid", true);
     _cmd_ps_kill.addArgInt("exit_code", false);
-    
+
     let cmd_ps_run = ax.create_command("create", "Execute a new process with specified command line", "process create --command \"cmd.exe /c whoami /all\"", "Task: create and execute new process");
     cmd_ps_run.addArgFlagString("--command", "cmd", true, "Full command line with arguments");
     cmd_ps_run.addArgFlagString("--state", "state", false, "State for process creation (suspended/standard)");
@@ -85,15 +84,9 @@ function RegisterCommands(listenerType)
     let cmd_ps = ax.create_command("process", "Process management - list, create, and terminate processes");
     cmd_ps.addSubCommands([cmd_ps_list, cmd_ps_run, _cmd_ps_kill]);
 
-    /// JOB
-    /// let cmd_job_list = ax.create_command("list", "Display all currently running background jobs", "job list", "Task: enumerate running jobs");
-
-    /// let cmd_job = ax.create_command("job", "Background job management - monitor and control asynchronous tasks");
-    /// cmd_job.addSubCommands([cmd_job_list]);
-
     /// TOKEN
 
-    let cmd_token_getuid = ax.create_command("getuid", "Display the username associated with the current access token", "token getuid", "Task: retrieve current token username");
+    let cmd_token_getuid  = ax.create_command("getuid", "Display the username associated with the current access token", "token getuid", "Task: retrieve current token username");
 
     let cmd_token_steal = ax.create_command("steal", "Steal and optionally use an access token from a target process", "token steal 608 true", "Task: steal access token from process");
     cmd_token_steal.addArgInt("pid", true);
@@ -105,17 +98,15 @@ function RegisterCommands(listenerType)
     let cmd_token_rm = ax.create_command("rm", "Remove an access token from storage", "token rm 608", "Task: delete stored token");
     cmd_token_rm.addArgInt("token_id", true);
 
-    let cmd_token_revert = ax.create_command("revert", "Restore the original access token", "token revert", "Task: revert to original token");
-
-    let cmd_token_list = ax.create_command("list", "List all tokens", "token list", "Task: list tokens");
+    let cmd_token_revert  = ax.create_command("revert", "Restore the original access token", "token revert", "Task: revert to original token");
+    let cmd_token_list    = ax.create_command("list", "List all tokens", "token list", "Task: list tokens");
 
     let cmd_token_make = ax.create_command("make", "Create an impersonation token using provided credentials", "token make -u admin -p P@ssw0rd -d domain.local", "Task: create impersonation token");
     cmd_token_make.addArgFlagString("-u", "username", "Username", true);
     cmd_token_make.addArgFlagString("-p", "password", "Password", true);
     cmd_token_make.addArgFlagString("-d", "domain", "Domain name");
 
-    let cmd_token_privget = ax.create_command("privget", "Retrieve detailed privileges of the current token", "token privget", "Task: get token privileges");
-
+    let cmd_token_privget  = ax.create_command("privget", "Retrieve detailed privileges of the current token", "token privget", "Task: get token privileges");
     let cmd_token_privlist = ax.create_command("privlist", "List all privileges associated with the current token", "token privlist", "Task: enumerate token privileges");
 
     let cmd_token = ax.create_command("token", "Access token management - steal, create, and manipulate tokens");
@@ -157,7 +148,7 @@ function RegisterCommands(listenerType)
     cmd_config_amsietwbypass.addArgString("bypass", true, "Bypass target: 'all', 'amsi', 'etw', or 'none'");
 
     let cmd_config_spawnto = ax.create_command("spawnto", "Set the executable path for spawning new processes", "config spawnto C:\\Windows\\System32\\rundll32.exe", "Task: configure spawn target");
-    cmd_config_spawnto.addArgString("spawnto", true);
+    cmd_config_spawnto.addArgString("path", true);
 
     let cmd_config_wkrtime = ax.create_command("worktime", "Set operational hours for beacon activity", "config worktime 09:00 18:00", "Task: configure working hours");
     cmd_config_wkrtime.addArgString("start", true);
@@ -166,8 +157,8 @@ function RegisterCommands(listenerType)
     let cmd_config_syscall = ax.create_command("syscall", "Change the syscall method", "config syscall spoof_indirect");
     cmd_config_syscall.addArgString("syscall", true, "options: 'spoof', 'spoof_indirect' or 'none'");
 
-    let cmd_config_bofproxy = ax.create_command("bofproxy", "Change BOF API Proxy status (true/false)", "config bofproxy true")
-    cmd_config_bofproxy.addArgString("status", true)
+    let cmd_config_bofproxy = ax.create_command("bofproxy", "Change BOF API Proxy status (true/false)", "config bofproxy true");
+    cmd_config_bofproxy.addArgString("status", true);
 
     let cmd_config_forkpipe = ax.create_command("fork_pipe_name", "Change named pipe to use in fork commands", "config fork_pipe_name \\\\.\\pipe\\new_pipe_name");
     cmd_config_forkpipe.addArgString("name", true);
@@ -187,7 +178,7 @@ function RegisterCommands(listenerType)
     let cmd_info = ax.create_command("info", "Display comprehensive beacon information and system details", "info", "Task: retrieve beacon information (server-side)");
 
     // UPLOAD
-    let cmd_upload = ax.create_command("upload", "Upload a file", "upload /tmp/file.txt C:\Temp\file.txt", "Task: upload file");
+    let cmd_upload = ax.create_command("upload", "Upload a file", "upload /tmp/file.txt C:\\Temp\\file.txt", "Task: upload file");
     cmd_upload.addArgFile("local_file", true);
     cmd_upload.addArgString("remote_path", false);
 
@@ -195,7 +186,7 @@ function RegisterCommands(listenerType)
     let cmd_download = ax.create_command("download", "Download a file", "download C:\\Temp\\file.txt", "Task: download file");
     cmd_download.addArgString("remote_path", false);
 
-    // SOCKET
+    // SOCKS
 
     let cmd_socks_start = ax.create_command("start", "Start a SOCKS5 proxy server and listen on a specified port", "socks start 1080 -a user pass");
     cmd_socks_start.addArgFlagString("-h", "address", "Listening interface address", "0.0.0.0");
@@ -221,12 +212,12 @@ function RegisterCommands(listenerType)
 
     /// SCINJECT
 
-    let cmd_scinject = ax.create_command("scinject", "Inject raw shellcode into a target process by PID", "scinject 1234 /tmp/payload.bin", "Task: inject shellcode into process");
+    let cmd_scinject = ax.create_command("scinject", "Inject raw shellcode into a target process by PID", "scinject /tmp/payload.bin 1234", "Task: inject shellcode into process");
     cmd_scinject.addArgInt("pid", true);
     cmd_scinject.addArgFile("shellcode", true);
 
     /// SELF_DELETE
-    
+
     let cmd_selfdel = ax.create_command("selfdel", "Delete the beacon file from disk while maintaining the active session", "selfdel", "Task: self-delete beacon file");
 
     /// EXECUTE
@@ -263,7 +254,7 @@ function RegisterCommands(listenerType)
     let cmd_unlink = ax.create_command("unlink", "Unlink a child pivot beacon", "unlink <agent_id>", "Task: unlink pivot");
     cmd_unlink.addArgString("agent_id", true, "Agent ID of child to disconnect");
 
-    if(listenerType == "KharonHTTP") {
+    if (listenerType == "KharonHTTP") {
         let commands_external = ax.create_commands_group("kharon", [
             cmd_info, cmd_config, cmd_exit, cmd_selfdel, cmd_execute,
             cmd_fs, cmd_ps, cmd_token, cmd_scinject, cmd_upload,
@@ -274,7 +265,7 @@ function RegisterCommands(listenerType)
         return { commands_windows: commands_external }
     }
 
-    if(listenerType == "KharonSMB") {
+    if (listenerType == "KharonSMB") {
         let commands_internal = ax.create_commands_group("kharon", [
             cmd_info, cmd_config, cmd_exit, cmd_selfdel, cmd_execute,
             cmd_fs, cmd_ps, cmd_token, cmd_scinject, cmd_upload,
@@ -284,79 +275,73 @@ function RegisterCommands(listenerType)
         return { commands_windows: commands_internal }
     }
 
-    return ax.create_commands_group("none",[]);
+    return ax.create_commands_group("none", []);
 }
 
 function GenerateUI(listenerType)
 {
-    // Format combo 
+    // Format combo
     let labelFormat = form.create_label("Compilation Format:");
     let comboFormat = form.create_combo();
+    comboFormat.addItem("Bin");
     comboFormat.addItem("Exe");
     comboFormat.addItem("Dll");
-    comboFormat.addItem("Bin");
     comboFormat.addItem("Svc");
     comboFormat.setCurrentIndex(0);
 
     // Sleep / Jitter
-    let labelSleep  = form.create_label("Sleep (Jitter %):");
-    let textSleep = form.create_textline("3s");
-    textSleep.setPlaceholder("1h 2m 5s")
+    let labelSleep = form.create_label("Sleep (Jitter %):");
+    let textSleep  = form.create_textline("3s");
+    textSleep.setPlaceholder("1h 2m 5s");
     let spinJitter = form.create_spin();
     spinJitter.setRange(0, 100);
     spinJitter.setValue(0);
 
     // Guardrails Settings
-    let labelGuardrails = form.create_label("Guardrails:");
-    let textGuardrailsIP = form.create_textline("");
-    textGuardrailsIP.setPlaceholder("IP Address");
+    let labelGuardrails      = form.create_label("Guardrails:");
+    let textGuardrailsIP     = form.create_textline("");
     let textGuardrailsHostname = form.create_textline("");
-    textGuardrailsHostname.setPlaceholder("Hostname");
-    let textGuardrailsUser = form.create_textline("");
-    textGuardrailsUser.setPlaceholder("Username");
+    let textGuardrailsUser   = form.create_textline("");
     let textGuardrailsDomain = form.create_textline("");
+    textGuardrailsIP.setPlaceholder("IP Address");
+    textGuardrailsHostname.setPlaceholder("Hostname");
+    textGuardrailsUser.setPlaceholder("Username");
     textGuardrailsDomain.setPlaceholder("Domain");
-    
+
     let layout_guardrails = form.create_gridlayout();
-    layout_guardrails.addWidget(labelGuardrails,         0, 0, 1, 1);
-    layout_guardrails.addWidget(textGuardrailsIP,        0, 1, 1, 1);
-    layout_guardrails.addWidget(textGuardrailsHostname,  0, 2, 1, 1);
-    layout_guardrails.addWidget(textGuardrailsUser,      1, 1, 1, 1);
-    layout_guardrails.addWidget(textGuardrailsDomain,    1, 2, 1, 1);
+    layout_guardrails.addWidget(labelGuardrails,        0, 0, 1, 1);
+    layout_guardrails.addWidget(textGuardrailsIP,       0, 1, 1, 1);
+    layout_guardrails.addWidget(textGuardrailsHostname, 0, 2, 1, 1);
+    layout_guardrails.addWidget(textGuardrailsUser,     1, 1, 1, 1);
+    layout_guardrails.addWidget(textGuardrailsDomain,   1, 2, 1, 1);
     let panel_guardrails = form.create_panel();
     panel_guardrails.setLayout(layout_guardrails);
     let guardrails_group = form.create_groupbox("Guardrails Settings", false);
     guardrails_group.setPanel(panel_guardrails);
 
     // Killdate Settings
-    let killdate_group = form.create_groupbox("Killdate Settings", true);
-    
+    let killdate_group    = form.create_groupbox("Killdate Settings", true);
     let labelKilldateDate = form.create_label("Date:");
-    let dateKill = form.create_dateline("dd.MM.yyyy");
-    
-    let layout_killdate = form.create_gridlayout();
-    layout_killdate.addWidget(labelKilldateDate,     0, 0, 1, 1);
-    layout_killdate.addWidget(dateKill,              0, 1, 1, 2);
+    let dateKill          = form.create_dateline("dd.MM.yyyy");
+    let layout_killdate   = form.create_gridlayout();
+    layout_killdate.addWidget(labelKilldateDate, 0, 0, 1, 1);
+    layout_killdate.addWidget(dateKill,          0, 1, 1, 2);
     let panel_killdate = form.create_panel();
     panel_killdate.setLayout(layout_killdate);
     killdate_group.setPanel(panel_killdate);
     killdate_group.setChecked(false);
 
-    // Workingtime
+    // Workingtime Settings
     let workingtime_group = form.create_groupbox("Working Time Settings", true);
-    
-    let labelTimeStart = form.create_label("Start Time:");
-    let timeStart = form.create_timeline("HH:mm");
-    
-    let labelTimeFinish = form.create_label("End Time:");
-    let timeFinish = form.create_timeline("HH:mm");
-    
+    let labelTimeStart    = form.create_label("Start Time:");
+    let timeStart         = form.create_timeline("HH:mm");
+    let labelTimeFinish   = form.create_label("End Time:");
+    let timeFinish        = form.create_timeline("HH:mm");
     let layout_workingtime = form.create_gridlayout();
     layout_workingtime.addWidget(labelTimeStart,  0, 0, 1, 1);
     layout_workingtime.addWidget(timeStart,       0, 1, 1, 2);
     layout_workingtime.addWidget(labelTimeFinish, 1, 0, 1, 1);
     layout_workingtime.addWidget(timeFinish,      1, 1, 1, 2);
-    
     let panel_workingtime = form.create_panel();
     panel_workingtime.setLayout(layout_workingtime);
     workingtime_group.setPanel(panel_workingtime);
@@ -374,11 +359,11 @@ function GenerateUI(listenerType)
     layout_postex.addWidget(textSpawnTo,   1, 1, 1, 1);
     let panel_postex = form.create_panel();
     panel_postex.setLayout(layout_postex);
-    let postex_group = form.create_groupbox("PostEx Settings", false)
+    let postex_group = form.create_groupbox("PostEx Settings", false);
     postex_group.setPanel(panel_postex);
 
-    // Evasion Settings (Removido Shellcode Injection e Stomping)
-    let labelBypass = form.create_label("Bypass:");
+    // Evasion Settings
+    let labelBypass  = form.create_label("Bypass:");
     let bypass_combo = form.create_combo();
     bypass_combo.addItem("None");
     bypass_combo.addItem("AMSI");
@@ -389,8 +374,7 @@ function GenerateUI(listenerType)
     let bof_api_check = form.create_check("BOF API Proxy");
     bof_api_check.setChecked(false);
 
-    // Syscall multi-choice (combo)
-    let labelSyscall = form.create_label("Syscall:");
+    let labelSyscall  = form.create_label("Syscall:");
     let syscall_combo = form.create_combo();
     syscall_combo.addItem("None");
     syscall_combo.addItem("Stack Spoof");
@@ -398,18 +382,18 @@ function GenerateUI(listenerType)
     syscall_combo.setCurrentIndex(0);
 
     let layout_evasion = form.create_gridlayout();
-    layout_evasion.addWidget(labelBypass,       0, 0, 1, 1);
-    layout_evasion.addWidget(bypass_combo,      0, 1, 1, 1);
-    layout_evasion.addWidget(labelSyscall,      1, 0, 1, 1);
-    layout_evasion.addWidget(syscall_combo,     1, 1, 1, 1);
-    layout_evasion.addWidget(bof_api_check,     1, 2, 1, 1);
+    layout_evasion.addWidget(labelBypass,   0, 0, 1, 1);
+    layout_evasion.addWidget(bypass_combo,  0, 1, 1, 1);
+    layout_evasion.addWidget(labelSyscall,  1, 0, 1, 1);
+    layout_evasion.addWidget(syscall_combo, 1, 1, 1, 1);
+    layout_evasion.addWidget(bof_api_check, 1, 2, 1, 1);
     let panel_evasion = form.create_panel();
     panel_evasion.setLayout(layout_evasion);
-    let evasion_group = form.create_groupbox("Evasion settings", false)
+    let evasion_group = form.create_groupbox("Evasion Settings", false);
     evasion_group.setPanel(panel_evasion);
 
     // Mask Settings
-    let labelSleepMask = form.create_label("Sleep Mask:");
+    let labelSleepMask  = form.create_label("Sleep Mask:");
     let sleep_mask_combo = form.create_combo();
     sleep_mask_combo.addItem("None");
     sleep_mask_combo.addItem("Timer");
@@ -427,31 +411,116 @@ function GenerateUI(listenerType)
     let mask_group = form.create_groupbox("Mask Settings", false);
     mask_group.setPanel(panel_mask);
 
-    // Layout principal em grid
-    let layout_scroll = form.create_gridlayout();
-    layout_scroll.addWidget(labelFormat,        0, 0, 1, 1);
-    layout_scroll.addWidget(comboFormat,        0, 1, 1, 1);
-    layout_scroll.addWidget(labelSleep,         1, 0, 1, 1);
-    layout_scroll.addWidget(textSleep,          1, 1, 1, 1);
-    layout_scroll.addWidget(spinJitter,         1, 2, 1, 1);
-    layout_scroll.addWidget(guardrails_group,   2, 0, 1, 3);
-    layout_scroll.addWidget(killdate_group,     3, 0, 1, 3);
-    layout_scroll.addWidget(workingtime_group,  4, 0, 1, 3);
-    layout_scroll.addWidget(postex_group,       5, 0, 1, 3);
-    layout_scroll.addWidget(evasion_group,      6, 0, 1, 3);
-    layout_scroll.addWidget(mask_group,         7, 0, 1, 3);
+    // ── PE Settings tab ───────────────────────────────────────
 
-    let panel_scroll = form.create_panel();
-    panel_scroll.setLayout(layout_scroll);
+    // Shellcode Settings group
+    let labelSection  = form.create_label("PE Section:");
+    let section_combo = form.create_combo();
+    section_combo.addItem(".text");
+    section_combo.addItem(".data");
+    section_combo.addItem(".rdata");
+    section_combo.addItem(".rsrc");
+    section_combo.addItem("custom");
+    section_combo.setCurrentIndex(0);
 
-    const scroll = form.create_scrollarea();
-    scroll.setPanel(panel_scroll);
+    // Shellcode Settings group
+    let labelCustomSection = form.create_label("Section Name:");
+    let textCustomSection  = form.create_textline(".kharon");
+    textCustomSection.setPlaceholder(".mysection");
+
+    let hlayout_custom = form.create_hlayout();
+    hlayout_custom.addWidget(labelCustomSection);
+    hlayout_custom.addWidget(form.create_hspacer());
+    hlayout_custom.addWidget(textCustomSection);
+    let panel_custom = form.create_panel();
+    panel_custom.setLayout(hlayout_custom);
+    panel_custom.setVisible(false);
+
+    let labelEncryption  = form.create_label("Encryption:");
+    let encryption_combo = form.create_combo();
+    encryption_combo.addItem("None");
+    encryption_combo.addItem("Xor");
+    encryption_combo.setCurrentIndex(0);
+
+    form.connect(section_combo, "currentTextChanged", function(text) {
+        panel_custom.setVisible(text === "custom");
+    });
+
+    let layout_shellcode = form.create_gridlayout();
+    layout_shellcode.addWidget(labelSection,    0, 0, 1, 1);
+    layout_shellcode.addWidget(section_combo,   0, 1, 1, 1);
+    layout_shellcode.addWidget(panel_custom,    1, 0, 1, 2);
+    layout_shellcode.addWidget(labelEncryption, 2, 0, 1, 1);
+    layout_shellcode.addWidget(encryption_combo,2, 1, 1, 1);
+    let panel_shellcode = form.create_panel();
+    panel_shellcode.setLayout(layout_shellcode);
+    let shellcode_group = form.create_groupbox("Shellcode Settings", false);
+    shellcode_group.setPanel(panel_shellcode);
+
+    // Injection Settings group
+    let labelInjection  = form.create_label("Technique:");
+    let injection_combo = form.create_combo();
+    injection_combo.addItem("Module Stomp");
+    injection_combo.addItem("Classic");
+    injection_combo.setCurrentIndex(0);
+
+    let layout_injection = form.create_gridlayout();
+    layout_injection.addWidget(labelInjection,  0, 0, 1, 1);
+    layout_injection.addWidget(injection_combo, 0, 1, 1, 1);
+    let panel_injection = form.create_panel();
+    panel_injection.setLayout(layout_injection);
+    let injection_group = form.create_groupbox("Injection Settings", false);
+    injection_group.setPanel(panel_injection);
+
+    // PE Settings tab layout
+    let layout_pesection = form.create_gridlayout();
+    layout_pesection.addWidget(shellcode_group,        0, 0, 1, 3);
+    layout_pesection.addWidget(injection_group,        1, 0, 1, 3);
+    layout_pesection.addWidget(form.create_vspacer(),  2, 0, 1, 3);
+    let panel_pesection = form.create_panel();
+    panel_pesection.setLayout(layout_pesection);
+
+    panel_pesection.setEnabled(false);
+
+    form.connect(comboFormat, "currentTextChanged", function(text) {
+        let isLoader = (text === "Exe" || text === "Dll" || text === "Svc");
+        panel_pesection.setEnabled(isLoader);
+    });
+
+    // ── Tab: Agent Config ─────────────────────────────────────
+    let layout_agent = form.create_gridlayout();
+    layout_agent.addWidget(labelFormat,       0, 0, 1, 1);
+    layout_agent.addWidget(comboFormat,       0, 1, 1, 1);
+    layout_agent.addWidget(labelSleep,        1, 0, 1, 1);
+    layout_agent.addWidget(textSleep,         1, 1, 1, 1);
+    layout_agent.addWidget(spinJitter,        1, 2, 1, 1);
+    layout_agent.addWidget(guardrails_group,  2, 0, 1, 3);
+    layout_agent.addWidget(killdate_group,    3, 0, 1, 3);
+    layout_agent.addWidget(workingtime_group, 4, 0, 1, 3);
+    layout_agent.addWidget(postex_group,      5, 0, 1, 3);
+    layout_agent.addWidget(evasion_group,     6, 0, 1, 3);
+    layout_agent.addWidget(mask_group,        7, 0, 1, 3);
+
+    let panel_agent = form.create_panel();
+    panel_agent.setLayout(layout_agent);
+
+    let scroll_agent = form.create_scrollarea();
+    scroll_agent.setPanel(panel_agent);
+
+    // ── Tab: PE Settings ──────────────────────────────────────
+    let scroll_pesection = form.create_scrollarea();
+    scroll_pesection.setPanel(panel_pesection);
+
+    // ── Root tabs ─────────────────────────────────────────────
+    let root_tabs = form.create_tabs();
+    root_tabs.addTab(scroll_agent,     "Agent Config");
+    root_tabs.addTab(scroll_pesection, "PE Settings");
 
     let layout = form.create_gridlayout();
-    layout.addWidget(scroll, 0, 0, 1, 1);
+    layout.addWidget(root_tabs, 0, 0, 1, 1);
 
-    // SMB beacons: no sleep/jitter (parent controls timing via pipe)
-    if(listenerType == "KharonSMB") {
+    // SMB beacons: no sleep/jitter (parent controls timing via pipe), no PE Settings tab
+    if (listenerType == "KharonSMB") {
         let layout_scroll_smb = form.create_gridlayout();
         layout_scroll_smb.addWidget(labelFormat,        0, 0, 1, 1);
         layout_scroll_smb.addWidget(comboFormat,        0, 1, 1, 1);
@@ -496,45 +565,45 @@ function GenerateUI(listenerType)
         }
     }
 
-    let container = form.create_container()
-    container.put("format", comboFormat)
-    container.put("sleep", textSleep)
-    container.put("jitter", spinJitter)
+    let container = form.create_container();
+    container.put("format",               comboFormat)
+    container.put("sleep",                textSleep)
+    container.put("jitter",               spinJitter)
 
-    // Guardrails
-    container.put("guardrails_ip", textGuardrailsIP)
-    container.put("guardrails_hostname", textGuardrailsHostname)
-    container.put("guardrails_user", textGuardrailsUser)
-    container.put("guardrails_domain", textGuardrailsDomain)
+    container.put("guardrails_ip",        textGuardrailsIP)
+    container.put("guardrails_hostname",  textGuardrailsHostname)
+    container.put("guardrails_user",      textGuardrailsUser)
+    container.put("guardrails_domain",    textGuardrailsDomain)
 
-    // Killdate
-    container.put("killdate_check", killdate_group)
-    container.put("killdate_date", dateKill)
+    container.put("killdate_check",       killdate_group)
+    container.put("killdate_date",        dateKill)
 
-    // Workingtime
-    container.put("workingtime_check", workingtime_group)
-    container.put("workingtime_start", timeStart)
-    container.put("workingtime_end", timeFinish)
-    
-    // PostEx
-    container.put("fork_pipename", textPipename)
-    container.put("spawnto", textSpawnTo)
-    
-    container.put("bypass", bypass_combo)
-    container.put("bof_api_proxy", bof_api_check)
-    container.put("syscall", syscall_combo)
-    
-    // Mask
-    container.put("mask_heap", heap_obf_check)
-    container.put("mask_sleep", sleep_mask_combo)
+    container.put("workingtime_check",    workingtime_group)
+    container.put("workingtime_start",    timeStart)
+    container.put("workingtime_end",      timeFinish)
 
-    let panel = form.create_panel()
-    panel.setLayout(layout)
+    container.put("fork_pipename",        textPipename)
+    container.put("spawnto",              textSpawnTo)
+
+    container.put("bypass",               bypass_combo)
+    container.put("bof_api_proxy",        bof_api_check)
+    container.put("syscall",              syscall_combo)
+
+    container.put("mask_heap",            heap_obf_check)
+    container.put("mask_sleep",           sleep_mask_combo)
+
+    container.put("pe_section",           section_combo)
+    container.put("encryption_technique", encryption_combo)
+    container.put("injection_technique",  injection_combo)
+    container.put("custom_section_name",  textCustomSection)
+
+    let panel = form.create_panel();
+    panel.setLayout(layout);
 
     return {
-        ui_panel: panel,
+        ui_panel:     panel,
         ui_container: container,
-        ui_height: 800,
-        ui_width: 800  
+        ui_height:    800,
+        ui_width:     800
     }
 }

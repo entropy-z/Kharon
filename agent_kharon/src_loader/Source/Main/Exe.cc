@@ -1,9 +1,8 @@
 #include <Kharon.h>
-#include <Shellcode.h>
+
 
 auto Runner( VOID ) -> VOID {
-    VOID ( *Kharon )( VOID ) = ( decltype( Kharon ) )Shellcode::Data;
-    Kharon();
+    EntryLoader();
 }
 
 auto WINAPI WinMain(
