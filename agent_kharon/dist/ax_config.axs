@@ -243,13 +243,13 @@ function RegisterCommands(listenerType)
     let cmd_execute = ax.create_command("execute", "Execute Beacon Object Files or post-exploitation shellcode modules");
     cmd_execute.addSubCommands([cmd_exec_bof, cmd_exec_postex]);
 
-    if(listenerType == "KharonHTTP") {
+    if(listenerType == "KharonHTTP" || listenerType == "KharonDNS") {
         let commands_external = ax.create_commands_group("kharon", [
-            cmd_info, cmd_config, cmd_exit, cmd_selfdel, cmd_execute, 
+            cmd_info, cmd_config, cmd_exit, cmd_selfdel, cmd_execute,
             cmd_fs, cmd_ps, cmd_token, cmd_scinject, cmd_upload,
             cmd_download, cmd_socks, cmd_rportfwd
         ]);
-        
+
         return { commands_windows: commands_external }
     }
 

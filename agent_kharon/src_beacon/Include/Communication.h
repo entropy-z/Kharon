@@ -191,6 +191,7 @@ struct HTTP_CONTEXT {
 
 #define PROFILE_SMB  0x15
 #define PROFILE_HTTP 0x25
+#define PROFILE_DNS  0x35
 
 #ifndef PROFILE_C2
 #define PROFILE_C2 PROFILE_HTTP
@@ -241,4 +242,37 @@ struct HTTP_CONTEXT {
 #ifndef HTTP_CALLBACK_COUNT
 #define HTTP_CALLBACK_COUNT 1
 #endif // HTTP_CALLBACK_COUNT
+
+/* ============ [ dns profile ] ============ */
+
+#ifndef DNS_DOMAIN
+#define DNS_DOMAIN L""
+#endif // DNS_DOMAIN
+
+#define DNS_MAX_FRAG_SIZE  120
+#define DNS_LABEL_LIMIT     50
+#define DNS_SEQ_XOR_MASK    0x39913991
+
+#define DNS_TYPE_A     0x0001
+#define DNS_TYPE_TXT   0x0010
+#define DNS_QUERY_BYPASS_CACHE  0x00000008
+#define DNS_QUERY_NO_HOSTS_FILE 0x00000040
+#define DNS_FREE_RECORD_LIST    1
+
+typedef LONG DNS_STATUS_KH;
+
+typedef struct _DNS_RECORD_KH {
+    struct _DNS_RECORD_KH* pNext;
+    PSTR  pName;
+    WORD  wType;
+    WORD  wDataLength;
+    DWORD Flags;
+    DWORD dwTtl;
+    DWORD dwReserved;
+    union {
+        struct { DWORD IpAddress; } A;
+        struct { DWORD dwStringCount; PSTR pStringArray[1]; } TXT;
+        BYTE Data[1];
+    } Data;
+} DNS_RECORD_KH, *PDNS_RECORD_KH;
 
