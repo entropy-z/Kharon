@@ -2713,6 +2713,8 @@ typedef struct _IO_STATUS_BLOCK
 
 
 // Console Allocation Modes
+// Newer MinGW already provides these in <consoleapi.h>; guard to avoid redefinition.
+#ifndef ALLOC_CONSOLE_MODE_DEFAULT
 typedef enum ALLOC_CONSOLE_MODE {
     ALLOC_CONSOLE_MODE_DEFAULT    = 0,
     ALLOC_CONSOLE_MODE_NEW_WINDOW = 1,
@@ -2737,6 +2739,7 @@ WINBASEAPI
 HRESULT
 WINAPI
 AllocConsoleWithOptions(_In_opt_ PALLOC_CONSOLE_OPTIONS allocOptions, _Out_opt_ PALLOC_CONSOLE_RESULT result);
+#endif
 
 /* ========== [ Expands ] ========== */
 #define THREAD_CREATE_FLAGS_CREATE_SUSPENDED 0x00000001 // NtCreateUserProcess & NtCreateThreadEx
