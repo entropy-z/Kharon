@@ -14,7 +14,6 @@
 #include <combaseapi.h>
 #include <wbemcli.h>
 #include <wlanapi.h>
-
 typedef union _WSMAN_RESPONSE_DATA WSMAN_RESPONSE_DATA;
 
 #define WSMAN_API_VERSION_1_1
@@ -122,6 +121,10 @@ extern "C" {
     DFR(KERNEL32, K32GetModuleFileNameExW)
     DFR(KERNEL32, K32GetModuleInformation)
 
+    DFR(KERNEL32, CreateToolhelp32Snapshot)
+    DFR(KERNEL32, Thread32First)
+    DFR(KERNEL32, Thread32Next)
+
     // ==================== NTDLL ====================
     DFR(NTDLL, DbgPrint)
     DFR(NTDLL, RtlRandomEx)
@@ -136,6 +139,8 @@ extern "C" {
     DFR(NTDLL, NtUnmapViewOfSection)
     DFR(NTDLL, NtQueryInformationFile)
 
+    DFR(NTDLL, NtQueryObject)
+
     // ==================== ADVAPI32 ====================
     DFR(ADVAPI32, CreateProcessWithLogonW)
     DFR(ADVAPI32, CreateProcessWithTokenW)
@@ -149,6 +154,11 @@ extern "C" {
     DFR(ADVAPI32, CloseServiceHandle)
     DFR(ADVAPI32, RegOpenKeyExA)
     DFR(ADVAPI32, RegSetValueExA)
+
+    DFR(ADVAPI32, GetTokenInformation)
+    DFR(ADVAPI32, GetSidSubAuthorityCount)
+    DFR(ADVAPI32, GetSidSubAuthority)
+    DFR(ADVAPI32, LookupPrivilegeNameW)
 
     // ==================== MSVCRT ====================
     DFR(MSVCRT, calloc)
@@ -313,9 +323,13 @@ extern "C" {
 #define WideCharToMultiByte               KERNEL32$WideCharToMultiByte
 #define QueryFullProcessImageNameA        KERNEL32$QueryFullProcessImageNameA
 
-#define K32EnumProcessModulesEx              KERNEL32$K32EnumProcessModulesEx
-#define K32GetModuleFileNameExW              KERNEL32$K32GetModuleFileNameExW
-#define K32GetModuleInformation              KERNEL32$K32GetModuleInformation
+#define K32EnumProcessModulesEx           KERNEL32$K32EnumProcessModulesEx
+#define K32GetModuleFileNameExW           KERNEL32$K32GetModuleFileNameExW
+#define K32GetModuleInformation           KERNEL32$K32GetModuleInformation
+
+#define CreateToolhelp32Snapshot          KERNEL32$CreateToolhelp32Snapshot
+#define Thread32First                     KERNEL32$Thread32First
+#define Thread32Next                      KERNEL32$Thread32Next
 
 // ==================== NTDLL MACROS ====================
 #define DbgPrint                          NTDLL$DbgPrint
@@ -331,6 +345,8 @@ extern "C" {
 #define NtUnmapViewOfSection              NTDLL$NtUnmapViewOfSection
 #define NtQueryInformationFile            NTDLL$NtQueryInformationFile
 
+#define NtQueryObject                     NTDLL$NtQueryObject
+
 // ==================== ADVAPI32 MACROS ====================
 #define CreateProcessWithLogonW           ADVAPI32$CreateProcessWithLogonW
 #define CreateProcessWithTokenW           ADVAPI32$CreateProcessWithTokenW
@@ -344,6 +360,11 @@ extern "C" {
 #define CloseServiceHandle                ADVAPI32$CloseServiceHandle
 #define RegOpenKeyExA                     ADVAPI32$RegOpenKeyExA
 #define RegSetValueExA                    ADVAPI32$RegSetValueExA
+
+#define GetTokenInformation               ADVAPI32$GetTokenInformation
+#define GetSidSubAuthorityCount           ADVAPI32$GetSidSubAuthorityCount
+#define GetSidSubAuthority                ADVAPI32$GetSidSubAuthority
+#define LookupPrivilegeNameW              ADVAPI32$LookupPrivilegeNameW
 
 // ==================== MSVCRT MACROS ====================
 #define calloc                            MSVCRT$calloc

@@ -10,6 +10,20 @@
 
 typedef DWORD ERROR_CODE;
 
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
+
+typedef struct _OBJECT_NAME_INFORMATION {
+    UNICODE_STRING Name;
+} OBJECT_NAME_INFORMATION, *POBJECT_NAME_INFORMATION;
+
+typedef struct _OBJECT_TYPE_INFORMATION {
+    UNICODE_STRING TypeName;
+    ULONG          TotalNumberOfObjects;
+    ULONG          TotalNumberOfHandles;
+} OBJECT_TYPE_INFORMATION, *POBJECT_TYPE_INFORMATION;
+
 auto inline fmt_error( _In_ int error_code ) -> WCHAR* {
     WCHAR* error_msg = nullptr;
     ULONG  flags     = FORMAT_MESSAGE_ALLOCATE_BUFFER | 

@@ -1,6 +1,6 @@
 #include <Kharon.h>
 
-#if INJECTION_TECHNIQUE == INJECTION_TECHNIQUE_STOMPER
+#if INJECTION_TECHNIQUE != INJECTION_TECHNIQUE_STOMPER
 
 static const WCHAR* BlacklistedDlls[] = {
     L"msvcrt.dll",                  L"advapi32.dll",    L"rpcrt4.dll",

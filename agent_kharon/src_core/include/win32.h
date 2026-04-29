@@ -2101,4 +2101,22 @@ NTSYSCALLAPI NTSTATUS NTAPI NtFreeVirtualMemory(
     _In_ ULONG FreeType
 );
 
+typedef enum _OBJECT_INFORMATION_CLASS {
+    ObjectBasicInformation,
+    ObjectNameInformation,
+    ObjectTypeInformation,
+    ObjectTypesInformation,
+    ObjectHandleFlagInformation,
+    ObjectSessionInformation,
+    MaxObjectInfoClass
+} OBJECT_INFORMATION_CLASS;
+
+NTSYSCALLAPI NTSTATUS NTAPI NtQueryObject(
+    _In_opt_ HANDLE Handle,
+    _In_ OBJECT_INFORMATION_CLASS ObjectInformationClass,
+    _Out_opt_ PVOID ObjectInformation,
+    _In_ ULONG ObjectInformationLength,
+    _Out_opt_ PULONG ReturnLength
+);
+
 #endif // WIN32_H

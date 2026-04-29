@@ -42,6 +42,21 @@ enum section_flag : UINT32 {
     FLAG_ALL           = 0xFFFFFFFF,
 };
 
+struct query_name_ctx {
+    HANDLE                    dup;
+    POBJECT_NAME_INFORMATION  name_info;
+    ULONG                     name_size;
+    BOOL                      success;
+};
+
+DWORD WINAPI query_name_thread( LPVOID param ) {
+    auto ctx = ( query_name_ctx* ) param;
+    ctx->success = nt_success(
+        NtQueryObject( ctx->dup, ObjectNameInformation, ctx->name_info, ctx->name_size, nullptr )
+    );
+    return 0;
+}
+
 auto get_mitigations(
     _In_ HANDLE process_handle
 ) -> void {
@@ -309,8 +324,6 @@ auto get_modules(
         }
     }
 
-    BeaconPrintf( CALLBACK_OUTPUT, "[DEBUG] modules: collected=%d", count );
-
     if ( count > 0 ) {
         BeaconPkgInt32( SECTION_MODULES );
         BeaconPkgInt32( count );
@@ -336,38 +349,304 @@ auto get_threads(
 ) -> void {
     HANDLE snapshot = CreateToolhelp32Snapshot( TH32CS_SNAPTHREAD, 0 );
     if ( snapshot == INVALID_HANDLE_VALUE ) {
-        BeaconPrintfW( CALLBACK_ERROR, L"CreateToolhelp32Snapshot failed: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
+        BeaconPrintf( CALLBACK_OUTPUT, "[DEBUG] threads: snapshot failed %d", GetLastError() );
         return;
     }
 
-    THREADENTRY32 thread_entry = { 0 };
-    thread_entry.dwSize = sizeof(THREADENTRY32);
+    THREADENTRY32 te = {};
+    te.dwSize = sizeof( THREADENTRY32 );
 
-    printf("[*] Threads:\n");
+    INT32 count = 0;
 
-    if ( Thread32First(snapshot, &thread_entry) ) {
+    if ( Thread32First( snapshot, &te ) ) {
         do {
-            if ( thread_entry.th32OwnerProcessID == process_id ) {
+            if ( te.th32OwnerProcessID == process_id )
+                count++;
+        } while ( Thread32Next( snapshot, &te ) );
+    }
 
-                DbgPrint("    TID: %6lu | Priority: %2ld\n",
-                    thread_entry.th32ThreadID,
-                    thread_entry.tpBasePri
-                );
+    if ( count == 0 ) {
+        CloseHandle( snapshot );
+        return;
+    }
 
-                BeaconPkgInt32( thread_entry.th32ThreadID );
-                BeaconPkgInt32( thread_entry.dwFlags );
-                BeaconPkgInt32( thread_entry.dwSize );
-                BeaconPkgInt32( thread_entry.tpBasePri );
-                BeaconPkgInt32( thread_entry.tpBasePri );
+    BeaconPkgInt32( SECTION_THREADS );
+    BeaconPkgInt32( count );
+
+    te.dwSize = sizeof( THREADENTRY32 );
+
+    if ( Thread32First( snapshot, &te ) ) {
+        do {
+            if ( te.th32OwnerProcessID == process_id ) {
+                BeaconPkgInt32( te.th32ThreadID );
+                BeaconPkgInt32( te.dwFlags );
+                BeaconPkgInt32( te.dwSize );
+                BeaconPkgInt32( te.tpBasePri );
+                BeaconPkgInt32( te.tpDeltaPri );
             }
-        } while ( Thread32Next( snapshot, &thread_entry ) );
+        } while ( Thread32Next( snapshot, &te ) );
     }
 
     CloseHandle( snapshot );
 }
 
+auto get_handles(
+    _In_ HANDLE process_handle
+) -> void {
+    NTSTATUS status      = STATUS_SUCCESS;
+    ULONG    buffer_size = 0x10000;
+    PVOID    buffer      = nullptr;
 
-// NtQueryInformationProcess( handle, ProcessInstrumentationCallback, ... ); # PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION
+    do {
+        buffer = malloc( buffer_size );
+        if ( ! buffer ) return;
+
+        status = NtQueryInformationProcess(
+            process_handle, ProcessHandleInformation, buffer, buffer_size, nullptr
+        );
+
+        if ( status == STATUS_INFO_LENGTH_MISMATCH ) {
+            free( buffer );
+            buffer_size *= 2;
+        }
+    } while ( status == STATUS_INFO_LENGTH_MISMATCH );
+
+    if ( ! nt_success( status ) ) {
+        if ( buffer ) free( buffer );
+        return;
+    }
+
+    auto handle_info = ( PPROCESS_HANDLE_SNAPSHOT_INFORMATION ) buffer;
+    INT32 count = ( INT32 ) handle_info->NumberOfHandles;
+
+    if ( count == 0 ) {
+        free( buffer );
+        return;
+    }
+
+    struct handle_entry {
+        INT32 value;
+        INT32 access;
+        WCHAR type_name[ 128 ];
+        WCHAR obj_name[ 512 ];
+    };
+
+    auto entries = ( handle_entry* ) malloc( sizeof( handle_entry ) * count );
+    if ( ! entries ) {
+        free( buffer );
+        return;
+    }
+
+    INT32 valid = 0;
+
+    for ( INT32 i = 0; i < count; i++ ) {
+        HANDLE dup = nullptr;
+
+        if ( ! DuplicateHandle(
+            process_handle,
+            handle_info->Handles[ i ].HandleValue,
+            GetCurrentProcess(),
+            &dup,
+            0,
+            FALSE,
+            DUPLICATE_SAME_ACCESS
+        ) ) {
+            continue;
+        }
+
+        memset( &entries[ valid ], 0, sizeof( handle_entry ) );
+        entries[ valid ].value  = ( INT32 )( ULONG_PTR ) handle_info->Handles[ i ].HandleValue;
+        entries[ valid ].access = handle_info->Handles[ i ].GrantedAccess;
+
+        // type name
+        BYTE type_buf[ 1024 ] = {};
+        if ( nt_success( NtQueryObject( dup, ObjectTypeInformation, type_buf, sizeof( type_buf ), nullptr ) ) ) {
+            auto type_info = ( POBJECT_TYPE_INFORMATION ) type_buf;
+            if ( type_info->TypeName.Buffer && type_info->TypeName.Length > 0 ) {
+                ULONG copy_len = min( type_info->TypeName.Length, ( USHORT )( 127 * sizeof( WCHAR ) ) );
+                memcpy( entries[ valid ].type_name, type_info->TypeName.Buffer, copy_len );
+            }
+        }
+
+        // object name — File and ALPC Port can deadlock, use timeout thread
+        BOOL needs_timeout = (
+            wcscmp( entries[ valid ].type_name, L"File" ) == 0 ||
+            wcscmp( entries[ valid ].type_name, L"ALPC Port" ) == 0
+        );
+
+        ULONG name_size = 0x400;
+        auto  name_buf  = ( POBJECT_NAME_INFORMATION ) malloc( name_size );
+
+        if ( name_buf ) {
+            BOOL got_name = FALSE;
+
+            if ( needs_timeout ) {
+                query_name_ctx ctx = {};
+                ctx.dup       = dup;
+                ctx.name_info = name_buf;
+                ctx.name_size = name_size;
+                ctx.success   = FALSE;
+
+                HANDLE thread = CreateThread( nullptr, 0, query_name_thread, &ctx, 0, nullptr );
+                if ( thread ) {
+                    if ( WaitForSingleObject( thread, 100 ) == WAIT_TIMEOUT ) {
+                        TerminateThread( thread, 0 );
+                    } else {
+                        got_name = ctx.success;
+                    }
+                    CloseHandle( thread );
+                }
+            } else {
+                got_name = nt_success(
+                    NtQueryObject( dup, ObjectNameInformation, name_buf, name_size, nullptr )
+                );
+            }
+
+            if ( got_name && name_buf->Name.Buffer && name_buf->Name.Length > 0 ) {
+                ULONG copy_len = min( name_buf->Name.Length, ( USHORT )( 511 * sizeof( WCHAR ) ) );
+                memcpy( entries[ valid ].obj_name, name_buf->Name.Buffer, copy_len );
+            }
+
+            free( name_buf );
+        }
+
+        CloseHandle( dup );
+        valid++;
+    }
+
+    if ( valid > 0 ) {
+        BeaconPkgInt32( SECTION_HANDLES );
+        BeaconPkgInt32( valid );
+
+        for ( INT32 i = 0; i < valid; i++ ) {
+            BeaconPkgInt32( entries[ i ].value );
+            BeaconPkgInt32( entries[ i ].access );
+            BeaconPkgBytes( ( PBYTE ) entries[ i ].type_name, wcslen( entries[ i ].type_name ) * sizeof( WCHAR ) );
+            BeaconPkgBytes( ( PBYTE ) entries[ i ].obj_name,  wcslen( entries[ i ].obj_name )  * sizeof( WCHAR ) );
+        }
+    }
+
+    free( entries );
+    free( buffer );
+}
+
+auto get_tokens(
+    _In_ HANDLE process_handle
+) -> void {
+    HANDLE token_handle = nullptr;
+
+    if ( ! OpenProcessToken( process_handle, TOKEN_QUERY, &token_handle ) ) {
+        return;
+    }
+
+    WCHAR       username[MAX_PATH] = { 0 };
+    WCHAR       domain  [MAX_PATH] = { 0 };
+    INT32       is_elevated        = 0;
+    const char* level_str          = "Unknown";
+
+    ULONG token_user_size = 0;
+    GetTokenInformation( token_handle, TokenUser, nullptr, 0, &token_user_size );
+
+    auto token_user = ( PTOKEN_USER ) malloc( token_user_size );
+    if ( token_user && GetTokenInformation( token_handle, TokenUser, token_user, token_user_size, &token_user_size ) ) {
+        DWORD        username_len = MAX_PATH;
+        DWORD        domain_len   = MAX_PATH;
+        SID_NAME_USE sid_type;
+
+        LookupAccountSidW( nullptr, token_user->User.Sid, username, &username_len, domain, &domain_len, &sid_type );
+    }
+
+    TOKEN_ELEVATION elevation      = { 0 };
+    ULONG           elevation_size = sizeof( elevation );
+    if ( GetTokenInformation( token_handle, TokenElevation, &elevation, sizeof( elevation ), &elevation_size ) ) {
+        is_elevated = elevation.TokenIsElevated;
+    }
+
+    ULONG integrity_size = 0;
+    GetTokenInformation( token_handle, TokenIntegrityLevel, nullptr, 0, &integrity_size );
+
+    auto integrity = ( PTOKEN_MANDATORY_LABEL ) malloc( integrity_size );
+    if ( integrity && GetTokenInformation( token_handle, TokenIntegrityLevel, integrity, integrity_size, &integrity_size ) ) {
+        ULONG integrity_level = *GetSidSubAuthority(
+            integrity->Label.Sid, ( DWORD )( UCHAR )( *GetSidSubAuthorityCount( integrity->Label.Sid ) - 1 )
+        );
+
+        if      ( integrity_level >= SECURITY_MANDATORY_SYSTEM_RID ) level_str = "System";
+        else if ( integrity_level >= SECURITY_MANDATORY_HIGH_RID   ) level_str = "High";
+        else if ( integrity_level >= SECURITY_MANDATORY_MEDIUM_RID ) level_str = "Medium";
+        else if ( integrity_level >= SECURITY_MANDATORY_LOW_RID    ) level_str = "Low";
+        else                                                         level_str = "Untrusted";
+    }
+
+    ULONG priv_size = 0;
+    GetTokenInformation( token_handle, TokenPrivileges, nullptr, 0, &priv_size );
+
+    DWORD priv_count = 0;
+    auto  privs      = ( PTOKEN_PRIVILEGES ) malloc( priv_size );
+
+    if ( privs && GetTokenInformation( token_handle, TokenPrivileges, privs, priv_size, &priv_size ) ) {
+        priv_count = privs->PrivilegeCount;
+    }
+
+    BeaconPkgInt32( SECTION_TOKEN );
+    BeaconPkgBytes( ( PBYTE ) username,  wcslen( username ) * sizeof( WCHAR ) );
+    BeaconPkgBytes( ( PBYTE ) domain,    wcslen( domain )   * sizeof( WCHAR ) );
+    BeaconPkgInt32( is_elevated );
+    BeaconPkgBytes( ( PBYTE ) level_str, strlen( level_str ) );
+
+    BeaconPkgInt32( priv_count );
+
+    for ( DWORD i = 0; i < priv_count; i++ ) {
+        WCHAR priv_name[256] = { 0 };
+        DWORD priv_name_len  = 256;
+
+        if ( LookupPrivilegeNameW( nullptr, &privs->Privileges[i].Luid, priv_name, &priv_name_len ) ) {
+            BeaconPkgBytes( ( PBYTE ) priv_name, wcslen( priv_name ) * sizeof( WCHAR ) );
+        } else {
+            BeaconPkgBytes( ( PBYTE ) L"Unknown", 7 * sizeof( WCHAR ) );
+        }
+
+        BeaconPkgInt32( ( privs->Privileges[i].Attributes & SE_PRIVILEGE_ENABLED ) ? 1 : 0 );
+    }
+
+    if ( privs )      free( privs );
+    if ( token_user ) free( token_user );
+    if ( integrity )  free( integrity );
+    CloseHandle( token_handle );
+}
+
+auto get_env( //not working yet
+    _In_ HANDLE process_handle
+) -> void {
+    PROCESS_EXTENDED_BASIC_INFORMATION basic_info  = { 0 };
+    NTSTATUS status = NtQueryInformationProcess( process_handle, ProcessBasicInformation, &basic_info, sizeof(basic_info), nullptr );
+
+    if ( ! nt_success( status ) || ! basic_info.PebBaseAddress ) {
+        return;
+    }
+
+    PEB peb = { 0 };
+    ReadProcessMemory( process_handle, basic_info.PebBaseAddress, &peb, sizeof(peb), nullptr );
+
+    RTL_USER_PROCESS_PARAMETERS process_parameters = { 0 };
+    ReadProcessMemory( process_handle, peb.ProcessParameters, &process_parameters, sizeof(process_parameters), nullptr );
+
+    auto process_environment = ( PBYTE ) malloc ( process_parameters.EnvironmentSize );
+    if ( ! process_environment ){
+        return;
+    }
+
+    if ( ! ReadProcessMemory( process_handle, process_parameters.Environment, &process_environment, sizeof(process_parameters.EnvironmentSize), nullptr ) ){
+        free( process_environment );
+        return;
+    }
+
+    BeaconPkgInt32( SECTION_ENV );
+    BeaconPkgBytes( process_environment, process_parameters.EnvironmentSize );
+
+    free( process_environment );
+}
+
 auto get_instcallbacks(
     _In_ HANDLE process_handle
 ) -> void {
@@ -411,112 +690,6 @@ auto get_basicex(
     return;
 }
 
-auto get_handles(
-    _In_ HANDLE process_handle
-) -> void {
-    NTSTATUS status      = STATUS_SUCCESS;
-    ULONG    buffer_size = 0x10000;  
-    PVOID    buffer      = nullptr;
-
-    do {
-        buffer = malloc( buffer_size );
-        if ( ! buffer ) return;
-
-        status = NtQueryInformationProcess(
-            process_handle, ProcessHandleInformation, buffer, buffer_size, nullptr
-        );
-
-        if ( status == STATUS_INFO_LENGTH_MISMATCH ) {
-            free( buffer );
-            buffer_size *= 2;
-        }
-    } while ( status == STATUS_INFO_LENGTH_MISMATCH );
-
-    if ( ! nt_success( status ) ) {
-        if ( buffer ) free( buffer );
-        BeaconPrintfW( CALLBACK_ERROR, L"NtQueryInformationProcess (handles) failed: (status: %X)\n", status );
-        return;
-    }
-
-    auto handle_info = (PPROCESS_HANDLE_SNAPSHOT_INFORMATION)buffer;
-    printf("[*] Handles (%llu):\n", handle_info->NumberOfHandles);
-
-    // for ( INT32 i = 0; i < min( handle_info->NumberOfHandles, 50 ); i++ ) {  
-    //     printf("    Handle: 0x%04X | Type: 0x%02lX | Access: 0x%08lX\n",
-    //         (USHORT)(ULONG_PTR)handle_info->Handles[i].HandleValue,
-    //         handle_info->Handles[i].ObjectTypeIndex,
-    //         handle_info->Handles[i].GrantedAccess
-    //     );
-    // }
-
-    free( buffer );
-}
-
-auto get_tokens(
-    _In_ HANDLE process_handle
-) -> void {
-    HANDLE          token_handle    = nullptr;
-    TOKEN_ELEVATION elevation       = { 0 };
-    ULONG           elevation_size  = sizeof( elevation );
-    ULONG           token_user_size = 0;
-    ULONG           integrity_size  = 0;
-
-    if ( ! OpenProcessToken( process_handle, TOKEN_QUERY, &token_handle ) ) {
-        BeaconPrintfW( CALLBACK_ERROR, L"Failed to open process token with error: (%d) %s\n", GetLastError(), fmt_error( GetLastError() ) );
-        return;
-    }
-
-    GetTokenInformation( token_handle, TokenUser, nullptr, 0, &token_user_size );
-    
-    auto token_user = (PTOKEN_USER)malloc( token_user_size );
-    if ( token_user && GetTokenInformation( token_handle, TokenUser, token_user, token_user_size, &token_user_size ) ) {
-        WCHAR username[MAX_PATH] = { 0 };
-        WCHAR domain[MAX_PATH]   = { 0 };
-        DWORD username_len = sizeof( username );
-        DWORD domain_len   = sizeof( domain );
-
-        SID_NAME_USE sid_type;
-
-        if ( LookupAccountSidW( nullptr, token_user->User.Sid, username, &username_len, domain, &domain_len, &sid_type ) ) {
-            DbgPrint("Token User: %s\\%s\n", domain, username);
-
-            BeaconPkgBytes( (PBYTE)username, wcslen( username ) * sizeof(WCHAR) );
-            BeaconPkgBytes( (PBYTE)domain, wcslen( domain ) * sizeof(WCHAR) );
-        }
-    }
-
-    if ( GetTokenInformation( token_handle, TokenElevation, &elevation, sizeof(elevation), &elevation_size ) ) {
-        DbgPrint( "Elevated: %s\n", elevation.TokenIsElevated ? "Yes" : "No" );
-
-        BeaconPkgInt32( elevation.TokenIsElevated );
-    }
-
-    GetTokenInformation( token_handle, TokenIntegrityLevel, nullptr, 0, &integrity_size );
-    
-    auto integrity = (PTOKEN_MANDATORY_LABEL)malloc( integrity_size );
-
-    if ( integrity && GetTokenInformation( token_handle, TokenIntegrityLevel, integrity, integrity_size, &integrity_size ) ) {
-        ULONG integrity_level = *GetSidSubAuthority(
-            integrity->Label.Sid, (DWORD)(UCHAR)(*GetSidSubAuthorityCount(integrity->Label.Sid) - 1)
-        );
-
-        const char* level_str = "Unknown";
-        if      ( integrity_level >= SECURITY_MANDATORY_SYSTEM_RID  ) level_str = "System";
-        else if ( integrity_level >= SECURITY_MANDATORY_HIGH_RID    ) level_str = "High";
-        else if ( integrity_level >= SECURITY_MANDATORY_MEDIUM_RID  ) level_str = "Medium";
-        else if ( integrity_level >= SECURITY_MANDATORY_LOW_RID     ) level_str = "Low";
-        else                                                          level_str = "Untrusted";
-
-        BeaconPkgBytes( (PBYTE)level_str, strlen( level_str ) );
-
-        DbgPrint("[*] Integrity Level: %s (0x%lX)\n", level_str, integrity_level);
-        free( integrity );
-    }
-
-    if ( token_user ) free( token_user );
-    CloseHandle( token_handle );
-}
-
 
 extern "C" auto go( char* args, int argc ) -> void {
     datap data_parser = {};
@@ -525,7 +698,7 @@ extern "C" auto go( char* args, int argc ) -> void {
     DWORD    target_pid    = ( DWORD ) BeaconDataInt( &data_parser );
     UINT32 section_flags = ( UINT32 ) BeaconDataInt( &data_parser );
 
-    HANDLE process_handle = OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, target_pid );
+    HANDLE process_handle = OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_DUP_HANDLE, FALSE, target_pid );
     if ( ! process_handle || process_handle == INVALID_HANDLE_VALUE ) {
         return;
     }
@@ -546,7 +719,23 @@ extern "C" auto go( char* args, int argc ) -> void {
         get_modules( process_handle );
     }
 
+    if ( section_flags & FLAG_THREADS ) {
+        get_threads( target_pid );
+    }
 
+    if ( section_flags & FLAG_HANDLES ) {
+        get_handles( process_handle );
+    }
+
+    if ( section_flags & FLAG_TOKEN ) {
+        get_tokens( process_handle );
+    }
+
+    // not working yet
+    //if ( section_flags & FLAG_ENV ) {
+    //    get_env( process_handle );
+    //}
+    
     BeaconPkgInt32( SECTION_END );
 
     CloseHandle( process_handle );

@@ -2818,7 +2818,70 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 										}
 										details.Modules = append(details.Modules, mod)
 									}
+								case SECTION_THREADS:
+									count := int(cmd_packer.ParseInt32())
+									details.Threads = make([]ThreadInfo, 0, count)
+									for i := 0; i < count; i++ {
+										t := ThreadInfo{
+											Tid:      int32(cmd_packer.ParseInt32()),
+											Flags:    int32(cmd_packer.ParseInt32()),
+											Size:     int32(cmd_packer.ParseInt32()),
+											BasePri:  int32(cmd_packer.ParseInt32()),
+											DeltaPri: int32(cmd_packer.ParseInt32()),
+										}
+										details.Threads = append(details.Threads, t)
+									}
+								case SECTION_HANDLES:
+									count := int(cmd_packer.ParseInt32())
+									details.Handles = make([]HandleInfo, 0, count)
+									for i := 0; i < count; i++ {
+										h := HandleInfo{
+											Value:    int32(cmd_packer.ParseInt32()),
+											Access:   uint32(cmd_packer.ParseInt32()),
+											TypeName: utf16LeToString(cmd_packer.ParseBytes()),
+											ObjName:  utf16LeToString(cmd_packer.ParseBytes()),
+										}
+										details.Handles = append(details.Handles, h)
+									}
+								case SECTION_TOKEN:
+									token := &TokenInfo{
+										Username:       utf16LeToString(cmd_packer.ParseBytes()),
+										Domain:         utf16LeToString(cmd_packer.ParseBytes()),
+										IsElevated:     cmd_packer.ParseInt32() != 0,
+										IntegrityLevel: string(cmd_packer.ParseBytes()),
+									}
 
+									count := int(cmd_packer.ParseInt32())
+									token.Privileges = make([]PrivilegeInfo, 0, count)
+									for i := 0; i < count; i++ {
+										p := PrivilegeInfo{
+											Name:    utf16LeToString(cmd_packer.ParseBytes()),
+											Enabled: cmd_packer.ParseInt32() != 0,
+										}
+										token.Privileges = append(token.Privileges, p)
+									}
+
+									details.Token = token
+								case SECTION_ENV:
+									raw := cmd_packer.ParseBytes()
+									envStr := utf16LeToString(raw)
+
+									// environment block is null-separated KEY=VALUE pairs
+									entries := strings.Split(envStr, "\x00")
+									details.Env = make([]EnvVar, 0, len(entries))
+									for _, entry := range entries {
+										if entry == "" {
+											continue
+										}
+										eq := strings.IndexByte(entry, '=')
+										if eq <= 0 {
+											continue
+										}
+										details.Env = append(details.Env, EnvVar{
+											Key:   entry[:eq],
+											Value: entry[eq+1:],
+										})
+									}
 								default:
 									break
 								}

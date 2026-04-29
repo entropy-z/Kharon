@@ -912,6 +912,10 @@ const (
 	SECTION_TOKEN         = 0x0F
 	SECTION_STARTED       = 0x10
 	SECTION_INST_CALLBACK = 0x11
+
+	SE_PRIVILEGE_ENABLED_BY_DEFAULT uint32 = 0x00000001
+	SE_PRIVILEGE_ENABLED            uint32 = 0x00000002
+	SE_PRIVILEGE_REMOVED            uint32 = 0x00000004
 )
 
 type ModuleInfo struct {
@@ -925,20 +929,28 @@ type ThreadInfo struct {
 	Tid      int32
 	Flags    int32
 	Size     int32
-	Priority int32
+	BasePri  int32
+	DeltaPri int32
 }
 
 type HandleInfo struct {
-	Value         uint16
-	TypeIndex     uint32
-	GrantedAccess uint32
+	Value    int32
+	Access   uint32
+	TypeName string
+	ObjName  string
+}
+
+type PrivilegeInfo struct {
+	Name    string
+	Enabled bool
 }
 
 type TokenInfo struct {
 	Username       string
 	Domain         string
-	Elevated       bool
+	IsElevated     bool
 	IntegrityLevel string
+	Privileges     []PrivilegeInfo
 }
 
 type ProtectionInfo struct {
@@ -964,6 +976,11 @@ type NetworkEntry struct {
 	State      int32
 }
 
+type EnvVar struct {
+    Key   string
+    Value string
+}
+
 type ProcessDetails struct {
 	Pid          int32
 	Ppid         int32
@@ -978,7 +995,7 @@ type ProcessDetails struct {
 	Handles      []HandleInfo
 	Memory       []MemoryRegion
 	Network      []NetworkEntry
-	Env          []string
+	Env          []EnvVar
 	Token        *TokenInfo
 	StartedDate  int64
 	InstCallback uint64
@@ -2494,7 +2511,7 @@ func FormatDetailsTable(data *ProcessDetails) string {
 		b.WriteString(mergeBorder())
 	}
 
-	// ==================== MITIGATIONS ====================
+	// ================== MITIGATIONS ==================
 	if len(data.Mitigations) > 0 {
 		b.WriteString(sectionTitle("MITIGATION POLICIES"))
 		b.WriteString(splitBorder())
@@ -2517,7 +2534,7 @@ func FormatDetailsTable(data *ProcessDetails) string {
 		b.WriteString(mergeBorder())
 	}
 
-	// ==================== COMMAND LINE ====================
+	// ================= COMMAND LINE ==================
 	if data.CmdLine != "" {
 		b.WriteString(sectionTitle("COMMAND LINE"))
 		b.WriteString(splitBorder())
@@ -2539,6 +2556,164 @@ func FormatDetailsTable(data *ProcessDetails) string {
 			b.WriteString(row("", fmt.Sprintf("Size:  0x%08X", mod.Size)))
 			b.WriteString(wrapBoth("", "Path:  "+mod.Name))
 			if i < len(data.Modules)-1 {
+				b.WriteString(border("middle"))
+			}
+		}
+		b.WriteString(mergeBorder())
+	} //todo
+
+	// ==================== THREADS ====================
+	if len(data.Threads) > 0 {
+		b.WriteString(sectionTitle("THREADS"))
+		b.WriteString(splitBorder())
+		for i, t := range data.Threads {
+			b.WriteString(row("TID", fmt.Sprintf("%d", t.Tid)))
+			b.WriteString(row("  Flags", fmt.Sprintf("0x%08X", t.Flags)))
+			b.WriteString(row("  Size", fmt.Sprintf("%d", t.Size)))
+			b.WriteString(row("  Base Priority", fmt.Sprintf("%d", t.BasePri)))
+			b.WriteString(row("  Delta Priority", fmt.Sprintf("%d", t.DeltaPri)))
+			if i < len(data.Threads)-1 {
+				b.WriteString(border("middle"))
+			}
+		}
+		b.WriteString(mergeBorder())
+	}
+
+	// ==================== HANDLES ====================
+	if len(data.Handles) > 0 {
+		accessStr := func(a uint32) string {
+			var flags []string
+
+			if a&0x001F0000 == 0x001F0000 {
+				flags = append(flags, "FULL_CONTROL")
+			} else {
+				if a&0x00010000 != 0 {
+					flags = append(flags, "DELETE")
+				}
+				if a&0x00020000 != 0 {
+					flags = append(flags, "READ_CONTROL")
+				}
+				if a&0x00040000 != 0 {
+					flags = append(flags, "WRITE_DAC")
+				}
+				if a&0x00080000 != 0 {
+					flags = append(flags, "WRITE_OWNER")
+				}
+				if a&0x00100000 != 0 {
+					flags = append(flags, "SYNCHRONIZE")
+				}
+			}
+
+			if a&0x0001 != 0 {
+				flags = append(flags, "QUERY")
+			}
+			if a&0x0002 != 0 {
+				flags = append(flags, "TRAVERSE")
+			}
+			if a&0x0004 != 0 {
+				flags = append(flags, "NOTIFY")
+			}
+			if a&0x0008 != 0 {
+				flags = append(flags, "CREATE")
+			}
+			if a&0x0010 != 0 {
+				flags = append(flags, "SET")
+			}
+
+			if len(flags) == 0 {
+				return fmt.Sprintf("0x%08X", a)
+			}
+			return strings.Join(flags, " | ")
+		}
+
+		interestingTypes := map[string]bool{
+			"Process":   true,
+			"Thread":    true,
+			"Mutant":    true,
+			"Section":   true,
+			"Token":     true,
+			"Key":       true,
+			"ALPC Port": true,
+			"Desktop":   true,
+		}
+
+		var filtered []HandleInfo
+		for _, h := range data.Handles {
+			if interestingTypes[h.TypeName] {
+				filtered = append(filtered, h)
+			}
+		}
+
+		if len(filtered) > 0 {
+			b.WriteString(sectionTitle(fmt.Sprintf("HANDLES (%d/%d)", len(filtered), len(data.Handles))))
+			b.WriteString(splitBorder())
+			for i, h := range filtered {
+				name := h.ObjName
+				if name == "" {
+					name = "(unnamed)"
+				}
+
+				b.WriteString(wrapBoth(
+					fmt.Sprintf("ID: 0x%04X | Type: %s", h.Value, h.TypeName),
+					accessStr(h.Access),
+				))
+				b.WriteString(wrapBoth(name, ""))
+				if i < len(filtered)-1 {
+					b.WriteString(border("middle"))
+				}
+			}
+			b.WriteString(mergeBorder())
+		}
+	}
+
+	// ==================== TOKEN ====================
+	if data.Token != nil {
+		b.WriteString(sectionTitle("TOKEN / IDENTITY"))
+		b.WriteString(splitBorder())
+
+		var account string
+		switch {
+		case data.Token.Domain != "" && data.Token.Username != "":
+			account = data.Token.Domain + "\\" + data.Token.Username
+		case data.Token.Username != "":
+			account = data.Token.Username
+		case data.Token.Domain != "":
+			account = data.Token.Domain
+		default:
+			account = "(unknown)"
+		}
+
+		integrity := data.Token.IntegrityLevel
+		if integrity == "" {
+			integrity = "Unknown"
+		}
+
+		b.WriteString(wrapRow("Account", account))
+		b.WriteString(row("Elevated", fmt.Sprintf("%v", data.Token.IsElevated)))
+		b.WriteString(row("Integrity Level", integrity))
+
+		if len(data.Token.Privileges) > 0 {
+			b.WriteString(border("middle"))
+			b.WriteString(row("Privilege Name", "State"))
+			b.WriteString(border("middle"))
+			for _, p := range data.Token.Privileges {
+				state := "Disabled"
+				if p.Enabled {
+					state = "Enabled"
+				}
+				b.WriteString(wrapRow(p.Name, state))
+			}
+		}
+
+		b.WriteString(mergeBorder())
+	}
+	// ==================== ENVIRONMENT ====================
+	if len(data.Env) > 0 {
+		b.WriteString(sectionTitle(fmt.Sprintf("ENVIRONMENT (%d)", len(data.Env))))
+		b.WriteString(splitBorder())
+		for i, e := range data.Env {
+			b.WriteString(wrapBoth(e.Key, e.Value))
+			if i < len(data.Env)-1 {
 				b.WriteString(border("middle"))
 			}
 		}
