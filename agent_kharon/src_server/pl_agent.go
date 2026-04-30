@@ -2866,7 +2866,6 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 									raw := cmd_packer.ParseBytes()
 									envStr := utf16LeToString(raw)
 
-									// environment block is null-separated KEY=VALUE pairs
 									entries := strings.Split(envStr, "\x00")
 									details.Env = make([]EnvVar, 0, len(entries))
 									for _, entry := range entries {
@@ -2881,6 +2880,41 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 											Key:   entry[:eq],
 											Value: entry[eq+1:],
 										})
+									}
+								case SECTION_BASIC_INFO:
+									pid := uint32(cmd_packer.ParseInt32())
+									ppid := uint32(cmd_packer.ParseInt32())
+									name := utf16LeToString(cmd_packer.ParseBytes())
+									path := utf16LeToString(cmd_packer.ParseBytes())
+
+									archCode := cmd_packer.ParseInt32()
+									archStr := "Unknown"
+									switch archCode {
+									case 1:
+										archStr = "x86"
+									case 2:
+										archStr = "x64"
+									case 3:
+										archStr = "ARM64"
+									}
+
+									hi := uint32(cmd_packer.ParseInt32())
+									lo := uint32(cmd_packer.ParseInt32())
+									ft := (int64(hi) << 32) | int64(lo)
+
+									var startTime time.Time
+									if ft > 116444736000000000 {
+										unixNano := (ft - 116444736000000000) * 100
+										startTime = time.Unix(0, unixNano)
+									}
+
+									details.BasicInfo = &BasicInfo{
+										Pid:       pid,
+										Ppid:      ppid,
+										ImageName: name,
+										ImagePath: path,
+										Arch:      archStr,
+										StartTime: startTime,
 									}
 								default:
 									break

@@ -17,7 +17,7 @@ enum section_id : INT32 {
     SECTION_NETWORK       = 0x0D,
     SECTION_ENV           = 0x0E,
     SECTION_TOKEN         = 0x0F,
-    SECTION_STARTED       = 0x10,
+    SECTION_BASIC_INFO    = 0x10,
     SECTION_INST_CALLBACK = 0x11,
 };
 
@@ -37,7 +37,7 @@ enum section_flag : UINT32 {
     FLAG_NETWORK       = 1 << 12,
     FLAG_ENV           = 1 << 13,
     FLAG_TOKEN         = 1 << 14,
-    FLAG_STARTED       = 1 << 15,
+    FLAG_BASIC_INFO    = 1 << 15,
     FLAG_INST_CALLBACK = 1 << 16,
     FLAG_ALL           = 0xFFFFFFFF,
 };
@@ -670,30 +670,90 @@ auto get_instcallbacks(
     return;
 }
 
-
-
-// NtQueryInformationProcess( handle, ProcessBasicInformation, ... ); # PROCESS_EXTENDED_BASIC_INFORMATION
-// - arch
-// - parent id / pid
-auto get_basicex(
-    _In_ HANDLE        process_handle,
-    _In_ BASICEX_FLAGS basicex_flags
+auto get_basic_info(
+    _In_ HANDLE process_handle,
+    _In_ DWORD  target_pid
 ) -> void {
-    PROCESS_EXTENDED_BASIC_INFORMATION basicex_info = { 0 };
+    PROCESS_BASIC_INFORMATION basic_info = { 0 };
+    NTSTATUS status = NtQueryInformationProcess( process_handle, ProcessBasicInformation, &basic_info, sizeof( basic_info ), nullptr );
 
-    NTSTATUS status = STATUS_SUCCESS;
-
-    status = NtQueryInformationProcess( ((HANDLE)-1), ProcessBasicInformation, &basicex_info, sizeof( basicex_info ), nullptr );
     if ( ! nt_success( status ) ) {
         return;
     }
 
-    basicex_info.PebBaseAddress;
-    // basicex_info.IsWow64Process;                            // arch
-    basicex_info.UniqueProcessId;                           // pid
-    basicex_info.BasicInfo.InheritedFromUniqueProcessId;    // ppid
+    DWORD ppid = ( DWORD )( ULONG_PTR ) basic_info.InheritedFromUniqueProcessId;
 
-    return;
+    WCHAR image_path[MAX_PATH] = { 0 };
+    ULONG path_size = 0;
+
+    status = NtQueryInformationProcess( process_handle, ProcessImageFileNameWin32, nullptr, 0, &path_size );
+
+    if ( path_size > 0 && path_size <= 0x10000 ) {
+        auto path_buf = ( PUNICODE_STRING ) malloc( path_size );
+        if ( path_buf ) {
+            status = NtQueryInformationProcess( process_handle, ProcessImageFileNameWin32, path_buf, path_size, nullptr );
+
+            if ( nt_success( status ) && path_buf->Buffer && path_buf->Length > 0 ) {
+                USHORT copy_len = path_buf->Length / sizeof( WCHAR );
+                if ( copy_len >= MAX_PATH ) copy_len = MAX_PATH - 1;
+                memcpy( image_path, path_buf->Buffer, copy_len * sizeof( WCHAR ) );
+                image_path[copy_len] = L'\0';
+            }
+
+            free( path_buf );
+        }
+    }
+
+    WCHAR  image_name[MAX_PATH] = { 0 };
+    PWCHAR src       = image_path;
+    PWCHAR last_slash = wcsrchr( image_path, L'\\' );
+
+    if ( last_slash ) {
+        src = last_slash + 1;
+    }
+
+    SIZE_T src_len = wcslen( src );
+    if ( src_len >= MAX_PATH ) {
+        src_len = MAX_PATH - 1;
+    }
+
+    memcpy( image_name, src, src_len * sizeof( WCHAR ) );
+    image_name[src_len] = L'\0';
+
+    USHORT process_machine = 0;
+    USHORT native_machine  = 0;
+    INT32  arch            = 0;
+
+    if ( IsWow64Process2( process_handle, &process_machine, &native_machine ) ) {
+        if ( process_machine == IMAGE_FILE_MACHINE_I386 ) {
+            arch = 1;
+        } else if ( native_machine == IMAGE_FILE_MACHINE_AMD64 ) {
+            arch = 2;
+        } else if ( native_machine == IMAGE_FILE_MACHINE_ARM64 ) {
+            arch = 3;
+        }
+    } else {
+        BOOL is_wow64 = FALSE;
+        if ( IsWow64Process( process_handle, &is_wow64 ) ) {
+            arch = is_wow64 ? 1 : 2;
+        }
+    }
+
+    FILETIME creation_time = { 0 };
+    FILETIME exit_time     = { 0 };
+    FILETIME kernel_time   = { 0 };
+    FILETIME user_time     = { 0 };
+
+    GetProcessTimes( process_handle, &creation_time, &exit_time, &kernel_time, &user_time );
+
+    BeaconPkgInt32( SECTION_BASIC_INFO );
+    BeaconPkgInt32( target_pid );
+    BeaconPkgInt32( ppid );
+    BeaconPkgBytes( ( PBYTE ) image_name, wcslen( image_name ) * sizeof( WCHAR ) );
+    BeaconPkgBytes( ( PBYTE ) image_path, wcslen( image_path ) * sizeof( WCHAR ) );
+    BeaconPkgInt32( arch );
+    BeaconPkgInt32( creation_time.dwHighDateTime );
+    BeaconPkgInt32( creation_time.dwLowDateTime );
 }
 
 
@@ -739,6 +799,10 @@ extern "C" auto go( char* args, int argc ) -> void {
 
     if ( section_flags & FLAG_ENV ) {
         get_env( process_handle );
+    }
+
+    if ( section_flags & FLAG_BASIC_INFO ) {
+        get_basic_info( process_handle, target_pid );
     }
     
     BeaconPkgInt32( SECTION_END );

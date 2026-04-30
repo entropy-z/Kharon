@@ -910,7 +910,7 @@ const (
 	SECTION_NETWORK       = 0x0D
 	SECTION_ENV           = 0x0E
 	SECTION_TOKEN         = 0x0F
-	SECTION_STARTED       = 0x10
+	SECTION_BASIC_INFO    = 0x10
 	SECTION_INST_CALLBACK = 0x11
 
 	SE_PRIVILEGE_ENABLED_BY_DEFAULT uint32 = 0x00000001
@@ -977,16 +977,21 @@ type NetworkEntry struct {
 }
 
 type EnvVar struct {
-    Key   string
-    Value string
+	Key   string
+	Value string
+}
+
+type BasicInfo struct {
+	Pid       uint32
+	Ppid      uint32
+	ImageName string
+	ImagePath string
+	Arch      string
+	StartTime time.Time
 }
 
 type ProcessDetails struct {
-	Pid          int32
-	Ppid         int32
-	Arch         int32
-	ImageName    string
-	ImagePath    string
+	BasicInfo    *BasicInfo
 	CmdLine      string
 	Protection   *ProtectionInfo
 	Mitigations  []string
@@ -997,7 +1002,6 @@ type ProcessDetails struct {
 	Network      []NetworkEntry
 	Env          []EnvVar
 	Token        *TokenInfo
-	StartedDate  int64
 	InstCallback uint64
 }
 
@@ -2707,9 +2711,10 @@ func FormatDetailsTable(data *ProcessDetails) string {
 
 		b.WriteString(mergeBorder())
 	}
+
 	// ==================== ENVIRONMENT ====================
 	if len(data.Env) > 0 {
-		b.WriteString(sectionTitle(fmt.Sprintf("ENVIRONMENT (%d)", len(data.Env))))
+		b.WriteString(sectionTitle("ENVIRONMENT"))
 		b.WriteString(splitBorder())
 		for i, e := range data.Env {
 			b.WriteString(wrapBoth(e.Key, e.Value))
@@ -2717,6 +2722,26 @@ func FormatDetailsTable(data *ProcessDetails) string {
 				b.WriteString(border("middle"))
 			}
 		}
+		b.WriteString(mergeBorder())
+	}
+
+	// ==================== PROCESS INFO ====================
+	if data.BasicInfo != nil {
+		b.WriteString(sectionTitle("PROCESS INFO"))
+		b.WriteString(splitBorder())
+
+		b.WriteString(row("PID", fmt.Sprintf("%d", data.BasicInfo.Pid)))
+		b.WriteString(row("PPID", fmt.Sprintf("%d", data.BasicInfo.Ppid)))
+		b.WriteString(row("Image Name", data.BasicInfo.ImageName))
+		b.WriteString(wrapRow("Image Path", data.BasicInfo.ImagePath))
+		b.WriteString(row("Architecture", data.BasicInfo.Arch))
+
+		started := "Unknown"
+		if !data.BasicInfo.StartTime.IsZero() {
+			started = data.BasicInfo.StartTime.Format("2006-01-02 15:04:05 UTC")
+		}
+		b.WriteString(row("Started", started))
+
 		b.WriteString(mergeBorder())
 	}
 

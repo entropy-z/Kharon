@@ -125,6 +125,9 @@ extern "C" {
     DFR(KERNEL32, Thread32First)
     DFR(KERNEL32, Thread32Next)
 
+    DFR(KERNEL32, IsWow64Process2)
+    DFR(KERNEL32, GetProcessTimes)
+
     // ==================== NTDLL ====================
     DFR(NTDLL, DbgPrint)
     DFR(NTDLL, RtlRandomEx)
@@ -330,6 +333,9 @@ extern "C" {
 #define CreateToolhelp32Snapshot          KERNEL32$CreateToolhelp32Snapshot
 #define Thread32First                     KERNEL32$Thread32First
 #define Thread32Next                      KERNEL32$Thread32Next
+
+#define IsWow64Process2                   KERNEL32$IsWow64Process2
+#define GetProcessTimes                   KERNEL32$GetProcessTimes
 
 // ==================== NTDLL MACROS ====================
 #define DbgPrint                          NTDLL$DbgPrint
