@@ -16,7 +16,8 @@ CFLAGS := \
     -Os       \
     -mwindows \
     -nostdlib \
-    -s
+    -s \
+	-w
 
 LIBS := \
     -lkernel32 \
@@ -28,7 +29,7 @@ DEFS := \
     -D XOR_KEY='$(XOR_KEY)'
 
 # Shellcode Section 
-ifeq ($(SECTION),rsrc)
+ifeq ($(SECTION), .rsrc)
     DEFS    += -D SHELLCODE_SECTION_LOCATION=SHELLCODE_SECTION_RSRC
     DEFS    += -D RSRC_ID=$(RSRC_ID)
     RES_OBJ := Include/shellcode.res

