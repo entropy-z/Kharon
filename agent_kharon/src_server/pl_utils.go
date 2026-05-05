@@ -968,12 +968,12 @@ type MemoryRegion struct {
 }
 
 type NetworkEntry struct {
-	Protocol   int32
+	Protocol   string
 	LocalAddr  string
-	LocalPort  int32
+	LocalPort  uint
 	RemoteAddr string
-	RemotePort int32
-	State      int32
+	RemotePort uint
+	State      string
 }
 
 type EnvVar struct {
@@ -2742,6 +2742,29 @@ func FormatDetailsTable(data *ProcessDetails) string {
 		}
 		b.WriteString(row("Started", started))
 
+		b.WriteString(mergeBorder())
+	}
+	// ==================== NETWORK ====================
+	if len(data.Network) > 0 {
+		b.WriteString(sectionTitle("NETWORK"))
+		b.WriteString(splitBorder())
+		for i, n := range data.Network {
+			local := fmt.Sprintf("%s:%d", n.LocalAddr, n.LocalPort)
+			remote := "*:*"
+			if n.RemoteAddr != "" && n.RemoteAddr != "*" {
+				remote = fmt.Sprintf("%s:%d", n.RemoteAddr, n.RemotePort)
+			}
+
+			b.WriteString(row("Protocol", n.Protocol))
+			b.WriteString(wrapRow("Local", local))
+			b.WriteString(wrapRow("Remote", remote))
+			if n.State != "" {
+				b.WriteString(row("State", n.State))
+			}
+			if i < len(data.Network)-1 {
+				b.WriteString(border("middle"))
+			}
+		}
 		b.WriteString(mergeBorder())
 	}
 

@@ -1,5 +1,5 @@
 #include <general.h>
-
+// Aux (todo: need to clea them up and move them to other files)
 enum section_id : INT32 {
     SECTION_END           = 0x00,
     SECTION_PID           = 0x01,
@@ -57,6 +57,56 @@ DWORD WINAPI query_name_thread( LPVOID param ) {
     return 0;
 }
 
+#ifndef AF_INET6
+#define AF_INET6 23
+#endif
+
+auto ip4_to_wstr( DWORD addr, WCHAR* out ) -> void {
+    BYTE* b = ( BYTE* ) &addr;
+    wsprintfW( out, L"%d.%d.%d.%d", b[0], b[1], b[2], b[3] );
+}
+
+auto ip6_to_wstr( BYTE* addr, WCHAR* out ) -> void {
+    USHORT groups[8];
+    for ( int i = 0; i < 8; i++ ) {
+        groups[i] = ( addr[i * 2] << 8 ) | addr[i * 2 + 1];
+    }
+
+    int best_start = -1, best_len = 0;
+    int cur_start  = -1, cur_len  = 0;
+
+    for ( int i = 0; i < 8; i++ ) {
+        if ( groups[i] == 0 ) {
+            if ( cur_start == -1 ) cur_start = i;
+            cur_len++;
+            if ( cur_len > best_len ) {
+                best_start = cur_start;
+                best_len   = cur_len;
+            }
+        } else {
+            cur_start = -1;
+            cur_len   = 0;
+        }
+    }
+
+    WCHAR* p = out;
+    for ( int i = 0; i < 8; i++ ) {
+        if ( best_len >= 2 && i == best_start ) {
+            *p++ = L':';
+            if ( i == 0 ) *p++ = L':';
+            i += best_len - 1;
+            if ( i == 7 ) *p++ = L':';
+            continue;
+        }
+        if ( i > 0 && !( best_len >= 2 && i == best_start + best_len ) ) {
+            *p++ = L':';
+        }
+        p += wsprintfW( p, L"%x", groups[i] );
+    }
+    *p = L'\0';
+}
+
+// Get properties functions
 auto get_mitigations(
     _In_ HANDLE process_handle
 ) -> void {
@@ -756,6 +806,152 @@ auto get_basic_info(
     BeaconPkgInt32( creation_time.dwLowDateTime );
 }
 
+auto get_network(
+    _In_ DWORD target_pid
+) -> void {
+
+    struct NetworkEntry {
+        INT32  protocol;
+        WCHAR  local_addr[64];
+        INT32  local_port;
+        WCHAR  remote_addr[64];
+        INT32  remote_port;
+        INT32  state;
+    };
+
+    auto entries = ( NetworkEntry* ) malloc( 256 * sizeof( NetworkEntry ) );
+    if ( ! entries ) return;
+
+    INT32 entry_count = 0;
+
+    auto query_table = []( auto call ) -> void* {
+        ULONG size = 0;
+        call( nullptr, &size );
+
+        for ( int attempt = 0; attempt < 3; attempt++ ) {
+            auto buf = malloc( size );
+            if ( ! buf ) return nullptr;
+
+            DWORD ret = call( buf, &size );
+            if ( ret == NO_ERROR ) return buf;
+
+            free( buf );
+            if ( ret != ERROR_INSUFFICIENT_BUFFER ) return nullptr;
+        }
+        return nullptr;
+    };
+
+    auto query_tcp = [&]( ULONG family, INT32 protocol ) {
+        auto call = [family]( void* buf, ULONG* size ) -> DWORD {
+            return GetExtendedTcpTable( buf, size, FALSE, family, TCP_TABLE_OWNER_PID_ALL, 0 );
+        };
+
+        if ( family == AF_INET ) {
+            auto table = ( PMIB_TCPTABLE_OWNER_PID ) query_table( call );
+            if ( ! table ) return;
+            for ( DWORD i = 0; i < table->dwNumEntries && entry_count < 256; i++ ) {
+                auto& r = table->table[i];
+                if ( r.dwOwningPid != target_pid ) continue;
+
+                NetworkEntry* e = &entries[entry_count++];
+                e->protocol = protocol;
+                e->state    = r.dwState;
+
+                ip4_to_wstr( r.dwLocalAddr, e->local_addr );
+                e->local_port = ntohs( ( USHORT ) r.dwLocalPort );
+
+                ip4_to_wstr( r.dwRemoteAddr, e->remote_addr );
+                e->remote_port = ntohs( ( USHORT ) r.dwRemotePort );
+            }
+            free( table );
+        } else {
+            auto table = ( PMIB_TCP6TABLE_OWNER_PID ) query_table( call );
+            if ( ! table ) return;
+            for ( DWORD i = 0; i < table->dwNumEntries && entry_count < 256; i++ ) {
+                auto& r = table->table[i];
+                if ( r.dwOwningPid != target_pid ) continue;
+
+                NetworkEntry* e = &entries[entry_count++];
+                e->protocol = protocol;
+                e->state    = r.dwState;
+
+                ip6_to_wstr( r.ucLocalAddr, e->local_addr );
+                e->local_port = ntohs( ( USHORT ) r.dwLocalPort );
+
+                ip6_to_wstr( r.ucRemoteAddr, e->remote_addr );
+                e->remote_port = ntohs( ( USHORT ) r.dwRemotePort );
+            }
+            free( table );
+        }
+    };
+
+    auto query_udp = [&]( ULONG family, INT32 protocol ) {
+        auto call = [family]( void* buf, ULONG* size ) -> DWORD {
+            return GetExtendedUdpTable( buf, size, FALSE, family, UDP_TABLE_OWNER_PID, 0 );
+        };
+
+        if ( family == AF_INET ) {
+            auto table = ( PMIB_UDPTABLE_OWNER_PID ) query_table( call );
+            if ( ! table ) return;
+            for ( DWORD i = 0; i < table->dwNumEntries && entry_count < 256; i++ ) {
+                auto& r = table->table[i];
+                if ( r.dwOwningPid != target_pid ) continue;
+
+                NetworkEntry* e = &entries[entry_count++];
+                e->protocol    = protocol;
+                e->state       = 0;
+                e->remote_port = 0;
+                memcpy( e->remote_addr, L"*", 2 * sizeof( WCHAR ) );
+
+                ip4_to_wstr( r.dwLocalAddr, e->local_addr );
+                e->local_port = ntohs( ( USHORT ) r.dwLocalPort );
+            }
+            free( table );
+        } else {
+            auto table = ( PMIB_UDP6TABLE_OWNER_PID ) query_table( call );
+            if ( ! table ) return;
+            for ( DWORD i = 0; i < table->dwNumEntries && entry_count < 256; i++ ) {
+                auto& r = table->table[i];
+                if ( r.dwOwningPid != target_pid ) continue;
+
+                NetworkEntry* e = &entries[entry_count++];
+                e->protocol    = protocol;
+                e->state       = 0;
+                e->remote_port = 0;
+                memcpy( e->remote_addr, L"*", 2 * sizeof( WCHAR ) );
+
+                ip6_to_wstr( r.ucLocalAddr, e->local_addr );
+                e->local_port = ntohs( ( USHORT ) r.dwLocalPort );
+            }
+            free( table );
+        }
+    };
+
+    query_tcp( AF_INET,  4  );
+    query_tcp( AF_INET6, 6  );
+    query_udp( AF_INET,  17 );
+    query_udp( AF_INET6, 23 );
+
+    if ( entry_count == 0 ) {
+        free( entries );
+        return;
+    }
+
+    BeaconPkgInt32( SECTION_NETWORK );
+    BeaconPkgInt32( entry_count );
+
+    for ( INT32 i = 0; i < entry_count; i++ ) {
+        NetworkEntry* e = &entries[i];
+        BeaconPkgInt32( e->protocol );
+        BeaconPkgBytes( ( PBYTE ) e->local_addr,  wcslen( e->local_addr )  * sizeof( WCHAR ) );
+        BeaconPkgInt32( e->local_port );
+        BeaconPkgBytes( ( PBYTE ) e->remote_addr, wcslen( e->remote_addr ) * sizeof( WCHAR ) );
+        BeaconPkgInt32( e->remote_port );
+        BeaconPkgInt32( e->state );
+    }
+
+    free( entries );
+}
 
 extern "C" auto go( char* args, int argc ) -> void {
     datap data_parser = {};
@@ -803,6 +999,10 @@ extern "C" auto go( char* args, int argc ) -> void {
 
     if ( section_flags & FLAG_BASIC_INFO ) {
         get_basic_info( process_handle, target_pid );
+    }
+
+    if ( section_flags & FLAG_NETWORK ) {
+        get_network( target_pid );
     }
     
     BeaconPkgInt32( SECTION_END );

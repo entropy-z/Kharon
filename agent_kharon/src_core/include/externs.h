@@ -188,8 +188,13 @@ extern "C" {
     DFR(IPHLPAPI, GetAdaptersInfo)
     DFR(IPHLPAPI, GetIpForwardTable)
 
+    DFR(IPHLPAPI, GetExtendedTcpTable)
+    DFR(IPHLPAPI, GetExtendedUdpTable)
+
     // ==================== WS2_32 ====================
     DFR(WS2_32, inet_ntoa)
+
+    DFR(WS2_32, ntohs)
 
     // ==================== NETAPI32 ====================
     DFR(NETAPI32, NetUserAdd)
@@ -212,6 +217,8 @@ extern "C" {
     // ==================== USER32 ====================
     DFR(USER32, GetDC)
     DFR(USER32, GetSystemMetrics)
+
+    DFR(USER32, wsprintfW)
 
     // ==================== GDI32 ====================
     DFR(GDI32, BitBlt)
@@ -398,8 +405,13 @@ extern "C" {
 #define GetIpForwardTable                 IPHLPAPI$GetIpForwardTable
 #define DnsGetCacheDataTable              DNSAPI$DnsGetCacheDataTable
 
+#define GetExtendedTcpTable               IPHLPAPI$GetExtendedTcpTable
+#define GetExtendedUdpTable               IPHLPAPI$GetExtendedUdpTable
+
 // ==================== WS2_32 MACROS ====================
 #define inet_ntoa                         WS2_32$inet_ntoa
+
+#define ntohs                             WS2_32$ntohs
 
 // ==================== NETAPI32 MACROS ====================
 #define NetUserAdd                        NETAPI32$NetUserAdd
@@ -422,6 +434,8 @@ extern "C" {
 // ==================== USER32 MACROS ====================
 #define GetDC                             USER32$GetDC
 #define GetSystemMetrics                  USER32$GetSystemMetrics
+
+#define wsprintfW                         USER32$wsprintfW
 
 // ==================== GDI32 MACROS ====================
 #define BitBlt                            GDI32$BitBlt

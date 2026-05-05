@@ -2916,6 +2916,62 @@ func ProcessTasksResult(ts Teamserver, agentData ax.AgentData, taskData ax.TaskD
 										Arch:      archStr,
 										StartTime: startTime,
 									}
+								case SECTION_NETWORK:
+									protoMap := map[uint]string{
+										4:  "TCPv4",
+										6:  "TCPv6",
+										17: "UDPv4",
+										23: "UDPv6",
+									}
+
+									tcpStateMap := map[uint]string{
+										1:  "CLOSED",
+										2:  "LISTEN",
+										3:  "SYN_SENT",
+										4:  "SYN_RCVD",
+										5:  "ESTABLISHED",
+										6:  "FIN_WAIT1",
+										7:  "FIN_WAIT2",
+										8:  "CLOSE_WAIT",
+										9:  "CLOSING",
+										10: "LAST_ACK",
+										11: "TIME_WAIT",
+										12: "DELETE_TCB",
+									}
+
+									count := int(cmd_packer.ParseInt32())
+									details.Network = make([]NetworkEntry, 0, count)
+
+									for i := 0; i < count; i++ {
+										proto := uint(cmd_packer.ParseInt32())
+										localAddr := utf16LeToString(cmd_packer.ParseBytes())
+										localPort := uint(cmd_packer.ParseInt32())
+										remoteAddr := utf16LeToString(cmd_packer.ParseBytes())
+										remotePort := uint(cmd_packer.ParseInt32())
+										stateCode := uint(cmd_packer.ParseInt32())
+
+										protoStr := protoMap[proto]
+										if protoStr == "" {
+											protoStr = fmt.Sprintf("0x%02X", proto)
+										}
+
+										stateStr := ""
+										if proto == 4 || proto == 6 {
+											stateStr = tcpStateMap[stateCode]
+											if stateStr == "" {
+												stateStr = fmt.Sprintf("0x%02X", stateCode)
+											}
+										}
+
+										details.Network = append(details.Network, NetworkEntry{
+											Protocol:   protoStr,
+											LocalAddr:  localAddr,
+											LocalPort:  localPort,
+											RemoteAddr: remoteAddr,
+											RemotePort: remotePort,
+											State:      stateStr,
+										})
+									}
 								default:
 									break
 								}
